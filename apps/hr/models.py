@@ -71,8 +71,10 @@ class Announcement(models.Model):
     all_departments = models.BooleanField(default=False)
     departments = models.ManyToManyField(Department, blank=True)
     recipients = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="+")  # admin tertentu
+    attachment = models.FileField(upload_to="announcements/%Y/%m/", blank=True)  # disajikan lewat view ber-permission, bukan URL media langsung
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
+    class Meta: ordering = ["-created_at"]
 class AnnouncementRead(models.Model):
     announcement = models.ForeignKey(Announcement, on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

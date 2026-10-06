@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block title %}Buat pengumuman{% endblock %}{% block content %}
+<h2>Buat pengumuman / peraturan</h2>
+<form method="post" enctype="multipart/form-data" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"{% if f.name == "all_departments" %} style="display:flex;gap:8px;align-items:center"{% endif %}><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+<p><button>Kirim</button></p></form>
+{% endblock %}

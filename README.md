@@ -11,14 +11,14 @@
 Argon2, RBAC (`require_roles`), scope departemen (`scope_by_department`, 404 saat URL diubah), rate limit login,
 CSRF, ORM (anti SQL injection), audit log append-only + log login/logout, akses data sensitif tercatat.
 
-## Belum dibuat (tahap berikut)
-Template/UI & dashboard, pengumuman + status baca (model ada, view belum), form izin/cuti per tipe, PDF surat (reportlab),
-rujukan & kehamilan (view), upload dokumen karyawan, export, notifikasi UI, test otomatis, enkripsi kolom sensitif,
-wsgi.py, Nginx/systemd, modul Absensi (AttendanceRaw/Daily sudah disiapkan) → Lembur → Payroll.
+## Belum dibuat (ringkas; rincian & urutan di `docs/PROGRESS.md`)
+CRUD karyawan/master/kontrak + upload dokumen (UI), enkripsi kolom sensitif & soft delete, UI Poli (rekam medis, obat, rujukan, kehamilan),
+penerapan tukar shift/libur & saldo cuti, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
 
-## Status tahap (lihat docs/VISION.md)
-- Tahap 1 Fondasi: ✅ auth/role/scope/audit, ✅ dashboard per role (`/api/dashboard/`) — UI belum
-- Tahap 2: model ✅, UI belum · Tahap 3: workflow service + UI pengajuan ✅ (`/requests/`)
-- Tahap 5 (sebagian): ✅ surat izin pulang PDF `/api/poli/records/<id>/letter.pdf` (A4 portrait, isi separuh atas, garis potong tengah)
+## Status tahap (acuan: `docs/VISION.md`)
+- Tahap 1 Fondasi ✅ · Tahap 3 Workflow ✅ UI `/requests/` · Tahap 4 Informasi ✅ `/notifications/`, `/announcements/`
+- Tahap 2 HR Core: model ✅, UI baru daftar karyawan · Tahap 5 Poli: model + surat izin pulang PDF ✅, UI belum
+- Tahap 6–7: belum (tabel absensi sudah disiapkan)
+- Tes: `python manage.py test` (21 tes). Lampiran pengumuman tersimpan di `media/` — sertakan dalam backup.
 
 Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.

@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}{{ a.title }}{% endblock %}{% block content %}
+<p><a href="/announcements/">‹ Daftar pengumuman</a></p>
+<h2>{{ a.title }}</h2><p style="color:var(--mu)">{{ kind_label }} · {{ a.created_at|date:"d M Y H:i" }} · {{ a.created_by.get_username }}</p>
+<div class="card">{{ a.body|linebreaksbr }}</div>
+{% if a.attachment %}<p><a class="btn" style="margin:0" href="/announcements/{{ a.pk }}/file/">📎 Unduh lampiran</a></p>{% endif %}
+{% if show_stats %}<div class="card" style="margin-top:12px"><b>{{ read_n }} / {{ total }}</b><span>penerima sudah membaca</span>
+<p>Tujuan: {% if a.all_departments %}semua departemen{% else %}{{ targets|join:", "|default:"—" }}{% endif %}</p>
+{% if unread_users %}<p><b style="font-size:14px">Belum membaca:</b> {% for u in unread_users %}{{ u.get_username }}{% if u.department %} ({{ u.department.name }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}</div>{% endif %}
+{% endblock %}

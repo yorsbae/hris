@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Notifikasi{% endblock %}{% block content %}
+<h2>Notifikasi</h2>
+<div class="bar"><a class="btn" style="margin:0" href="?{% if not only_unread %}unread=1{% endif %}">{% if only_unread %}Tampilkan semua{% else %}Hanya belum dibaca{% endif %}</a>
+<form method="post" action="/notifications/read-all/">{% csrf_token %}<button>Tandai semua dibaca</button></form></div>
+<div class="wrap"><table><tbody>
+{% for n in page %}<tr><td style="width:90px">{% if not n.is_read %}<span class="badge">baru</span>{% endif %}</td>
+<td><form method="post" action="/notifications/{{ n.pk }}/open/">{% csrf_token %}<button class="lnk"{% if not n.is_read %} style="font-weight:700"{% endif %}>{{ n.title }}</button></form></td>
+<td style="width:150px;color:var(--mu)">{{ n.created_at|date:"d M Y H:i" }}</td></tr>
+{% empty %}<tr><td>Tidak ada notifikasi.</td></tr>{% endfor %}</tbody></table></div>
+<p>{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}{% if only_unread %}&unread=1{% endif %}">‹</a>{% endif %}
+Halaman {{ page.number }} / {{ page.paginator.num_pages }}
+{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}{% if only_unread %}&unread=1{% endif %}">›</a>{% endif %}</p>
+{% endblock %}
