@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr
+from apps.hr import views as hr, request_views as rq
 from apps.poli import views as poli
 from apps.core.dashboard import dashboard, home
 urlpatterns = [
@@ -13,6 +13,10 @@ urlpatterns = [
     path("api/requests/<int:pk>/<str:to>/", hr.request_transition),
     path("", home),
     path("employees/", hr.employees_page),
+    path("requests/", rq.request_list),
+    path("requests/new/", rq.request_new),
+    path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
+    path("requests/<int:pk>/<str:action>/", rq.request_action),
     path("api/dashboard/", dashboard),
     path("api/poli/records/", poli.record_create),
     path("api/poli/records/<int:record_id>/letter.pdf", poli.letter_pdf),

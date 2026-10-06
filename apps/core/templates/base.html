@@ -11,8 +11,14 @@ main{max-width:1100px;margin:20px auto;padding:0 16px}.grid{display:grid;grid-te
 input,select,button{padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
 button{cursor:pointer;background:var(--ac);color:#fff;border:0}table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
 th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--bd)}th{color:var(--mu);font-size:13px}.wrap{overflow-x:auto}
+.btn{display:inline-block;padding:6px 12px;border-radius:8px;background:var(--ac);color:#fff!important;font-size:14px;text-decoration:none;margin-left:8px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.form{max-width:560px}.fld{margin-bottom:10px}.fld label{display:block;font-size:13px;color:var(--mu);margin-bottom:3px}
+.fld input,.fld select,.fld textarea,.form textarea{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
+.errorlist{color:#d92d20;margin:4px 0;padding:0;list-style:none;font-size:13px}.msg{padding:10px 14px;border-radius:8px;margin-bottom:12px;background:var(--card);border:1px solid var(--bd)}.msg.error{border-color:#d92d20;color:#d92d20}
+.pill{padding:2px 9px;border-radius:10px;font-size:12px;background:var(--bd)}.pill.pending{background:#fedf89;color:#7a4b00}.pill.approved,.pill.executed{background:#abefc6;color:#05603a}.pill.rejected{background:#fecdca;color:#912018}
+button.danger{background:#d92d20}[hidden]{display:none!important}
 </style></head><body>
-<header><b>HRIS</b>{% if user.is_authenticated %}<a href="/">Dashboard</a><a href="/employees/">Karyawan</a>
+<header><b>HRIS</b>{% if user.is_authenticated %}<a href="/">Dashboard</a><a href="/employees/">Karyawan</a>{% if user.role == "hrd" or user.role == "dept_admin" or user.role == "superadmin" %}<a href="/requests/">Pengajuan</a>{% endif %}
 <span class="sp"></span><span>{{ user.get_username }} · {{ user.role }}</span>
 <form method="post" action="/logout/">{% csrf_token %}<button>Keluar</button></form>{% endif %}</header>
-<main>{% block content %}{% endblock %}</main></body></html>
+<main>{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}{% block content %}{% endblock %}</main></body></html>

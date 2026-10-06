@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Buat pengajuan{% endblock %}{% block content %}
+<h2>Buat pengajuan</h2>
+<form method="post" class="card form">{% csrf_token %}
+{{ form.non_field_errors }}
+{% for f in form %}<div class="fld" data-f="{{ f.name }}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+<p><button name="draft">Simpan draft</button> <button name="submit" value="1">Ajukan ke HRD</button></p></form>
+{{ fields_by_type|json_script:"fbt" }}
+<script>
+const fbt=JSON.parse(document.getElementById("fbt").textContent),sel=document.getElementById("id_type");
+const always=["type","nik"];
+function sync(){const use=fbt[sel.value]||[];
+document.querySelectorAll(".fld").forEach(d=>{d.hidden=!(always.includes(d.dataset.f)||use.includes(d.dataset.f))});}
+sel.onchange=sync;sync();
+</script>{% endblock %}

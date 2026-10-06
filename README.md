@@ -18,7 +18,7 @@ wsgi.py, Nginx/systemd, modul Absensi (AttendanceRaw/Daily sudah disiapkan) → 
 
 ## Status tahap (lihat docs/VISION.md)
 - Tahap 1 Fondasi: ✅ auth/role/scope/audit, ✅ dashboard per role (`/api/dashboard/`) — UI belum
-- Tahap 2–3: model + workflow service ✅, UI/form belum
+- Tahap 2: model ✅, UI belum · Tahap 3: workflow service + UI pengajuan ✅ (`/requests/`)
 - Tahap 5 (sebagian): ✅ surat izin pulang PDF `/api/poli/records/<id>/letter.pdf` (A4 portrait, isi separuh atas, garis potong tengah)
 
 Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.

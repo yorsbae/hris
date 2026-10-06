@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Pengajuan #{{ r.pk }}{% endblock %}{% block content %}
+<p><a href="/requests/">‹ Daftar pengajuan</a></p>
+<h2>{{ label }} <span class="pill {{ r.status }}">{{ status_label }}</span></h2>
+<div class="card"><table>
+<tr><th>Karyawan</th><td>{{ r.employee.nik }} · {{ r.employee.name }}</td></tr>
+<tr><th>Departemen</th><td>{{ r.department.name }}</td></tr>
+{% for k, v in rows %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}
+<tr><th>Diajukan oleh</th><td>{{ r.requested_by.get_username }} · {{ r.created_at|date:"d M Y H:i" }}</td></tr>
+{% if r.decided_by %}<tr><th>Diputuskan oleh</th><td>{{ r.decided_by.get_username }}</td></tr>{% endif %}
+{% if r.note %}<tr><th>Catatan</th><td style="white-space:pre-line">{{ r.note }}</td></tr>{% endif %}
+</table></div>
+{% if actions %}<form method="post" class="card form" style="margin-top:12px">{% csrf_token %}
+{% if "approved" in actions %}<label>Catatan (wajib bila menolak)</label><textarea name="note" rows="2"></textarea>{% endif %}
+<p>{% for a in actions %}<button formaction="/requests/{{ r.pk }}/{{ a }}/"{% if a == "rejected" %} class="danger"{% endif %}>{% if a == "submit" %}Ajukan{% elif a == "approved" %}Setujui{% elif a == "rejected" %}Tolak{% else %}Laksanakan (terapkan ke data karyawan){% endif %}</button> {% endfor %}</p></form>{% endif %}
+{% endblock %}

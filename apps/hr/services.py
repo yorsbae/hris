@@ -5,7 +5,7 @@ from .models import ChangeRequest, EmployeeHistory, Department, Position, Shift
 HRD_ONLY = {"approved", "rejected", "executed"}
 
 @transaction.atomic
-def transition(req: ChangeRequest, to: str, user):
+def transition(req: ChangeRequest, to: str, user, note: str = ""):
     req = ChangeRequest.objects.select_for_update().get(pk=req.pk)
     if to not in ChangeRequest.FLOW.get(req.status, set()):
         raise ValueError(f"Transisi {req.status}→{to} tidak valid")
@@ -15,6 +15,7 @@ def transition(req: ChangeRequest, to: str, user):
         raise PermissionError("Di luar scope")
     req.status = to
     if to in ("approved", "rejected"): req.decided_by = user
+    if note.strip(): req.note = (req.note + "\n" if req.note else "") + f"[{user.get_username()} → {to}] {note.strip()}"
     req.save()
     if to == "executed": _execute(req, user)
     if to == "pending":
@@ -40,3 +41,10 @@ def _execute(req, user):
     emp.save()
     EmployeeHistory.objects.create(employee=emp, field=field, old_value=old, new_value=new,
         effective_date=p.get("effective_date") or req.updated_at.date(), changed_by=user, request=req)
+
+
+@transaction.atomic
+def submit(req: ChangeRequest, user):
+    """Draft → Submitted → Pending Approval dalam satu transaksi (pemohon menekan satu tombol 'Ajukan')."""
+    req = transition(req, "submitted", user)
+    return transition(req, "pending", user)
