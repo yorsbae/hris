@@ -15,13 +15,13 @@ CSRF, ORM (anti SQL injection), audit log append-only + log login/logout, akses 
 Kunci enkripsi hilang = data tidak bisa dibaca → simpan dan backup terpisah dari database.
 
 ## Belum dibuat (ringkas; rincian & urutan di `docs/PROGRESS.md`)
-upload dokumen karyawan, impor CSV, manajemen user (UI), UI Poli (rekam medis, obat, rujukan, kehamilan),
+manajemen user (UI), UI Poli (rekam medis, obat, rujukan, kehamilan),
 penerapan tukar shift/libur & saldo cuti, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
 
 ## Status tahap (acuan: `docs/VISION.md`)
 - Tahap 1 Fondasi ✅ · Tahap 3 Workflow ✅ UI `/requests/` · Tahap 4 Informasi ✅ `/notifications/`, `/announcements/`
-- Tahap 2 HR Core: ✅ CRUD karyawan, master, kontrak, riwayat (`/employees/`, `/master/`); sisa dokumen & impor · Tahap 5 Poli: model + surat izin pulang PDF ✅, UI belum
+- Tahap 2 HR Core: ✅ CRUD karyawan, master, kontrak, riwayat, dokumen, impor CSV, filter (`/employees/`, `/master/`) · Tahap 5 Poli: model + surat izin pulang PDF ✅, UI belum
 - Tahap 6–7: belum (tabel absensi sudah disiapkan)
-- Tes: `python manage.py test` (50 tes). Lampiran pengumuman tersimpan di `media/` — sertakan dalam backup.
+- Tes: `python manage.py test` (74 tes). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
 
 Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.

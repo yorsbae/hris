@@ -1,17 +1,22 @@
 {% extends "base.html" %}{% block content %}
-<h2>Karyawan{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a>{% endif %}</h2>
+<h2>Karyawan{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a> <a class="btn" href="/employees/import/">Impor CSV</a>{% endif %}</h2>
 <p><input id="q" placeholder="Cari NIK / nama" style="min-width:240px">
-<select id="st"><option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select></p>
+<select id="st"><option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select>
+{% if departments %}<select id="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}
+<select id="position"><option value="">Semua jabatan</option>{% for d in positions %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>
+<select id="shift"><option value="">Semua shift</option>{% for d in shifts %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>
+{% if hrd %}<select id="contract"><option value="">Semua kontrak</option><option value="aktif">Kontrak aktif</option><option value="expiring">Habis ≤ 30 hari</option><option value="expired">Sudah lewat</option><option value="none">Tanpa kontrak aktif</option></select>{% endif %}</p>
 <div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p><button id="prev">‹</button> <span id="info"></span> <button id="next">›</button></p>
 <script>
 let page=1,total=0,t;const $=i=>document.getElementById(i);
 async function load(){const p=new URLSearchParams({q:$("q").value,status:$("st").value,page});
+["department","position","shift","contract"].forEach(k=>{const el=$(k);if(el&&el.value)p.set(k,el.value)});
 const d=await (await fetch("/api/employees/?"+p)).json();total=Math.ceil(d.count/50)||1;
 $("rows").replaceChildren(...d.results.map(r=>{const tr=document.createElement("tr");
 [r.nik,r.name,r.department__name,r.position__name||"-",r.status].forEach((v,i)=>{const td=document.createElement("td");
 if(i===0){const a=document.createElement("a");a.href="/employees/"+encodeURIComponent(r.id)+"/";a.textContent=v;td.append(a)}else td.textContent=v;tr.append(td)});return tr}));
 $("info").textContent=`Halaman ${d.page} / ${total} · ${d.count} data`;}
-$("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;load()},300)};$("st").onchange=()=>{page=1;load()};
+$("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;load()},300)};["st","department","position","shift","contract"].forEach(k=>{const el=$(k);if(el)el.onchange=()=>{page=1;load()}});
 $("prev").onclick=()=>{if(page>1){page--;load()}};$("next").onclick=()=>{if(page<total){page++;load()}};load();
 </script>{% endblock %}

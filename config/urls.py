@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2
 from apps.core import notif_views as nv
 from apps.poli import views as poli
 from apps.core.dashboard import dashboard, home
@@ -14,6 +14,11 @@ urlpatterns = [
     path("api/requests/<int:pk>/<str:to>/", hr.request_transition),
     path("", home),
     path("employees/", hr.employees_page),
+    path("employees/import/", iv2.employee_import, name="employee_import"),
+    path("employees/import/template.csv", iv2.import_template),
+    path("employees/<int:pk>/documents/new/", dv.document_new, name="document_new"),
+    path("employees/<int:pk>/documents/<int:doc_id>/", dv.document_download, name="document_download"),
+    path("employees/<int:pk>/documents/<int:doc_id>/delete/", dv.document_delete, name="document_delete"),
     path("employees/new/", ev.employee_new, name="employee_new"),
     path("employees/<int:pk>/", ev.employee_detail_page, name="employee_detail_page"),
     path("employees/<int:pk>/edit/", ev.employee_edit, name="employee_edit"),

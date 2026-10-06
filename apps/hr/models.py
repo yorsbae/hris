@@ -1,4 +1,5 @@
 from django.conf import settings
+import os, uuid
 from django.db import models
 from django.utils import timezone
 from apps.core.crypto import EncryptedTextField
@@ -50,6 +51,26 @@ class Employee(models.Model):
     def restore(self):
         self.deleted_at, self.deleted_by, self.delete_reason = None, None, ""
         self.save(update_fields=["deleted_at", "deleted_by", "delete_reason"])
+
+def doc_path(instance, filename):
+    """Nama file di disk diacak (uuid): tidak bisa ditebak dan nama asli dari pengguna tidak pernah dipakai sebagai path."""
+    return f"employee_docs/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{os.path.splitext(filename)[1].lower()}"
+
+class EmployeeDocument(models.Model):
+    """Dokumen karyawan (KTP, ijazah, dll). Disajikan hanya lewat view ber-permission; hapus = soft delete (file tetap ada di disk)."""
+    KINDS = [("ktp", "KTP"), ("kk", "Kartu Keluarga"), ("ijazah", "Ijazah"), ("npwp", "NPWP"), ("bpjs", "BPJS"), ("kontrak", "Dokumen kontrak"),
+             ("sertifikat", "Sertifikat"), ("sp", "Surat peringatan"), ("lainnya", "Lainnya")]
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="documents")
+    kind = models.CharField(max_length=20, choices=KINDS)
+    title = models.CharField(max_length=150)
+    file = models.FileField(upload_to=doc_path)
+    original_name = models.CharField(max_length=200); size = models.PositiveIntegerField()
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    delete_reason = models.CharField(max_length=300, blank=True)
+    class Meta: ordering = ["-uploaded_at"]
 
 class EmployeeHistory(models.Model):  # riwayat perubahan; tidak pernah di-update/hapus
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="history")

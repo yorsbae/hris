@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Impor karyawan{% endblock %}{% block content %}
+<p><a href="/employees/">‹ Daftar karyawan</a></p>
+<h2>Impor karyawan (CSV)</h2>
+<div class="card" style="margin-bottom:12px"><p>Kolom: <code>{{ columns|join:", " }}</code>. Wajib: <code>{{ required|join:", " }}</code>.
+Departemen dirujuk lewat <b>kode</b>; jabatan &amp; shift lewat <b>nama</b> dan harus sudah ada di Master. Tanggal <code>YYYY-MM-DD</code> atau <code>DD/MM/YYYY</code>. Pemisah koma atau titik-koma, UTF-8.
+<a href="/employees/import/template.csv">Unduh template</a></p>
+<p>Semua baris divalidasi lebih dulu; <b>satu baris salah = tidak ada yang tersimpan</b>. Gunakan "Periksa saja" dahulu.</p></div>
+{% if res %}<div class="msg{% if not res.ok %} error{% endif %}">
+{% if res.fatal %}{{ res.fatal }}{% elif res.ok and res.commit %}Berhasil: {{ res.created }} karyawan diimpor.{% elif res.ok %}Semua {{ res.total }} baris valid. Pilih "Impor" untuk menyimpan.{% else %}{{ res.errors|length }} baris bermasalah dari {{ res.total }}. Tidak ada yang disimpan.{% endif %}</div>
+{% if res.errors_shown %}<div class="wrap"><table><thead><tr><th>Baris</th><th>NIK</th><th>Masalah</th></tr></thead><tbody>
+{% for n, nik, errs in res.errors_shown %}<tr><td>{{ n }}</td><td>{{ nik }}</td><td>{{ errs|join:" · " }}</td></tr>{% endfor %}</tbody></table></div>
+{% if res.errors|length > 100 %}<p>Menampilkan 100 baris pertama.</p>{% endif %}{% endif %}{% endif %}
+<form method="post" enctype="multipart/form-data" class="card form" style="margin-top:12px">{% csrf_token %}
+<div class="fld"><label>File CSV</label><input type="file" name="file" accept=".csv,text/csv" required></div>
+<p><button name="mode" value="check">Periksa saja</button> <button name="mode" value="import">Impor</button></p></form>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Unggah dokumen{% endblock %}{% block content %}
+<p><a href="{% url 'employee_detail_page' e.pk %}">‹ {{ e.nik }} · {{ e.name }}</a></p>
+<h2>Unggah dokumen</h2>
+<form method="post" enctype="multipart/form-data" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+<p><button>Unggah</button></p></form>
+{% endblock %}

@@ -54,6 +54,7 @@ def employee_detail_page(request, pk):
     if full:
         ctx["history"] = e.history.order_by("-effective_date", "-id")[:50]
         ctx["contracts"] = e.contracts.order_by("-start")
+        ctx["documents"] = e.documents.filter(deleted_at__isnull=True)
     return render(request, "employee_detail.html", ctx)
 
 
