@@ -1,0 +1,509 @@
+From 985f98265d3f837a561929c931f54a82b689a26e Mon Sep 17 00:00:00 2001
+From: claude <claude@example.com>
+Date: Tue, 6 Oct 2026 14:26:08 +0000
+Subject: [PATCH] Tahap 3: UI workflow pengajuan (form, daftar, detail,
+ approval) + test suite
+
+---
+ README.md                             |  2 +-
+ apps/core/templates/base.html         | 10 ++-
+ apps/hr/forms.py                      | 94 ++++++++++++++++++++++++++
+ apps/hr/request_views.py              | 96 +++++++++++++++++++++++++++
+ apps/hr/services.py                   | 10 ++-
+ apps/hr/templates/request_detail.html | 15 +++++
+ apps/hr/templates/request_form.html   | 14 ++++
+ apps/hr/templates/requests_list.html  | 14 ++++
+ apps/hr/tests.py                      | 93 ++++++++++++++++++++++++++
+ config/urls.py                        |  6 +-
+ docs/PROGRESS.md                      | 10 ++-
+ 11 files changed, 358 insertions(+), 6 deletions(-)
+ create mode 100644 apps/hr/forms.py
+ create mode 100644 apps/hr/request_views.py
+ create mode 100644 apps/hr/templates/request_detail.html
+ create mode 100644 apps/hr/templates/request_form.html
+ create mode 100644 apps/hr/templates/requests_list.html
+ create mode 100644 apps/hr/tests.py
+
+diff --git a/README.md b/README.md
+index 6d54b28..3db24c0 100644
+--- a/README.md
++++ b/README.md
+@@ -18,7 +18,7 @@ wsgi.py, Nginx/systemd, modul Absensi (AttendanceRaw/Daily sudah disiapkan) →
+ 
+ ## Status tahap (lihat docs/VISION.md)
+ - Tahap 1 Fondasi: ✅ auth/role/scope/audit, ✅ dashboard per role (`/api/dashboard/`) — UI belum
+-- Tahap 2–3: model + workflow service ✅, UI/form belum
++- Tahap 2: model ✅, UI belum · Tahap 3: workflow service + UI pengajuan ✅ (`/requests/`)
+ - Tahap 5 (sebagian): ✅ surat izin pulang PDF `/api/poli/records/<id>/letter.pdf` (A4 portrait, isi separuh atas, garis potong tengah)
+ 
+ Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.
+diff --git a/apps/core/templates/base.html b/apps/core/templates/base.html
+index a5895d9..930b2a3 100644
+--- a/apps/core/templates/base.html
++++ b/apps/core/templates/base.html
+@@ -11,8 +11,14 @@ main{max-width:1100px;margin:20px auto;padding:0 16px}.grid{display:grid;grid-te
+ input,select,button{padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
+ button{cursor:pointer;background:var(--ac);color:#fff;border:0}table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
+ th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--bd)}th{color:var(--mu);font-size:13px}.wrap{overflow-x:auto}
++.btn{display:inline-block;padding:6px 12px;border-radius:8px;background:var(--ac);color:#fff!important;font-size:14px;text-decoration:none;margin-left:8px}
++.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.form{max-width:560px}.fld{margin-bottom:10px}.fld label{display:block;font-size:13px;color:var(--mu);margin-bottom:3px}
++.fld input,.fld select,.fld textarea,.form textarea{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
++.errorlist{color:#d92d20;margin:4px 0;padding:0;list-style:none;font-size:13px}.msg{padding:10px 14px;border-radius:8px;margin-bottom:12px;background:var(--card);border:1px solid var(--bd)}.msg.error{border-color:#d92d20;color:#d92d20}
++.pill{padding:2px 9px;border-radius:10px;font-size:12px;background:var(--bd)}.pill.pending{background:#fedf89;color:#7a4b00}.pill.approved,.pill.executed{background:#abefc6;color:#05603a}.pill.rejected{background:#fecdca;color:#912018}
++button.danger{background:#d92d20}[hidden]{display:none!important}
+ </style></head><body>
+-<header><b>HRIS</b>{% if user.is_authenticated %}<a href="/">Dashboard</a><a href="/employees/">Karyawan</a>
++<header><b>HRIS</b>{% if user.is_authenticated %}<a href="/">Dashboard</a><a href="/employees/">Karyawan</a>{% if user.role == "hrd" or user.role == "dept_admin" or user.role == "superadmin" %}<a href="/requests/">Pengajuan</a>{% endif %}
+ <span class="sp"></span><span>{{ user.get_username }} · {{ user.role }}</span>
+ <form method="post" action="/logout/">{% csrf_token %}<button>Keluar</button></form>{% endif %}</header>
+-<main>{% block content %}{% endblock %}</main></body></html>
++<main>{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}{% block content %}{% endblock %}</main></body></html>
+diff --git a/apps/hr/forms.py b/apps/hr/forms.py
+new file mode 100644
+index 0000000..97bdc8f
+--- /dev/null
++++ b/apps/hr/forms.py
+@@ -0,0 +1,94 @@
++"""Form pengajuan. Validasi di server adalah otoritas; JS di halaman hanya menyembunyikan field yang tidak relevan."""
++from django import forms
++from apps.core.models import Role
++from .models import ChangeRequest, Department, Employee, Position, Shift
++
++GROUPS = {  # tipe → field payload yang dipakai
++    "range": (("izin", "cuti", "sakit", "izin_khusus"), ("start_date", "end_date", "reason")),
++    "point": (("izin_terlambat", "izin_pulang"), ("date", "time", "reason")),
++    "swap_shift": (("tukar_shift",), ("date", "shift", "reason")),
++    "swap_off": (("tukar_libur",), ("date", "date_to", "reason")),
++    "dept": (("mutasi_dept", "rotasi"), ("department", "effective_date", "reason")),
++    "pos": (("mutasi_jabatan", "promosi", "demosi"), ("position", "effective_date", "reason")),
++    "shift": (("shift",), ("shift", "effective_date", "reason")),
++    "status": (("status",), ("status", "effective_date", "reason")),
++}
++FIELDS_BY_TYPE = {t: f for types, f in GROUPS.values() for t in types}
++LABELS = {
++    "mutasi_dept": "Mutasi departemen", "mutasi_jabatan": "Mutasi jabatan", "promosi": "Promosi", "demosi": "Demosi",
++    "rotasi": "Rotasi", "status": "Perubahan status", "shift": "Perubahan shift", "izin": "Izin", "cuti": "Cuti",
++    "sakit": "Sakit", "izin_terlambat": "Izin terlambat", "izin_pulang": "Izin pulang", "izin_khusus": "Izin khusus",
++    "tukar_shift": "Tukar shift", "tukar_libur": "Tukar libur",
++}
++HRD_ONLY_TYPES = {"status"}  # Admin Departemen tidak boleh mengajukan perubahan status karyawan
++RANGE_TYPES = set(GROUPS["range"][0])
++ACTIVE = ("submitted", "pending", "approved", "executed")
++
++
++def allowed_types(user):
++    return [t for t in ChangeRequest.TYPES if user.role != Role.DEPT_ADMIN or t not in HRD_ONLY_TYPES]
++
++
++class RequestForm(forms.Form):
++    type = forms.ChoiceField(label="Jenis pengajuan")
++    nik = forms.CharField(label="NIK karyawan", max_length=20)
++    start_date = forms.DateField(label="Tanggal mulai", required=False, widget=forms.DateInput(attrs={"type": "date"}))
++    end_date = forms.DateField(label="Tanggal selesai", required=False, widget=forms.DateInput(attrs={"type": "date"}))
++    date = forms.DateField(label="Tanggal", required=False, widget=forms.DateInput(attrs={"type": "date"}))
++    date_to = forms.DateField(label="Diganti ke tanggal", required=False, widget=forms.DateInput(attrs={"type": "date"}))
++    time = forms.TimeField(label="Jam", required=False, widget=forms.TimeInput(attrs={"type": "time"}))
++    effective_date = forms.DateField(label="Tanggal efektif", required=False, widget=forms.DateInput(attrs={"type": "date"}))
++    department = forms.ModelChoiceField(Department.objects.order_by("name"), label="Departemen tujuan", required=False)
++    position = forms.ModelChoiceField(Position.objects.order_by("name"), label="Jabatan tujuan", required=False)
++    shift = forms.ModelChoiceField(Shift.objects.order_by("name"), label="Shift tujuan", required=False)
++    status = forms.ChoiceField(label="Status baru", required=False, choices=[("", "---"), ("aktif", "aktif"), ("nonaktif", "nonaktif")])
++    reason = forms.CharField(label="Alasan / keterangan", widget=forms.Textarea(attrs={"rows": 3}), max_length=1000)
++
++    def __init__(self, *a, user, **k):
++        super().__init__(*a, **k)
++        self.user, self.employee = user, None
++        self.fields["type"].choices = [(t, LABELS[t]) for t in allowed_types(user)]
++
++    def clean(self):
++        d = super().clean()
++        t = d.get("type")
++        if not t: return d
++        for f in FIELDS_BY_TYPE[t]:  # semua field milik tipe ini wajib terisi
++            if d.get(f) in (None, ""): self.add_error(f, "Wajib diisi.")
++        emp_qs = Employee.objects.select_related("department").filter(nik=d.get("nik", "").strip(), status="aktif")
++        if self.user.role == Role.DEPT_ADMIN: emp_qs = emp_qs.filter(department_id=self.user.department_id)
++        self.employee = emp_qs.first()  # di luar scope = "tidak ditemukan" (tidak membocorkan keberadaan)
++        if not self.employee:
++            self.add_error("nik", "Karyawan aktif dengan NIK ini tidak ditemukan.")
++            return d
++        if t in RANGE_TYPES and d.get("start_date") and d.get("end_date"):
++            if d["end_date"] < d["start_date"]: self.add_error("end_date", "Tidak boleh sebelum tanggal mulai.")
++            elif self._overlaps(t, d["start_date"], d["end_date"]):
++                raise forms.ValidationError("Sudah ada pengajuan izin/cuti/sakit yang tumpang tindih pada tanggal tersebut.")
++        if t == "mutasi_dept" or t == "rotasi":
++            if d.get("department") and d["department"].pk == self.employee.department_id:
++                self.add_error("department", "Sama dengan departemen saat ini.")
++        if t in ("mutasi_jabatan", "promosi", "demosi") and d.get("position") and d["position"].pk == self.employee.position_id:
++            self.add_error("position", "Sama dengan jabatan saat ini.")
++        if t == "shift" and d.get("shift") and d["shift"].pk == self.employee.shift_id:
++            self.add_error("shift", "Sama dengan shift saat ini.")
++        if t == "status" and d.get("status") == self.employee.status:
++            self.add_error("status", "Sama dengan status saat ini.")
++        return d
++
++    def _overlaps(self, t, start, end):
++        for r in ChangeRequest.objects.filter(employee=self.employee, type__in=RANGE_TYPES, status__in=ACTIVE):
++            s, e = r.payload.get("start_date"), r.payload.get("end_date")
++            if s and e and s <= end.isoformat() and e >= start.isoformat(): return True
++        return False
++
++    def payload(self):
++        """Susun payload JSON. Kunci department_id/position_id/shift_id/status/effective_date dibaca langsung oleh services._execute."""
++        d, out = self.cleaned_data, {}
++        for f in FIELDS_BY_TYPE[d["type"]]:
++            v = d[f]
++            if f in ("department", "position", "shift"):
++                out[f"{f}_id"], out[f"{f}_name"] = v.pk, str(getattr(v, "name", v))
++            elif hasattr(v, "isoformat"): out[f] = v.isoformat()
++            else: out[f] = v
++        return out
+diff --git a/apps/hr/request_views.py b/apps/hr/request_views.py
+new file mode 100644
+index 0000000..5f9220a
+--- /dev/null
++++ b/apps/hr/request_views.py
+@@ -0,0 +1,96 @@
++"""UI pengajuan (Tahap 3): daftar, buat, detail, dan aksi workflow. Semua akses lewat scope departemen."""
++from django.contrib import messages
++from django.contrib.auth.decorators import login_required
++from django.core.exceptions import ObjectDoesNotExist
++from django.core.paginator import Paginator
++from django.db.models import Q
++from django.shortcuts import redirect, render
++from django.views.decorators.http import require_POST
++from apps.core.audit import log
++from apps.core.models import Notification, Role
++from apps.core.scope import get_scoped_or_404, require_roles, scope_by_department
++from . import services
++from .forms import FIELDS_BY_TYPE, LABELS, RequestForm
++from .models import ChangeRequest
++
++ROLES = (Role.HRD, Role.DEPT_ADMIN)  # Superadmin lolos otomatis di require_roles
++FIELD_LABELS = {"start_date": "Tanggal mulai", "end_date": "Tanggal selesai", "date": "Tanggal", "date_to": "Diganti ke tanggal",
++                "time": "Jam", "effective_date": "Tanggal efektif", "department_name": "Departemen tujuan",
++                "position_name": "Jabatan tujuan", "shift_name": "Shift tujuan", "status": "Status baru", "reason": "Alasan"}
++STATUS_LABELS = {"draft": "Draft", "submitted": "Diajukan", "pending": "Menunggu persetujuan", "approved": "Disetujui",
++                 "rejected": "Ditolak", "executed": "Dilaksanakan"}
++
++
++@login_required
++@require_roles(*ROLES)
++def request_list(request):
++    qs = scope_by_department(request.user, ChangeRequest.objects.select_related("employee", "department", "requested_by"))
++    f = {k: request.GET.get(k, "").strip() for k in ("status", "type", "q")}
++    if f["status"]: qs = qs.filter(status=f["status"])
++    if f["type"]: qs = qs.filter(type=f["type"])
++    if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
++    page = Paginator(qs.order_by("-created_at"), 50).get_page(request.GET.get("page", 1))
++    for r in page: r.status_label = STATUS_LABELS.get(r.status, r.status)
++    return render(request, "requests_list.html", {"page": page, "f": f, "types": LABELS, "statuses": STATUS_LABELS})
++
++
++@login_required
++@require_roles(*ROLES)
++def request_new(request):
++    form = RequestForm(request.POST or None, user=request.user)
++    if request.method == "POST" and form.is_valid():
++        d = form.cleaned_data
++        req = ChangeRequest.objects.create(type=d["type"], employee=form.employee, department=form.employee.department,
++                                           payload=form.payload(), requested_by=request.user)
++        log(request, "hr", "request_create", req, None, {"type": req.type, "employee": form.employee.nik})
++        if "submit" in request.POST:
++            try: services.submit(req, request.user)
++            except (PermissionError, ValueError) as e:
++                messages.error(request, str(e)); return redirect("request_detail", pk=req.pk)
++            log(request, "hr", "request_submit", req, {"status": "draft"}, {"status": "pending"})
++            messages.success(request, "Pengajuan dikirim ke HRD.")
++        else:
++            messages.success(request, "Draft tersimpan. Ajukan dari halaman detail bila sudah siap.")
++        return redirect("request_detail", pk=req.pk)
++    return render(request, "request_form.html", {"form": form, "fields_by_type": FIELDS_BY_TYPE})
++
++
++def _actions(user, req):
++    """Tombol yang boleh tampil; pengecekan sebenarnya tetap di services.transition."""
++    hrd = user.role in (Role.HRD, Role.SUPERADMIN)
++    if req.status == "draft" and (req.requested_by_id == user.id or user.role == Role.SUPERADMIN): return ["submit"]
++    if req.status == "pending" and hrd: return ["approved", "rejected"]
++    if req.status == "approved" and hrd: return ["executed"]
++    return []
++
++
++@login_required
++@require_roles(*ROLES)
++def request_detail(request, pk):
++    req = get_scoped_or_404(request.user, ChangeRequest.objects.select_related("employee__department", "department", "requested_by", "decided_by"), pk)
++    Notification.objects.filter(user=request.user, is_read=False, link__in=[f"/requests/{pk}", f"/requests/{pk}/"]).update(is_read=True)
++    rows = [(FIELD_LABELS[k], v) for k, v in req.payload.items() if k in FIELD_LABELS]
++    return render(request, "request_detail.html", {"r": req, "rows": rows, "actions": _actions(request.user, req),
++                                                   "label": LABELS[req.type], "status_label": STATUS_LABELS.get(req.status, req.status)})
++
++
++@require_POST
++@login_required
++@require_roles(*ROLES)
++def request_action(request, pk, action):
++    req = get_scoped_or_404(request.user, ChangeRequest.objects.all(), pk)  # URL tampering → 404
++    if action not in ("submit", "approved", "rejected", "executed"):
++        messages.error(request, "Aksi tidak dikenal."); return redirect("request_detail", pk=pk)
++    note = request.POST.get("note", "")
++    if action == "rejected" and not note.strip():
++        messages.error(request, "Alasan penolakan wajib diisi."); return redirect("request_detail", pk=pk)
++    before = {"status": req.status}
++    try:
++        new = services.submit(req, request.user) if action == "submit" else services.transition(req, action, request.user, note)
++    except PermissionError as e:
++        messages.error(request, str(e)); return redirect("request_detail", pk=pk)
++    except (ValueError, KeyError, ObjectDoesNotExist) as e:  # termasuk target (departemen/jabatan/shift) yang sudah tidak ada
++        messages.error(request, f"Tidak dapat diproses: {e}"); return redirect("request_detail", pk=pk)
++    log(request, "hr", f"request_{action}", new, before, {"status": new.status})
++    messages.success(request, f"Status sekarang: {STATUS_LABELS.get(new.status, new.status)}.")
++    return redirect("request_detail", pk=pk)
+diff --git a/apps/hr/services.py b/apps/hr/services.py
+index 9c32ebd..6168c3e 100644
+--- a/apps/hr/services.py
++++ b/apps/hr/services.py
+@@ -5,7 +5,7 @@ from .models import ChangeRequest, EmployeeHistory, Department, Position, Shift
+ HRD_ONLY = {"approved", "rejected", "executed"}
+ 
+ @transaction.atomic
+-def transition(req: ChangeRequest, to: str, user):
++def transition(req: ChangeRequest, to: str, user, note: str = ""):
+     req = ChangeRequest.objects.select_for_update().get(pk=req.pk)
+     if to not in ChangeRequest.FLOW.get(req.status, set()):
+         raise ValueError(f"Transisi {req.status}→{to} tidak valid")
+@@ -15,6 +15,7 @@ def transition(req: ChangeRequest, to: str, user):
+         raise PermissionError("Di luar scope")
+     req.status = to
+     if to in ("approved", "rejected"): req.decided_by = user
++    if note.strip(): req.note = (req.note + "\n" if req.note else "") + f"[{user.get_username()} → {to}] {note.strip()}"
+     req.save()
+     if to == "executed": _execute(req, user)
+     if to == "pending":
+@@ -40,3 +41,10 @@ def _execute(req, user):
+     emp.save()
+     EmployeeHistory.objects.create(employee=emp, field=field, old_value=old, new_value=new,
+         effective_date=p.get("effective_date") or req.updated_at.date(), changed_by=user, request=req)
++
++
++@transaction.atomic
++def submit(req: ChangeRequest, user):
++    """Draft → Submitted → Pending Approval dalam satu transaksi (pemohon menekan satu tombol 'Ajukan')."""
++    req = transition(req, "submitted", user)
++    return transition(req, "pending", user)
+diff --git a/apps/hr/templates/request_detail.html b/apps/hr/templates/request_detail.html
+new file mode 100644
+index 0000000..5cc4e23
+--- /dev/null
++++ b/apps/hr/templates/request_detail.html
+@@ -0,0 +1,15 @@
++{% extends "base.html" %}{% block title %}Pengajuan #{{ r.pk }}{% endblock %}{% block content %}
++<p><a href="/requests/">‹ Daftar pengajuan</a></p>
++<h2>{{ label }} <span class="pill {{ r.status }}">{{ status_label }}</span></h2>
++<div class="card"><table>
++<tr><th>Karyawan</th><td>{{ r.employee.nik }} · {{ r.employee.name }}</td></tr>
++<tr><th>Departemen</th><td>{{ r.department.name }}</td></tr>
++{% for k, v in rows %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}
++<tr><th>Diajukan oleh</th><td>{{ r.requested_by.get_username }} · {{ r.created_at|date:"d M Y H:i" }}</td></tr>
++{% if r.decided_by %}<tr><th>Diputuskan oleh</th><td>{{ r.decided_by.get_username }}</td></tr>{% endif %}
++{% if r.note %}<tr><th>Catatan</th><td style="white-space:pre-line">{{ r.note }}</td></tr>{% endif %}
++</table></div>
++{% if actions %}<form method="post" class="card form" style="margin-top:12px">{% csrf_token %}
++{% if "approved" in actions %}<label>Catatan (wajib bila menolak)</label><textarea name="note" rows="2"></textarea>{% endif %}
++<p>{% for a in actions %}<button formaction="/requests/{{ r.pk }}/{{ a }}/"{% if a == "rejected" %} class="danger"{% endif %}>{% if a == "submit" %}Ajukan{% elif a == "approved" %}Setujui{% elif a == "rejected" %}Tolak{% else %}Laksanakan (terapkan ke data karyawan){% endif %}</button> {% endfor %}</p></form>{% endif %}
++{% endblock %}
+diff --git a/apps/hr/templates/request_form.html b/apps/hr/templates/request_form.html
+new file mode 100644
+index 0000000..b6fda18
+--- /dev/null
++++ b/apps/hr/templates/request_form.html
+@@ -0,0 +1,14 @@
++{% extends "base.html" %}{% block title %}Buat pengajuan{% endblock %}{% block content %}
++<h2>Buat pengajuan</h2>
++<form method="post" class="card form">{% csrf_token %}
++{{ form.non_field_errors }}
++{% for f in form %}<div class="fld" data-f="{{ f.name }}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
++<p><button name="draft">Simpan draft</button> <button name="submit" value="1">Ajukan ke HRD</button></p></form>
++{{ fields_by_type|json_script:"fbt" }}
++<script>
++const fbt=JSON.parse(document.getElementById("fbt").textContent),sel=document.getElementById("id_type");
++const always=["type","nik"];
++function sync(){const use=fbt[sel.value]||[];
++document.querySelectorAll(".fld").forEach(d=>{d.hidden=!(always.includes(d.dataset.f)||use.includes(d.dataset.f))});}
++sel.onchange=sync;sync();
++</script>{% endblock %}
+diff --git a/apps/hr/templates/requests_list.html b/apps/hr/templates/requests_list.html
+new file mode 100644
+index 0000000..0723dca
+--- /dev/null
++++ b/apps/hr/templates/requests_list.html
+@@ -0,0 +1,14 @@
++{% extends "base.html" %}{% block title %}Pengajuan{% endblock %}{% block content %}
++<h2>Pengajuan <a class="btn" href="/requests/new/">+ Buat pengajuan</a></h2>
++<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
++<select name="status"><option value="">Semua status</option>{% for k, v in statuses.items %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
++<select name="type"><option value="">Semua jenis</option>{% for k, v in types.items %}<option value="{{ k }}"{% if f.type == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
++<button>Filter</button></form>
++<div class="wrap"><table><thead><tr><th>#</th><th>Jenis</th><th>Karyawan</th><th>Departemen</th><th>Status</th><th>Diajukan oleh</th><th>Tanggal</th></tr></thead><tbody>
++{% for r in page %}<tr><td><a href="/requests/{{ r.pk }}/">{{ r.pk }}</a></td><td>{{ r.type }}</td><td>{{ r.employee.nik }} · {{ r.employee.name }}</td><td>{{ r.department.name }}</td>
++<td><span class="pill {{ r.status }}">{{ r.status_label }}</span></td><td>{{ r.requested_by.get_username }}</td><td>{{ r.created_at|date:"d M Y H:i" }}</td></tr>
++{% empty %}<tr><td colspan="7">Belum ada pengajuan.</td></tr>{% endfor %}</tbody></table></div>
++<p>{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}&q={{ f.q|urlencode }}&status={{ f.status }}&type={{ f.type }}">‹</a>{% endif %}
++Halaman {{ page.number }} / {{ page.paginator.num_pages }} · {{ page.paginator.count }} data
++{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}&q={{ f.q|urlencode }}&status={{ f.status }}&type={{ f.type }}">›</a>{% endif %}</p>
++{% endblock %}
+diff --git a/apps/hr/tests.py b/apps/hr/tests.py
+new file mode 100644
+index 0000000..30028fa
+--- /dev/null
++++ b/apps/hr/tests.py
+@@ -0,0 +1,93 @@
++from datetime import date
++from django.test import TestCase
++from apps.core.models import AuditLog, Notification, Role, User
++from .models import ChangeRequest, Department, Employee, EmployeeHistory, Position, Shift
++
++
++class WorkflowUITests(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        cls.d1, cls.d2 = Department.objects.create(code="A", name="Produksi"), Department.objects.create(code="B", name="Gudang")
++        cls.pos = Position.objects.create(name="Staff"); cls.pos2 = Position.objects.create(name="Leader")
++        mk = lambda nik, d: Employee.objects.create(nik=nik, name=f"Emp {nik}", gender="L", department=d, position=cls.pos, join_date=date(2024, 1, 1))
++        cls.e1, cls.e2 = mk("001", cls.d1), mk("002", cls.d2)
++        pw = "kata-sandi-panjang-123"
++        cls.hrd = User.objects.create_user("hrd", password=pw, role=Role.HRD)
++        cls.adm1 = User.objects.create_user("adm1", password=pw, role=Role.DEPT_ADMIN, department=cls.d1)
++        cls.adm2 = User.objects.create_user("adm2", password=pw, role=Role.DEPT_ADMIN, department=cls.d2)
++        cls.poli = User.objects.create_user("poli", password=pw, role=Role.POLI)
++
++    def login(self, name): self.client.force_login(User.objects.get(username=name))
++
++    def post_leave(self, nik="001", start="2026-11-02", end="2026-11-04", submit=True):
++        data = {"type": "cuti", "nik": nik, "start_date": start, "end_date": end, "reason": "Keperluan keluarga"}
++        if submit: data["submit"] = "1"
++        return self.client.post("/requests/new/", data)
++
++    def test_dept_admin_submits_leave_and_hrd_notified(self):
++        self.login("adm1"); r = self.post_leave()
++        req = ChangeRequest.objects.get(); self.assertRedirects(r, f"/requests/{req.pk}/")
++        self.assertEqual((req.status, req.department_id, req.requested_by_id), ("pending", self.d1.pk, self.adm1.pk))
++        self.assertTrue(Notification.objects.filter(user=self.hrd, kind="request").exists())
++        self.assertTrue(AuditLog.objects.filter(action="request_submit").exists())
++
++    def test_draft_then_submit_from_detail(self):
++        self.login("adm1"); self.post_leave(submit=False)
++        req = ChangeRequest.objects.get(); self.assertEqual(req.status, "draft")
++        self.client.post(f"/requests/{req.pk}/submit/"); req.refresh_from_db(); self.assertEqual(req.status, "pending")
++
++    def test_dept_admin_cannot_use_other_department_employee(self):
++        self.login("adm1"); r = self.post_leave(nik="002")
++        self.assertEqual(r.status_code, 200); self.assertFalse(ChangeRequest.objects.exists())
++        self.assertContains(r, "tidak ditemukan")
++
++    def test_scope_url_tampering_is_404(self):
++        self.login("adm1"); self.post_leave(); req = ChangeRequest.objects.get()
++        self.login("adm2")
++        self.assertEqual(self.client.get(f"/requests/{req.pk}/").status_code, 404)
++        self.assertEqual(self.client.post(f"/requests/{req.pk}/submit/").status_code, 404)
++        self.assertNotContains(self.client.get("/requests/"), "Emp 001")
++
++    def test_poli_forbidden_and_anonymous_blocked(self):
++        self.login("poli"); self.assertEqual(self.client.get("/requests/").status_code, 403)
++        self.client.logout(); self.assertIn(self.client.get("/requests/").status_code, (302, 401))
++
++    def test_dept_admin_cannot_decide_or_change_status(self):
++        self.login("adm1"); self.post_leave(); req = ChangeRequest.objects.get()
++        self.client.post(f"/requests/{req.pk}/approved/"); req.refresh_from_db(); self.assertEqual(req.status, "pending")
++        r = self.client.post("/requests/new/", {"type": "status", "nik": "001", "status": "nonaktif", "effective_date": "2026-11-01", "reason": "x"})
++        self.assertEqual(r.status_code, 200)  # tipe 'status' tidak ada di pilihan Admin Departemen
++        self.assertEqual(ChangeRequest.objects.count(), 1)
++
++    def test_overlapping_leave_rejected(self):
++        self.login("adm1"); self.post_leave(); self.post_leave(start="2026-11-03", end="2026-11-05")
++        self.assertEqual(ChangeRequest.objects.count(), 1)
++
++    def test_end_before_start_rejected(self):
++        self.login("adm1"); self.post_leave(start="2026-11-05", end="2026-11-01"); self.assertFalse(ChangeRequest.objects.exists())
++
++    def test_reject_requires_note_then_approve_execute_mutation(self):
++        self.login("adm1")
++        self.client.post("/requests/new/", {"type": "mutasi_dept", "nik": "001", "department": self.d2.pk, "effective_date": "2026-11-01", "reason": "Kebutuhan", "submit": "1"})
++        req = ChangeRequest.objects.get(); self.assertEqual(req.status, "pending")
++        self.login("hrd")
++        self.client.post(f"/requests/{req.pk}/rejected/", {"note": ""}); req.refresh_from_db(); self.assertEqual(req.status, "pending")
++        self.client.post(f"/requests/{req.pk}/approved/", {"note": "OK"})
++        self.client.post(f"/requests/{req.pk}/executed/")
++        req.refresh_from_db(); self.e1.refresh_from_db()
++        self.assertEqual((req.status, self.e1.department_id), ("executed", self.d2.pk))
++        h = EmployeeHistory.objects.get(); self.assertEqual((h.field, h.old_value, h.new_value), ("department", "Produksi", "Gudang"))
++        self.assertTrue(Notification.objects.filter(user=self.adm1, kind="approval").exists())
++
++    def test_invalid_transition_and_unknown_action(self):
++        self.login("hrd"); self.post_leave()
++        req = ChangeRequest.objects.get()
++        self.client.post(f"/requests/{req.pk}/executed/"); req.refresh_from_db(); self.assertEqual(req.status, "pending")
++        self.assertEqual(self.client.post(f"/requests/{req.pk}/hapus/").status_code, 302)
++
++    def test_pages_render(self):
++        self.login("hrd")
++        self.assertContains(self.client.get("/requests/new/"), "Buat pengajuan")
++        self.post_leave(); req = ChangeRequest.objects.get()
++        self.assertContains(self.client.get(f"/requests/{req.pk}/"), "Setujui")
++        self.assertContains(self.client.get("/requests/?status=pending"), "Emp 001")
+diff --git a/config/urls.py b/config/urls.py
+index 1a9c47a..efdf103 100644
+--- a/config/urls.py
++++ b/config/urls.py
+@@ -1,7 +1,7 @@
+ from django.contrib import admin
+ from django.urls import path
+ from django.contrib.auth import views as auth
+-from apps.hr import views as hr
++from apps.hr import views as hr, request_views as rq
+ from apps.poli import views as poli
+ from apps.core.dashboard import dashboard, home
+ urlpatterns = [
+@@ -13,6 +13,10 @@ urlpatterns = [
+     path("api/requests/<int:pk>/<str:to>/", hr.request_transition),
+     path("", home),
+     path("employees/", hr.employees_page),
++    path("requests/", rq.request_list),
++    path("requests/new/", rq.request_new),
++    path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
++    path("requests/<int:pk>/<str:action>/", rq.request_action),
+     path("api/dashboard/", dashboard),
+     path("api/poli/records/", poli.record_create),
+     path("api/poli/records/<int:record_id>/letter.pdf", poli.letter_pdf),
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index 0506368..37b98b5 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -22,6 +22,14 @@ Terakhir diperbarui: 6 Oktober 2026 · Acuan tahap: `docs/VISION.md`
+ - Migrasi database sudah dibuat (`apps/*/migrations/`)
+ - **Sudah diuji (SQLite, tes otomatis sederhana):** login, scope Admin Departemen (hanya melihat departemennya; ubah ID lintas departemen → 404), HRD ditolak di modul Poli (403), dashboard 3 role, PDF terbuat & tampil benar, audit log tercatat
+ 
++### Putaran 4 — Workflow UI (Tahap 3)
++- Halaman `/requests/` (daftar + filter status/jenis/NIK-nama + pagination server), `/requests/new/` (form dinamis per jenis), `/requests/<id>/` (detail + tombol aksi)
++- 15 jenis pengajuan; validasi di server: NIK harus karyawan aktif **dalam scope** (di luar scope = "tidak ditemukan"), tanggal akhir ≥ mulai, izin/cuti/sakit **tidak boleh tumpang tindih**, tujuan mutasi/jabatan/shift tidak boleh sama dengan kondisi sekarang
++- Admin Departemen: tidak bisa mengajukan perubahan *status* karyawan (HRD saja) — asumsi, ubah di `HRD_ONLY_TYPES` (`forms.py`)
++- Alur: Simpan draft → Ajukan (Draft→Submitted→Pending dalam 1 transaksi, HRD dinotifikasi) → HRD Setujui/Tolak (alasan wajib saat tolak) → Laksanakan (update master + riwayat otomatis)
++- Notifikasi pengajuan otomatis ditandai terbaca saat detail dibuka; semua aksi tercatat di audit log
++- **Test suite permanen pertama**: `apps/hr/tests.py` (11 tes: scope, 404 URL tampering, RBAC, overlap, alur lengkap mutasi → riwayat). Jalankan: `python manage.py test`
++
+ ## ⚠️ Catatan / belum teruji
+ - Belum diuji di **PostgreSQL** (uji sebelum produksi); `.env` & `ALLOWED_HOSTS` perlu diisi
+ - Kop surat masih placeholder `PT ........` (`apps/poli/pdf.py`)
+@@ -30,7 +38,7 @@ Terakhir diperbarui: 6 Oktober 2026 · Acuan tahap: `docs/VISION.md`
+ - Belum ada soft delete di semua model penting
+ 
+ ## ⏭️ Akan dikerjakan selanjutnya (berurutan)
+-1. **Tahap 3 — Workflow UI**: form pengajuan (mutasi, izin, cuti, tukar shift/libur), daftar & detail pengajuan, tombol approve/reject HRD, tanggal efektif
++1. ~~Tahap 3 — Workflow UI~~ ✅ (sisa: batalkan draft, saldo cuti, pilih rekan tukar shift, lampiran surat dokter)
+ 2. **Tahap 4 — Informasi**: notification center (UI), buat/baca pengumuman-peraturan-pemberitahuan, status sudah/belum dibaca, lampiran
+ 3. **Tahap 2 — HR Core UI**: CRUD karyawan (HRD), master departemen/jabatan/shift, kontrak & perpanjangan, upload dokumen, halaman riwayat
+ 4. **Tahap 5 — Poli UI**: form rekam medis (berobat, kecelakaan kerja, kehamilan), master obat & kartu stok, diagnosa, rujukan (+ lampiran)
+-- 
+2.43.0
+
