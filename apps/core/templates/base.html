@@ -1,0 +1,18 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block title %}HRIS{% endblock %}</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1d2330;--mu:#667085;--ac:#1f6feb;--bd:#e3e6eb}
+@media(prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--tx:#e7eaf0;--mu:#97a0b0;--ac:#5b9bff;--bd:#2b3240}}
+*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{display:flex;gap:16px;align-items:center;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--bd);flex-wrap:wrap}
+header a{color:var(--tx);text-decoration:none}header .sp{flex:1}.badge{background:var(--ac);color:#fff;border-radius:10px;padding:1px 8px;font-size:12px}
+main{max-width:1100px;margin:20px auto;padding:0 16px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px}.card b{font-size:26px;display:block}.card span{color:var(--mu);font-size:13px}
+input,select,button{padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
+button{cursor:pointer;background:var(--ac);color:#fff;border:0}table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--bd)}th{color:var(--mu);font-size:13px}.wrap{overflow-x:auto}
+</style></head><body>
+<header><b>HRIS</b>{% if user.is_authenticated %}<a href="/">Dashboard</a><a href="/employees/">Karyawan</a>
+<span class="sp"></span><span>{{ user.get_username }} · {{ user.role }}</span>
+<form method="post" action="/logout/">{% csrf_token %}<button>Keluar</button></form>{% endif %}</header>
+<main>{% block content %}{% endblock %}</main></body></html>

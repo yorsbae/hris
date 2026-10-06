@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block content %}
+<div class="card" style="max-width:360px;margin:60px auto"><h2>Masuk</h2>
+<form method="post">{% csrf_token %}{% if form.errors %}<p style="color:#d92d20">Username atau password salah.</p>{% endif %}
+<p><input name="username" placeholder="Username" autofocus required style="width:100%"></p>
+<p><input name="password" type="password" placeholder="Password" required style="width:100%"></p>
+<button style="width:100%">Masuk</button></form></div>{% endblock %}
