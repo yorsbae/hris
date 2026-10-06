@@ -4,3 +4,4 @@ django-environ>=0.11
 argon2-cffi>=23.1
 gunicorn>=22.0
 reportlab>=4.0
+cryptography>=42.0

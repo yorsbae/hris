@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}{{ label }}{% endblock %}{% block content %}
+<p><a href="{% url 'master_list' kind %}">‹ Daftar {{ label|lower }}</a></p>
+<h2>{% if obj %}Ubah{% else %}Tambah{% endif %} {{ label|lower }}</h2>
+<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+<p><button>Simpan</button></p></form>
+{% endblock %}

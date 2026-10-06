@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}{{ title }}{% endblock %}{% block content %}
+<p><a href="{% if e %}{% url 'employee_detail_page' e.pk %}{% else %}/employees/{% endif %}">‹ Kembali</a></p>
+<h2>{{ title }}</h2>
+<form method="post" class="card form" style="max-width:720px">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
+<p><button>Simpan</button></p></form>
+{% endblock %}

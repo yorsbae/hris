@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}{{ e.nik }}{% endblock %}{% block content %}
+<p><a href="/employees/">‹ Daftar karyawan</a></p>
+<h2>{{ e.name }} <span class="pill">{{ e.status }}</span></h2>
+{% if full %}<div class="bar"><a class="btn" href="{% url 'employee_edit' e.pk %}" style="margin-left:0">Ubah</a>
+<a class="btn" href="{% url 'contract_new' e.pk %}">Kontrak baru / perpanjang</a>
+<a class="btn" href="{% url 'employee_delete' e.pk %}" style="background:#d92d20">Hapus</a></div>{% endif %}
+<div class="card"><table>{% for k, v in rows %}<tr><th>{{ k }}</th><td style="white-space:pre-line">{{ v }}</td></tr>{% endfor %}</table></div>
+{% if full %}
+<h3>Kontrak</h3>
+<div class="wrap"><table><thead><tr><th>Nomor</th><th>Jenis</th><th>Mulai</th><th>Berakhir</th><th>Status</th><th>Perpanjangan dari</th></tr></thead><tbody>
+{% for c in contracts %}<tr><td>{{ c.number }}</td><td>{{ c.kind }}</td><td>{{ c.start|date:"d M Y" }}</td><td>{{ c.end|date:"d M Y"|default:"—" }}</td><td>{{ c.status }}</td><td>{{ c.previous.number|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="6">Belum ada kontrak.</td></tr>{% endfor %}</tbody></table></div>
+<h3>Riwayat</h3>
+<div class="wrap"><table><thead><tr><th>Efektif</th><th>Bidang</th><th>Dari</th><th>Menjadi</th><th>Oleh</th></tr></thead><tbody>
+{% for h in history %}<tr><td>{{ h.effective_date|date:"d M Y" }}</td><td>{{ h.field }}</td><td>{{ h.old_value|default:"—" }}</td><td>{{ h.new_value }}</td><td>{{ h.changed_by.get_username|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="5">Belum ada riwayat.</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% endblock %}

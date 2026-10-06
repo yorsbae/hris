@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev
 from apps.core import notif_views as nv
 from apps.poli import views as poli
 from apps.core.dashboard import dashboard, home
@@ -14,6 +14,14 @@ urlpatterns = [
     path("api/requests/<int:pk>/<str:to>/", hr.request_transition),
     path("", home),
     path("employees/", hr.employees_page),
+    path("employees/new/", ev.employee_new, name="employee_new"),
+    path("employees/<int:pk>/", ev.employee_detail_page, name="employee_detail_page"),
+    path("employees/<int:pk>/edit/", ev.employee_edit, name="employee_edit"),
+    path("employees/<int:pk>/delete/", ev.employee_delete, name="employee_delete"),
+    path("employees/<int:pk>/contracts/new/", ev.contract_new, name="contract_new"),
+    path("master/<str:kind>/", ev.master_list, name="master_list"),
+    path("master/<str:kind>/new/", ev.master_form, name="master_new"),
+    path("master/<str:kind>/<int:pk>/", ev.master_form, name="master_edit"),
     path("notifications/", nv.notification_list),
     path("notifications/read-all/", nv.notification_read_all),
     path("notifications/<int:pk>/open/", nv.notification_open),

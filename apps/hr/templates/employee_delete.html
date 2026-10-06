@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Hapus {{ e.nik }}{% endblock %}{% block content %}
+<p><a href="{% url 'employee_detail_page' e.pk %}">‹ Batal</a></p>
+<h2>Hapus karyawan: {{ e.nik }} · {{ e.name }}</h2>
+<p>Data <b>tidak dihapus permanen</b> (soft delete): hilang dari daftar, riwayat & audit tetap tersimpan, dan dapat dipulihkan oleh Superadmin.</p>
+{% if blockers %}<div class="msg error">Masih ada {{ blockers }} pengajuan berjalan untuk karyawan ini. Selesaikan atau tolak dulu.</div>{% endif %}
+{% if err %}<div class="msg error">{{ err }}</div>{% endif %}
+<form method="post" class="card form">{% csrf_token %}<div class="fld"><label>Alasan (wajib)</label><input name="reason" maxlength="300" required></div>
+<p><button class="danger"{% if blockers %} disabled{% endif %}>Hapus</button></p></form>
+{% endblock %}

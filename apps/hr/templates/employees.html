@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block content %}
-<h2>Karyawan</h2>
+<h2>Karyawan{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a>{% endif %}</h2>
 <p><input id="q" placeholder="Cari NIK / nama" style="min-width:240px">
 <select id="st"><option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select></p>
 <div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
@@ -9,7 +9,8 @@ let page=1,total=0,t;const $=i=>document.getElementById(i);
 async function load(){const p=new URLSearchParams({q:$("q").value,status:$("st").value,page});
 const d=await (await fetch("/api/employees/?"+p)).json();total=Math.ceil(d.count/50)||1;
 $("rows").replaceChildren(...d.results.map(r=>{const tr=document.createElement("tr");
-[r.nik,r.name,r.department__name,r.position__name||"-",r.status].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td)});return tr}));
+[r.nik,r.name,r.department__name,r.position__name||"-",r.status].forEach((v,i)=>{const td=document.createElement("td");
+if(i===0){const a=document.createElement("a");a.href="/employees/"+encodeURIComponent(r.id)+"/";a.textContent=v;td.append(a)}else td.textContent=v;tr.append(td)});return tr}));
 $("info").textContent=`Halaman ${d.page} / ${total} · ${d.count} data`;}
 $("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;load()},300)};$("st").onchange=()=>{page=1;load()};
 $("prev").onclick=()=>{if(page>1){page--;load()}};$("next").onclick=()=>{if(page<total){page++;load()}};load();
