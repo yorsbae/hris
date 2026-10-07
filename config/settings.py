@@ -10,10 +10,11 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "apps.core", "apps.hr", "apps.poli", "apps.hrd",
+    "apps.core", "apps.hr.apps.HrConfig", "apps.poli.apps.PoliConfig", "apps.hrd",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # sajikan /static/ (CSS/JS Django admin) walau DEBUG=False; harus tepat setelah SecurityMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -49,6 +50,14 @@ CSRF_COOKIE_HTTPONLY = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 LANGUAGE_CODE = "id"; TIME_ZONE = "Asia/Jakarta"; USE_TZ = True
 STATIC_URL = "static/"; STATIC_ROOT = BASE_DIR / "static_root"
+# Berkas statis (hanya milik Django admin; halaman aplikasi memakai gaya inline). WhiteNoise membaca langsung dari app (finders),
+# jadi `collectstatic` TIDAK wajib; bila dijalankan, berkas dipadatkan (gzip/brotli). Tanpa manifest agar tes/deploy tidak gagal.
+STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"}}
+try: STATIC_ROOT.mkdir(exist_ok=True)  # cegah peringatan WhiteNoise "No directory" sebelum collectstatic pernah dijalankan
+except OSError: pass
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = DEBUG
 MEDIA_ROOT = BASE_DIR / "media"  # dokumen karyawan: sajikan lewat view ber-permission, bukan langsung
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_RATE_LIMIT = (5, 300)  # 5 percobaan / 5 menit per IP

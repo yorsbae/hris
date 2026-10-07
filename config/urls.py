@@ -5,6 +5,8 @@ from apps.hr import views as hr, request_views as rq, info_views as iv, emp_view
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core.dashboard import dashboard, home
+admin.site.site_header = admin.site.site_title = "HRIS & Poliklinik — Administrasi data"
+admin.site.index_title = "Administrasi data (khusus Superadmin; pekerjaan harian lewat menu aplikasi)"
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("login/", auth.LoginView.as_view(), name="login"),
