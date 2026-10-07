@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Saldo cuti {{ year }}{% endblock %}{% block content %}
+<h2>Saldo cuti tahun {{ year }}</h2>
+<form method="get" class="bar">
+<input name="q" value="{{ f.q }}" placeholder="NIK / nama"><input name="year" type="number" value="{{ year }}" style="width:90px">
+<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<select name="filter"><option value="">Semua</option><option value="nogrant"{% if f.filter == "nogrant" %} selected{% endif %}>Belum diberi jatah</option><option value="low"{% if f.filter == "low" %} selected{% endif %}>Saldo ≤ 3 hari</option></select>
+<button>Filter</button></form>
+<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jatah {{ year }}</th><th>Saldo</th><th></th></tr></thead><tbody>
+{% for e in page %}<tr><td>{{ e.nik }}</td><td>{{ e.name }}</td><td>{{ e.department.name }}</td><td>{% if e.grants %}sudah{% else %}<span class="pill">belum</span>{% endif %}</td><td>{{ e.bal }}</td><td><a href="{% url 'leave_detail' e.pk %}?year={{ year }}">Kartu</a></td></tr>
+{% empty %}<tr><td colspan="6">Tidak ada data.</td></tr>{% endfor %}</tbody></table></div>
+<p>{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&year={{ year }}&q={{ f.q|urlencode }}&department={{ f.department }}&filter={{ f.filter }}">‹ Sebelumnya</a>{% endif %}
+Halaman {{ page.number }} / {{ page.paginator.num_pages }}
+{% if page.has_next %}<a href="?page={{ page.next_page_number }}&year={{ year }}&q={{ f.q|urlencode }}&department={{ f.department }}&filter={{ f.filter }}">Berikutnya ›</a>{% endif %}</p>
+{% endblock %}

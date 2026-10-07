@@ -8,7 +8,10 @@ from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import get_scoped_or_404, require_roles
 from .emp_forms import MASTERS, ContractForm, EmployeeForm
-from .models import ChangeRequest, Contract, Employee, EmployeeHistory
+from datetime import timedelta
+from django.utils import timezone
+from . import leave
+from .models import ChangeRequest, Contract, Employee, EmployeeHistory, ShiftAssignment
 
 TRACKED = ("department", "position", "status", "shift")  # perubahan field ini selalu masuk EmployeeHistory
 ACTIVE_REQ = ("submitted", "pending", "approved")
@@ -51,6 +54,11 @@ def employee_detail_page(request, pk):
     full = request.user.role in (Role.HRD, Role.SUPERADMIN)
     if full: log(request, "hr", "view_sensitive", e)
     ctx = {"e": e, "rows": _rows(request.user, e), "full": full}
+    if request.user.role != Role.POLI:  # saldo cuti & jadwal bukan data sensitif; Admin Dept hanya lewat get_scoped_or_404 di atas
+        today = timezone.localdate()
+        ctx["leave_year"] = today.year
+        ctx["leave_balance"], ctx["leave_available"] = leave.balance(e, today.year), leave.available(e, today.year)
+        ctx["schedule_rows"] = ShiftAssignment.objects.filter(employee=e, date__gte=today - timedelta(days=7)).select_related("shift").order_by("date")[:30]
     if full:
         ctx["history"] = e.history.order_by("-effective_date", "-id")[:50]
         ctx["contracts"] = e.contracts.order_by("-start")

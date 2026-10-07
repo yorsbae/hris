@@ -1,7 +1,7 @@
 from datetime import date
 from django.test import TestCase
 from apps.core.models import AuditLog, Notification, Role, User
-from .models import ChangeRequest, Department, Employee, EmployeeHistory, Position, Shift
+from .models import ChangeRequest, Department, Employee, EmployeeHistory, LeaveLedger, Position, Shift
 
 
 class WorkflowUITests(TestCase):
@@ -11,6 +11,7 @@ class WorkflowUITests(TestCase):
         cls.pos = Position.objects.create(name="Staff"); cls.pos2 = Position.objects.create(name="Leader")
         mk = lambda nik, d: Employee.objects.create(nik=nik, name=f"Emp {nik}", gender="L", department=d, position=cls.pos, join_date=date(2024, 1, 1))
         cls.e1, cls.e2 = mk("001", cls.d1), mk("002", cls.d2)
+        for e in (cls.e1, cls.e2): LeaveLedger.objects.create(employee=e, year=2026, kind="grant", days=12)  # cuti butuh saldo (putaran 9)
         pw = "kata-sandi-panjang-123"
         cls.hrd = User.objects.create_user("hrd", password=pw, role=Role.HRD)
         cls.adm1 = User.objects.create_user("adm1", password=pw, role=Role.DEPT_ADMIN, department=cls.d1)

@@ -1,6 +1,8 @@
 """Form pengajuan. Validasi di server adalah otoritas; JS di halaman hanya menyembunyikan field yang tidak relevan."""
 from django import forms
+from django.utils import timezone
 from apps.core.models import Role
+from . import leave, schedule
 from .models import ChangeRequest, Department, Employee, Position, Shift
 
 GROUPS = {  # tipe → field payload yang dipakai
@@ -65,6 +67,10 @@ class RequestForm(forms.Form):
             if d["end_date"] < d["start_date"]: self.add_error("end_date", "Tidak boleh sebelum tanggal mulai.")
             elif self._overlaps(t, d["start_date"], d["end_date"]):
                 raise forms.ValidationError("Sudah ada pengajuan izin/cuti/sakit yang tumpang tindih pada tanggal tersebut.")
+        if t == "cuti" and d.get("start_date") and d.get("end_date") and d["end_date"] >= d["start_date"]:
+            msg = leave.check_request(self.employee, d["start_date"], d["end_date"])
+            if msg: raise forms.ValidationError(msg)
+        if t in schedule.SWAP_TYPES: self._clean_swap(t, d)
         if t == "mutasi_dept" or t == "rotasi":
             if d.get("department") and d["department"].pk == self.employee.department_id:
                 self.add_error("department", "Sama dengan departemen saat ini.")
@@ -76,8 +82,25 @@ class RequestForm(forms.Form):
             self.add_error("status", "Sama dengan status saat ini.")
         return d
 
-    def _overlaps(self, t, start, end):
-        for r in ChangeRequest.objects.filter(employee=self.employee, type__in=RANGE_TYPES, status__in=ACTIVE):
+    def _clean_swap(self, t, d):
+        """Tukar shift/libur: tanggal tidak boleh lampau, tidak boleh bentrok dengan tukar lain / penyesuaian yang ada / izin-cuti-sakit."""
+        today, emp = timezone.localdate(), self.employee
+        dates = [(f, d.get(f)) for f in (("date",) if t == "tukar_shift" else ("date", "date_to")) if d.get(f)]
+        for f, v in dates:
+            if v < today: self.add_error(f, "Tidak boleh tanggal yang sudah lewat.")
+        if self.errors: return
+        if t == "tukar_libur" and d.get("date") == d.get("date_to"):
+            self.add_error("date_to", "Harus berbeda dari tanggal libur yang diganti."); return
+        if t == "tukar_shift" and d.get("shift") and d["shift"].pk == emp.shift_id:
+            self.add_error("shift", "Sama dengan shift reguler karyawan."); return
+        payload = {f: v.isoformat() for f, v in dates}
+        hit = schedule.live_conflict(emp, t, payload)
+        if hit: raise forms.ValidationError(f"Tanggal {hit} sudah dipakai pengajuan tukar jadwal lain atau sudah punya penyesuaian jadwal.")
+        for f, v in dates:
+            if self._overlaps(t, v, v, types=RANGE_TYPES): self.add_error(f, "Karyawan sedang izin/cuti/sakit pada tanggal ini.")
+
+    def _overlaps(self, t, start, end, types=None):
+        for r in ChangeRequest.objects.filter(employee=self.employee, type__in=types or RANGE_TYPES, status__in=ACTIVE):
             s, e = r.payload.get("start_date"), r.payload.get("end_date")
             if s and e and s <= end.isoformat() and e >= start.isoformat(): return True
         return False

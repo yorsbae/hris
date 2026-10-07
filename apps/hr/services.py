@@ -1,5 +1,6 @@
 from django.db import transaction
 from apps.core.models import Notification, User, Role
+from . import leave, schedule
 from .models import ChangeRequest, EmployeeHistory, Department, Position, Shift
 
 HRD_ONLY = {"approved", "rejected", "executed"}
@@ -13,6 +14,11 @@ def transition(req: ChangeRequest, to: str, user, note: str = ""):
         raise PermissionError("Hanya HRD yang dapat memutuskan")
     if user.role == Role.DEPT_ADMIN and (req.department_id != user.department_id or req.requested_by_id != user.id):
         raise PermissionError("Di luar scope")
+    if to == "cancelled":
+        hrd = user.role in (Role.HRD, Role.SUPERADMIN)
+        if req.status == "approved" and not hrd: raise PermissionError("Hanya HRD yang dapat membatalkan pengajuan yang sudah disetujui")
+        if not hrd and req.requested_by_id != user.id: raise PermissionError("Hanya pemohon atau HRD yang dapat membatalkan")
+        if req.status != "draft" and not note.strip(): raise ValueError("Alasan pembatalan wajib diisi")
     req.status = to
     if to in ("approved", "rejected"): req.decided_by = user
     if note.strip(): req.note = (req.note + "\n" if req.note else "") + f"[{user.get_username()} → {to}] {note.strip()}"
@@ -23,11 +29,15 @@ def transition(req: ChangeRequest, to: str, user, note: str = ""):
                                           for u in User.objects.filter(role=Role.HRD)])
     elif to in ("approved", "rejected"):
         Notification.objects.create(user=req.requested_by, kind="approval", title=f"Pengajuan {req.type} {to}", link=f"/requests/{req.pk}")
+    elif to == "cancelled" and req.requested_by_id != user.id:  # dibatalkan HRD: beri tahu pemohon
+        Notification.objects.create(user=req.requested_by, kind="approval", title=f"Pengajuan {req.type} dibatalkan HRD", link=f"/requests/{req.pk}")
     return req
 
 MODELS = {"department": ("department", Department), "position": ("position", Position), "shift": ("shift", Shift)}
 def _execute(req, user):
     """Terapkan perubahan ke karyawan + tulis riwayat. Hanya untuk tipe yang mengubah master."""
+    if req.type in schedule.SWAP_TYPES: return schedule.apply(req, user)  # tulis ShiftAssignment; master shift tidak berubah
+    if req.type == "cuti": return leave.charge(req, user)  # potong saldo cuti (kartu LeaveLedger)
     emp, p = req.employee, req.payload
     changes = {"mutasi_dept": "department", "mutasi_jabatan": "position", "promosi": "position",
                "demosi": "position", "rotasi": "department", "shift": "shift"}.get(req.type)
@@ -37,7 +47,7 @@ def _execute(req, user):
         attr, M = MODELS[changes]; old = str(getattr(emp, attr)); obj = M.objects.get(pk=p[f"{attr}_id"])
         setattr(emp, attr, obj); field, new = changes, str(obj)
     else:
-        return  # izin/cuti/dst: tidak mengubah master
+        return  # izin/sakit/dst: tidak mengubah master maupun saldo
     emp.save()
     EmployeeHistory.objects.create(employee=emp, field=field, old_value=old, new_value=new,
         effective_date=p.get("effective_date") or req.updated_at.date(), changed_by=user, request=req)

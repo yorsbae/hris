@@ -18,7 +18,7 @@ FIELD_LABELS = {"start_date": "Tanggal mulai", "end_date": "Tanggal selesai", "d
                 "time": "Jam", "effective_date": "Tanggal efektif", "department_name": "Departemen tujuan",
                 "position_name": "Jabatan tujuan", "shift_name": "Shift tujuan", "status": "Status baru", "reason": "Alasan"}
 STATUS_LABELS = {"draft": "Draft", "submitted": "Diajukan", "pending": "Menunggu persetujuan", "approved": "Disetujui",
-                 "rejected": "Ditolak", "executed": "Dilaksanakan"}
+                 "rejected": "Ditolak", "executed": "Dilaksanakan", "cancelled": "Dibatalkan"}
 
 
 @login_required
@@ -58,9 +58,12 @@ def request_new(request):
 def _actions(user, req):
     """Tombol yang boleh tampil; pengecekan sebenarnya tetap di services.transition."""
     hrd = user.role in (Role.HRD, Role.SUPERADMIN)
-    if req.status == "draft" and (req.requested_by_id == user.id or user.role == Role.SUPERADMIN): return ["submit"]
-    if req.status == "pending" and hrd: return ["approved", "rejected"]
-    if req.status == "approved" and hrd: return ["executed"]
+    mine = req.requested_by_id == user.id
+    if req.status == "draft" and (mine or user.role == Role.SUPERADMIN): return ["submit", "cancelled"]
+    if req.status == "pending":
+        if hrd: return ["approved", "rejected", "cancelled"]
+        return ["cancelled"] if mine else []
+    if req.status == "approved" and hrd: return ["executed", "cancelled"]
     return []
 
 
@@ -70,8 +73,12 @@ def request_detail(request, pk):
     req = get_scoped_or_404(request.user, ChangeRequest.objects.select_related("employee__department", "department", "requested_by", "decided_by"), pk)
     Notification.objects.filter(user=request.user, is_read=False, link__in=[f"/requests/{pk}", f"/requests/{pk}/"]).update(is_read=True)
     rows = [(FIELD_LABELS[k], v) for k, v in req.payload.items() if k in FIELD_LABELS]
-    return render(request, "request_detail.html", {"r": req, "rows": rows, "actions": _actions(request.user, req),
-                                                   "label": LABELS[req.type], "status_label": STATUS_LABELS.get(req.status, req.status)})
+    ctx = {"r": req, "rows": rows, "actions": _actions(request.user, req), "label": LABELS[req.type],
+           "status_label": STATUS_LABELS.get(req.status, req.status)}
+    if req.status == "executed":  # hasil pelaksanaan: apa yang benar-benar ditulis
+        ctx["schedule_rows"] = req.schedule_rows.select_related("shift").order_by("date")
+        ctx["leave_rows"] = req.leave_rows.order_by("year")
+    return render(request, "request_detail.html", ctx)
 
 
 @require_POST
@@ -79,11 +86,13 @@ def request_detail(request, pk):
 @require_roles(*ROLES)
 def request_action(request, pk, action):
     req = get_scoped_or_404(request.user, ChangeRequest.objects.all(), pk)  # URL tampering → 404
-    if action not in ("submit", "approved", "rejected", "executed"):
+    if action not in ("submit", "approved", "rejected", "executed", "cancelled"):
         messages.error(request, "Aksi tidak dikenal."); return redirect("request_detail", pk=pk)
     note = request.POST.get("note", "")
     if action == "rejected" and not note.strip():
         messages.error(request, "Alasan penolakan wajib diisi."); return redirect("request_detail", pk=pk)
+    if action == "cancelled" and req.status != "draft" and not note.strip():
+        messages.error(request, "Alasan pembatalan wajib diisi."); return redirect("request_detail", pk=pk)
     before = {"status": req.status}
     try:
         new = services.submit(req, request.user) if action == "submit" else services.transition(req, action, request.user, note)

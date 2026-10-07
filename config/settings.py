@@ -47,3 +47,8 @@ LOGGING = {"version": 1, "disable_existing_loggers": False,
   "handlers": {"file": {"class": "logging.handlers.RotatingFileHandler", "filename": BASE_DIR / "app.log", "maxBytes": 10_000_000, "backupCount": 10}},
   "root": {"handlers": ["file"], "level": "INFO"}}
 LOGIN_URL = "/login/"; LOGIN_REDIRECT_URL = "/"; LOGOUT_REDIRECT_URL = "/login/"
+
+# Kebijakan cuti/jadwal (asumsi bawaan; sesuaikan dengan peraturan perusahaan, lihat docs/PROGRESS.md §4)
+ANNUAL_LEAVE_DAYS = 12            # jatah cuti tahunan (hari kerja)
+ANNUAL_LEAVE_MIN_MONTHS = 12      # masa kerja minimum sebelum berhak jatah
+REGULAR_OFF_WEEKDAYS = (6,)       # hari libur reguler (0=Senin … 6=Minggu); tidak dihitung sebagai hari cuti

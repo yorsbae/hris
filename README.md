@@ -6,6 +6,7 @@
     python manage.py migrate
     python manage.py encrypt_sensitive   # sekali, bila ada data lama (backup dulu; --dry-run untuk simulasi)
     python manage.py init_bpjs_status    # sekali, isi awal status BPJS dari nomor yang sudah ada (--dry-run untuk simulasi)
+    python manage.py grant_annual_leave --dry-run   # jatah cuti tahunan; ulangi tanpa --dry-run. WAJIB sebelum Admin Dept mengajukan cuti (cuti butuh saldo)
     python manage.py createsuperuser   # set role='superadmin' via shell/admin
     gunicorn config.wsgi -b 127.0.0.1:8000   # taruh Nginx di depan; PostgreSQL hanya listen 127.0.0.1/server
 
@@ -17,13 +18,13 @@ Kunci enkripsi hilang = data tidak bisa dibaca → simpan dan backup terpisah da
 
 ## Belum dibuat (ringkas; rincian & urutan di `docs/PROGRESS.md`)
 manajemen user (UI), UI Poli (rekam medis, obat, rujukan, kehamilan),
-penerapan tukar shift/libur & saldo cuti, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
+pola libur reguler per karyawan & hari libur nasional, batalkan pelaksanaan, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
 
 ## Status tahap (acuan: `docs/VISION.md`)
-- Tahap 1 Fondasi ✅ · Tahap 3 Workflow ✅ UI `/requests/` · Tahap 4 Informasi ✅ `/notifications/`, `/announcements/`
+- Tahap 1 Fondasi ✅ · Tahap 3 Workflow ✅ UI `/requests/` + penerapan tukar shift/libur (`ShiftAssignment`, master shift tidak berubah) + saldo cuti `/leave/` (HRD) + batalkan pengajuan · Tahap 4 Informasi ✅ `/notifications/`, `/announcements/`
 - Tahap 2 HR Core: ✅ CRUD karyawan, master, kontrak, riwayat, dokumen, impor CSV, filter (`/employees/`, `/master/`) · Tahap 5 Poli: model + surat izin pulang PDF ✅, UI belum
 - Tahap 2b Operasional HRD ✅ `/hrd/` (khusus HRD/Superadmin): bantuan, cuti hamil, kerja harian proyek, katering (tepak besar/kecil), status BPJS K/TK
 - Tahap 6–7: belum (tabel absensi sudah disiapkan)
-- Tes: `python manage.py test` (151 tes; lulus di SQLite dan PostgreSQL 16). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
+- Tes: `python manage.py test` (213 tes; lulus di SQLite dan PostgreSQL 16; tes konkurensi berthread hanya jalan di PostgreSQL). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
 
 Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.

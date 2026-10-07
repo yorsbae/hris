@@ -10,9 +10,11 @@ class Department(models.Model):
     def __str__(self): return self.name
 class Position(models.Model):
     name = models.CharField(max_length=100); level = models.PositiveSmallIntegerField(default=0)
-class Shift(models.Model):  # master shift; jadwal per karyawan ada di ShiftAssignment
+    def __str__(self): return self.name
+class Shift(models.Model):  # master shift; penyesuaian per tanggal ada di ShiftAssignment
     name = models.CharField(max_length=50); start = models.TimeField(); end = models.TimeField()
     crosses_midnight = models.BooleanField(default=False)
+    def __str__(self): return self.name
 
 class EmployeeManager(models.Manager):
     """Default: hanya karyawan yang belum dihapus (soft delete). Gunakan Employee.all_objects untuk semuanya."""
@@ -95,7 +97,10 @@ class ChangeRequest(models.Model):
     TYPES = ["mutasi_dept", "mutasi_jabatan", "promosi", "demosi", "rotasi", "status", "shift",
              "izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus", "tukar_shift", "tukar_libur"]
     # Draft → Submitted → Pending Approval → Approved/Rejected → Executed
-    FLOW = {"draft": {"submitted"}, "submitted": {"pending"}, "pending": {"approved", "rejected"}, "approved": {"executed"}}
+    # Perluasan atas VISION: "cancelled" (dibatalkan pemohon/HRD) agar draft tidak menggantung dan pengajuan yang tidak bisa
+    # dilaksanakan (mis. tanggal tukar shift sudah lewat) tidak macet di "approved".
+    FLOW = {"draft": {"submitted", "cancelled"}, "submitted": {"pending"}, "pending": {"approved", "rejected", "cancelled"},
+            "approved": {"executed", "cancelled"}}
     type = models.CharField(max_length=30, choices=[(t, t) for t in TYPES], db_index=True)
     employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="requests")
     department = models.ForeignKey(Department, on_delete=models.PROTECT)  # snapshot untuk scope cepat
@@ -121,6 +126,62 @@ class AnnouncementRead(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     read_at = models.DateTimeField(auto_now_add=True)
     class Meta: unique_together = ("announcement", "user")
+
+class ShiftAssignment(models.Model):
+    """Penyesuaian jadwal per TANGGAL (hasil tukar shift/libur yang disetujui & dilaksanakan). Master `Employee.shift` tidak diubah
+    (VISION: master shift tidak berubah lewat tukar). Jadwal efektif = penyesuaian bila ada, kalau tidak shift master (`apps/hr/schedule.py`).
+    Append-only: tidak diubah/dihapus lewat model; satu baris per karyawan per tanggal."""
+    SHIFT, WORK, OFF = "shift", "work", "off"
+    KINDS = [(SHIFT, "Shift pengganti"), (WORK, "Masuk (shift reguler)"), (OFF, "Libur")]
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="schedule_overrides")
+    date = models.DateField()
+    kind = models.CharField(max_length=10, choices=KINDS)
+    shift = models.ForeignKey(Shift, null=True, blank=True, on_delete=models.PROTECT, related_name="+")  # wajib hanya bila kind=shift
+    request = models.ForeignKey("ChangeRequest", on_delete=models.PROTECT, related_name="schedule_rows")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ["date", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["employee", "date"], name="uniq_shift_assignment_employee_date"),
+            models.CheckConstraint(name="shift_assignment_shift_iff_kind_shift",
+                                   condition=(models.Q(kind="shift", shift__isnull=False) | models.Q(kind__in=["work", "off"], shift__isnull=True))),
+        ]
+        indexes = [models.Index(fields=["date", "employee"])]
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Penyesuaian jadwal tidak boleh diubah")
+        super().save(*a, **k)
+    def delete(self, *a, **k): raise PermissionError("Penyesuaian jadwal tidak boleh dihapus")
+
+
+class LeaveLedger(models.Model):
+    """Kartu saldo cuti tahunan (seperti kartu stok obat): jatah (+), pemakaian (−), koreksi (±). Saldo = jumlah `days` per karyawan per tahun.
+    Append-only; kesalahan dikoreksi dengan baris `adjust`, bukan dengan mengubah baris lama. Tabel terpisah dari Employee."""
+    GRANT, USE, ADJUST = "grant", "use", "adjust"
+    KINDS = [(GRANT, "Jatah tahunan"), (USE, "Pemakaian cuti"), (ADJUST, "Koreksi")]
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="leave_ledger")
+    year = models.PositiveSmallIntegerField()
+    kind = models.CharField(max_length=10, choices=KINDS)
+    days = models.DecimalField(max_digits=5, decimal_places=1)  # bertanda: jatah/koreksi bisa +/−, pemakaian selalu −
+    request = models.ForeignKey("ChangeRequest", null=True, blank=True, on_delete=models.PROTECT, related_name="leave_rows")
+    note = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ["-year", "-id"]
+        constraints = [
+            # satu pengajuan hanya boleh memotong saldo sekali per tahun (idempoten terhadap klik ganda / retry)
+            models.UniqueConstraint(fields=["request", "year", "kind"], condition=models.Q(request__isnull=False), name="uniq_leave_request_year_kind"),
+            # jatah tahunan tidak boleh ganda untuk karyawan+tahun yang sama (perintah grant_annual_leave aman diulang)
+            models.UniqueConstraint(fields=["employee", "year"], condition=models.Q(kind="grant"), name="uniq_leave_grant_employee_year"),
+            models.CheckConstraint(name="leave_use_is_negative", condition=~models.Q(kind="use") | models.Q(days__lt=0)),
+        ]
+        indexes = [models.Index(fields=["employee", "year"])]
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Kartu saldo cuti tidak boleh diubah")
+        super().save(*a, **k)
+    def delete(self, *a, **k): raise PermissionError("Kartu saldo cuti tidak boleh dihapus")
+
 
 # ---- Struktur siap Absensi/Payroll (belum ada logikanya) ----
 class AttendanceRaw(models.Model):  # log mentah mesin fingerprint; immutable
