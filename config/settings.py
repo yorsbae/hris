@@ -10,7 +10,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "apps.core", "apps.hr", "apps.poli",
+    "apps.core", "apps.hr", "apps.poli", "apps.hrd",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -21,6 +21,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.core.middleware.RateLimitLoginMiddleware",
+    "apps.core.middleware.RejectNulMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "APP_DIRS": True,

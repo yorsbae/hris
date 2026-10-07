@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Bantuan{% endblock %}{% block content %}
+<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<h2>Bantuan <a class="btn" href="{% url 'hrd_aid_new' %}">+ Bantuan baru</a></h2>
+<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
+<select name="status"><option value="">Semua status</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+<select name="kind"><option value="">Semua jenis</option>{% for k, v in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>
+<p style="color:var(--mu)">Total nominal pada hasil filter (di luar yang ditolak): <b>Rp {{ total|floatformat:0 }}</b></p>
+<div class="wrap"><table><thead><tr><th>#</th><th>Karyawan</th><th>Jenis</th><th>Kejadian</th><th>Nominal</th><th>Status</th></tr></thead><tbody>
+{% for a in page %}<tr><td><a href="{% url 'hrd_aid_detail' a.pk %}">{{ a.pk }}</a></td><td>{{ a.employee.nik }} · {{ a.employee.name }}</td><td>{{ a.get_kind_display }}</td><td>{{ a.event_date|date:"d M Y" }}</td><td>Rp {{ a.amount|floatformat:0 }}</td>
+<td><span class="pill {% if a.status == 'disetujui' or a.status == 'dibayar' %}approved{% elif a.status == 'ditolak' %}rejected{% else %}pending{% endif %}">{{ a.get_status_display }}</span></td></tr>
+{% empty %}<tr><td colspan="6">Belum ada data bantuan.</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% endblock %}

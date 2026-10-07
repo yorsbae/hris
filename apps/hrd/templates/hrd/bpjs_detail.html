@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}BPJS {{ e.nik }}{% endblock %}{% block content %}
+<p><a href="/hrd/bpjs/">‹ Daftar status BPJS</a> · <a href="{% url 'employee_detail_page' e.pk %}">Detail karyawan</a></p>
+<h2>{{ e.nik }} · {{ e.name }} <span class="pill">{{ e.status }}</span></h2>
+<div class="card"><table><thead><tr><th>Program</th><th>Status</th><th>Efektif</th><th>Keterangan</th><th>Nomor di data karyawan</th></tr></thead><tbody>
+{% for label, m, has_no in current %}<tr><td>{{ label }}</td><td>{% if m %}<span class="pill {% if m.status == 'aktif' %}approved{% else %}rejected{% endif %}">{{ m.status }}</span>{% else %}<span class="pill">belum dicatat</span>{% endif %}</td>
+<td>{{ m.effective_date|date:"d M Y"|default:"—" }}</td><td>{{ m.note|default:"—" }}</td><td>{% if has_no %}terisi{% else %}kosong{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<h3>Ubah status</h3>
+<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
+<p><button>Simpan</button></p></form>
+<h3>Histori</h3>
+<div class="wrap"><table><thead><tr><th>Efektif</th><th>Program</th><th>Dari</th><th>Menjadi</th><th>Keterangan</th><th>Oleh</th><th>Dicatat</th></tr></thead><tbody>
+{% for l in logs %}<tr><td>{{ l.effective_date|date:"d M Y" }}</td><td>{{ l.get_scheme_display }}</td><td>{{ l.old_status|default:"—" }}</td><td>{{ l.new_status }}</td><td>{{ l.note|default:"—" }}</td><td>{{ l.changed_by.get_username|default:"—" }}</td><td>{{ l.created_at|date:"d M Y H:i" }}</td></tr>
+{% empty %}<tr><td colspan="7">Belum ada histori.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

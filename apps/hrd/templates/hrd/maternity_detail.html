@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block title %}Cuti hamil #{{ m.pk }}{% endblock %}{% block content %}
+<p><a href="/hrd/maternity/">‹ Daftar cuti hamil</a></p>
+<h2>Cuti hamil #{{ m.pk }} <span class="pill">{{ phase }}</span></h2>
+<div class="card"><table>
+<tr><th>Karyawan</th><td>{{ m.employee.nik }} · {{ m.employee.name }} ({{ m.employee.department.name }})</td></tr>
+<tr><th>HPL</th><td>{{ m.due_date|date:"d M Y" }}</td></tr>
+<tr><th>Cuti</th><td>{{ m.start_date|date:"d M Y" }} s/d {{ m.end_date|date:"d M Y" }}</td></tr>
+<tr><th>Tanggal lahir sebenarnya</th><td>{{ m.delivery_date|date:"d M Y"|default:"—" }}</td></tr>
+<tr><th>Catatan</th><td>{{ m.note|default:"—" }}</td></tr>
+{% if m.cancel_reason %}<tr><th>Alasan batal</th><td>{{ m.cancel_reason }}</td></tr>{% endif %}
+<tr><th>Dicatat oleh</th><td>{{ m.created_by.get_username|default:"—" }} · {{ m.created_at|date:"d M Y H:i" }}</td></tr></table></div>
+{% if m.state == "aktif" %}
+<form method="post" class="card form" style="margin-top:12px">{% csrf_token %}
+<div class="fld"><label>Tanggal lahir sebenarnya (opsional, untuk menandai selesai)</label><input type="date" name="delivery_date"></div>
+<p><button formaction="{% url 'hrd_maternity_action' m.pk 'finish' %}">Tandai selesai</button> <a class="btn" href="{% url 'hrd_maternity_edit' m.pk %}">Ubah</a></p></form>
+<form method="post" class="card form" style="margin-top:12px">{% csrf_token %}
+<div class="fld"><label>Alasan pembatalan</label><input name="reason" maxlength="300" required></div>
+<p><button class="danger" formaction="{% url 'hrd_maternity_action' m.pk 'cancel' %}">Batalkan</button></p></form>{% endif %}
+{% endblock %}

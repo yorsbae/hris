@@ -1,0 +1,3 @@
+<p>{% if page.has_previous %}<a class="btn" style="margin-left:0" href="?page={{ page.previous_page_number }}{% if qs %}&{{ qs }}{% endif %}">‹</a>{% endif %}
+Halaman {{ page.number }} / {{ page.paginator.num_pages }} · {{ page.paginator.count }} data
+{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}{% if qs %}&{{ qs }}{% endif %}">›</a>{% endif %}</p>

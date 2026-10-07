@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Katering{% endblock %}{% block content %}
+<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<h2>Katering <a class="btn" href="{% url 'hrd_catering_new' %}">+ Pesanan baru</a></h2>
+<form method="get" class="bar">Dari <input type="date" name="from" value="{{ from }}"> sampai <input type="date" name="to" value="{{ to }}">
+<select name="meal"><option value="">Semua waktu makan</option>{% for k, v in meals %}<option value="{{ k }}"{% if f.meal == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select><button>Filter</button></form>
+<div class="grid" style="margin-bottom:12px"><div class="card"><b>{{ sum_large }}</b><span>Tepak besar</span></div><div class="card"><b>{{ sum_small }}</b><span>Tepak kecil</span></div><div class="card"><b>Rp {{ sum_cost|floatformat:0 }}</b><span>Perkiraan biaya</span></div></div>
+<p style="color:var(--mu)">Rekap di atas = seluruh periode terfilter (tanpa pesanan batal; memakai jumlah diterima bila sudah diterima).</p>
+<div class="wrap"><table><thead><tr><th>Tanggal</th><th>Waktu</th><th>Departemen</th><th>Besar</th><th>Kecil</th><th>Vendor</th><th>Status</th><th>Aksi</th></tr></thead><tbody>
+{% for o in page %}<tr><td>{{ o.date|date:"D, d M Y" }}</td><td>{{ o.get_meal_display }}</td><td>{{ o.department.name|default:"Umum" }}</td>
+<td>{{ o.qty_large }}{% if o.status == "diterima" %} → <b>{{ o.received_large }}</b>{% endif %}</td><td>{{ o.qty_small }}{% if o.status == "diterima" %} → <b>{{ o.received_small }}</b>{% endif %}</td><td>{{ o.vendor|default:"—" }}</td><td>{{ o.get_status_display }}</td>
+<td>{% if o.status == "dipesan" %}<a href="{% url 'hrd_catering_edit' o.pk %}">Ubah</a>
+<form method="post" action="{% url 'hrd_catering_action' o.pk 'receive' %}" style="display:flex;gap:4px;margin-top:4px">{% csrf_token %}<input name="received_large" type="number" min="0" value="{{ o.qty_large }}" style="width:70px" title="Besar diterima"><input name="received_small" type="number" min="0" value="{{ o.qty_small }}" style="width:70px" title="Kecil diterima"><button>Diterima</button></form>
+<form method="post" action="{% url 'hrd_catering_action' o.pk 'cancel' %}" style="display:flex;gap:4px;margin-top:4px">{% csrf_token %}<input name="reason" placeholder="Alasan batal" required maxlength="200"><button class="danger">Batal</button></form>{% else %}{{ o.note|default:"" }}{% endif %}</td></tr>
+{% empty %}<tr><td colspan="8">Tidak ada pesanan pada periode ini.</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% endblock %}

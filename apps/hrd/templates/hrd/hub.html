@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block title %}Operasional HRD{% endblock %}{% block content %}
+<h2>Operasional HRD</h2>
+<div class="grid">{% for title, url, n, label in cards %}<a class="card" href="{{ url }}" style="text-decoration:none;color:inherit"><b>{{ n }}</b><span>{{ label }}</span><div style="margin-top:8px;color:var(--ac)">{{ title }} ›</div></a>{% endfor %}</div>
+{% endblock %}

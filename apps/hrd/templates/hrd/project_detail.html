@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}{{ p.code }}{% endblock %}{% block content %}
+<p><a href="/hrd/projects/">‹ Daftar proyek</a></p>
+<h2>{{ p.code }} · {{ p.name }} <span class="pill">{{ p.get_status_display }}</span></h2>
+<div class="bar"><a class="btn" style="margin-left:0" href="{% url 'hrd_project_edit' p.pk %}">Ubah proyek</a>{% if p.status == "aktif" %}<a class="btn" href="{% url 'hrd_project_log_new' p.pk %}">+ Catatan harian</a>{% endif %}</div>
+<div class="card"><table><tr><th>Lokasi</th><td>{{ p.location|default:"—" }}</td></tr><tr><th>Periode</th><td>{{ p.start_date|date:"d M Y" }} – {{ p.end_date|date:"d M Y"|default:"…" }}</td></tr><tr><th>Catatan</th><td>{{ p.note|default:"—" }}</td></tr></table></div>
+<h3>Catatan harian <small style="color:var(--mu)">({{ days }} hari tercatat)</small></h3>
+<form method="get" class="bar">Dari <input type="date" name="from" value="{{ from }}"> sampai <input type="date" name="to" value="{{ to }}"><button>Filter</button></form>
+<div class="wrap"><table><thead><tr><th>Tanggal</th><th>Pekerjaan</th><th>Orang</th><th>Pekerja</th><th></th></tr></thead><tbody>
+{% for l in page %}<tr><td style="white-space:nowrap">{{ l.work_date|date:"D, d M Y" }}</td><td>{{ l.activity|linebreaksbr }}{% if l.note %}<br><small style="color:var(--mu)">{{ l.note }}</small>{% endif %}</td><td>{{ l.headcount }}</td>
+<td>{% for w in l.workers.all|slice:":5" %}{{ w.nik }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if l.workers.all|length > 5 %} +{{ l.workers.all|length|add:"-5" }}{% endif %}</td>
+<td><a href="{% url 'hrd_project_log_edit' p.pk l.pk %}">Ubah</a></td></tr>
+{% empty %}<tr><td colspan="5">Belum ada catatan harian.</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% endblock %}

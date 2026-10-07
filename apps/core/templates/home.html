@@ -4,7 +4,7 @@
 const L={employees:"Total karyawan",active:"Karyawan aktif",contract_expired:"Kontrak berakhir",contract_le_7:"Kontrak ≤ 7 hari",
 contract_le_30:"Kontrak ≤ 30 hari",contract_le_60:"Kontrak ≤ 60 hari",pending_requests:"Pengajuan pending",users:"User aktif",
 audit_24h:"Aktivitas 24 jam",visits_today:"Kunjungan hari ini",accidents_month:"Kecelakaan kerja (bulan ini)",
-open_referrals:"Rujukan terbuka",low_stock:"Obat stok minimum",unread_notifications:"Notifikasi belum dibaca",my_requests:"Pengajuan saya (per status)"};
+open_referrals:"Rujukan terbuka",low_stock:"Obat stok minimum",maternity_active:"Cuti hamil berjalan",aid_pending:"Bantuan menunggu keputusan",bpjs_inactive:"BPJS nonaktif (karyawan aktif)",unread_notifications:"Notifikasi belum dibaca",my_requests:"Pengajuan saya (per status)"};
 fetch("/api/dashboard/").then(r=>r.json()).then(d=>{const g=document.getElementById("g");
 for(const[k,v]of Object.entries(d)){if(k==="role")continue;
 const c=document.createElement("div");c.className="card";const b=document.createElement("b");

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 from django.contrib.auth import views as auth
 from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2
 from apps.core import notif_views as nv
@@ -38,6 +38,7 @@ urlpatterns = [
     path("requests/new/", rq.request_new),
     path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
     path("requests/<int:pk>/<str:action>/", rq.request_action),
+    path("hrd/", include("apps.hrd.urls")),
     path("api/dashboard/", dashboard),
     path("api/poli/records/", poli.record_create),
     path("api/poli/records/<int:record_id>/letter.pdf", poli.letter_pdf),
