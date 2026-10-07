@@ -1,25 +1,68 @@
 <!doctype html><html lang="id"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block title %}HRIS{% endblock %}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{% block title %}HRIS{% endblock %}</title>
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--tx:#1d2330;--mu:#667085;--ac:#1f6feb;--bd:#e3e6eb}
-@media(prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--tx:#e7eaf0;--mu:#97a0b0;--ac:#5b9bff;--bd:#2b3240}}
-*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
-header{display:flex;gap:16px;align-items:center;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--bd);flex-wrap:wrap}
-header a{color:var(--tx);text-decoration:none}header .sp{flex:1}.badge{background:var(--ac);color:#fff;border-radius:10px;padding:1px 8px;font-size:12px}
-main{max-width:1100px;margin:20px auto;padding:0 16px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px}.card b{font-size:26px;display:block}.card span{color:var(--mu);font-size:13px}
-input,select,button{padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
-button{cursor:pointer;background:var(--ac);color:#fff;border:0}table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
-th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--bd)}th{color:var(--mu);font-size:13px}.wrap{overflow-x:auto}
-.btn{display:inline-block;padding:6px 12px;border-radius:8px;background:var(--ac);color:#fff!important;font-size:14px;text-decoration:none;margin-left:8px}
-.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.form{max-width:560px}.fld{margin-bottom:10px}.fld label{display:block;font-size:13px;color:var(--mu);margin-bottom:3px}
-.fld input,.fld select,.fld textarea,.form textarea{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
-.errorlist{color:#d92d20;margin:4px 0;padding:0;list-style:none;font-size:13px}.msg{padding:10px 14px;border-radius:8px;margin-bottom:12px;background:var(--card);border:1px solid var(--bd)}.msg.error{border-color:#d92d20;color:#d92d20}
-.pill{padding:2px 9px;border-radius:10px;font-size:12px;background:var(--bd)}.pill.pending{background:#fedf89;color:#7a4b00}.pill.approved,.pill.executed{background:#abefc6;color:#05603a}.pill.rejected{background:#fecdca;color:#912018}
-button.lnk{background:none;color:var(--ac);padding:0;text-align:left;font:inherit}button.danger{background:#d92d20}[hidden]{display:none!important}
-</style></head><body>
-<header><b>HRIS</b>{% if user.is_authenticated %}<a href="/">Dashboard</a><a href="/employees/">Karyawan</a>{% if user.role == "hrd" or user.role == "dept_admin" or user.role == "superadmin" %}<a href="/requests/">Pengajuan</a>{% endif %}{% if user.role == "poli" or user.role == "superadmin" %}<a href="/poli/">Poliklinik</a>{% endif %}{% if user.role == "hrd" or user.role == "superadmin" %}<a href="/leave/">Saldo cuti</a><a href="/hrd/">Operasional HRD</a><a href="/master/department/">Master</a>{% endif %}{% if user.role == "superadmin" %}<a href="/users/">Pengguna</a><a href="/audit/">Audit</a>{% endif %}
-<a href="/announcements/">Pengumuman{% if unread_ann %} <span class="badge">{{ unread_ann }}</span>{% endif %}</a><a href="/notifications/">Notifikasi{% if unread_count %} <span class="badge">{{ unread_count }}</span>{% endif %}</a>
-<span class="sp"></span><span>{{ user.get_username }} · {{ user.role }}</span><a href="/password/change/">Ganti sandi</a>
-<form method="post" action="/logout/">{% csrf_token %}<button>Keluar</button></form>{% endif %}</header>
-<main>{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}{% block content %}{% endblock %}</main></body></html>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1d2330;--mu:#667085;--ac:#1f6feb;--ac2:#1859c4;--bd:#e3e6eb;--bd2:#d0d5dd;--hov:#f0f4fb;--ok:#05603a;--okb:#abefc6;--wn:#7a4b00;--wnb:#fedf89;--er:#d92d20;--erb:#fecdca;--inf:#175cd3;--infb:#d1e0ff;--sh:0 1px 2px rgba(16,24,40,.06);--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--tx:#e7eaf0;--mu:#97a0b0;--ac:#5b9bff;--ac2:#7db0ff;--bd:#2b3240;--bd2:#3a4354;--hov:#222a38;--ok:#75e0a7;--okb:#0b3b27;--wn:#fec84b;--wnb:#4a3300;--er:#f97066;--erb:#4a1612;--inf:#84adff;--infb:#12284f;--sh:none}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx)}
+a{color:var(--ac)}a:hover{color:var(--ac2)}h2{margin:.2em 0 .7em;font-size:22px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}h3{margin:1.2em 0 .5em;font-size:17px}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px;border-radius:6px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--ac);color:#fff;padding:8px 12px;border-radius:8px;z-index:50}.skip:focus{left:8px;color:#fff}
+header.top{position:sticky;top:0;z-index:20;display:flex;gap:6px;align-items:center;padding:0 16px;min-height:54px;background:var(--card);border-bottom:1px solid var(--bd);box-shadow:var(--sh)}
+header.top a{color:var(--tx);text-decoration:none}.brand{font-weight:700;font-size:17px;margin-right:10px;color:var(--ac)!important}
+nav.main{display:flex;gap:2px;align-items:center;flex:1;min-width:0;overflow-x:auto;scrollbar-width:thin}
+nav.main a{padding:7px 11px;border-radius:8px;white-space:nowrap;font-size:14px;color:var(--mu)}nav.main a:hover{background:var(--hov);color:var(--tx)}
+nav.main a[aria-current]{background:var(--infb);color:var(--inf);font-weight:600}
+.badge{background:var(--ac);color:#fff;border-radius:10px;padding:0 7px;font-size:11px;font-weight:600;margin-left:3px}
+.um{position:relative}.um summary{list-style:none;cursor:pointer;display:flex;gap:8px;align-items:center;padding:5px 8px;border-radius:8px}.um summary::-webkit-details-marker{display:none}.um summary:hover,.um[open] summary{background:var(--hov)}
+.av{width:28px;height:28px;border-radius:50%;background:var(--ac);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700}.um small{display:block;color:var(--mu);line-height:1.1}
+.um .menu{position:absolute;right:0;top:calc(100% + 6px);min-width:200px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:0 8px 24px rgba(16,24,40,.18);padding:6px}
+.um .menu a,.um .menu button{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:7px;background:none;color:var(--tx);font:inherit;border:0;cursor:pointer;text-decoration:none}.um .menu a:hover,.um .menu button:hover{background:var(--hov)}
+.nt{display:none;background:none;color:var(--tx);border:1px solid var(--bd);padding:6px 10px}
+main{max-width:1180px;margin:20px auto 60px;padding:0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px;box-shadow:var(--sh)}.card b{font-size:26px;display:block;line-height:1.2}.card span{color:var(--mu);font-size:13px}
+a.card{display:block;color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}a.card:hover{border-color:var(--ac);transform:translateY(-1px);color:inherit}
+.card.warn b{color:var(--wn)}.card.bad b{color:var(--er)}
+input,select,textarea,button{padding:8px 10px;border:1px solid var(--bd2);border-radius:8px;background:var(--card);color:var(--tx);font:inherit;min-height:38px}
+button{cursor:pointer;background:var(--ac);color:#fff;border:0;font-weight:500}button:hover{background:var(--ac2)}button:disabled,.btn[aria-disabled]{opacity:.55;cursor:not-allowed}
+button.busy{position:relative;color:transparent!important}button.busy::after{content:"";position:absolute;inset:0;margin:auto;width:16px;height:16px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+table{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--bd);vertical-align:top}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--hov)}
+th{color:var(--mu);font-size:12px;text-transform:uppercase;letter-spacing:.03em;background:var(--card);font-weight:600;white-space:nowrap}.wrap{overflow-x:auto;border-radius:var(--r)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.empty{text-align:center;color:var(--mu);padding:28px 12px!important}
+.btn{display:inline-block;padding:6px 12px;border-radius:8px;background:var(--ac);color:#fff!important;font-size:14px;text-decoration:none;margin-left:8px;font-weight:500;line-height:1.4}.btn:hover{background:var(--ac2)}
+h2 .btn{margin-left:0}.btn.ghost,button.ghost{background:transparent;color:var(--ac)!important;border:1px solid var(--bd2)}.btn.ghost:hover,button.ghost:hover{background:var(--hov)}
+.bar,.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}.filters input,.filters select{flex:0 1 200px}.filters input[type=search],.filters #q{flex:1 1 240px}
+.form{max-width:600px}.fld{margin-bottom:12px}.fld label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px;font-weight:500}
+.fld input,.fld select,.fld textarea,.form textarea{width:100%}.fld input:focus,.fld select:focus,.fld textarea:focus,.filters input:focus,.filters select:focus{border-color:var(--ac);outline:2px solid var(--infb)}
+.fld .helptext,.help{color:var(--mu);font-size:12px;margin-top:3px}.errorlist{color:var(--er);margin:4px 0;padding:0;list-style:none;font-size:13px}
+.msg{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:8px;margin-bottom:12px;background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--ac)}
+.msg.success{border-left-color:var(--ok)}.msg.warning{border-left-color:var(--wn)}.msg.error{border-color:var(--er);border-left-color:var(--er);color:var(--er)}.msg span{flex:1}.msg .x{background:none;color:inherit;padding:0 4px;min-height:0;opacity:.6;font-size:18px;line-height:1}
+.pill{display:inline-block;padding:1px 9px;border-radius:10px;font-size:12px;font-weight:500;background:var(--bd);color:var(--tx);white-space:nowrap}
+.pill.pending,.pill.submitted,.pill.diajukan,.pill.dipesan,.pill.dirujuk,.pill.draft{background:var(--wnb);color:var(--wn)}
+.pill.approved,.pill.executed,.pill.selesai,.pill.disetujui,.pill.dibayar,.pill.aktif,.pill.diterima{background:var(--okb);color:var(--ok)}
+.pill.rejected,.pill.ditolak,.pill.batal,.pill.dibatalkan,.pill.cancelled,.pill.nonaktif{background:var(--erb);color:var(--er)}.pill.draft,.pill.cancelled{opacity:.85}
+button.lnk{background:none;color:var(--ac);padding:0;text-align:left;font:inherit;min-height:0}button.danger{background:var(--er)}button.danger:hover{filter:brightness(.92)}[hidden]{display:none!important}
+.pager{display:flex;gap:10px;align-items:center;justify-content:center;margin:14px 0;color:var(--mu);font-size:14px}.pager .btn{margin:0}
+.sk{background:linear-gradient(90deg,var(--bd),var(--hov),var(--bd));background-size:200% 100%;animation:sh 1.2s infinite;border-radius:6px;color:transparent!important}@keyframes sh{to{background-position:-200% 0}}
+.sec{color:var(--mu);font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin:22px 0 8px;font-weight:600}
+@media(max-width:860px){.nt{display:block;margin-left:auto}header.top{flex-wrap:wrap;padding:8px 12px}nav.main{display:none;flex-basis:100%;flex-direction:column;align-items:stretch;order:5;overflow:visible;padding-bottom:6px}nav.main.open{display:flex}.um .who{display:none}table{font-size:14px}th,td{padding:8px}}
+@media print{header.top,.pager,.nt{display:none}body{background:#fff}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body><a class="skip" href="#main">Lewati ke isi</a>
+<header class="top"><a class="brand" href="/">HRIS</a>{% if user.is_authenticated %}<button class="nt" type="button" aria-expanded="false" aria-controls="nav" id="nt">Menu</button>
+<nav class="main" id="nav" aria-label="Navigasi utama"><a href="/"{% if request.path == "/" %} aria-current="page"{% endif %}>Dashboard</a><a href="/employees/"{% if "/employees/" in request.path %} aria-current="page"{% endif %}>Karyawan</a>{% if user.role == "hrd" or user.role == "dept_admin" or user.role == "superadmin" %}<a href="/requests/"{% if "/requests/" in request.path %} aria-current="page"{% endif %}>Pengajuan</a>{% endif %}{% if user.role == "poli" or user.role == "superadmin" %}<a href="/poli/"{% if "/poli/" in request.path %} aria-current="page"{% endif %}>Poliklinik</a>{% endif %}{% if user.role == "hrd" or user.role == "superadmin" %}<a href="/leave/"{% if "/leave/" in request.path %} aria-current="page"{% endif %}>Saldo cuti</a><a href="/hrd/"{% if "/hrd/" in request.path %} aria-current="page"{% endif %}>Operasional HRD</a><a href="/master/department/"{% if "/master/" in request.path %} aria-current="page"{% endif %}>Master</a>{% endif %}{% if user.role == "superadmin" %}<a href="/users/"{% if "/users/" in request.path %} aria-current="page"{% endif %}>Pengguna</a><a href="/audit/"{% if "/audit/" in request.path %} aria-current="page"{% endif %}>Audit</a>{% endif %}
+<a href="/announcements/"{% if "/announcements/" in request.path %} aria-current="page"{% endif %}>Pengumuman{% if unread_ann %} <span class="badge" aria-label="{{ unread_ann }} belum dibaca">{{ unread_ann }}</span>{% endif %}</a><a href="/notifications/"{% if "/notifications/" in request.path %} aria-current="page"{% endif %}>Notifikasi{% if unread_count %} <span class="badge" aria-label="{{ unread_count }} belum dibaca">{{ unread_count }}</span>{% endif %}</a></nav>
+<details class="um"><summary><span class="av" aria-hidden="true">{{ user.get_username|slice:":1"|upper }}</span><span class="who">{{ user.get_username }}<small>{{ user.get_role_display|default:user.role }}</small></span></summary>
+<div class="menu"><a href="/password/change/">Ganti sandi</a><form method="post" action="/logout/">{% csrf_token %}<button>Keluar</button></form></div></details>{% endif %}</header>
+<main id="main">{% for m in messages %}<div class="msg {{ m.tags }}" role="{% if m.tags == 'error' %}alert{% else %}status{% endif %}"><span>{{ m }}</span><button class="x" type="button" aria-label="Tutup pesan">×</button></div>{% endfor %}{% block content %}{% endblock %}</main>
+<script>
+(function(){var nt=document.getElementById("nt");if(nt)nt.onclick=function(){var n=document.getElementById("nav"),o=n.classList.toggle("open");nt.setAttribute("aria-expanded",o)};
+document.addEventListener("click",function(e){var x=e.target.closest&&e.target.closest(".msg .x");if(x)x.parentNode.remove();var u=document.querySelector(".um[open]");if(u&&!u.contains(e.target))u.removeAttribute("open")});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){var u=document.querySelector(".um[open]");if(u)u.removeAttribute("open")}});
+document.addEventListener("submit",function(e){var f=e.target,s=e.submitter;if(f.method&&f.method.toLowerCase()!=="post")return;
+if(s&&s.classList.contains("danger")&&!window.confirm("Yakin melanjutkan tindakan ini? Tindakan tercatat di audit dan tidak dapat dibatalkan dari layar ini.")){e.preventDefault();return}
+if(f.dataset.locked){e.preventDefault();return}f.dataset.locked="1";if(s){s.classList.add("busy");setTimeout(function(){s.disabled=true},0)}});
+window.addEventListener("pageshow",function(e){if(e.persisted)document.querySelectorAll("form[data-locked]").forEach(function(f){delete f.dataset.locked;f.querySelectorAll("button.busy").forEach(function(b){b.classList.remove("busy");b.disabled=false})})});
+})();
+</script></body></html>

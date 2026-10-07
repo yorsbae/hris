@@ -1,13 +1,26 @@
-{% extends "base.html" %}{% block content %}
-<h2>Dashboard</h2><div class="grid" id="g"></div>
+{% extends "base.html" %}{% block title %}Dashboard · HRIS{% endblock %}{% block content %}
+<h2>Dashboard</h2><p class="help" id="hello">Ringkasan sesuai peran dan cakupan akses Anda.</p>
+<div class="grid" id="g" aria-live="polite" aria-busy="true"></div>
+<p id="err" hidden class="msg error"><span>Gagal memuat ringkasan.</span> <button type="button" class="ghost" id="retry">Coba lagi</button></p>
 <script>
 const L={employees:"Total karyawan",active:"Karyawan aktif",contract_expired:"Kontrak berakhir",contract_le_7:"Kontrak ≤ 7 hari",
 contract_le_30:"Kontrak ≤ 30 hari",contract_le_60:"Kontrak ≤ 60 hari",pending_requests:"Pengajuan pending",users:"User aktif",
 audit_24h:"Aktivitas 24 jam",visits_today:"Kunjungan hari ini",accidents_month:"Kecelakaan kerja (bulan ini)",
 open_referrals:"Rujukan terbuka",low_stock:"Obat stok minimum",maternity_active:"Cuti hamil berjalan",aid_pending:"Bantuan menunggu keputusan",bpjs_inactive:"BPJS nonaktif (karyawan aktif)",unread_notifications:"Notifikasi belum dibaca",my_requests:"Pengajuan saya (per status)"};
-fetch("/api/dashboard/").then(r=>r.json()).then(d=>{const g=document.getElementById("g");
+// tautan tujuan tiap kartu (hanya yang halamannya tersedia untuk peran itu; server tetap memeriksa izin)
+const H={employees:"/employees/",active:"/employees/",contract_expired:"/employees/",contract_le_7:"/employees/",contract_le_30:"/employees/",contract_le_60:"/employees/",
+pending_requests:"/requests/?status=pending",my_requests:"/requests/",users:"/users/",audit_24h:"/audit/",visits_today:"/poli/records/",accidents_month:"/poli/records/",
+open_referrals:"/poli/referrals/",low_stock:"/poli/medicines/",maternity_active:"/hrd/maternity/",aid_pending:"/hrd/aids/",bpjs_inactive:"/hrd/bpjs/",unread_notifications:"/notifications/"};
+const WARN=new Set(["contract_le_60","contract_le_30","pending_requests","aid_pending","low_stock","open_referrals"]),BAD=new Set(["contract_expired","contract_le_7","bpjs_inactive"]);
+const g=document.getElementById("g"),err=document.getElementById("err");
+function skel(){g.setAttribute("aria-busy","true");g.replaceChildren(...Array.from({length:6},()=>{const c=document.createElement("div");c.className="card";
+c.innerHTML='<b class="sk">00</b><span class="sk">Memuat label</span>';return c}))}
+async function load(){err.hidden=true;skel();
+try{const r=await fetch("/api/dashboard/",{headers:{Accept:"application/json"}});if(!r.ok)throw new Error(r.status);const d=await r.json();const cards=[];
 for(const[k,v]of Object.entries(d)){if(k==="role")continue;
-const c=document.createElement("div");c.className="card";const b=document.createElement("b");
-b.textContent=typeof v==="object"?Object.entries(v).map(([a,n])=>a+": "+n).join(", ")||"0":v;
-const s=document.createElement("span");s.textContent=L[k]||k;c.append(b,s);g.append(c);}});
+const c=document.createElement(H[k]?"a":"div");c.className="card"+(BAD.has(k)&&Number(v)>0?" bad":WARN.has(k)&&Number(v)>0?" warn":"");if(H[k])c.href=H[k];
+const b=document.createElement("b");b.textContent=typeof v==="object"?Object.entries(v).map(([a,n])=>a+": "+n).join(", ")||"0":v;
+const s=document.createElement("span");s.textContent=L[k]||k;c.append(b,s);cards.push(c)}
+g.replaceChildren(...cards)}catch(e){g.replaceChildren();err.hidden=false}g.setAttribute("aria-busy","false")}
+document.getElementById("retry").onclick=load;load();
 </script>{% endblock %}

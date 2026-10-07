@@ -17,6 +17,9 @@ CSRF, byte NUL ditolak (400), ORM (anti SQL injection), audit log append-only + 
 **data medis hanya Poli** (isi medis tidak masuk audit; akses baca tercatat). *Catatan: kolom medis belum dienkripsi (keputusan A12 di PROGRESS).*
 Kunci enkripsi hilang = data tidak bisa dibaca → simpan dan backup terpisah dari database.
 
+## Antarmuka (putaran 12)
+Navigasi aktif + menu pengguna, responsif, tema terang/gelap, pill status berwarna, anti klik ganda, konfirmasi aksi berbahaya (tombol `danger`), dashboard berupa tautan dengan penanda perhatian, daftar karyawan dengan keadaan memuat/kosong/galat dan filter di URL. Semua gaya inline di `apps/core/templates/base.html` (tanpa berkas statis). Sisa rencana UI/UX: `docs/PROGRESS.md` → "Sisa UI/UX".
+
 ## Belum dibuat (ringkas; rincian & urutan di `docs/PROGRESS.md`)
 reset sandi mandiri/2FA, ekspor & retensi audit, keputusan enkripsi kolom medis, batalkan resep, register kehamilan, lot/kedaluwarsa obat,
 pola libur reguler per karyawan & hari libur nasional, batalkan pelaksanaan, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
@@ -27,6 +30,6 @@ pola libur reguler per karyawan & hari libur nasional, batalkan pelaksanaan, exp
 - Tahap 5 Poli ✅ `/poli/` (khusus Poli/Superadmin; HRD & Admin Dept → 403): rekam medis + resep (stok berkurang atomik), kecelakaan kerja, kehamilan, catatan tambahan, kartu stok obat (stok masuk/penyesuaian), master diagnosa, rujukan + surat rujukan PDF, surat izin pulang PDF
 - Tahap 2b Operasional HRD ✅ `/hrd/` (khusus HRD/Superadmin): bantuan, cuti hamil, kerja harian proyek, katering (tepak besar/kecil), status BPJS K/TK
 - Tahap 6–7: belum (tabel absensi sudah disiapkan)
-- Tes: `python manage.py test` (327 tes; lulus di SQLite dan PostgreSQL 16; 11 tes konkurensi berthread hanya jalan di PostgreSQL). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
+- Tes: `python manage.py test` (332 tes; lulus di SQLite; PostgreSQL 16 terakhir diuji penuh di putaran 11; 11 tes konkurensi berthread hanya jalan di PostgreSQL). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
 
 Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.

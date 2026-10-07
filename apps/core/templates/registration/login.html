@@ -1,6 +1,9 @@
-{% extends "base.html" %}{% block content %}
-<div class="card" style="max-width:360px;margin:60px auto"><h2>Masuk</h2>
-<form method="post">{% csrf_token %}{% if form.errors %}<p style="color:#d92d20">Username atau password salah.</p>{% endif %}
-<p><input name="username" placeholder="Username" autofocus required style="width:100%"></p>
-<p><input name="password" type="password" placeholder="Password" required style="width:100%"></p>
-<button style="width:100%">Masuk</button></form></div>{% endblock %}
+{% extends "base.html" %}{% block title %}Masuk · HRIS{% endblock %}{% block content %}
+<div class="card" style="max-width:380px;margin:56px auto;padding:24px"><h2 style="justify-content:center">Masuk ke HRIS</h2>
+<p class="help" style="text-align:center;margin-top:-6px">Gunakan akun yang diberikan Superadmin.</p>
+<form method="post">{% csrf_token %}{% if form.errors %}<p class="msg error" role="alert"><span>Username atau password salah.</span></p>{% endif %}
+<div class="fld"><label for="u">Username</label><input id="u" name="username" autocomplete="username" autofocus required autocapitalize="none" spellcheck="false"></div>
+<div class="fld"><label for="p">Password</label><div style="display:flex;gap:6px"><input id="p" name="password" type="password" autocomplete="current-password" required style="flex:1">
+<button type="button" class="ghost" id="sp" aria-pressed="false" aria-label="Tampilkan password">Lihat</button></div></div>
+<button style="width:100%;margin-top:6px">Masuk</button></form></div>
+<script>document.getElementById("sp").onclick=function(){var p=document.getElementById("p"),s=p.type==="password";p.type=s?"text":"password";this.textContent=s?"Sembunyi":"Lihat";this.setAttribute("aria-pressed",s)}</script>{% endblock %}

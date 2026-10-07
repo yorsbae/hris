@@ -1,22 +1,33 @@
 {% extends "base.html" %}{% block content %}
 <h2>Karyawan{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a> <a class="btn" href="/employees/import/">Impor CSV</a>{% endif %}</h2>
-<p><input id="q" placeholder="Cari NIK / nama" style="min-width:240px">
-<select id="st"><option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select>
-{% if departments %}<select id="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}
-<select id="position"><option value="">Semua jabatan</option>{% for d in positions %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>
-<select id="shift"><option value="">Semua shift</option>{% for d in shifts %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>
-{% if hrd %}<select id="contract"><option value="">Semua kontrak</option><option value="aktif">Kontrak aktif</option><option value="expiring">Habis ≤ 30 hari</option><option value="expired">Sudah lewat</option><option value="none">Tanpa kontrak aktif</option></select>{% endif %}</p>
-<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
-<p><button id="prev">‹</button> <span id="info"></span> <button id="next">›</button></p>
+<div class="filters" role="search"><input id="q" type="search" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama" autocomplete="off">
+<select id="st" aria-label="Status"><option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select>
+{% if departments %}<select id="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}
+<select id="position" aria-label="Jabatan"><option value="">Semua jabatan</option>{% for d in positions %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>
+<select id="shift" aria-label="Shift"><option value="">Semua shift</option>{% for d in shifts %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>
+{% if hrd %}<select id="contract" aria-label="Kontrak"><option value="">Semua kontrak</option><option value="aktif">Kontrak aktif</option><option value="expiring">Habis ≤ 30 hari</option><option value="expired">Sudah lewat</option><option value="none">Tanpa kontrak aktif</option></select>{% endif %}<button type="button" class="ghost" id="reset">Reset</button></div>
+<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th><th>Status</th></tr></thead><tbody id="rows" aria-live="polite"></tbody></table></div>
+<nav class="pager" aria-label="Halaman"><button type="button" class="ghost" id="prev">‹ Sebelumnya</button> <span id="info"></span> <button type="button" class="ghost" id="next">Berikutnya ›</button></nav>
 <script>
-let page=1,total=0,t;const $=i=>document.getElementById(i);
-async function load(){const p=new URLSearchParams({q:$("q").value,status:$("st").value,page});
-["department","position","shift","contract"].forEach(k=>{const el=$(k);if(el&&el.value)p.set(k,el.value)});
-const d=await (await fetch("/api/employees/?"+p)).json();total=Math.ceil(d.count/50)||1;
-$("rows").replaceChildren(...d.results.map(r=>{const tr=document.createElement("tr");
-[r.nik,r.name,r.department__name,r.position__name||"-",r.status].forEach((v,i)=>{const td=document.createElement("td");
-if(i===0){const a=document.createElement("a");a.href="/employees/"+encodeURIComponent(r.id)+"/";a.textContent=v;td.append(a)}else td.textContent=v;tr.append(td)});return tr}));
-$("info").textContent=`Halaman ${d.page} / ${total} · ${d.count} data`;}
-$("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;load()},300)};["st","department","position","shift","contract"].forEach(k=>{const el=$(k);if(el)el.onchange=()=>{page=1;load()}});
-$("prev").onclick=()=>{if(page>1){page--;load()}};$("next").onclick=()=>{if(page<total){page++;load()}};load();
+let page=1,total=1,t,seq=0;const $=i=>document.getElementById(i),F=["department","position","shift","contract"],ALL=["q","st",...F];
+function row(cells){const tr=document.createElement("tr");cells.forEach(c=>tr.append(c));return tr}
+function msgRow(text,cls){const td=document.createElement("td");td.colSpan=5;td.className="empty"+(cls?" "+cls:"");td.textContent=text;return row([td])}
+function restore(){const u=new URLSearchParams(location.search);ALL.forEach(k=>{const el=$(k),v=u.get(k==="st"?"status":k);if(el&&v!==null)el.value=v});page=parseInt(u.get("page"))||1}
+function params(){const p=new URLSearchParams({q:$("q").value,status:$("st").value,page});F.forEach(k=>{const el=$(k);if(el&&el.value)p.set(k,el.value)});return p}
+async function load(){const my=++seq,p=params();history.replaceState(null,"","?"+p);
+$("rows").replaceChildren(msgRow("Memuat…"));$("prev").disabled=$("next").disabled=true;
+try{const r=await fetch("/api/employees/?"+p);if(!r.ok)throw new Error(r.status);const d=await r.json();if(my!==seq)return;
+total=Math.ceil(d.count/50)||1;
+if(!d.results.length){$("rows").replaceChildren(msgRow("Tidak ada karyawan yang cocok dengan filter."))}
+else $("rows").replaceChildren(...d.results.map(r=>{const cells=[r.nik,r.name,r.department__name,r.position__name||"-",r.status].map((v,i)=>{const td=document.createElement("td");
+if(i===0){const a=document.createElement("a");a.href="/employees/"+encodeURIComponent(r.id)+"/";a.textContent=v;td.append(a)}
+else if(i===4){const s=document.createElement("span");s.className="pill "+(v==="aktif"?"aktif":v==="nonaktif"?"nonaktif":"");s.textContent=v;td.append(s)}
+else td.textContent=v;return td});return row(cells)}));
+$("info").textContent=`Halaman ${d.page} / ${total} · ${d.count} data`;page=d.page;
+}catch(e){if(my!==seq)return;$("rows").replaceChildren(msgRow("Gagal memuat data. Periksa koneksi lalu coba lagi.","bad"));$("info").textContent=""}
+$("prev").disabled=page<=1;$("next").disabled=page>=total}
+$("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;load()},300)};
+["st",...F].forEach(k=>{const el=$(k);if(el)el.onchange=()=>{page=1;load()}});
+$("reset").onclick=()=>{ALL.forEach(k=>{const el=$(k);if(el)el.value=""});page=1;load()};
+$("prev").onclick=()=>{if(page>1){page--;load()}};$("next").onclick=()=>{if(page<total){page++;load()}};restore();load();
 </script>{% endblock %}

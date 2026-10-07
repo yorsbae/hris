@@ -84,7 +84,7 @@ class InfoTests(TestCase):
         self.create(all_departments="on"); a = Announcement.objects.get()
         self.login("adm1"); n = Notification.objects.get(user=self.a1)
         self.assertContains(self.client.get("/notifications/"), "Libur")
-        self.assertContains(self.client.get("/"), '<span class="badge">1</span>', html=False)
+        self.assertContains(self.client.get("/"), 'class="badge" aria-label="1 belum dibaca">1</span>', html=False)
         r = self.client.post(f"/notifications/{n.pk}/open/"); self.assertRedirects(r, f"/announcements/{a.pk}/", fetch_redirect_response=False)
         n.refresh_from_db(); self.assertTrue(n.is_read)
         other = Notification.objects.get(user=self.a2)

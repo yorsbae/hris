@@ -1,3 +1,3 @@
-<p>{% if page.has_previous %}<a class="btn" style="margin-left:0" href="?page={{ page.previous_page_number }}{% if qs %}&{{ qs }}{% endif %}">‹</a>{% endif %}
-Halaman {{ page.number }} / {{ page.paginator.num_pages }} · {{ page.paginator.count }} data
-{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}{% if qs %}&{{ qs }}{% endif %}">›</a>{% endif %}</p>
+<nav class="pager" aria-label="Halaman">{% if page.has_previous %}<a class="btn ghost" rel="prev" href="?page={{ page.previous_page_number }}{% if qs %}&amp;{{ qs }}{% endif %}">‹ Sebelumnya</a>{% endif %}
+<span>Halaman {{ page.number }} / {{ page.paginator.num_pages }} · {{ page.paginator.count }} data</span>
+{% if page.has_next %}<a class="btn ghost" rel="next" href="?page={{ page.next_page_number }}{% if qs %}&amp;{{ qs }}{% endif %}">Berikutnya ›</a>{% endif %}</nav>
