@@ -1,5 +1,6 @@
 """RBAC + department scope. SEMUA akses data karyawan WAJIB lewat sini."""
 from functools import wraps
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, Http404
 from .models import Role
 
@@ -14,6 +15,10 @@ def require_roles(*roles):
             return fn(request, *a, **k)
         return wrap
     return deco
+
+def superadmin_only(fn):
+    """Login + hanya Superadmin (role lain → 403). Dipakai halaman manajemen user dan penelusuran audit."""
+    return login_required(require_roles()(fn))
 
 def scope_by_department(user, qs, field="department"):
     if user.role in (Role.SUPERADMIN, Role.HRD): return qs

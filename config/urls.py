@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth
 from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv
-from apps.core import notif_views as nv
+from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core.dashboard import dashboard, home
 urlpatterns = [
@@ -29,6 +29,16 @@ urlpatterns = [
     path("master/<str:kind>/", ev.master_list, name="master_list"),
     path("master/<str:kind>/new/", ev.master_form, name="master_new"),
     path("master/<str:kind>/<int:pk>/", ev.master_form, name="master_edit"),
+    path("password/change/", uv.PasswordChange.as_view(), name="password_change"),
+    path("users/", uv.user_list, name="user_list"),
+    path("users/new/", uv.user_new, name="user_new"),
+    path("users/<int:pk>/", uv.user_detail, name="user_detail"),
+    path("users/<int:pk>/edit/", uv.user_edit, name="user_edit"),
+    path("users/<int:pk>/reset-password/", uv.user_reset_password, name="user_reset_password"),
+    path("users/<int:pk>/deactivate/", uv.user_deactivate, name="user_deactivate"),
+    path("users/<int:pk>/activate/", uv.user_activate, name="user_activate"),
+    path("audit/", av.audit_list, name="audit_list"),
+    path("audit/<int:pk>/", av.audit_detail, name="audit_detail"),
     path("notifications/", nv.notification_list),
     path("notifications/read-all/", nv.notification_read_all),
     path("notifications/<int:pk>/open/", nv.notification_open),

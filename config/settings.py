@@ -20,6 +20,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.ForcePasswordChangeMiddleware",
     "apps.core.middleware.RateLimitLoginMiddleware",
     "apps.core.middleware.RejectNulMiddleware",
 ]
@@ -33,6 +34,14 @@ AUTH_USER_MODEL = "core.User"
 AUTH_PASSWORD_VALIDATORS = [{"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
   {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"}]
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.Argon2PasswordHasher", "django.contrib.auth.hashers.PBKDF2PasswordHasher"]
+# Di belakang Nginx: daftarkan IP/CIDR proxy agar X-Forwarded-For dipercaya (audit & rate limit login memakai IP klien asli; lihat apps/core/net.py).
+# Kosong = header diabaikan (aman untuk akses langsung tanpa proxy).
+TRUSTED_PROXY_IPS = env.list("TRUSTED_PROXY_IPS", default=[])
+# HTTPS=True bila situs dilayani lewat HTTPS (Nginx yang menerminasi TLS). Cookie hanya dikirim lewat HTTPS; Nginx WAJIB menimpa X-Forwarded-Proto.
+HTTPS = env.bool("HTTPS", False)
+SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = HTTPS
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])  # mis. https://hris.lan
+if HTTPS: SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 60 * 60 * 8
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True

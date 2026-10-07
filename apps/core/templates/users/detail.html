@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block title %}{{ u.username }}{% endblock %}{% block content %}
+<p><a href="/users/">‹ Pengguna</a></p>
+<h2>{{ u.username }} {% if u.is_active %}<span class="pill approved">aktif</span>{% else %}<span class="pill rejected">nonaktif</span>{% endif %}{% if is_self %} <span class="pill">akun Anda</span>{% endif %}</h2>
+<div class="card" style="max-width:560px"><table>
+<tr><th>Nama</th><td>{{ u.get_full_name|default:"-" }}</td></tr><tr><th>Email</th><td>{{ u.email|default:"-" }}</td></tr>
+<tr><th>Role</th><td>{{ u.role|default:"(tanpa role)" }}</td></tr><tr><th>Departemen</th><td>{{ u.department.name|default:"-" }}</td></tr>
+<tr><th>Login terakhir</th><td>{{ u.last_login|date:"d M Y H:i"|default:"belum pernah" }}</td></tr>
+<tr><th>Dibuat</th><td>{{ u.date_joined|date:"d M Y H:i" }}</td></tr>
+<tr><th>Sandi</th><td>{% if u.must_change_password %}<span class="pill pending">wajib diganti saat login berikutnya</span>{% else %}normal{% endif %}</td></tr></table></div>
+<p><a class="btn" style="margin-left:0" href="/users/{{ u.pk }}/edit/">Ubah</a>
+{% if not is_self %}<a class="btn" href="/users/{{ u.pk }}/reset-password/">Reset sandi</a>{% endif %}
+<a class="btn" href="/audit/?user={{ u.username|urlencode }}&amp;from=&amp;to=">Semua aktivitas di audit</a></p>
+{% if not is_self %}
+{% if u.is_active %}<form method="post" action="/users/{{ u.pk }}/deactivate/" class="card form">{% csrf_token %}
+<div class="fld"><label for="id_reason">Nonaktifkan akun (sesi berjalan langsung tidak berlaku; akun tidak dihapus)</label><input id="id_reason" name="reason" maxlength="300" required placeholder="Alasan (wajib)"></div>
+<button class="danger">Nonaktifkan</button></form>
+{% else %}<form method="post" action="/users/{{ u.pk }}/activate/">{% csrf_token %}<button>Aktifkan kembali</button></form>{% endif %}
+{% endif %}
+<h3>Aktivitas terakhir (20)</h3>
+<div class="wrap"><table><thead><tr><th>Waktu</th><th>IP</th><th>Modul</th><th>Aksi</th><th>Objek</th></tr></thead><tbody>
+{% for a in recent %}<tr><td><a href="/audit/{{ a.pk }}/">{{ a.created_at|date:"d M Y H:i:s" }}</a></td><td>{{ a.ip|default:"-" }}</td><td>{{ a.module }}</td><td>{{ a.action }}</td><td>{{ a.object_type }} {{ a.object_id }}</td></tr>
+{% empty %}<tr><td colspan="5">Belum ada aktivitas.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

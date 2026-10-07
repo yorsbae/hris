@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Pengguna{% endblock %}{% block content %}
+<h2>Pengguna <a class="btn" href="/users/new/">+ User baru</a></h2>
+<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari username / nama">
+<select name="role"><option value="">Semua role</option>{% for v, l in roles %}<option value="{{ v }}"{% if f.role == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<select name="active"><option value="">Aktif & nonaktif</option><option value="aktif"{% if f.active == "aktif" %} selected{% endif %}>Aktif</option><option value="nonaktif"{% if f.active == "nonaktif" %} selected{% endif %}>Nonaktif</option></select>
+<button>Filter</button></form>
+<div class="wrap"><table><thead><tr><th>Username</th><th>Nama</th><th>Role</th><th>Departemen</th><th>Status</th><th>Login terakhir</th><th></th></tr></thead><tbody>
+{% for u in page %}<tr><td>{{ u.username }}</td><td>{{ u.get_full_name }}</td><td>{{ u.role|default:"(tanpa role)" }}</td><td>{{ u.department.name|default:"-" }}</td>
+<td>{% if u.is_active %}<span class="pill approved">aktif</span>{% else %}<span class="pill rejected">nonaktif</span>{% endif %}{% if u.must_change_password %} <span class="pill pending">wajib ganti sandi</span>{% endif %}</td>
+<td>{{ u.last_login|date:"d M Y H:i"|default:"belum pernah" }}</td><td><a href="/users/{{ u.pk }}/">Kelola</a></td></tr>
+{% empty %}<tr><td colspan="7">Tidak ada data.</td></tr>{% endfor %}</tbody></table></div>
+{% include "_pager.html" %}
+{% endblock %}

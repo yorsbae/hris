@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Audit #{{ e.pk }}{% endblock %}{% block content %}
+<p><a href="/audit/">‹ Audit log</a></p>
+<h2>Audit #{{ e.pk }}</h2>
+<div class="card" style="max-width:640px"><table>
+<tr><th>Waktu</th><td>{{ e.created_at|date:"d M Y H:i:s" }}</td></tr><tr><th>User</th><td>{{ e.user.username|default:"—" }}</td></tr><tr><th>IP</th><td>{{ e.ip|default:"-" }}</td></tr>
+<tr><th>Modul / Aksi</th><td>{{ e.module }} / {{ e.action }}</td></tr><tr><th>Objek</th><td>{{ e.object_type|default:"-" }} {{ e.object_id }}</td></tr></table></div>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:12px">
+<div class="card"><b style="font-size:15px">Sebelum</b><pre style="white-space:pre-wrap;word-break:break-word">{{ before|default:"(kosong)" }}</pre></div>
+<div class="card"><b style="font-size:15px">Sesudah</b><pre style="white-space:pre-wrap;word-break:break-word">{{ after|default:"(kosong)" }}</pre></div></div>
+{% endblock %}

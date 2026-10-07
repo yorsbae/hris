@@ -1,12 +1,19 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 
 class Role(models.TextChoices):
     SUPERADMIN = "superadmin"; HRD = "hrd"; DEPT_ADMIN = "dept_admin"; POLI = "poli"
 
+class AppUserManager(UserManager):
+    def create_superuser(self, username, email=None, password=None, **extra):
+        extra.setdefault("role", Role.SUPERADMIN)  # `createsuperuser` sebelumnya menghasilkan role kosong → akun tak bisa memakai aplikasi
+        return super().create_superuser(username, email, password, **extra)
+
 class User(AbstractUser):
     role = models.CharField(max_length=20, choices=Role.choices, db_index=True)
     department = models.ForeignKey("hr.Department", null=True, blank=True, on_delete=models.PROTECT)
+    must_change_password = models.BooleanField(default=False)  # sandi dibuat/direset Superadmin → wajib diganti saat login berikutnya
+    objects = AppUserManager()
     def save(self, *a, **k):
         if self.role == Role.DEPT_ADMIN and not self.department_id:
             raise ValueError("Admin Departemen wajib punya departemen")
