@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}{{ ref.number }}{% endblock %}{% block content %}
+<p><a href="/poli/referrals/">‹ Rujukan</a></p>
+<h2>{{ ref.number }} · {{ ref.get_status_display }}</h2>
+<div class="card"><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}
+<tr><th>Rekam medis</th><td><a href="{% url 'poli_record_detail' ref.record.pk %}">#{{ ref.record.pk }}</a></td></tr>
+<tr><th>Fasilitas tujuan</th><td>{{ ref.facility }}</td></tr><tr><th>Catatan</th><td>{{ ref.note|linebreaksbr|default:"-" }}</td></tr>
+<tr><th>{% if ref.status == "batal" %}Alasan batal{% else %}Hasil{% endif %}</th><td>{{ ref.outcome|linebreaksbr|default:"-" }}</td></tr></table></div>
+{% if ref.status != "batal" %}<p><a class="btn" style="margin-left:0" href="{% url 'poli_referral_letter' ref.pk %}" target="_blank">Cetak surat rujukan</a></p>{% endif %}
+{% if next %}<form method="post" class="card form">{% csrf_token %}
+<div class="fld"><label for="outcome">Hasil rujukan (wajib untuk Selesai) / alasan (wajib untuk Batal)</label><textarea id="outcome" name="outcome" rows="3" maxlength="2000"></textarea></div>
+{% for to in next %}{% if to == "dirujuk" %}<button formaction="{% url 'poli_referral_action' ref.pk 'send' %}">Tandai sudah dirujuk</button>{% elif to == "selesai" %}<button formaction="{% url 'poli_referral_action' ref.pk 'finish' %}">Selesai</button>{% elif to == "batal" %}<button class="danger" formaction="{% url 'poli_referral_action' ref.pk 'cancel' %}">Batalkan</button>{% endif %} {% endfor %}</form>{% endif %}
+{% endblock %}

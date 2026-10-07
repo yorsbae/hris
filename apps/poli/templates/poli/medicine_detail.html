@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}{{ m.name }}{% endblock %}{% block content %}
+<p><a href="/poli/medicines/">‹ Obat</a></p>
+<h2>{{ m.code }} · {{ m.name }} <a class="btn" href="{% url 'poli_medicine_edit' m.pk %}">Ubah</a></h2>
+<div class="grid"><div class="card"><b>{{ m.stock }}</b><span>stok ({{ m.unit }}){% if low %} · <span class="pill rejected">di bawah/sama dengan minimum</span>{% endif %}</span></div><div class="card"><b>{{ m.min_stock }}</b><span>stok minimum</span></div></div>
+<div class="grid" style="margin-top:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+<form method="post" action="{% url 'poli_medicine_stock' m.pk 'in' %}" class="card form">{% csrf_token %}<h3>Stok masuk</h3>{% for f in in_form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}</div>{% endfor %}<button>Catat penerimaan</button></form>
+<form method="post" action="{% url 'poli_medicine_stock' m.pk 'adjust' %}" class="card form">{% csrf_token %}<h3>Penyesuaian stok</h3>{% for f in adj_form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}</div>{% endfor %}<button>Catat penyesuaian</button></form></div>
+<h3>Kartu stok</h3>
+<div class="wrap"><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Masuk/keluar</th><th>Saldo</th><th>Ref / catatan</th><th>Petugas</th></tr></thead><tbody>
+{% for s in page %}<tr><td>{{ s.created_at|date:"d M Y H:i" }}</td><td>{% if s.reason == "purchase" %}Masuk{% elif s.reason == "prescription" %}Resep{% else %}Penyesuaian{% endif %}</td><td>{% if s.qty > 0 %}+{% endif %}{{ s.qty }}</td><td>{{ s.balance_after }}</td><td>{{ s.ref }}{% if s.ref and s.note %} · {% endif %}{{ s.note }}</td><td>{{ s.created_by.username|default:"-" }}</td></tr>
+{% empty %}<tr><td colspan="6">Belum ada mutasi stok.</td></tr>{% endfor %}</tbody></table></div>
+{% include "poli/_pager.html" %}
+{% endblock %}

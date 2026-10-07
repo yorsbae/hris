@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Rekam medis{% endblock %}{% block content %}
+<p><a href="/poli/">‹ Poliklinik</a></p>
+<h2>Rekam medis <a class="btn" href="{% url 'poli_record_new' %}">+ Kunjungan baru</a></h2>
+<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
+<select name="kind"><option value="">Semua jenis</option>{% for k, v in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+<input type="date" name="date_from" value="{{ f.date_from }}" title="Dari tanggal"><input type="date" name="date_to" value="{{ f.date_to }}" title="Sampai tanggal"><button>Filter</button></form>
+<div class="wrap"><table><thead><tr><th>#</th><th>Waktu</th><th>Karyawan</th><th>Departemen</th><th>Jenis</th><th>Diagnosa</th></tr></thead><tbody>
+{% for r in page %}<tr><td><a href="{% url 'poli_record_detail' r.pk %}">{{ r.pk }}</a></td><td>{{ r.visit_at|date:"d M Y H:i" }}</td><td>{{ r.employee.nik }} · {{ r.employee.name }}</td><td>{{ r.employee.department.name }}</td><td>{{ r.get_kind_display }}</td><td>{% if r.diagnosis %}{{ r.diagnosis.code }}{% else %}-{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6">Belum ada rekam medis.</td></tr>{% endfor %}</tbody></table></div>
+{% include "poli/_pager.html" %}
+{% endblock %}

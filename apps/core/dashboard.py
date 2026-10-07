@@ -32,7 +32,7 @@ def dashboard(request):
     else:  # Poli
         d = {"visits_today": MedicalRecord.objects.filter(visit_at__date=today).count(),
              "accidents_month": MedicalRecord.objects.filter(kind="kecelakaan_kerja", visit_at__year=today.year, visit_at__month=today.month).count(),
-             "open_referrals": Referral.objects.exclude(status="selesai").count(),
+             "open_referrals": Referral.objects.exclude(status__in=("selesai", "batal")).count(),
              "low_stock": Medicine.objects.filter(stock__lte=F("min_stock")).count()}
     return JsonResponse({"role": u.role, "unread_notifications": notif, **d})
 

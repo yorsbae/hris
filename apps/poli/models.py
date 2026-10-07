@@ -5,17 +5,28 @@ from apps.hr.models import Employee
 
 class Diagnosis(models.Model):
     code = models.CharField(max_length=10, unique=True); name = models.CharField(max_length=200); category = models.CharField(max_length=60, blank=True)
+    def __str__(self): return f"{self.code} {self.name}"
 class Medicine(models.Model):
     code = models.CharField(max_length=20, unique=True); name = models.CharField(max_length=150, db_index=True)
     unit = models.CharField(max_length=20); stock = models.IntegerField(default=0); min_stock = models.IntegerField(default=0)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(stock__gte=0), name="medicine_stock_gte_0"),
+                       models.CheckConstraint(condition=models.Q(min_stock__gte=0), name="medicine_min_stock_gte_0")]
+    def __str__(self): return f"{self.code} {self.name}"
 class StockMovement(models.Model):  # kartu stok: stok = hasil agregasi, setiap perubahan tercatat
     medicine = models.ForeignKey(Medicine, on_delete=models.PROTECT, related_name="movements")
     qty = models.IntegerField()  # + masuk, - keluar
     balance_after = models.IntegerField()
     reason = models.CharField(max_length=30)  # purchase, prescription, adjustment
     ref = models.CharField(max_length=40, blank=True)
+    note = models.CharField(max_length=300, blank=True)  # wajib untuk penyesuaian (alasan)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
+    class Meta: ordering = ["-id"]
+    def save(self, *a, **k):  # kartu stok append-only (VISION: obat memakai kartu stok)
+        if self.pk: raise PermissionError("Kartu stok tidak boleh diubah")
+        super().save(*a, **k)
+    def delete(self, *a, **k): raise PermissionError("Kartu stok tidak boleh dihapus")
 
 class MedicalRecord(models.Model):
     KINDS = [("berobat", "Berobat"), ("kecelakaan_kerja", "Kecelakaan kerja"), ("pemeriksaan", "Pemeriksaan"), ("kehamilan", "Pemeriksaan kehamilan")]
@@ -26,6 +37,18 @@ class MedicalRecord(models.Model):
     diagnosis = models.ForeignKey(Diagnosis, null=True, on_delete=models.PROTECT)
     treatment = models.TextField(blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+class RecordAddendum(models.Model):
+    """Koreksi/tambahan atas rekam medis. Rekam medis tidak diubah/dihapus (histori); koreksi = catatan tambahan append-only."""
+    record = models.ForeignKey(MedicalRecord, on_delete=models.PROTECT, related_name="addenda")
+    note = models.TextField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta: ordering = ["created_at", "id"]
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Catatan tambahan tidak boleh diubah")
+        super().save(*a, **k)
+    def delete(self, *a, **k): raise PermissionError("Catatan tambahan tidak boleh dihapus")
+
 class Prescription(models.Model):
     record = models.ForeignKey(MedicalRecord, on_delete=models.CASCADE, related_name="prescriptions")
     medicine = models.ForeignKey(Medicine, on_delete=models.PROTECT); qty = models.PositiveIntegerField(); dosage = models.CharField(max_length=100, blank=True)
@@ -34,7 +57,12 @@ class Referral(models.Model):
     number = models.CharField(max_length=30, unique=True)
     record = models.ForeignKey(MedicalRecord, on_delete=models.PROTECT)
     facility = models.CharField(max_length=150); note = models.TextField(blank=True)
-    status = models.CharField(max_length=20, default="diajukan"); outcome = models.TextField(blank=True)
+    # diajukan → dirujuk (sudah dikirim ke fasilitas) → selesai (hasil wajib); diajukan/dirujuk → batal (alasan wajib di `outcome`)
+    STATUSES = [("diajukan", "Diajukan"), ("dirujuk", "Dirujuk"), ("selesai", "Selesai"), ("batal", "Dibatalkan")]
+    FLOW = {"diajukan": {"dirujuk", "batal"}, "dirujuk": {"selesai", "batal"}}
+    status = models.CharField(max_length=20, choices=STATUSES, default="diajukan", db_index=True); outcome = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
 class LetterCounter(models.Model):  # nomor surat otomatis, per jenis per bulan
     kind = models.CharField(max_length=20); period = models.CharField(max_length=6); last = models.PositiveIntegerField(default=0)
@@ -50,9 +78,11 @@ class SickLeaveLetter(models.Model):  # surat izin pulang
     record = models.ForeignKey(MedicalRecord, on_delete=models.PROTECT); issued_at = models.DateTimeField(auto_now_add=True)
 
 def dispense(medicine_id, qty, user, ref=""):
-    """Obat keluar atomik; menolak stok negatif."""
+    """Obat keluar atomik; menolak qty ≤ 0 (qty negatif akan MENAMBAH stok) dan stok negatif."""
+    if not isinstance(qty, int) or isinstance(qty, bool) or qty <= 0: raise ValueError("Jumlah obat harus bilangan bulat positif")
     with transaction.atomic():
-        m = Medicine.objects.select_for_update().get(pk=medicine_id)
+        try: m = Medicine.objects.select_for_update().get(pk=medicine_id)
+        except Medicine.DoesNotExist: raise ValueError("Obat tidak ditemukan")
         if m.stock < qty: raise ValueError(f"Stok {m.name} tidak cukup ({m.stock})")
         m.stock = F("stock") - qty; m.save(); m.refresh_from_db()
         StockMovement.objects.create(medicine=m, qty=-qty, balance_after=m.stock, reason="prescription", ref=ref, created_by=user)

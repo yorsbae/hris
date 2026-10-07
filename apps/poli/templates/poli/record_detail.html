@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block title %}Rekam medis #{{ r.pk }}{% endblock %}{% block content %}
+<p><a href="/poli/records/">‹ Rekam medis</a></p>
+<h2>Rekam medis #{{ r.pk }} · {{ r.get_kind_display }}</h2>
+<div class="card"><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}<tr><th>Riwayat</th><td><a href="{% url 'poli_employee_history' r.employee.pk %}">Semua kunjungan karyawan ini ›</a></td></tr></table></div>
+<div class="card" style="margin-top:12px"><table>
+<tr><th>Waktu</th><td>{{ r.visit_at|date:"d M Y H:i" }}</td></tr><tr><th>Petugas</th><td>{{ r.created_by.get_full_name|default:r.created_by.username }}</td></tr>
+<tr><th>Keluhan</th><td>{{ r.complaint|linebreaksbr|default:"-" }}</td></tr>
+{% for k, v in exam_rows %}<tr><th>{{ k }}</th><td>{{ v|linebreaksbr }}</td></tr>{% endfor %}
+<tr><th>Diagnosa</th><td>{% if r.diagnosis %}{{ r.diagnosis.code }} · {{ r.diagnosis.name }}{% else %}-{% endif %}</td></tr>
+<tr><th>Tindakan / anjuran</th><td>{{ r.treatment|linebreaksbr|default:"-" }}</td></tr></table></div>
+<h3>Resep</h3>
+<div class="wrap"><table><thead><tr><th>Obat</th><th>Jumlah</th><th>Aturan pakai</th></tr></thead><tbody>{% for p in rx %}<tr><td>{{ p.medicine.name }}</td><td>{{ p.qty }} {{ p.medicine.unit }}</td><td>{{ p.dosage|default:"-" }}</td></tr>{% empty %}<tr><td colspan="3">Tanpa resep.</td></tr>{% endfor %}</tbody></table></div>
+<h3>Dokumen & rujukan</h3>
+<p><a class="btn" style="margin-left:0" href="/api/poli/records/{{ r.pk }}/letter.pdf" target="_blank">{% if letter %}Cetak ulang surat izin pulang ({{ letter.number }}){% else %}Buat & cetak surat izin pulang{% endif %}</a>
+<a class="btn" href="{% url 'poli_referral_new' r.pk %}">+ Rujukan</a></p>
+{% if referrals %}<div class="wrap"><table><thead><tr><th>No.</th><th>Tujuan</th><th>Status</th></tr></thead><tbody>{% for x in referrals %}<tr><td><a href="{% url 'poli_referral_detail' x.pk %}">{{ x.number }}</a></td><td>{{ x.facility }}</td><td>{{ x.get_status_display }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<h3>Catatan tambahan / koreksi</h3>
+{% for a in addenda %}<div class="card" style="margin-bottom:8px"><small style="color:var(--mu)">{{ a.created_at|date:"d M Y H:i" }} · {{ a.created_by.get_full_name|default:a.created_by.username }}</small><div>{{ a.note|linebreaksbr }}</div></div>{% empty %}<p style="color:var(--mu)">Belum ada.</p>{% endfor %}
+<form method="post" action="{% url 'poli_record_addendum' r.pk %}" class="card form">{% csrf_token %}<div class="fld"><label for="{{ addendum_form.note.id_for_label }}">{{ addendum_form.note.label }}</label>{{ addendum_form.note }}</div><button>Tambah catatan</button></form>
+{% endblock %}

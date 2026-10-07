@@ -41,6 +41,7 @@ urlpatterns = [
     path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
     path("requests/<int:pk>/<str:action>/", rq.request_action),
     path("hrd/", include("apps.hrd.urls")),
+    path("poli/", include("apps.poli.urls")),
     path("api/dashboard/", dashboard),
     path("api/poli/records/", poli.record_create),
     path("api/poli/records/<int:record_id>/letter.pdf", poli.letter_pdf),

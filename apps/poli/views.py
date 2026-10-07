@@ -1,29 +1,36 @@
 import json
 from django.db import transaction
 from django.http import JsonResponse
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 from apps.core.audit import log
-from apps.core.models import Role, Notification, User
+from apps.core.models import Role
 from apps.core.scope import require_roles
-from .models import MedicalRecord, Prescription, dispense
+from . import services
+from .models import Diagnosis
 
 @require_POST
 @require_roles(Role.POLI)  # superadmin lolos otomatis; HRD & Admin Dept DITOLAK
 def record_create(request):
-    d = json.loads(request.body)
+    """API JSON (dipertahankan). Aturan sama dengan halaman /poli/records/new/ lewat services.create_record."""
     try:
-        with transaction.atomic():
-            r = MedicalRecord.objects.create(employee_id=d["employee_id"], kind=d["kind"], visit_at=timezone.now(),
-                complaint=d.get("complaint", ""), exam=d.get("exam", {}), diagnosis_id=d.get("diagnosis_id"), created_by=request.user)
-            for p in d.get("prescriptions", []):
-                m = dispense(p["medicine_id"], p["qty"], request.user, ref=f"MR{r.pk}")
-                Prescription.objects.create(record=r, medicine=m, qty=p["qty"], dosage=p.get("dosage", ""))
-                if m.stock <= m.min_stock:
-                    Notification.objects.bulk_create([Notification(user=u, kind="stock", title=f"Stok minimum: {m.name}") for u in User.objects.filter(role=Role.POLI)])
-    except ValueError as e:
+        d = json.loads(request.body)
+        if not isinstance(d, dict): raise ValueError("Format tidak valid")
+        emp = services.active_employee(pk=d.get("employee_id"))
+        diag = None
+        if d.get("diagnosis_id") is not None:
+            diag = Diagnosis.objects.filter(pk=d["diagnosis_id"]).first()
+            if diag is None: raise ValueError("Diagnosa tidak ditemukan")
+        lines = []
+        for p in d.get("prescriptions", []):
+            q = p.get("qty")
+            if not isinstance(q, int) or isinstance(q, bool): raise ValueError("Jumlah obat harus bilangan bulat")
+            lines.append((p.get("medicine_id"), q, p.get("dosage", "")))
+        exam = d.get("exam", {})
+        if not isinstance(exam, dict): raise ValueError("exam harus objek")
+        r, _ = services.create_record(request.user, emp, d.get("kind"), d.get("complaint", ""), exam, diag, d.get("treatment", ""), lines)
+    except (ValueError, TypeError, KeyError, AttributeError) as e:  # json.JSONDecodeError adalah ValueError
         return JsonResponse({"detail": str(e)}, status=400)
-    log(request, "poli", "create_record", r)
+    log(request, "poli", "create_record", r, None, {"kind": r.kind, "diagnosis": r.diagnosis.code if r.diagnosis_id else None, "prescriptions": r.prescriptions.count()})
     return JsonResponse({"id": r.pk}, status=201)
 
 from django.http import HttpResponse
