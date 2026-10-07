@@ -72,6 +72,7 @@ Login, layout responsif (terang/gelap), dashboard, daftar karyawan; output brows
 - **Filter daftar karyawan**: departemen, jabatan, shift, status kontrak (aktif / habis ≤30 hari / sudah lewat / tanpa kontrak aktif). Filter kontrak **hanya HRD** (role lain mengirimnya pun diabaikan agar info kontrak tidak bocor); Admin Dept tidak bisa keluar dari scope lewat filter departemen; input non-angka diabaikan (sebelumnya `department=abc` menyebabkan 500)
 - **Backup**: `scripts/backup.sh` kini juga mengarsipkan `media/` (diverifikasi `tar -t`, rotasi 30 hari); `restore.sh` menerima arsip media sebagai argumen ke-2. Bagian `pg_dump/pg_restore` **belum diuji di sini** (tanpa PostgreSQL)
 - Tes: `apps/hr/test_docs_import.py` (24 tes)
+- **Pengiriman**: perubahan putaran 6–7 dikirim sebagai satu berkas `tahap2-hr-core.patch` (format `git format-patch`, 3 commit) di atas commit `6aa2fea`. Terapkan: `git am tahap2-hr-core.patch` (mempertahankan commit) atau `git apply tahap2-hr-core.patch` (tanpa commit). Setelah itu: `pip install -r requirements.txt` (menambah `cryptography`), isi `FIELD_ENCRYPTION_KEY`, `python manage.py migrate`, `python manage.py encrypt_sensitive`
 
 ## 3. Catatan, risiko, dan utang teknis
 - Belum diuji di **PostgreSQL** (wajib sebelum produksi); `.env`, `ALLOWED_HOSTS` perlu diisi; di belakang HTTPS aktifkan `SESSION_COOKIE_SECURE`/`CSRF_COOKIE_SECURE`
