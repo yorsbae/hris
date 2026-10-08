@@ -21,8 +21,7 @@ def _contract_filter(qs, kind):
     if kind == "expired": return qs.filter(Exists(act.filter(end__lt=today)))
     return qs
 
-@require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
-def employee_list(request):
+def _employee_qs(request):
     qs = scope_by_department(request.user, Employee.objects.select_related("department", "position"))
     q = request.GET.get("q", "").strip()
     if q: qs = qs.filter(Q(name__icontains=q) | Q(nik__startswith=q))
@@ -34,6 +33,12 @@ def employee_list(request):
     c = request.GET.get("contract", "")
     if c and request.user.role in (Role.HRD, Role.SUPERADMIN):  # info kontrak hanya untuk HRD: role lain tidak boleh memakainya sebagai filter
         qs = _contract_filter(qs, c)
+    return qs
+
+
+@require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
+def employee_list(request):
+    qs = _employee_qs(request)
     page = Paginator(qs.order_by("name"), 50).get_page(request.GET.get("page", 1))  # pagination di server
     cols = PUBLIC if request.user.role in (Role.POLI, Role.DEPT_ADMIN) else FULL
     return JsonResponse({"count": page.paginator.count, "page": page.number, "results": list(page.object_list.values(*cols))})
@@ -65,3 +70,17 @@ def employees_page(request):
     hrd = request.user.role in (Role.HRD, Role.SUPERADMIN)
     return render(request, "employees.html", {"departments": Department.objects.order_by("name") if request.user.role != Role.DEPT_ADMIN else [],
                                               "positions": Position.objects.order_by("name"), "shifts": Shift.objects.order_by("name"), "hrd": hrd})
+
+
+EXPORT_COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "shift_group", "gs_short", "status"]  # tanpa data sensitif
+
+
+@require_roles(Role.HRD, Role.DEPT_ADMIN)
+def employee_export(request):
+    """Ekspor karyawan (CSV/XLSX) dengan filter yang sama seperti daftar; Admin Dept hanya departemennya. Kolom sama dengan template impor; tanpa data sensitif."""
+    from apps.core import tabular
+    qs = _employee_qs(request).select_related("department", "position", "shift", "shift_group").order_by("name")[:20000]
+    rows = [[e.nik, e.name, e.gender, e.join_date, e.department.code, e.position.name if e.position_id else "", e.shift.name if e.shift_id else "",
+             e.shift_group.code if e.shift_group_id else "", e.gs_short if e.shift_id and e.shift.is_gs else "", e.status] for e in qs]
+    log(request, "hr", "employee_export", None, None, {"rows": len(rows), "format": tabular.fmt(request)})
+    return tabular.export_response("karyawan", EXPORT_COLUMNS, rows, request, sheet="Karyawan")

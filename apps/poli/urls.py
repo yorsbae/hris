@@ -1,5 +1,8 @@
 from django.urls import path
+from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
 from . import pages as v
+from .bulk_specs import DIAGNOSIS, MEDICINE
+from .pages import poli_only
 
 urlpatterns = [
     path("", v.hub, name="poli_hub"),
@@ -14,11 +17,15 @@ urlpatterns = [
     path("reports/stock/", v.stock_report, name="poli_stock_report"),
     path("employees/<int:pk>/", v.employee_history, name="poli_employee_history"),
     path("medicines/", v.medicine_list, name="poli_medicines"),
+    path("medicines/import/", bulk_import_view(MEDICINE, poli_only), name="poli_medicine_import"),
+    path("medicines/import/template.csv", bulk_template_view(MEDICINE, poli_only)),
     path("medicines/new/", v.medicine_form, name="poli_medicine_new"),
     path("medicines/<int:pk>/", v.medicine_detail, name="poli_medicine_detail"),
     path("medicines/<int:pk>/edit/", v.medicine_form, name="poli_medicine_edit"),
     path("medicines/<int:pk>/stock/<str:action>/", v.medicine_stock, name="poli_medicine_stock"),
     path("diagnoses/", v.diagnosis_list, name="poli_diagnoses"),
+    path("diagnoses/import/", bulk_import_view(DIAGNOSIS, poli_only), name="poli_diagnosis_import"),
+    path("diagnoses/import/template.csv", bulk_template_view(DIAGNOSIS, poli_only)),
     path("diagnoses/new/", v.diagnosis_form, name="poli_diagnosis_new"),
     path("diagnoses/<int:pk>/edit/", v.diagnosis_form, name="poli_diagnosis_edit"),
     path("diagnoses/<int:pk>/medicines/", v.diagnosis_medicines, name="poli_diagnosis_medicines"),

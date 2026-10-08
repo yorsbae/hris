@@ -6,6 +6,10 @@ from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import lookup
 from apps.core.dashboard import dashboard, home
+from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
+from apps.core.scope import require_roles
+from apps.core.models import Role
+from apps.hr import bulk_specs as hbs
 from apps.core.dashboard_panels import panels as dashboard_panels
 admin.site.site_header = admin.site.site_title = "HRIS & Poliklinik — Administrasi data"
 admin.site.index_title = "Administrasi data (khusus Superadmin; pekerjaan harian lewat menu aplikasi)"
@@ -14,6 +18,7 @@ urlpatterns = [
     path("login/", auth.LoginView.as_view(), name="login"),
     path("logout/", auth.LogoutView.as_view(), name="logout"),
     path("api/employees/", hr.employee_list),
+    path("api/employees/export/", hr.employee_export),
     path("api/employees/<int:pk>/", hr.employee_detail),
     path("api/requests/<int:pk>/<str:to>/", hr.request_transition),
     path("", home),
@@ -31,6 +36,15 @@ urlpatterns = [
     path("schedule/", sv.schedule_week, name="schedule_week"),
     path("leave/", lv.leave_list, name="leave_list"),
     path("leave/<int:pk>/", lv.leave_detail, name="leave_detail"),
+    path("master/rotasi/import/", bulk_import_view(hbs.ROTATION, require_roles(Role.HRD)), name="rotation_import"),
+    path("master/rotasi/import/template.csv", bulk_template_view(hbs.ROTATION, require_roles(Role.HRD))),
+    path("master/department/import/", bulk_import_view(hbs.DEPARTMENT, require_roles(Role.HRD))),
+    path("master/department/import/template.csv", bulk_template_view(hbs.DEPARTMENT, require_roles(Role.HRD))),
+    path("master/position/import/", bulk_import_view(hbs.POSITION, require_roles(Role.HRD))),
+    path("master/position/import/template.csv", bulk_template_view(hbs.POSITION, require_roles(Role.HRD))),
+    path("master/shift/import/", bulk_import_view(hbs.SHIFT, require_roles(Role.HRD))),
+    path("master/shift/import/template.csv", bulk_template_view(hbs.SHIFT, require_roles(Role.HRD))),
+    path("master/<str:kind>/export/", ev.master_export, name="master_export"),
     path("master/<str:kind>/", ev.master_list, name="master_list"),
     path("master/<str:kind>/new/", ev.master_form, name="master_new"),
     path("master/<str:kind>/<int:pk>/", ev.master_form, name="master_edit"),

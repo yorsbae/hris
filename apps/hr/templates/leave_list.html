@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Saldo cuti {{ year }}{% endblock %}{% block content %}
-<h2>Saldo cuti tahun {{ year }}</h2>
+<h2>Saldo cuti tahun {{ year }} {% include "_export.html" %}</h2>
 <form method="get" class="bar">
 <input name="q" value="{{ f.q }}" placeholder="NIK / nama"><input name="year" type="number" value="{{ year }}" style="width:90px">
 <select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>

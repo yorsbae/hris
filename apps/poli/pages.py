@@ -166,6 +166,11 @@ def medicine_list(request):
     qs = Medicine.objects.all()
     if f["q"]: qs = qs.filter(Q(name__icontains=f["q"]) | Q(code__istartswith=f["q"]))
     if f["low"]: qs = qs.filter(stock__lte=F("min_stock"))
+    if request.GET.get("export"):
+        from apps.core import tabular
+        rows = [[m.code, m.name, m.unit, m.min_stock, m.stock] for m in qs.order_by("name")[:20000]]
+        log(request, "poli", "medicine_export", None, None, {"rows": len(rows)})
+        return tabular.export_response("obat", ["code", "name", "unit", "min_stock", "stock"], rows, request, sheet="Obat")  # kolom stock hanya informasi; diabaikan saat impor
     return render(request, "poli/medicine_list.html", {"page": paginate(request, qs.order_by("name")), "f": f, "qs": _qs(request, "q", "low")})
 
 
@@ -213,6 +218,11 @@ def diagnosis_list(request):
     q = request.GET.get("q", "").strip()
     qs = Diagnosis.objects.annotate(n_meds=Count("medicine_links"))
     if q: qs = qs.filter(Q(code__istartswith=q) | Q(name__icontains=q))
+    if request.GET.get("export"):
+        from apps.core import tabular
+        rows = [[d.code, d.name, d.category] for d in qs.order_by("code")[:50000]]
+        log(request, "poli", "diagnosis_export", None, None, {"rows": len(rows)})
+        return tabular.export_response("diagnosa", ["code", "name", "category"], rows, request, sheet="Diagnosa")
     return render(request, "poli/diagnosis_list.html", {"page": paginate(request, qs.order_by("code")), "q": q, "qs": _qs(request, "q")})
 
 
@@ -373,14 +383,13 @@ def stock_report(request):
     else: d = _date(f["date"]) or today
     if not (2000 <= d.year <= 2100): d = today  # tanggal ekstrem → bawaan (hindari OverflowError)
     data = reports.stock_report(period, d, q=f["q"], show_all=request.GET.get("all") == "1")
-    if request.GET.get("format") == "csv":
-        log(request, "poli", "stock_report_export", None, None, {"period": period, "from": data["start"].isoformat(), "to": data["end"].isoformat()})
-        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
-        resp["Content-Disposition"] = f'attachment; filename="rekap-stok-{period}-{data["start"]:%Y%m%d}.csv"'
-        w = csv.writer(resp); w.writerow(["Kode", "Obat", "Satuan", "Stok awal", "Masuk", "Retur resep", "Keluar", "Penyesuaian", "Stok akhir"])
-        for r in data["rows"]: w.writerow([_csv_safe(r["code"]), _csv_safe(r["name"]), _csv_safe(r["unit"]), r["opening"], r["masuk"], r["retur"], r["keluar"], r["adj"], r["closing"]])
-        t = data["total"]; w.writerow(["", "TOTAL", "", t["opening"], t["masuk"], t["retur"], t["keluar"], t["adj"], t["closing"]])
-        return resp
+    if request.GET.get("format") in ("csv", "xlsx"):  # CSV atau XLSX (putaran 18)
+        from apps.core import tabular
+        log(request, "poli", "stock_report_export", None, None, {"period": period, "from": data["start"].isoformat(), "to": data["end"].isoformat(), "format": request.GET["format"]})
+        t = data["total"]
+        rows = [[r["code"], r["name"], r["unit"], r["opening"], r["masuk"], r["retur"], r["keluar"], r["adj"], r["closing"]] for r in data["rows"]]
+        rows.append(["", "TOTAL", "", t["opening"], t["masuk"], t["retur"], t["keluar"], t["adj"], t["closing"]])
+        return tabular.export_response(f"rekap-stok-{period}-{data['start']:%Y%m%d}", ["Kode", "Obat", "Satuan", "Stok awal", "Masuk", "Retur resep", "Keluar", "Penyesuaian", "Stok akhir"], rows, request, sheet="Rekap stok")
     prev, nxt = ((d - timedelta(days=1), d + timedelta(days=1)) if period == "day"
                  else ((d - timedelta(days=1)).replace(day=1), (d + timedelta(days=32)).replace(day=1)))
     key = lambda x: x.strftime("%Y-%m") if period == "month" else x.isoformat()
@@ -388,4 +397,4 @@ def stock_report(request):
     base = urlencode({"period": period, "q": f["q"], **({"all": "1"} if request.GET.get("all") == "1" else {})})
     return render(request, "poli/stock_report.html", {
         "data": data, "period": period, "f": f, "cur": key(d), "prev_url": f"?{base}&{paramname}={key(prev)}", "next_url": f"?{base}&{paramname}={key(nxt)}",
-        "csv_url": f"?{base}&{paramname}={key(d)}&format=csv", "show_all": request.GET.get("all") == "1"})
+        "csv_url": f"?{base}&{paramname}={key(d)}&format=csv", "xlsx_url": f"?{base}&{paramname}={key(d)}&format=xlsx", "show_all": request.GET.get("all") == "1"})

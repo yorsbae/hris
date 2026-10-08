@@ -1,6 +1,6 @@
 # PROGRESS — HRIS & Poliklinik
 
-Terakhir diperbarui: 8 Oktober 2026 (putaran 17c) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
+Terakhir diperbarui: 8 Oktober 2026 (putaran 18) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
 Uji: `python manage.py test` (450 tes; putaran 17c: lulus di SQLite (13 dilewati) dan PostgreSQL 16 (450, 0 dilewati); sebelumnya 355 tes; PostgreSQL 16 terakhir diuji penuh di putaran 11 (327 tes) — putaran 12–14 hanya menyentuh template/JS + 1 endpoint baca-saja; 11 tes konkurensi berthread hanya jalan di PostgreSQL) · Dokumen ini diperbarui di setiap putaran kerja.
 
 ## 1. Peta kemajuan terhadap VISION
@@ -158,7 +158,37 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 ### Putaran 13a — perbaikan /admin/ (dari riwayat git; dicatat belakangan)
 `/admin/` tampil tanpa CSS karena `DEBUG=False`: ditambah WhiteNoise untuk `/static/`, nama app & judul admin berbahasa Indonesia, dan tes regresi (`apps/core/test_static_admin.py`). Tes 332 → 337.
 
-### Putaran 17c — jadwal shift mingguan + notifikasi saat tukar dilaksanakan ← terbaru
+### Putaran 18 — kode kelompok A7/A7_pack, aturan GS, hapus submenu Jadwal Shift, impor/ekspor CSV & XLSX ← terbaru
+**Sudah dikerjakan**
+- **Kode kelompok shift**: pola **3 shift** (Pagi–Siang–Malam) = **A7–G7**; pola **2 shift** (Pagi–Siang) = **A7_pack–G7_pack** (sebelumnya: 2 shift = A–G, 3 shift = A_pack–G_pack). Migrasi `0007` mengganti nama kode **tanpa menyentuh tabel rotasi/anggota** dan mengganti *check constraint* (`_pack` ⇔ 2 shift). Form karyawan, seed demo, dan tes disesuaikan.
+- **General Shift (GS)**: semua GS masuk **08:00**, pulang **16:00** (GS-16). Pada hari kerja tepat **sebelum hari libur GS** (bawaan: Sabtu, karena Minggu libur) jam pulang menjadi **GS-14 (08–14)** atau **GS-12 (08–12)** menurut kolom baru `Employee.gs_short` (bawaan 14; dipilih per karyawan di form). Migrasi mengubah jam GS-12/14/16 di master menjadi mulai 08:00. Logika di `schedule._fixed_shift` (satu sumber untuk jadwal harian, rentang, dan grid mingguan; pencarian GS-14/12 dimuat malas sehingga jumlah query non-GS tidak berubah).
+- **Submenu Jadwal Shift dihapus** dari sidebar (semua peran). Jadwal per karyawan sudah ada di detail karyawan; halaman mingguan `/schedule/` tetap ada dan dibuka lewat tombol **Jadwal mingguan** di Data Karyawan (butir menu Data Karyawan tetap aktif).
+- **Impor & ekspor CSV/XLSX** — modul bersama `apps/core/tabular.py` (baca/tulis, batas 5 MB/5.000 baris, perlindungan CSV-injection di ekspor, penolakan sel diawali `=`/`@` di impor) dan mesin impor generik `apps/core/bulk.py` (tambah-atau-perbarui menurut kunci, divalidasi dengan **form yang sama** seperti input manual, semua-atau-tidak-sama-sekali, mode “Periksa saja”, audit ringkasan):
+  | Data | Impor | Ekspor |
+  |---|---|---|
+  | Karyawan | `/employees/import/` (CSV/XLSX; kini ada kolom `shift_group`, `gs_short`; shift boleh lewat kode) — **hanya menambah** | `/api/employees/export/` (filter daftar; Admin Dept hanya departemennya; tanpa data sensitif) |
+  | Master departemen / jabatan / shift | `/master/<jenis>/import/` | `/master/<jenis>/export/` |
+  | **Tabel rotasi kelompok** (A7–G7, A7_pack–G7_pack × hari → shift/libur; kelompok dibuat otomatis) | `/master/rotasi/import/` | `/master/rotasi/export/` |
+  | Obat, diagnosa (Poli) | `/poli/medicines/import/`, `/poli/diagnoses/import/` (stok **tidak** diimpor) | `?export=1` di daftar; rekap stok kini juga XLSX |
+  | Jadwal mingguan, saldo cuti, pengajuan, audit log | — | `?export=1&format=csv\|xlsx` pada halaman masing-masing (hasil filter penuh, bukan satu halaman; audit tanpa kolom before/after) |
+- Tes baru: `apps/hr/test_bulk_export.py` (14 tes) dan `GsAndGroupCodeTests` (5 tes); tes lama disesuaikan (kode kelompok, nav).
+
+**Asumsi putaran 18 yang perlu dikonfirmasi (mudah diubah)**
+- **A29. Arti “kode a7b7c7…”**: dibaca sebagai **kode kelompok rotasi** (A7…G7 untuk 3 shift; A7_pack…G7_pack untuk 2 shift). Kode shift master (PAGI/SIANG/MALAM/GS-xx) **tidak diubah**. Jika yang dimaksud mengganti kode shift Pagi/Siang/Malam itu sendiri (mis. Pagi=A7, Siang=B7, Malam=C7), cukup ubah kolom `code` di `/master/shift/`; tidak ada kode yang bergantung pada nilai itu kecuali GS-14/GS-12/GS-16.
+- **A30. Hari libur GS = hari libur reguler (Minggu)** sehingga “sebelum libur GS” = **Sabtu**. Hari sebelum **tanggal merah** belum ikut (tabel hari libur nasional belum ada).
+- **A31. Pembagian GS-14 vs GS-12** ditentukan per karyawan lewat `gs_short` (bawaan 14, belum ada aturan otomatis/kuota). Jika aturan resmi membaginya per departemen/jabatan, perlu aturan pengisian massal.
+- **A32. Jam GS 08–16 menggantikan jam contoh 07–12/14/16**; PAGI/SIANG/MALAM tidak berubah (07–15, 15–23, 23–07).
+- **A33. Impor karyawan hanya menambah** (belum memperbarui karyawan yang sudah ada), sehingga perubahan kelompok/GS massal belum bisa lewat impor.
+
+**Yang akan dilakukan (urut)**
+1. Impor **pembaruan massal** karyawan (ganti kelompok shift / `gs_short` / departemen dengan riwayat `EmployeeHistory`).
+2. Impor/ekspor tambahan: kontrak, saldo cuti awal (baris `adjust`), stok awal obat (lewat kartu stok), katering/BPJS/bantuan HRD, rekam medis (ekspor dengan pembatasan data sensitif — perlu keputusan A12).
+3. Tabel **hari libur nasional/cuti bersama**, termasuk pemendekan GS sebelum tanggal merah.
+4. Halaman HRD untuk mengedit tabel rotasi di UI (kini lewat impor/`/admin/`); konfirmasi rekan; batalkan pelaksanaan tukar; kebijakan tukar.
+5. Operasi produksi, enkripsi kolom medis, Tahap 6 Absensi (lihat §4).
+6. Uji penuh di PostgreSQL 16 (putaran ini hanya diuji di SQLite karena Postgres tidak ada di sandbox).
+
+### Putaran 17c — jadwal shift mingguan + notifikasi saat tukar dilaksanakan
 Melanjutkan sisa 17b. Tanpa migrasi/dependensi baru.
 - **Halaman `/schedule/`** (menu "Jadwal Shift"; HRD/Superadmin semua departemen, Admin Dept hanya departemennya, Poli 403): grid mingguan (Senin–Minggu) per karyawan aktif — kode shift atau "Libur", tanda ⇄ bertaut ke pengajuan tukar bila sel hasil penyesuaian; filter NIK/nama, departemen (diabaikan untuk Admin Dept), kelompok; navigasi minggu lalu/depan; 50 karyawan/halaman; `schedule.schedule_grid` memakai **2 query tetap** berapa pun karyawannya. Masukan sampah (tanggal rusak/di luar 2000–2100, id non-angka, byte NUL) tidak menyebabkan 500.
 - **Notifikasi saat tukar dilaksanakan** (sebelumnya tidak ada untuk jenis apa pun): pemohon diberi tahu; pada tukar 2 orang, Admin Departemen rekan juga (tautan ke detail rekan, yang masih dalam scope-nya; tidak dobel bila pemohon sendiri Admin Dept yang sama). Ini **bukan** konfirmasi rekan (A24 tetap berlaku).

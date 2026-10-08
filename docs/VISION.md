@@ -34,7 +34,8 @@ per role (saat ini masih per role + scope; matriks per aksi dikerjakan bertahap,
 
 ## Shift, jadwal & tukar shift/libur  **[BARU]**
 **Master shift** (`/master/shift/`): nama, **kode** (PAGI, SIANG, MALAM, GS-12, GS-14, GS-16), jam masuk/pulang, melewati tengah malam, **GS** (general shift, tidak ikut rotasi kelompok), **aktif** (nonaktif = tidak ditawarkan lagi di form, histori tetap).
-**Kelompok rotasi**: pola **2 shift** (A–G; Pagi–Siang) dan pola **3 shift/PACK** (A_pack–G_pack; Pagi–Siang–Malam). Kelompok pola 2 dan pola 3 **berbeda walau hurufnya sama**. Tiap kelompok punya **tabel rotasi mingguan** (hari → shift, atau kosong = libur kelompok). Tabel resmi mengikuti *Aturan Pengaturan Jadwal Shift 2026* (diisi lewat `/admin/` → Kelompok shift & rotasi; belum ada halaman khusus).
+**Kelompok rotasi**: pola **3 shift** (**A7–G7**; Pagi–Siang–Malam) dan pola **2 shift** (**A7_pack–G7_pack**; Pagi–Siang). Kelompok pola 2 dan pola 3 **berbeda walau hurufnya sama**. Tiap kelompok punya **tabel rotasi mingguan** (hari → shift, atau kosong = libur kelompok). Tabel resmi mengikuti *Aturan Pengaturan Jadwal Shift 2026* (diisi lewat **impor CSV/XLSX** di `/master/shift/` → “Impor tabel rotasi” atau `/admin/`; belum ada editor khusus).
+**General Shift (GS)**: semua karyawan GS **08:00–16:00** (GS-16). Pada hari kerja **tepat sebelum hari libur GS** jam pulang dipersingkat: sebagian **GS-14 (08–14)**, sebagian **GS-12 (08–12)** (dipilih per karyawan, `gs_short`).
 **Sumber jadwal dasar karyawan = salah satu**: kelompok rotasi **atau** shift tetap/GS (tidak keduanya).
 **Jadwal efektif** pada tanggal D (urutan prioritas): ① penyesuaian hasil tukar yang sudah dilaksanakan (per tanggal) → ② rotasi kelompok → ③ shift tetap/GS (Minggu libur reguler). Master (`Employee.shift`, `shift_group`) **tidak pernah diubah oleh tukar**.
 
@@ -44,6 +45,8 @@ per role (saat ini masih per role + scope; matriks per aksi dikerjakan bertahap,
 | Tukar shift | pindah ke shift lain pada tanggal itu (hari kerja) | pada satu tanggal keduanya sama-sama masuk dengan shift **berbeda** → shift saling ditukar |
 | Tukar libur | memindahkan **liburnya sendiri**: tanggal libur → masuk, hari kerja lain → libur | libur **saling ditukar**: pada tanggal 1 pemohon libur & rekan masuk, pada tanggal 2 rekan libur & pemohon masuk → pemohon masuk di shift rekan (tgl 1), rekan masuk di shift pemohon (tgl 2) |
 Aturan: tanggal tidak lampau; tidak bentrok dengan tukar lain (baik sebagai pemohon **maupun rekan**) atau penyesuaian yang sudah ada; tidak jatuh pada izin/cuti/sakit (kedua orang); Admin Departemen hanya boleh memilih rekan dari departemennya (HRD lintas departemen); aturan yang sama diperiksa ulang saat **Laksanakan** karena kondisi bisa berubah sejak diajukan.
+**Menu:** tidak ada submenu “Jadwal Shift”; jadwal ada di detail karyawan, dan jadwal mingguan dibuka dari Data Karyawan.
+**Impor & ekspor:** CSV/XLSX untuk karyawan, master (departemen, jabatan, shift), tabel rotasi, obat, diagnosa; ekspor jadwal, saldo cuti, pengajuan, rekap stok, audit. Semua impor divalidasi dengan aturan form yang sama, semua-atau-tidak-sama-sekali.
 **Sudah ada:** jadwal mingguan per departemen `/schedule/` dan notifikasi saat tukar dilaksanakan (pemohon + Admin Departemen rekan). **Akan dikerjakan:** halaman HRD untuk mengedit tabel rotasi · konfirmasi rekan sebelum disetujui · batalkan pelaksanaan (baris pembalik, kedua orang sekaligus) · hari libur nasional/cuti bersama · aturan kebijakan tukar (batas per bulan, jeda minimal antar shift, GS/pola 3 shift ↔ pola 2 shift) · jadwal efektif sebagai sumber Absensi (Tahap 6). Detail & asumsi: `PROGRESS.md` → putaran 17b (A20–A28).
 
 ## Performa
@@ -173,7 +176,7 @@ Menyembunyikan menu hanya kenyamanan; izin tetap diperiksa di server.
 | 9 | Meal 02:00 | Dihitung ke **tanggal kerja shift malam** |
 | 10 | Tidak dipakai | WhatsApp, Active Directory, ERP/Finance, Odoo Accounting, workflow pengajuan BPJS |
 | 11 | Tukar shift/libur | **Dua mode**: 1 orang (menukar liburnya/shiftnya sendiri) dan 2 orang (dengan rekan; kedua jadwal berubah dalam satu pengajuan). Lihat "Shift, jadwal & tukar shift/libur" |
-| 12 | Master shift baru | Kode shift, GS, kelompok rotasi (pola 2 shift A–G / pola 3 shift A_pack–G_pack) dan tabel rotasi mingguan menjadi sumber jadwal dasar. *Tabel rotasi resmi & jam GS-12/14/16 masih perlu dimasukkan dari Aturan Pengaturan Jadwal Shift 2026* |
+| 12 | Master shift baru | Kode shift, GS, kelompok rotasi (pola 3 shift A7–G7 / pola 2 shift A7_pack–G7_pack) dan tabel rotasi mingguan menjadi sumber jadwal dasar. *Tabel rotasi resmi & jam GS-12/14/16 masih perlu dimasukkan dari Aturan Pengaturan Jadwal Shift 2026* |
 
 ## Urutan prioritas
 Security › Integritas data › Role/permission › Department scope › Approval › Histori › Audit › Backup › Performa › Scalability › Maintainability › Integrasi masa depan.

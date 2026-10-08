@@ -58,6 +58,11 @@ def audit_list(request):
     if f["ip"]:
         ip = _ip(f["ip"])
         qs = qs.filter(ip=ip) if ip else qs.none()  # IP tidak valid → hasil kosong (bukan diabaikan diam-diam)
+    if g.get("export"):  # ekspor hasil filter (maks 50.000 baris); before/after TIDAK diekspor (bisa memuat data sensitif)
+        from . import tabular
+        rows = [[a.created_at.strftime("%Y-%m-%d %H:%M:%S"), a.user.username if a.user_id else "", a.module, a.action, a.object_type, a.object_id, a.ip or ""] for a in qs[:50000]]
+        log(request, "core", "audit_export", None, None, {"rows": len(rows)})
+        return tabular.export_response("audit-log", ["waktu", "pengguna", "modul", "aksi", "jenis_objek", "id_objek", "ip"], rows, request, sheet="Audit")
     page = Paginator(qs, PER_PAGE).get_page(g.get("page", 1))
     qstr = urlencode({k: v for k, v in f.items() if v or k in ("from", "to")})
     return render(request, "audit/list.html", {"page": page, "f": f, "qs": qstr, "default_days": DEFAULT_DAYS})

@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Audit log{% endblock %}{% block content %}
-<h2>Audit log</h2>
+<h2>Audit log {% include "_export.html" %}</h2>
 <p style="color:var(--mu)">Hanya baca; entri tidak bisa diubah atau dihapus. Tanpa filter tanggal, yang tampil {{ default_days }} hari terakhir. Mengosongkan tanggal = tanpa batas (lebih lambat pada data besar).</p>
 <form method="get" class="bar">
 <label>Dari <input type="date" name="from" value="{{ f.from }}"></label><label>Sampai <input type="date" name="to" value="{{ f.to }}"></label>

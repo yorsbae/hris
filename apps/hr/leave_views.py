@@ -34,6 +34,11 @@ def leave_list(request):
         grants=Count("leave_ledger", filter=Q(leave_ledger__year=year, leave_ledger__kind=LeaveLedger.GRANT)))
     if f["filter"] == "nogrant": qs = qs.filter(grants=0)
     elif f["filter"] == "low": qs = qs.filter(grants__gt=0, bal__lte=3)
+    if request.GET.get("export"):
+        from apps.core import tabular
+        rows = [[e.nik, e.name, e.department.name, year, e.grants and "ya" or "tidak", e.bal] for e in qs.order_by("name")[:20000]]
+        log(request, "hr", "leave_balance_export", None, None, {"year": year, "rows": len(rows)})
+        return tabular.export_response(f"saldo-cuti-{year}", ["nik", "nama", "departemen", "tahun", "sudah_dapat_jatah", "saldo_hari"], rows, request, sheet="Saldo cuti")
     page = Paginator(qs.order_by("name"), 50).get_page(request.GET.get("page", 1))
     return render(request, "leave_list.html", {"page": page, "f": f, "year": year, "departments": Department.objects.order_by("name")})
 

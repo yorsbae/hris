@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Impor {{ spec.title }}{% endblock %}{% block content %}
+<p><a href="{{ spec.back }}">‹ Kembali</a></p>
+<h2>Impor {{ spec.title }} (CSV / XLSX)</h2>
+<div class="card" style="margin-bottom:12px"><p>Kolom: <code>{{ spec.columns|join:", " }}</code>. Wajib: <code>{{ spec.required|join:", " }}</code>. {{ spec.hint }}
+Data dengan kunci <code>{{ spec.key }}</code> yang sudah ada <b>diperbarui</b>, yang belum ada <b>ditambahkan</b>.
+Template: <a href="template.csv">CSV</a> · <a href="template.csv?format=xlsx">XLSX</a>. CSV: UTF-8, pemisah koma atau titik-koma.</p>
+{% if spec.notes %}<ul>{% for n in spec.notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+<p>Semua baris divalidasi lebih dulu; <b>satu baris salah = tidak ada yang tersimpan</b>. Gunakan "Periksa saja" dahulu.</p></div>
+{% if res %}<div class="msg{% if not res.ok %} error{% endif %}">
+{% if res.fatal %}{{ res.fatal }}{% elif res.ok and res.commit %}Berhasil: {{ res.created }} ditambahkan, {{ res.updated }} diperbarui.{% elif res.ok %}Semua {{ res.total }} baris valid. Pilih "Impor" untuk menyimpan.{% else %}{{ res.errors|length }} baris bermasalah dari {{ res.total }}. Tidak ada yang disimpan.{% endif %}</div>
+{% if res.errors_shown %}<div class="wrap"><table><thead><tr><th>Baris</th><th>{{ spec.key }}</th><th>Masalah</th></tr></thead><tbody>
+{% for n, k, errs in res.errors_shown %}<tr><td>{{ n }}</td><td>{{ k }}</td><td>{{ errs|join:" · " }}</td></tr>{% endfor %}</tbody></table></div>
+{% if res.errors|length > 100 %}<p>Menampilkan 100 baris pertama.</p>{% endif %}{% endif %}{% endif %}
+<form method="post" enctype="multipart/form-data" class="card form" style="margin-top:12px">{% csrf_token %}
+<div class="fld"><label>File CSV atau XLSX</label><input type="file" name="file" accept=".csv,.xlsx,text/csv" required></div>
+<p><button name="mode" value="check">Periksa saja</button> <button name="mode" value="import">Impor</button></p></form>
+{% endblock %}

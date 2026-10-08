@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block content %}
-<h2>Karyawan{% if user.role != "poli" %} <a class="btn" href="/schedule/">Jadwal mingguan</a>{% endif %}{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a> <a class="btn" href="/employees/import/">Impor CSV</a>{% endif %}</h2>
+<h2>Karyawan{% if user.role != "poli" %} <a class="btn" href="/schedule/">Jadwal mingguan</a>{% endif %}{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a> <a class="btn" href="/employees/import/">Impor CSV/XLSX</a>{% endif %}{% if user.role != "poli" %} <a class="btn" href="#" id="export-csv">Ekspor CSV</a> <a class="btn" href="#" id="export-xlsx">Ekspor XLSX</a>{% endif %}</h2>
 <div class="filters" role="search"><input id="q" type="search" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama" autocomplete="off">
 <select id="st" aria-label="Status"><option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select>
 {% if departments %}<select id="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}
@@ -9,6 +9,8 @@
 <div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th><th>Status</th></tr></thead><tbody id="rows" aria-live="polite"></tbody></table></div>
 <nav class="pager" aria-label="Halaman"><button type="button" class="ghost" id="prev">‹ Sebelumnya</button> <span id="info"></span> <button type="button" class="ghost" id="next">Berikutnya ›</button></nav>
 <script>
+function expLinks(){const p=new URLSearchParams();for(const k of ["q","st","department","position","shift","contract"]){const e=document.getElementById(k);if(e&&e.value)p.set(k==="st"?"status":k,e.value)}for(const [id,f] of [["export-csv","csv"],["export-xlsx","xlsx"]]){const a=document.getElementById(id);if(a){p.set("format",f);a.href="/api/employees/export/?"+p}}}
+document.addEventListener("change",expLinks);document.addEventListener("input",expLinks);document.addEventListener("DOMContentLoaded",expLinks);
 let page=1,total=1,t,seq=0;const $=i=>document.getElementById(i),F=["department","position","shift","contract"],ALL=["q","st",...F];
 function row(cells){const tr=document.createElement("tr");cells.forEach(c=>tr.append(c));return tr}
 function msgRow(text,cls){const td=document.createElement("td");td.colSpan=5;td.className="empty"+(cls?" "+cls:"");td.textContent=text;return row([td])}

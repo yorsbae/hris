@@ -1,7 +1,9 @@
 {% extends "base.html" %}{% block title %}Master {{ label }}{% endblock %}{% block content %}
 <h2>Master data</h2>
 <div class="bar">{% for k, l in kinds.items %}<a class="btn" href="{% url 'master_list' k %}" style="margin-left:0{% if k != kind %};opacity:.55{% endif %}">{{ l }}</a>{% endfor %}</div>
-<p><a class="btn" href="{% url 'master_new' kind %}" style="margin-left:0">+ {{ label }} baru</a></p>
+<p><a class="btn" href="{% url 'master_new' kind %}" style="margin-left:0">+ {{ label }} baru</a>
+<a class="btn" href="/master/{{ kind }}/import/">Impor CSV/XLSX</a> <a class="btn" href="/master/{{ kind }}/export/?format=csv">Ekspor CSV</a> <a class="btn" href="/master/{{ kind }}/export/?format=xlsx">Ekspor XLSX</a>
+{% if kind == "shift" %}<br><a class="btn" href="/master/rotasi/import/" style="margin-left:0">Impor tabel rotasi kelompok (A7–G7, A7_pack–G7_pack)</a> <a class="btn" href="/master/rotasi/export/?format=xlsx">Ekspor tabel rotasi</a>{% endif %}</p>
 <div class="wrap"><table><thead><tr>
 {% if kind == "department" %}<th>Kode</th><th>Nama</th><th>Induk</th>{% elif kind == "position" %}<th>Nama</th><th>Level</th>{% else %}<th>Kode</th><th>Nama</th><th>Masuk</th><th>Pulang</th><th>Lewat tengah malam</th><th>Jenis</th><th>Status</th>{% endif %}<th></th></tr></thead><tbody>
 {% for i in items %}<tr>

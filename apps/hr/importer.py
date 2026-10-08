@@ -1,44 +1,32 @@
-"""Impor karyawan dari CSV. Semua-atau-tidak-sama-sekali: satu baris salah → tidak ada yang tersimpan.
+"""Impor karyawan dari CSV atau XLSX. Semua-atau-tidak-sama-sekali: satu baris salah → tidak ada yang tersimpan.
 Memakai ulang EmployeeForm agar aturan validasi identik dengan input manual."""
-import csv, io
+from apps.core import tabular
 from django.db import transaction
 from .emp_forms import EmployeeForm
-from .models import Department, Employee, Position, Shift
+from .models import Department, Employee, Position, Shift, ShiftGroup
 
 COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "status", "marital_status", "education",
-           "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "supervisor_nik"]
+           "shift_group", "gs_short", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "supervisor_nik"]
 REQUIRED = ["nik", "name", "gender", "join_date", "department_code"]
-MAX_ROWS, MAX_BYTES = 5000, 5 * 1024 * 1024
-EXAMPLE = ["EMP-0001", "Budi Santoso", "L", "2024-01-15", "PROD", "Staff", "Pagi", "aktif", "", "", "", "", "", "", "", "", "", "", ""]
+MAX_ROWS, MAX_BYTES = tabular.MAX_ROWS, tabular.MAX_BYTES
+EXAMPLE = ["EMP-0001", "Budi Santoso", "L", "2024-01-15", "PROD", "Staff", "Pagi", "aktif", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 
 
-def template_csv():
-    out = io.StringIO(); w = csv.writer(out); w.writerow(COLUMNS); w.writerow(EXAMPLE); return out.getvalue()
+def template_rows(): return COLUMNS, EXAMPLE
 
 
-def _read(raw):
-    if len(raw) > MAX_BYTES: raise ValueError("File terlalu besar (maks 5 MB).")
-    try: text = raw.decode("utf-8-sig")  # utf-8-sig membuang BOM dari Excel
-    except UnicodeDecodeError: raise ValueError("File harus berenkode UTF-8 (di Excel: Save As → CSV UTF-8).")
-    first = text.splitlines()[0] if text.strip() else ""
-    delim = ";" if first.count(";") > first.count(",") else ","  # Excel Indonesia memakai titik-koma
-    rd = csv.DictReader(io.StringIO(text), delimiter=delim)
-    header = [h.strip().lower() for h in (rd.fieldnames or [])]
-    missing = [c for c in REQUIRED if c not in header]
-    if missing: raise ValueError("Kolom wajib tidak ada: " + ", ".join(missing))
-    rows = [{(k or "").strip().lower(): (v or "").strip() for k, v in r.items()} for r in rd]
-    if not rows: raise ValueError("File tidak berisi data.")
-    if len(rows) > MAX_ROWS: raise ValueError(f"Maksimal {MAX_ROWS} baris per impor.")
-    return rows
+def _read(raw, filename=""):
+    return tabular.read_table(raw, filename, REQUIRED)
 
 
-def run(raw, commit):
+def run(raw, commit, filename=""):
     """Return dict: ok, created, total, errors[(baris, nik, [pesan])], fatal."""
-    try: rows = _read(raw)
+    try: rows = _read(raw, filename)
     except ValueError as e: return {"ok": False, "fatal": str(e), "errors": [], "total": 0, "created": 0}
     deps = {d.code.upper(): d for d in Department.objects.all()}
     poss = {p.name.lower(): p for p in Position.objects.all()}
-    shifts = {s.name.lower(): s for s in Shift.objects.all()}
+    shifts = {s.name.lower(): s for s in Shift.objects.all()}; shifts.update({s.code.lower(): s for s in Shift.objects.exclude(code="")})  # nama ATAU kode shift
+    groups = {g.code.lower(): g for g in ShiftGroup.objects.all()}
     db_niks = set(Employee.all_objects.values_list("nik", flat=True)); file_niks = {r.get("nik", "") for r in rows}
     seen, errors, valid = set(), [], []
     for i, r in enumerate(rows, start=2):  # baris 1 = header
@@ -48,6 +36,9 @@ def run(raw, commit):
         d, p, s = deps.get(r.get("department_code", "").upper()), poss.get(r.get("position", "").lower()), shifts.get(r.get("shift", "").lower())
         if not d: errs.append(f"Departemen dengan kode '{r.get('department_code', '')}' tidak ada.")
         if r.get("position") and not p: errs.append(f"Jabatan '{r['position']}' tidak ada (buat dulu di Master).")
+        g = groups.get(r.get("shift_group", "").lower())
+        if r.get("shift_group") and not g: errs.append(f"Kelompok shift '{r['shift_group']}' tidak ada (A7–G7 atau A7_pack–G7_pack; isi lewat impor tabel rotasi).")
+        if r.get("gs_short") and r["gs_short"] not in ("12", "14"): errs.append("gs_short harus 14 atau 12.")
         if r.get("shift") and not s: errs.append(f"Shift '{r['shift']}' tidak ada (buat dulu di Master).")
         nik = r.get("nik", "")
         if nik in seen: errs.append("NIK dobel di dalam file.")
@@ -55,7 +46,8 @@ def run(raw, commit):
         sup = r.get("supervisor_nik", "")
         if sup and (sup == nik or (sup not in db_niks and sup not in file_niks)): errs.append("Atasan tidak ditemukan / sama dengan karyawan ini.")
         if not errs:
-            form = EmployeeForm({**{c: r.get(c, "") for c in COLUMNS if c not in ("department_code", "position", "shift", "supervisor_nik")},
+            form = EmployeeForm({**{c: r.get(c, "") for c in COLUMNS if c not in ("department_code", "position", "shift", "shift_group", "gs_short", "supervisor_nik")},
+                                 "shift_group": g.pk if g else "", "gs_short": r.get("gs_short") or "14",
                                  "status": r.get("status") or "aktif", "department": d.pk, "position": p.pk if p else "", "shift": s.pk if s else "",
                                  "supervisor_nik": ""})  # atasan diselesaikan sendiri (bisa menunjuk baris lain di file yang sama)
             if form.is_valid(): valid.append((form, sup))

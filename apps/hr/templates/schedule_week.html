@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Jadwal shift{% endblock %}{% block content %}
-<h2>Jadwal shift mingguan</h2>
+<h2>Jadwal shift mingguan {% include "_export.html" %}</h2>
 <form class="filters" method="get"><input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}"><input name="q" value="{{ f.q }}" placeholder="NIK / nama">
 {% if departments %}<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
 <select name="group"><option value="">Semua kelompok</option>{% for g in groups %}<option value="{{ g.pk }}"{% if f.group == g.pk|stringformat:"s" %} selected{% endif %}>{{ g.code }}</option>{% endfor %}</select><button>Terapkan</button></form>

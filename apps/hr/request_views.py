@@ -30,6 +30,12 @@ def request_list(request):
     if f["status"]: qs = qs.filter(status=f["status"])
     if f["type"]: qs = qs.filter(type=f["type"])
     if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
+    if request.GET.get("export"):
+        from apps.core import tabular
+        rows = [[r.pk, r.type, STATUS_LABELS.get(r.status, r.status), r.employee.nik, r.employee.name, r.department.name, r.requested_by.username, r.created_at.strftime("%Y-%m-%d %H:%M")]
+                for r in qs.order_by("-created_at")[:20000]]
+        log(request, "hr", "requests_export", None, None, {"rows": len(rows)})
+        return tabular.export_response("pengajuan", ["no", "jenis", "status", "nik", "nama", "departemen", "diajukan_oleh", "dibuat"], rows, request, sheet="Pengajuan")
     page = Paginator(qs.order_by("-created_at"), 50).get_page(request.GET.get("page", 1))
     for r in page: r.status_label = STATUS_LABELS.get(r.status, r.status)
     return render(request, "requests_list.html", {"page": page, "f": f, "types": LABELS, "statuses": STATUS_LABELS})

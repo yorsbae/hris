@@ -169,3 +169,22 @@ def master_form(request, kind, pk=None):
         messages.success(request, f"{label} disimpan.")
         return redirect("master_list", kind=kind)
     return render(request, "master_form.html", {"form": form, "kind": kind, "label": label, "obj": obj})
+
+
+@login_required
+@require_roles(*HRD_ROLES)
+def master_export(request, kind):
+    """Ekspor master (departemen/jabatan/shift) atau, untuk kind=rotasi, tabel rotasi kelompok shift. Kolom sama dengan template impor."""
+    from apps.core import tabular
+    from .models import ShiftRotation
+    if kind == "rotasi":
+        names = ["senin", "selasa", "rabu", "kamis", "jumat", "sabtu", "minggu"]
+        header = ["group", "weekday", "shift_code"]
+        rows = [[r.group.code, names[r.weekday], r.shift.code if r.shift_id else ""] for r in ShiftRotation.objects.select_related("group", "shift").order_by("group__pattern", "group__code", "weekday")]
+    else:
+        label, M, _ = _master(kind)
+        if kind == "department": header = ["code", "name", "parent_code"]; rows = [[d.code, d.name, d.parent.code if d.parent_id else ""] for d in M.objects.select_related("parent").order_by("code")]
+        elif kind == "position": header = ["name", "level"]; rows = [[p.name, p.level] for p in M.objects.order_by("name")]
+        else: header = ["code", "name", "start", "end", "crosses_midnight", "is_gs", "active"]; rows = [[x.code, x.name, x.start, x.end, x.crosses_midnight, x.is_gs, x.active] for x in M.objects.order_by("start", "code")]
+    log(request, "hr", "master_export", None, None, {"kind": kind, "rows": len(rows)})
+    return tabular.export_response(f"master-{kind}", header, rows, request, sheet=kind)

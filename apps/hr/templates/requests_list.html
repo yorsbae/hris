@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Pengajuan{% endblock %}{% block content %}
-<h2>Pengajuan <a class="btn" href="/requests/new/">+ Buat pengajuan</a></h2>
+<h2>Pengajuan <a class="btn" href="/requests/new/">+ Buat pengajuan</a> {% include "_export.html" %}</h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
 <select name="status"><option value="">Semua status</option>{% for k, v in statuses.items %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
 <select name="type"><option value="">Semua jenis</option>{% for k, v in types.items %}<option value="{{ k }}"{% if f.type == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>

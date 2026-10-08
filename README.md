@@ -11,7 +11,7 @@
     gunicorn config.wsgi -b 127.0.0.1:8000   # taruh Nginx di depan (WAJIB isi TRUSTED_PROXY_IPS di .env, kirim X-Forwarded-For/-Proto; bila HTTPS: HTTPS=True); PostgreSQL hanya listen 127.0.0.1/server
 
 ## Data demo & /admin/ (putaran 16)
-`python manage.py seed_demo` mengisi data uji coba (master shift berkode + kelompok rotasi A–G / A_pack–G_pack, karyawan, tukar shift/libur 1 & 2 orang, pengajuan, cuti, HRD, poliklinik) dan akun `superadmin`/`hrd`/`poli`/`admin_prd`… (sandi bawaan `Demo#HRIS-2026`; **jangan di produksi**). `/admin/` kini bertema sama dengan dashboard (sidebar navy, KPI). Login: ikon mata, sandi tampil selama ditekan-tahan.
+`python manage.py seed_demo` mengisi data uji coba (master shift berkode + kelompok rotasi A7–G7 (3 shift) / A7_pack–G7_pack (2 shift), GS 08–16, karyawan, tukar shift/libur 1 & 2 orang, pengajuan, cuti, HRD, poliklinik) dan akun `superadmin`/`hrd`/`poli`/`admin_prd`… (sandi bawaan `Demo#HRIS-2026`; **jangan di produksi**). `/admin/` kini bertema sama dengan dashboard (sidebar navy, KPI). Login: ikon mata, sandi tampil selama ditekan-tahan.
 
 ## Keamanan (sudah ada)
 Argon2, RBAC (`require_roles`), scope departemen (`scope_by_department`, 404 saat URL diubah), rate limit login,
