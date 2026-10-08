@@ -40,7 +40,7 @@ def run(raw, commit, filename=""):
         if not d: errs.append(f"Departemen dengan kode '{r.get('department_code', '')}' tidak ada.")
         if r.get("position") and not p: errs.append(f"Jabatan '{r['position']}' tidak ada (buat dulu di Master).")
         g = groups.get(r.get("shift_group", "").lower())
-        if r.get("shift_group") and not g: errs.append(f"Kelompok shift '{r['shift_group']}' tidak ada (A7–G7 atau A7_pack–G7_pack; isi lewat impor tabel rotasi).")
+        if r.get("shift_group") and not g: errs.append(f"Kelompok shift '{r['shift_group']}' tidak ada (A–G atau A_pack–G_pack; isi lewat impor tabel rotasi).")
         if r.get("gs_short") and r["gs_short"] not in ("12", "14"): errs.append("gs_short harus 14 atau 12.")
         if r.get("shift") and not s: errs.append(f"Shift '{r['shift']}' tidak ada (buat dulu di Master).")
         nik = r.get("nik", "")

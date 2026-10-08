@@ -74,13 +74,13 @@ class MasterImportTests(BulkBase):
 
     def test_rotation_import_creates_groups_by_code_and_validates(self):
         self.login("hrd"); pagi = Shift.objects.create(code="PAGI", name="Pagi", start=time(7), end=time(15)); malam = Shift.objects.create(code="MALAM", name="Malam", start=time(23), end=time(7), crosses_midnight=True)
-        r = self.post("/master/rotasi/import/", [["group", "weekday", "shift_code"], ["A7", "senin", "PAGI"], ["A7", "selasa", "MALAM"], ["A7", "rabu", ""], ["A7_pack", "senin", "PAGI"]])
+        r = self.post("/master/rotasi/import/", [["group", "weekday", "shift_code"], ["A_pack", "senin", "PAGI"], ["A_pack", "selasa", "MALAM"], ["A_pack", "rabu", ""], ["A", "senin", "PAGI"]])
         self.assertContains(r, "4 ditambahkan")
-        self.assertEqual(ShiftGroup.objects.get(code="A7").pattern, "3_SHIFT"); self.assertEqual(ShiftGroup.objects.get(code="A7_pack").pattern, "2_SHIFT")
-        self.assertIsNone(ShiftRotation.objects.get(group__code="A7", weekday=2).shift)  # kosong = libur
-        for bad in ([["group", "weekday", "shift_code"], ["A7_pack", "selasa", "MALAM"]], [["group", "weekday", "shift_code"], ["A", "senin", "PAGI"]], [["group", "weekday", "shift_code"], ["B7", "hari", "PAGI"]]):
+        self.assertEqual(ShiftGroup.objects.get(code="A_pack").pattern, "3_SHIFT"); self.assertEqual(ShiftGroup.objects.get(code="A").pattern, "2_SHIFT")
+        self.assertIsNone(ShiftRotation.objects.get(group__code="A_pack", weekday=2).shift)  # kosong = libur
+        for bad in ([["group", "weekday", "shift_code"], ["A", "selasa", "MALAM"]], [["group", "weekday", "shift_code"], ["A7", "senin", "PAGI"]], [["group", "weekday", "shift_code"], ["B_pack", "hari", "PAGI"]]):
             self.assertContains(self.post("/master/rotasi/import/", bad), "Tidak ada yang disimpan")
-        self.assertFalse(ShiftGroup.objects.filter(code__in=("B7",)).exists())
+        self.assertFalse(ShiftGroup.objects.filter(code__in=("B_pack",)).exists())
 
     def test_import_requires_hrd(self):
         for u, code in (("poli", 403), ("adm", 403)):
@@ -98,12 +98,12 @@ class MasterImportTests(BulkBase):
 class EmployeeImportExportTests(BulkBase):
     def test_xlsx_import_with_group_and_gs_short_then_export_scope(self):
         Position.objects.create(name="Operator"); g = Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
-        ShiftGroup.objects.create(code="A7", pattern="3_SHIFT"); self.login("hrd")
+        ShiftGroup.objects.create(code="A_pack", pattern="3_SHIFT"); self.login("hrd")
         hdr = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "shift_group", "gs_short"]
-        r = self.post("/employees/import/", [hdr, ["E1", "Satu", "L", "2024-01-15", "PRD", "Operator", "GS-16", "", "12"], ["E2", "Dua", "P", "2024-02-01", "PRD", "Operator", "", "A7", ""]])
+        r = self.post("/employees/import/", [hdr, ["E1", "Satu", "L", "2024-01-15", "PRD", "Operator", "GS-16", "", "12"], ["E2", "Dua", "P", "2024-02-01", "PRD", "Operator", "", "A_pack", ""]])
         self.assertContains(r, "2 karyawan diimpor")
         e1, e2 = Employee.objects.get(nik="E1"), Employee.objects.get(nik="E2")
-        self.assertEqual((e1.shift_id, e1.gs_short, e2.shift_group.code), (g.pk, "12", "A7"))
+        self.assertEqual((e1.shift_id, e1.gs_short, e2.shift_group.code), (g.pk, "12", "A_pack"))
         bad = self.post("/employees/import/", [hdr, ["E3", "Tiga", "L", "2024-01-15", "PRD", "", "", "Z9", ""]]); self.assertContains(bad, "Kelompok shift")
         x = load_workbook(io.BytesIO(self.client.get("/api/employees/export/?format=xlsx").content)).active
         self.assertEqual({r[0].value for r in list(x.rows)[1:]}, {"E1", "E2"}); self.assertEqual([c.value for c in x[1]][:2], ["nik", "name"])

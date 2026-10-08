@@ -24,16 +24,16 @@ class Shift(models.Model):  # master shift; penyesuaian per tanggal ada di Shift
 
 
 class ShiftGroup(models.Model):
-    """Kelompok rotasi (putaran 18). Pola 3 shift (Pagi–Siang–Malam) berkode A7–G7; pola 2 shift (Pagi–Siang) berkode A7_pack–G7_pack.
+    """Kelompok rotasi (docs/jadwal_shift_2026.md). Pola 2 shift (Pagi–Siang) berkode A–G; pola 3 shift/PACK (Pagi–Siang–Malam) berkode A_pack–G_pack.
     Kedua pola adalah kelompok yang berbeda walau hurufnya sama."""
     P2, P3 = "2_SHIFT", "3_SHIFT"
-    PATTERNS = [(P2, "2 shift / pack (Pagi–Siang)"), (P3, "3 shift (Pagi–Siang–Malam)")]
+    PATTERNS = [(P2, "2 shift (Pagi–Siang)"), (P3, "3 shift / PACK (Pagi–Siang–Malam)")]
     code = models.CharField("Kode kelompok", max_length=12, unique=True)
     pattern = models.CharField("Pola", max_length=8, choices=PATTERNS)
     class Meta:
         ordering = ["pattern", "code"]
         constraints = [models.CheckConstraint(name="shift_group_pack_suffix_matches_pattern",
-                                              condition=(models.Q(pattern="2_SHIFT", code__endswith="_pack") | (models.Q(pattern="3_SHIFT") & ~models.Q(code__endswith="_pack"))))]
+                                              condition=(models.Q(pattern="3_SHIFT", code__endswith="_pack") | (models.Q(pattern="2_SHIFT") & ~models.Q(code__endswith="_pack"))))]
     def __str__(self): return self.code
 
 

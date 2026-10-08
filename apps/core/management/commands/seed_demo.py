@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 from apps.core.models import AuditLog, Notification, Role, User
-from apps.hr import models as hr, schedule
+from apps.hr import models as hr, schedule, rotation_table as rt
 from apps.hrd import models as hrd
 from apps.poli import models as pl, services as ps
 
@@ -27,7 +27,7 @@ MEDS = [("OB001", "Paracetamol 500mg", "tablet", 600, 100), ("OB002", "Amoxicill
 COMPLAINTS = ["Keluhan flu dan demam", "Sakit kepala sejak pagi", "Nyeri lambung setelah makan", "Diare sejak semalam", "Nyeri punggung setelah angkat barang", "Batuk pilek 3 hari", "Pusing dan lemas", "Tensi tinggi, kontrol rutin", "Gatal-gatal di tangan"]
 REAL_NOW = timezone.now
 # Master shift (Aturan Pengaturan Jadwal Shift 2026): kode, jam, melewati tengah malam, GS?  Jam GS-12/14/16 = DATA CONTOH (jam pulang 12/14/16) — samakan dengan aturan resmi di /master/shift/.
-SHIFTS = [("PAGI", "Shift Pagi", time(7), time(15), False, False), ("SIANG", "Shift Siang", time(15), time(23), False, False), ("MALAM", "Shift Malam", time(23), time(7), True, False),
+SHIFTS = [("PAGI", "Shift Pagi", time(6), time(14), False, False), ("SIANG", "Shift Siang", time(14), time(22), False, False), ("MALAM", "Shift Malam", time(22), time(6), True, False),
           ("GS-12", "General Shift 12", time(8), time(12), False, True), ("GS-14", "General Shift 14", time(8), time(14), False, True), ("GS-16", "General Shift 16", time(8), time(16), False, True)]
 GROUP_LETTERS = "ABCDEFG"
 ROTATING_DEPTS = {"PRD": hr.ShiftGroup.P2, "GDG": hr.ShiftGroup.P2, "MTC": hr.ShiftGroup.P2, "PKG": hr.ShiftGroup.P3}  # dept lain = general shift (GS)
@@ -77,22 +77,19 @@ class Command(BaseCommand):
         made = [hr.Shift.objects.create(code=c, name=n, start=a, end=b, crosses_midnight=x, is_gs=g) for c, n, a, b, x, g in SHIFTS]
         self.shifts, self.gs = [x for x in made if not x.is_gs], [x for x in made if x.is_gs]  # shifts = PAGI/SIANG/MALAM (rotasi); gs = general shift
         self.group_cycle = {hr.ShiftGroup.P2: 0, hr.ShiftGroup.P3: 0}
-        self.groups = {hr.ShiftGroup.P2: [hr.ShiftGroup.objects.create(code=f"{l}7_pack", pattern=hr.ShiftGroup.P2) for l in GROUP_LETTERS],
-                       hr.ShiftGroup.P3: [hr.ShiftGroup.objects.create(code=f"{l}7", pattern=hr.ShiftGroup.P3) for l in GROUP_LETTERS]}
+        self.groups = {hr.ShiftGroup.P2: [hr.ShiftGroup.objects.create(code=rt.group_code(l, hr.ShiftGroup.P2), pattern=hr.ShiftGroup.P2) for l in GROUP_LETTERS],
+                       hr.ShiftGroup.P3: [hr.ShiftGroup.objects.create(code=rt.group_code(l, hr.ShiftGroup.P3), pattern=hr.ShiftGroup.P3) for l in GROUP_LETTERS]}
         self.rotation()
         for c, nm in (("PRD", "Budi"), ("GDG", "Andi"), ("QC", "Rina"), ("PKG", "Siti")):
             self.mk(f"admin_{c.lower()}", nm, f"Admin {self.depts[c].name}", Role.DEPT_ADMIN, self.depts[c])
 
     def rotation(self):
-        """Tabel rotasi mingguan CONTOH (bukan tabel resmi): tiap kelompok libur 1 hari/minggu (kelompok ke-g libur pada hari ke-g, 0=Senin); sisanya dibagi rata
-        PAGI/SIANG (pola 2 shift) atau PAGI/SIANG/MALAM (pola 3 shift/PACK). Ganti dengan tabel resmi lewat /admin/ → Kelompok shift & rotasi."""
-        pagi, siang, malam = self.shifts
+        """Tabel rotasi RESMI dari docs/jadwal_shift_2026.md (apps/hr/rotation_table.py): 2 shift = A–G, 3 shift/PACK = A_pack–G_pack."""
+        by_code = {x.code: x for x in self.shifts}
         for pattern, groups in self.groups.items():
-            for g, grp in enumerate(groups):
-                for w in range(7):
-                    k = (g - w) % 7  # 0 = libur; 1..6 = urutan kerja pada hari itu
-                    sh = None if k == 0 else (pagi if k <= 3 else siang) if pattern == hr.ShiftGroup.P2 else (None if k == 0 else pagi if k <= 2 else siang if k <= 4 else malam)
-                    hr.ShiftRotation.objects.create(group=grp, weekday=w, shift=sh)
+            cells = rt.official(pattern)
+            for grp in groups:
+                for w, sc in enumerate(cells[grp.code]): hr.ShiftRotation.objects.create(group=grp, weekday=w, shift=by_code[sc] if sc else None)
 
     def shift_for(self, dept_code):
         """(shift tetap/GS, kelompok rotasi) untuk karyawan baru: dept rotasi → kelompok bergilir A..G (shift kosong), lainnya → general shift."""

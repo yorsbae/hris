@@ -39,7 +39,7 @@ DAYS = {"senin": 0, "selasa": 1, "rabu": 2, "kamis": 3, "jumat": 4, "jum'at": 4,
 
 
 class RotationForm(forms.Form):
-    """Satu sel tabel rotasi. Kelompok dibuat otomatis bila belum ada: kode A7–G7 → pola 3 shift; A7_pack–G7_pack → pola 2 shift."""
+    """Satu sel tabel rotasi. Kelompok dibuat otomatis bila belum ada: kode A–G → pola 2 shift; A_pack–G_pack → pola 3 shift/PACK."""
     group = forms.CharField(max_length=12); weekday = forms.CharField(); shift = forms.CharField(required=False)
 
     def __init__(self, data=None, instance=None, **k): super().__init__(data, **k)
@@ -49,10 +49,10 @@ class RotationForm(forms.Form):
         if self.errors: return d
         code = d["group"].strip().upper().replace("_PACK", "_pack")
         import re
-        if not re.fullmatch(r"[A-Z]7(_pack)?", code): raise ValidationError("Kode kelompok harus A7–G7 (3 shift) atau A7_pack–G7_pack (2 shift).")
+        if not re.fullmatch(r"[A-G](_pack)?", code): raise ValidationError("Kode kelompok harus A–G (2 shift) atau A_pack–G_pack (3 shift/PACK).")
         wd = DAYS.get(d["weekday"].strip().lower())
         if wd is None: raise ValidationError("Hari harus 0–6 (0=Senin) atau nama hari (senin … minggu).")
-        pattern = ShiftGroup.P2 if code.endswith("_pack") else ShiftGroup.P3
+        pattern = ShiftGroup.P3 if code.endswith("_pack") else ShiftGroup.P2
         sh = None
         if d["shift"].strip():
             sh = Shift.objects.filter(code__iexact=d["shift"].strip()).first()
@@ -60,7 +60,7 @@ class RotationForm(forms.Form):
             tmp = ShiftRotation(group=ShiftGroup(code=code, pattern=pattern), shift=sh, weekday=wd)
             if not sh.active: raise ValidationError("Shift nonaktif tidak boleh dipakai di rotasi.")
             if sh.is_gs: raise ValidationError("Shift GS tidak ikut rotasi kelompok.")
-            if pattern == ShiftGroup.P2 and sh.crosses_midnight: raise ValidationError("Pola 2 shift (A7_pack) tidak boleh memakai shift yang melewati tengah malam.")
+            if pattern == ShiftGroup.P2 and sh.crosses_midnight: raise ValidationError("Pola 2 shift (A–G) tidak boleh memakai shift yang melewati tengah malam (Malam hanya untuk A_pack–G_pack).")
         self.cleaned = (code, pattern, wd, sh); return d
 
     def save(self):
@@ -70,8 +70,8 @@ class RotationForm(forms.Form):
 
 
 ROTATION = Spec("rotasi", "hr", "tabel rotasi kelompok shift", "/master/shift/", None, "group", RotationForm,
-                ["group", "weekday", "shift_code"], ["group", "weekday"], ["A7", "senin", "PAGI"],
+                ["group", "weekday", "shift_code"], ["group", "weekday"], ["A", "senin", "PAGI"],
                 lambda r, c: {"group": r.get("group", ""), "weekday": r.get("weekday", ""), "shift": r.get("shift_code", "")},
                 key_fn=lambda r: f"{r.get('group', '').upper()}|{r.get('weekday', '').lower()}",
                 hint="Satu baris = satu sel (kelompok × hari). Hari: senin…minggu atau 0–6. shift_code kosong = libur kelompok.",
-                notes=["Kelompok dibuat otomatis: A7–G7 = pola 3 shift (Pagi–Siang–Malam); A7_pack–G7_pack = pola 2 shift (Pagi–Siang)."])
+                notes=["Kelompok dibuat otomatis: A–G = pola 2 shift (3 Pagi, 3 Siang, 1 Libur per hari); A_pack–G_pack = pola 3 shift/PACK (2 Pagi, 2 Siang, 2 Malam, 1 Libur per hari)."])

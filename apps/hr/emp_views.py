@@ -150,8 +150,26 @@ def _master(kind):
 @require_roles(*HRD_ROLES)
 def master_list(request, kind):
     label, M, _ = _master(kind)
-    return render(request, "master_list.html", {"kind": kind, "label": label, "items": M.objects.all().order_by("name" if kind != "shift" else "start"),
-                                                 "kinds": {k: v[0] for k, v in MASTERS.items()}})
+    ctx = {"kind": kind, "label": label, "items": M.objects.all().order_by("name" if kind != "shift" else "start"), "kinds": {k: v[0] for k, v in MASTERS.items()}}
+    if kind == "shift": ctx.update(rotation_context())
+    return render(request, "master_list.html", ctx)
+
+
+def rotation_context():
+    """Tabel rotasi kelompok (docs/jadwal_shift_2026.md) untuk halaman Master Shift: per pola, kelompok × Senin…Minggu, + peringatan bila jumlah per hari tidak sesuai aturan."""
+    from . import rotation_table as rt
+    from .models import Shift, ShiftGroup, ShiftRotation
+    cells = {}
+    for r in ShiftRotation.objects.select_related("group", "shift"): cells.setdefault(r.group.code, [None] * 7)[r.weekday] = (r.shift.code or r.shift.name) if r.shift_id else None
+    blocks = []
+    for pattern, title, note in ((rt.P2, "Pola 2 shift — kelompok A–G", "Pagi 3 kelompok · Siang 3 kelompok · Libur 1 kelompok setiap hari (tanpa Malam)"),
+                                 (rt.P3, "Pola 3 shift / PACK — kelompok A_pack–G_pack", "Pagi 2 · Siang 2 · Malam 2 · Libur 1 kelompok setiap hari")):
+        groups = list(ShiftGroup.objects.filter(pattern=pattern).order_by("code").values_list("code", flat=True))
+        table = {g: cells.get(g, [None] * 7) for g in groups}
+        blocks.append({"title": title, "note": note, "days": rt.DAY_NAMES, "rows": [(g, table[g]) for g in groups],
+                       "issues": rt.check(table, pattern) if groups else ["Belum ada tabel rotasi — impor lewat tombol di atas atau jalankan migrasi."]})
+    gs = list(Shift.objects.filter(is_gs=True, active=True).order_by("end").values_list("code", "start", "end"))
+    return {"rotation_blocks": blocks, "gs_rows": gs}
 
 
 @login_required

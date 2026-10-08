@@ -23,8 +23,8 @@ class RotBase(Base):
         cls.siang = Shift.objects.create(code="SIANG", name="Shift Siang", start=time(15), end=time(23))
         cls.malam = Shift.objects.create(code="MALAM", name="Shift Malam", start=time(23), end=time(7), crosses_midnight=True)
         cls.gs = Shift.objects.create(code="GS-12", name="GS 12", start=time(8), end=time(12), is_gs=True)
-        cls.gA = ShiftGroup.objects.create(code="A7_pack", pattern=ShiftGroup.P2)
-        cls.gB = ShiftGroup.objects.create(code="B7_pack", pattern=ShiftGroup.P2)
+        cls.gA = ShiftGroup.objects.create(code="A", pattern=ShiftGroup.P2)
+        cls.gB = ShiftGroup.objects.create(code="B", pattern=ShiftGroup.P2)
         sh = {"PAGI": cls.pagi, "SIANG": cls.siang, None: None}
         for grp, tbl in ((cls.gA, A), (cls.gB, B)):
             for w, code in tbl.items(): ShiftRotation.objects.create(group=grp, weekday=w, shift=sh[code])
@@ -62,7 +62,7 @@ class RotationScheduleTests(RotBase):
         self.assertEqual(self.sched(self.e1, next_weekday(6)), "LIBUR")
 
     def test_group_without_row_for_that_day_falls_back_to_fixed(self):
-        g = ShiftGroup.objects.create(code="C7_pack", pattern=ShiftGroup.P2); ShiftRotation.objects.create(group=g, weekday=0, shift=self.siang)
+        g = ShiftGroup.objects.create(code="C", pattern=ShiftGroup.P2); ShiftRotation.objects.create(group=g, weekday=0, shift=self.siang)
         e = Employee.objects.create(nik="900", name="X", gender="L", department=self.d1, position=self.pos, join_date=date(2020, 1, 1), shift=self.gs, shift_group=g)
         self.assertEqual(self.sched(e, next_weekday(0)), "SIANG")  # ada baris → rotasi
         self.assertEqual(self.sched(e, next_weekday(1)), "GS-12")  # tidak ada baris → shift tetap
@@ -88,7 +88,7 @@ class RotationScheduleTests(RotBase):
         with self.assertRaises(ValidationError): bad(self.gA, self.malam)  # pola 2 shift tanpa Malam
         self.pagi.active = False
         with self.assertRaises(ValidationError): bad(self.gA, self.pagi)  # shift nonaktif
-        p3 = ShiftGroup(code="A7", pattern=ShiftGroup.P3); p3.save(); ShiftRotation(group=p3, weekday=0, shift=self.malam).clean()  # pola 3 shift boleh Malam
+        p3 = ShiftGroup(code="A_pack", pattern=ShiftGroup.P3); p3.save(); ShiftRotation(group=p3, weekday=0, shift=self.malam).clean()  # pola 3 shift boleh Malam
 
     def test_employee_form_rejects_group_and_fixed_shift_together(self):
         f = EmployeeForm({"nik": "777", "name": "N", "gender": "L", "join_date": "2020-01-01", "department": self.d1.pk, "shift": self.gs.pk, "shift_group": self.gA.pk,
@@ -368,7 +368,7 @@ class PartnerConcurrencyTests(TransactionTestCase):
 
 
 class GsAndGroupCodeTests(TestCase):
-    """Putaran 18: GS 08–16, sebelum libur GS jadi GS-14/GS-12; kode kelompok A7–G7 (3 shift) dan A7_pack–G7_pack (2 shift)."""
+    """Putaran 18: GS 08–16, sebelum libur GS jadi GS-14/GS-12; kode kelompok A–G (2 shift) dan A_pack–G_pack (3 shift/PACK)."""
     @classmethod
     def setUpTestData(cls):
         cls.d = Department.objects.create(code="GS", name="Dept GS")
@@ -405,6 +405,46 @@ class GsAndGroupCodeTests(TestCase):
 
     def test_group_code_suffix_rule(self):
         from django.db import IntegrityError, transaction
-        ShiftGroup.objects.create(code="C7", pattern=ShiftGroup.P3); ShiftGroup.objects.create(code="C7_pack", pattern=ShiftGroup.P2)
-        for code, pat in (("D7_pack", ShiftGroup.P3), ("D7", ShiftGroup.P2)):
+        ShiftGroup.objects.create(code="C_pack", pattern=ShiftGroup.P3); ShiftGroup.objects.create(code="C", pattern=ShiftGroup.P2)
+        for code, pat in (("D", ShiftGroup.P3), ("D_pack", ShiftGroup.P2)):
             with self.assertRaises(IntegrityError), transaction.atomic(): ShiftGroup.objects.create(code=code, pattern=pat)
+
+
+class OfficialRotationTableTests(TestCase):
+    """docs/jadwal_shift_2026.md: tabel resmi 2 shift (A–G) dan 3 shift/PACK (A_pack–G_pack) memenuhi jumlah kelompok per hari."""
+    def test_official_tables_follow_counts(self):
+        from apps.hr import rotation_table as rt
+        for pattern in (rt.P2, rt.P3): self.assertEqual(rt.check(rt.official(pattern), pattern), [])
+        self.assertEqual(rt.official(rt.P2)["C"][0], "PAGI"); self.assertIsNone(rt.official(rt.P2)["B"][0])  # Senin: Pagi C+D+E, Libur B
+        self.assertEqual(rt.official(rt.P3)["G_pack"][0], "MALAM"); self.assertEqual(rt.official(rt.P3)["C_pack"][6], None)  # Minggu: Libur C_pack
+
+    def test_check_detects_wrong_table(self):
+        from apps.hr import rotation_table as rt
+        t = rt.official(rt.P2); t["A"][0] = "PAGI"
+        self.assertTrue(rt.check(t, rt.P2))
+        t3 = rt.official(rt.P3); t3["A_pack"][1] = "MALAM"
+        self.assertTrue(rt.check(t3, rt.P3))
+
+    def test_migration_loads_official_rows(self):
+        from apps.hr import rotation_table as rt
+        from importlib import import_module
+        from django.apps import apps as dj_apps
+        m = import_module("apps.hr.migrations.0008_md_group_codes_hours_rotation")
+        for c, a, b, x in (("PAGI", 6, 14, False), ("SIANG", 14, 22, False), ("MALAM", 22, 6, True)): Shift.objects.create(code=c, name=c, start=time(a), end=time(b), crosses_midnight=x)
+        m.hours_and_rotation(dj_apps, None)
+        self.assertEqual(ShiftGroup.objects.count(), 14); self.assertEqual(ShiftRotation.objects.count(), 98)
+        self.assertEqual(ShiftRotation.objects.get(group__code="A_pack", weekday=2).shift.code, "PAGI")  # Rabu: Pagi A+B
+        self.assertIsNone(ShiftRotation.objects.get(group__code="G", weekday=2).shift)  # Rabu: libur G
+
+
+class MasterShiftRotationPageTests(Base):
+    def test_page_shows_rotation_blocks_and_gs(self):
+        from importlib import import_module
+        from django.apps import apps as dj_apps
+        for c, a, b, x in (("PAGI", 6, 14, False), ("SIANG", 14, 22, False), ("MALAM", 22, 6, True)): Shift.objects.get_or_create(code=c, defaults=dict(name=c, start=time(a), end=time(b), crosses_midnight=x))
+        Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
+        import_module("apps.hr.migrations.0008_md_group_codes_hours_rotation").hours_and_rotation(dj_apps, None)
+        self.login("hrd"); r = self.client.get("/master/shift/")
+        self.assertContains(r, "Pola 2 shift — kelompok A–G"); self.assertContains(r, "A_pack"); self.assertContains(r, "GS-16"); self.assertNotContains(r, "Tidak sesuai aturan")
+        ShiftRotation.objects.filter(group__code="A", weekday=0).update(shift=Shift.objects.get(code="PAGI"))  # A masuk Senin padahal harus libur? → hitungan Senin salah
+        self.assertContains(self.client.get("/master/shift/"), "Tidak sesuai aturan")

@@ -37,7 +37,7 @@ class EmployeeForm(forms.ModelForm):
         self.fields["shift"].help_text = "Untuk karyawan non-rotasi (mis. GS). Kosongkan bila memakai kelompok rotasi."
         self.fields["shift_group"].required = False
         self.fields["shift_group"].queryset = ShiftGroup.objects.order_by("pattern", "code")
-        self.fields["shift_group"].help_text = "Pola 3 shift (Pagi–Siang–Malam): A7–G7. Pola 2 shift (Pagi–Siang): A7_pack–G7_pack. Kelompok berbeda walau hurufnya sama."
+        self.fields["shift_group"].help_text = "Pola 2 shift (Pagi–Siang): A–G. Pola 3 shift/PACK (Pagi–Siang–Malam): A_pack–G_pack. Kelompok berbeda walau hurufnya sama."
         self.fields["gs_short"].required = False  # kosong = pertahankan nilai lama (karyawan baru: 14)
         self.fields["gs_short"].help_text = "Khusus karyawan GS: jam pulang pada hari kerja sebelum libur GS (mis. Sabtu): GS-14 atau GS-12. Pada hari biasa GS 08:00–16:00."
         if self.instance.pk: self.fields["supervisor_nik"].widget.attrs["data-q-exclude"] = self.instance.nik

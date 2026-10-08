@@ -1,12 +1,34 @@
-{% extends "base.html" %}{% block title %}Master {{ label }}{% endblock %}{% block content %}
+{% extends "base.html" %}{% block title %}Master {{ label }}{% if kind == "shift" %}
+<h3 style="margin-top:22px">Tabel rotasi kelompok</h3>
+<p style="color:var(--mu);font-size:13px;margin:0 0 8px">Kelompok 2 shift (<b>A</b>) dan 3 shift/PACK (<b>A_pack</b>) adalah dua kelompok berbeda. Berubahnya anggota tidak mengubah kode kelompok maupun pola rotasi.</p>
+{% for b in rotation_blocks %}<h4 style="margin:14px 0 2px">{{ b.title }}</h4><p style="color:var(--mu);font-size:13px;margin:0 0 6px">{{ b.note }}</p>
+{% if b.issues %}<div class="card" role="alert" style="border-color:#d97706;margin-bottom:8px"><b>Tidak sesuai aturan:</b><ul style="margin:4px 0 0 18px">{% for i in b.issues %}<li>{{ i }}</li>{% endfor %}</ul></div>{% endif %}
+<div class="wrap"><table><thead><tr><th>Kelompok</th>{% for d in b.days %}<th>{{ d }}</th>{% endfor %}</tr></thead><tbody>
+{% for code, cells in b.rows %}<tr><td><b>{{ code }}</b></td>{% for c in cells %}<td>{% if c %}{{ c }}{% else %}<span class="pill nonaktif">Libur</span>{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td class="empty" colspan="8">Belum ada kelompok.</td></tr>{% endfor %}</tbody></table></div>{% endfor %}
+<h4 style="margin:18px 0 2px">General Shift (GS)</h4>
+<p style="color:var(--mu);font-size:13px;margin:0 0 6px">Semua GS masuk 08:00, pulang 16:00 (GS-16). Pada hari kerja tepat sebelum libur GS, jam pulang menjadi 14:00 (GS-14) atau 12:00 (GS-12) menurut pengaturan tiap karyawan. GS tidak ikut rotasi kelompok.</p>
+<div class="wrap"><table><thead><tr><th>Kode</th><th>Masuk</th><th>Pulang</th></tr></thead><tbody>{% for c, a, b in gs_rows %}<tr><td><b>{{ c }}</b></td><td>{{ a|time:"H:i" }}</td><td>{{ b|time:"H:i" }}</td></tr>{% empty %}<tr><td class="empty" colspan="3">Belum ada GS.</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% endblock %}{% block content %}
 <h2>Master data</h2>
 <div class="bar">{% for k, l in kinds.items %}<a class="btn" href="{% url 'master_list' k %}" style="margin-left:0{% if k != kind %};opacity:.55{% endif %}">{{ l }}</a>{% endfor %}</div>
 <p><a class="btn" href="{% url 'master_new' kind %}" style="margin-left:0">+ {{ label }} baru</a>
 <a class="btn" href="/master/{{ kind }}/import/">Impor CSV/XLSX</a> <a class="btn" href="/master/{{ kind }}/export/?format=csv">Ekspor CSV</a> <a class="btn" href="/master/{{ kind }}/export/?format=xlsx">Ekspor XLSX</a>
-{% if kind == "shift" %}<br><a class="btn" href="/master/rotasi/import/" style="margin-left:0">Impor tabel rotasi kelompok (A7–G7, A7_pack–G7_pack)</a> <a class="btn" href="/master/rotasi/export/?format=xlsx">Ekspor tabel rotasi</a>{% endif %}</p>
+{% if kind == "shift" %}<br><a class="btn" href="/master/rotasi/import/" style="margin-left:0">Impor tabel rotasi kelompok (A–G, A_pack–G_pack)</a> <a class="btn" href="/master/rotasi/export/?format=xlsx">Ekspor tabel rotasi</a>{% endif %}</p>
 <div class="wrap"><table><thead><tr>
 {% if kind == "department" %}<th>Kode</th><th>Nama</th><th>Induk</th>{% elif kind == "position" %}<th>Nama</th><th>Level</th>{% else %}<th>Kode</th><th>Nama</th><th>Masuk</th><th>Pulang</th><th>Lewat tengah malam</th><th>Jenis</th><th>Status</th>{% endif %}<th></th></tr></thead><tbody>
 {% for i in items %}<tr>
 {% if kind == "department" %}<td>{{ i.code }}</td><td>{{ i.name }}</td><td>{{ i.parent.name|default:"—" }}</td>{% elif kind == "position" %}<td>{{ i.name }}</td><td>{{ i.level }}</td>{% else %}<td>{{ i.code|default:"—" }}</td><td>{{ i.name }}</td><td>{{ i.start|time:"H:i" }}</td><td>{{ i.end|time:"H:i" }}</td><td>{{ i.crosses_midnight|yesno:"ya,tidak" }}</td><td>{% if i.is_gs %}GS{% else %}Rotasi/tetap{% endif %}</td><td>{% if i.active %}<span class="pill aktif">aktif</span>{% else %}<span class="pill nonaktif">nonaktif</span>{% endif %}</td>{% endif %}
 <td><a href="{% url 'master_edit' kind i.pk %}">Ubah</a></td></tr>{% empty %}<tr><td class="empty" colspan="8">Belum ada data.</td></tr>{% endfor %}</tbody></table></div>
+{% if kind == "shift" %}
+<h3 style="margin-top:22px">Tabel rotasi kelompok</h3>
+<p style="color:var(--mu);font-size:13px;margin:0 0 8px">Kelompok 2 shift (<b>A</b>) dan 3 shift/PACK (<b>A_pack</b>) adalah dua kelompok berbeda. Berubahnya anggota tidak mengubah kode kelompok maupun pola rotasi.</p>
+{% for b in rotation_blocks %}<h4 style="margin:14px 0 2px">{{ b.title }}</h4><p style="color:var(--mu);font-size:13px;margin:0 0 6px">{{ b.note }}</p>
+{% if b.issues %}<div class="card" role="alert" style="border-color:#d97706;margin-bottom:8px"><b>Tidak sesuai aturan:</b><ul style="margin:4px 0 0 18px">{% for i in b.issues %}<li>{{ i }}</li>{% endfor %}</ul></div>{% endif %}
+<div class="wrap"><table><thead><tr><th>Kelompok</th>{% for d in b.days %}<th>{{ d }}</th>{% endfor %}</tr></thead><tbody>
+{% for code, cells in b.rows %}<tr><td><b>{{ code }}</b></td>{% for c in cells %}<td>{% if c %}{{ c }}{% else %}<span class="pill nonaktif">Libur</span>{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td class="empty" colspan="8">Belum ada kelompok.</td></tr>{% endfor %}</tbody></table></div>{% endfor %}
+<h4 style="margin:18px 0 2px">General Shift (GS)</h4>
+<p style="color:var(--mu);font-size:13px;margin:0 0 6px">Semua GS masuk 08:00, pulang 16:00 (GS-16). Pada hari kerja tepat sebelum libur GS, jam pulang menjadi 14:00 (GS-14) atau 12:00 (GS-12) menurut pengaturan tiap karyawan. GS tidak ikut rotasi kelompok.</p>
+<div class="wrap"><table><thead><tr><th>Kode</th><th>Masuk</th><th>Pulang</th></tr></thead><tbody>{% for c, a, b in gs_rows %}<tr><td><b>{{ c }}</b></td><td>{{ a|time:"H:i" }}</td><td>{{ b|time:"H:i" }}</td></tr>{% empty %}<tr><td class="empty" colspan="3">Belum ada GS.</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
 {% endblock %}
