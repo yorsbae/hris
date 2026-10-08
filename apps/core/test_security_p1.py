@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.core import lockout
-from apps.core.models import AuditLog, Role, User
+from apps.core.models import AuditLog, Notification, Role, User
 
 PW = "Sandi-Benar-123"
 
@@ -45,6 +45,17 @@ class LockoutTests(TestCase):
         self.fail(3); self.u.refresh_from_db(); n = self.u.failed_logins
         for i in range(4): self.attempt(ip=f"10.3.0.{i + 1}")
         self.u.refresh_from_db(); self.assertEqual(self.u.failed_logins, n)
+
+    @override_settings(LOGIN_LOCK_THRESHOLD=3)
+    def test_superadmin_notified_once_per_locked_account_not_others(self):
+        su = mk("su", Role.SUPERADMIN); off = mk("su_off", Role.SUPERADMIN, is_active=False); hrd = mk("hrd2", Role.HRD)
+        self.fail(3)
+        n = Notification.objects.get(user=su, kind="security"); self.assertIn("budi", n.title); self.assertEqual(n.link, f"/users/{self.u.pk}/")
+        self.assertFalse(Notification.objects.filter(user__in=[off, hrd]).exists())  # nonaktif/bukan Superadmin tidak diberi tahu
+        User.objects.filter(pk=self.u.pk).update(locked_until=timezone.now() - timedelta(seconds=1)); self.fail(1)  # kunci berjenjang berikutnya
+        self.assertEqual(Notification.objects.filter(user=su, kind="security").count(), 1)  # tidak menumpuk selama belum dibaca
+        Notification.objects.filter(user=su).update(is_read=True); User.objects.filter(pk=self.u.pk).update(locked_until=timezone.now() - timedelta(seconds=1)); self.fail(1)
+        self.assertEqual(Notification.objects.filter(user=su, kind="security").count(), 2)  # sudah dibaca → kunci baru memberi tahu lagi
 
     @override_settings(LOGIN_LOCK_THRESHOLD=3, LOGIN_LOCK_STEPS_MIN=(1, 5, 15))
     def test_progressive_steps(self):

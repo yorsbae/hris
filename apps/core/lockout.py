@@ -38,7 +38,18 @@ def record_failure(user, request=None):
         u.save(update_fields=["failed_logins", "last_failed_at", "locked_until"])
         if minutes: AuditLog.objects.create(user=u, ip=client_ip(request) if request else None, module="auth", action="account_locked",
                                             after={"minutes": minutes, "failed": u.failed_logins})
+        if minutes: _notify_superadmins(u, minutes)
     return minutes
+
+
+def _notify_superadmins(locked, minutes):
+    """Beri tahu Superadmin aktif (putaran 22). Satu notifikasi BELUM-DIBACA per akun terkunci (tidak menumpuk pada kunci berjenjang);
+    judul memuat username tetapi tidak IP/sandi. Superadmin yang akunnya sendiri terkunci tetap diberi tahu (dibaca saat kunci habis atau oleh Superadmin lain)."""
+    from .models import Notification, Role, User
+    title = f"Akun '{locked.username}' terkunci {minutes} menit (salah sandi berulang)"[:200]; link = f"/users/{locked.pk}/"
+    for su in User.objects.filter(role=Role.SUPERADMIN, is_active=True):
+        if not Notification.objects.filter(user=su, kind="security", link=link, is_read=False).exists():
+            Notification.objects.create(user=su, kind="security", title=title, link=link)
 
 
 def clear(user):

@@ -67,7 +67,7 @@ class ManualTests(DeductionBase):
 
     def test_inactive_employee_with_active_membership_is_still_flagged(self):
         from .models import BpjsMembership
-        BpjsMembership.objects.create(employee=self.e_off, scheme="kes", status="aktif", effective_date=self.today().replace(year=2024))
+        for e in (self.e_off, self.e1): BpjsMembership.objects.create(employee=e, scheme="kes", status="aktif", effective_date=self.today().replace(year=2024))
         self.post(nik="009")
         r = self.client.get(reverse("hrd_bpjs_deductions") + "?period=2026-10&anomaly=dipotong"); self.assertContains(r, "Mantan"); self.assertContains(r, "karyawan nonaktif")
         self.post(nik="001"); self.assertNotContains(self.client.get(reverse("hrd_bpjs_deductions") + "?period=2026-10&anomaly=dipotong"), "Budi")
