@@ -445,7 +445,7 @@ class ConcurrencyTests(TransactionTestCase):
 
     @skipUnlessDBFeature("has_select_for_update")
     def test_two_swaps_same_date_only_one_applied(self):
-        d = (TODAY + timedelta(days=3)).isoformat()
+        d = next_weekday(1).isoformat()  # hari kerja (bukan Minggu): tukar shift pada hari libur ditolak sejak putaran 17b
         a = self.req("tukar_shift", {"date": d, "shift_id": self.other.pk, "reason": "x"}); b = self.req("tukar_shift", {"date": d, "shift_id": self.other.pk, "reason": "y"})
         self.assertEqual(self.race([(a, self.hrd), (b, self.hrd2)]), ["ditolak", "ok"])
         self.assertEqual(ShiftAssignment.objects.filter(employee=self.e).count(), 1)

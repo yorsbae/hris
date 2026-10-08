@@ -32,6 +32,20 @@ per role (saat ini masih per role + scope; matriks per aksi dikerjakan bertahap,
 - Audit: user, waktu, IP, module, action, data sebelum/sesudah.
 - BPJS adalah bagian data karyawan (master pada profil), **tanpa workflow pengajuan/approval**.
 
+## Shift, jadwal & tukar shift/libur  **[BARU]**
+**Master shift** (`/master/shift/`): nama, **kode** (PAGI, SIANG, MALAM, GS-12, GS-14, GS-16), jam masuk/pulang, melewati tengah malam, **GS** (general shift, tidak ikut rotasi kelompok), **aktif** (nonaktif = tidak ditawarkan lagi di form, histori tetap).
+**Kelompok rotasi**: pola **2 shift** (A–G; Pagi–Siang) dan pola **3 shift/PACK** (A_pack–G_pack; Pagi–Siang–Malam). Kelompok pola 2 dan pola 3 **berbeda walau hurufnya sama**. Tiap kelompok punya **tabel rotasi mingguan** (hari → shift, atau kosong = libur kelompok). Tabel resmi mengikuti *Aturan Pengaturan Jadwal Shift 2026* (diisi lewat `/admin/` → Kelompok shift & rotasi; belum ada halaman khusus).
+**Sumber jadwal dasar karyawan = salah satu**: kelompok rotasi **atau** shift tetap/GS (tidak keduanya).
+**Jadwal efektif** pada tanggal D (urutan prioritas): ① penyesuaian hasil tukar yang sudah dilaksanakan (per tanggal) → ② rotasi kelompok → ③ shift tetap/GS (Minggu libur reguler). Master (`Employee.shift`, `shift_group`) **tidak pernah diubah oleh tukar**.
+
+**Tukar shift/libur — dua mode** (satu pengajuan, satu persetujuan HRD, dilaksanakan **bersama atau tidak sama sekali**):
+| Jenis | 1 orang (menukar sendiri) | 2 orang (dengan rekan) |
+|---|---|---|
+| Tukar shift | pindah ke shift lain pada tanggal itu (hari kerja) | pada satu tanggal keduanya sama-sama masuk dengan shift **berbeda** → shift saling ditukar |
+| Tukar libur | memindahkan **liburnya sendiri**: tanggal libur → masuk, hari kerja lain → libur | libur **saling ditukar**: pada tanggal 1 pemohon libur & rekan masuk, pada tanggal 2 rekan libur & pemohon masuk → pemohon masuk di shift rekan (tgl 1), rekan masuk di shift pemohon (tgl 2) |
+Aturan: tanggal tidak lampau; tidak bentrok dengan tukar lain (baik sebagai pemohon **maupun rekan**) atau penyesuaian yang sudah ada; tidak jatuh pada izin/cuti/sakit (kedua orang); Admin Departemen hanya boleh memilih rekan dari departemennya (HRD lintas departemen); aturan yang sama diperiksa ulang saat **Laksanakan** karena kondisi bisa berubah sejak diajukan.
+**Akan dikerjakan:** halaman HRD untuk tabel rotasi & jadwal per departemen/minggu · konfirmasi/notifikasi ke rekan (dan Admin Departemen rekan) · batalkan pelaksanaan (baris pembalik, kedua orang sekaligus) · hari libur nasional/cuti bersama · aturan kebijakan tukar (batas per bulan, jeda minimal antar shift, GS/pola 3 shift ↔ pola 2 shift) · jadwal efektif sebagai sumber Absensi (Tahap 6). Detail & asumsi: `PROGRESS.md` → putaran 17b (A20–A28).
+
 ## Performa
 Pagination server-side, indeks, search NIK/nama, filter departemen/jabatan/status/shift/kontrak. Jangan kirim 3.000+ data sekaligus.
 **[BARU]** Dashboard memakai agregasi di server (hitung/kelompokkan di database, bukan memuat baris), dengan indeks pendukung dan cache singkat bila perlu.
@@ -54,7 +68,7 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 2. **HR Core**: karyawan, departemen, jabatan, shift, kontrak, histori. **[BARU]** juga grade, bagian, lokasi kerja, jenis karyawan, status karyawan, company, hari libur & kalender kerja, data keluarga, riwayat pendidikan/pekerjaan.
 2b. **Operasional HRD** (halaman khusus akun HRD, lihat bagian di bawah): bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS
 2c. **[BARU] HR Lanjutan**: Surat Peringatan (SP1–SP3), pengajuan administrasi, BPJS lanjutan (kelas, faskes, JKK/JHT/JKM/JP, iuran, laporan)
-3. **Workflow**: mutasi, promosi/demosi, izin, cuti, tukar shift/libur, **administrasi**, approval
+3. **Workflow**: mutasi, promosi/demosi, izin, cuti, tukar shift/libur (**1 orang atau 2 orang**), **administrasi**, approval
 4. **Informasi**: notifikasi, pengumuman, peraturan, read/unread. **[BARU]** reminder (cuti, SP, kontrak, stok menipis, obat mendekati kedaluwarsa, sinkronisasi absensi)
 5. **Poli**: rekam medis, obat, diagnosa, kecelakaan kerja, kehamilan, rujukan, surat izin pulang
 5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis
@@ -158,6 +172,8 @@ Menyembunyikan menu hanya kenyamanan; izin tetap diperiksa di server.
 | 8 | Career Portal | Dipisah dari aplikasi internal (host/aplikasi terpisah) karena aplikasi inti hanya di LAN |
 | 9 | Meal 02:00 | Dihitung ke **tanggal kerja shift malam** |
 | 10 | Tidak dipakai | WhatsApp, Active Directory, ERP/Finance, Odoo Accounting, workflow pengajuan BPJS |
+| 11 | Tukar shift/libur | **Dua mode**: 1 orang (menukar liburnya/shiftnya sendiri) dan 2 orang (dengan rekan; kedua jadwal berubah dalam satu pengajuan). Lihat "Shift, jadwal & tukar shift/libur" |
+| 12 | Master shift baru | Kode shift, GS, kelompok rotasi (pola 2 shift A–G / pola 3 shift A_pack–G_pack) dan tabel rotasi mingguan menjadi sumber jadwal dasar. *Tabel rotasi resmi & jam GS-12/14/16 masih perlu dimasukkan dari Aturan Pengaturan Jadwal Shift 2026* |
 
 ## Urutan prioritas
 Security › Integritas data › Role/permission › Department scope › Approval › Histori › Audit › Backup › Performa › Scalability › Maintainability › Integrasi masa depan.

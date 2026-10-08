@@ -45,6 +45,13 @@ class ShiftRotation(models.Model):
         constraints = [models.UniqueConstraint(fields=["group", "weekday"], name="uniq_rotation_group_weekday"),
                        models.CheckConstraint(name="rotation_weekday_0_6", condition=models.Q(weekday__gte=0, weekday__lte=6))]
         ordering = ["group__pattern", "weekday", "group__code"]
+    def __str__(self): return f"{self.group.code} · hari {self.weekday} → {self.shift.code or self.shift.name if self.shift_id else 'libur'}"
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.shift_id and self.group_id:
+            if not self.shift.active: raise ValidationError({"shift": "Shift nonaktif tidak boleh dipakai di rotasi."})
+            if self.shift.is_gs: raise ValidationError({"shift": "Shift GS tidak ikut rotasi kelompok."})
+            if self.group.pattern == ShiftGroup.P2 and self.shift.crosses_midnight: raise ValidationError({"shift": "Pola 2 shift hanya Pagi–Siang; shift melewati tengah malam (Malam) hanya untuk pola 3 shift/PACK."})
 
 class EmployeeManager(models.Manager):
     """Default: hanya karyawan yang belum dihapus (soft delete). Gunakan Employee.all_objects untuk semuanya."""

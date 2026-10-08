@@ -9,14 +9,15 @@ from django.views.decorators.http import require_POST
 from apps.core.audit import log
 from apps.core.models import Notification, Role
 from apps.core.scope import get_scoped_or_404, require_roles, scope_by_department
-from . import services
+from . import schedule, services
 from .forms import FIELDS_BY_TYPE, LABELS, RequestForm
 from .models import ChangeRequest
 
 ROLES = (Role.HRD, Role.DEPT_ADMIN)  # Superadmin lolos otomatis di require_roles
 FIELD_LABELS = {"start_date": "Tanggal mulai", "end_date": "Tanggal selesai", "date": "Tanggal", "date_to": "Diganti ke tanggal",
                 "time": "Jam", "effective_date": "Tanggal efektif", "department_name": "Departemen tujuan",
-                "position_name": "Jabatan tujuan", "shift_name": "Shift tujuan", "status": "Status baru", "reason": "Alasan"}
+                "position_name": "Jabatan tujuan", "shift_name": "Shift tujuan", "status": "Status baru", "reason": "Alasan",
+                "partner_nik": "NIK rekan tukar", "partner_name": "Rekan tukar"}
 STATUS_LABELS = {"draft": "Draft", "submitted": "Diajukan", "pending": "Menunggu persetujuan", "approved": "Disetujui",
                  "rejected": "Ditolak", "executed": "Dilaksanakan", "cancelled": "Dibatalkan"}
 
@@ -73,10 +74,11 @@ def request_detail(request, pk):
     req = get_scoped_or_404(request.user, ChangeRequest.objects.select_related("employee__department", "department", "requested_by", "decided_by"), pk)
     Notification.objects.filter(user=request.user, is_read=False, link__in=[f"/requests/{pk}", f"/requests/{pk}/"]).update(is_read=True)
     rows = [(FIELD_LABELS[k], v) for k, v in req.payload.items() if k in FIELD_LABELS]
-    ctx = {"r": req, "rows": rows, "actions": _actions(request.user, req), "label": LABELS[req.type],
+    mode = (" — dengan rekan (2 orang)" if req.payload.get("partner_id") else " — sendiri (1 orang)") if req.type in schedule.SWAP_TYPES else ""
+    ctx = {"r": req, "rows": rows, "actions": _actions(request.user, req), "label": LABELS[req.type] + mode,
            "status_label": STATUS_LABELS.get(req.status, req.status)}
     if req.status == "executed":  # hasil pelaksanaan: apa yang benar-benar ditulis
-        ctx["schedule_rows"] = req.schedule_rows.select_related("shift").order_by("date")
+        ctx["schedule_rows"] = req.schedule_rows.select_related("shift", "employee").order_by("date", "employee__name")
         ctx["leave_rows"] = req.leave_rows.order_by("year")
     return render(request, "request_detail.html", ctx)
 

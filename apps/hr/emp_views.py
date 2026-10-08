@@ -10,7 +10,7 @@ from apps.core.scope import get_scoped_or_404, require_roles
 from .emp_forms import MASTERS, ContractForm, EmployeeForm
 from datetime import timedelta
 from django.utils import timezone
-from . import leave
+from . import leave, schedule
 from .models import ChangeRequest, Contract, Employee, EmployeeHistory, ShiftAssignment
 
 TRACKED = ("department", "position", "status", "shift", "shift_group")  # perubahan field ini selalu masuk EmployeeHistory
@@ -58,6 +58,7 @@ def employee_detail_page(request, pk):
         today = timezone.localdate()
         ctx["leave_year"] = today.year
         ctx["leave_balance"], ctx["leave_available"] = leave.balance(e, today.year), leave.available(e, today.year)
+        ctx["schedule_days"] = schedule.schedule_range(e, today, 14)  # jadwal efektif 14 hari ke depan (rotasi/shift tetap + penyesuaian tukar)
         ctx["schedule_rows"] = ShiftAssignment.objects.filter(employee=e, date__gte=today - timedelta(days=7)).select_related("shift").order_by("date")[:30]
     if full:
         ctx["history"] = e.history.order_by("-effective_date", "-id")[:50]

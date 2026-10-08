@@ -61,6 +61,12 @@ class EmployeeForm(forms.ModelForm):
         if v and not re.fullmatch(r"[\d.\-]{15,25}", v): raise forms.ValidationError("Format NPWP tidak valid (15–16 digit, boleh titik/strip).")
         return v
 
+    def clean(self):
+        d = super().clean()
+        if d.get("shift") and d.get("shift_group"):  # satu sumber jadwal dasar: rotasi kelompok ATAU shift tetap/GS (jadwal efektif tidak ambigu)
+            self.add_error("shift_group", "Pilih salah satu: kelompok rotasi atau shift tetap/GS, tidak keduanya.")
+        return d
+
     def clean_join_date(self):
         d = self.cleaned_data["join_date"]
         if d > date.today(): raise forms.ValidationError("Tanggal masuk tidak boleh di masa depan.")
@@ -139,9 +145,15 @@ class PositionForm(MasterForm):
 
 class ShiftForm(MasterForm):
     class Meta:
-        model = Shift; fields = ["name", "start", "end", "crosses_midnight"]
+        model = Shift; fields = ["name", "code", "start", "end", "crosses_midnight", "is_gs", "active"]
         widgets = {"start": forms.TimeInput(attrs={"type": "time"}), "end": forms.TimeInput(attrs={"type": "time"})}
-        labels = {"name": "Nama shift", "start": "Jam masuk", "end": "Jam pulang", "crosses_midnight": "Melewati tengah malam"}
+        labels = {"name": "Nama shift", "code": "Kode (mis. PAGI, SIANG, MALAM, GS-12)", "start": "Jam masuk", "end": "Jam pulang", "crosses_midnight": "Melewati tengah malam",
+                  "is_gs": "General shift (GS): tidak ikut rotasi kelompok", "active": "Aktif (nonaktif = tidak ditawarkan lagi di form pengajuan/karyawan)"}
+
+    def clean_code(self):
+        c = self.cleaned_data.get("code", "").strip().upper()
+        if c and Shift.objects.exclude(pk=self.instance.pk).filter(code=c).exists(): raise forms.ValidationError("Kode sudah dipakai shift lain.")
+        return c
 
     def clean(self):
         d = super().clean(); s, e, x = d.get("start"), d.get("end"), d.get("crosses_midnight")

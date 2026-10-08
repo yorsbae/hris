@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 from apps.core.models import AuditLog, Notification, Role, User
-from apps.hr import models as hr
+from apps.hr import models as hr, schedule
 from apps.hrd import models as hrd
 from apps.poli import models as pl, services as ps
 
@@ -26,6 +26,12 @@ MEDS = [("OB001", "Paracetamol 500mg", "tablet", 600, 100), ("OB002", "Amoxicill
         ("OB009", "Kasa steril", "pak", 120, 30), ("OB010", "Amlodipine 5mg", "tablet", 200, 40), ("OB011", "Salep hidrokortison", "tube", 25, 15), ("OB012", "Ambroxol 30mg", "tablet", 250, 50)]
 COMPLAINTS = ["Keluhan flu dan demam", "Sakit kepala sejak pagi", "Nyeri lambung setelah makan", "Diare sejak semalam", "Nyeri punggung setelah angkat barang", "Batuk pilek 3 hari", "Pusing dan lemas", "Tensi tinggi, kontrol rutin", "Gatal-gatal di tangan"]
 REAL_NOW = timezone.now
+# Master shift (Aturan Pengaturan Jadwal Shift 2026): kode, jam, melewati tengah malam, GS?  Jam GS-12/14/16 = DATA CONTOH (jam pulang 12/14/16) — samakan dengan aturan resmi di /master/shift/.
+SHIFTS = [("PAGI", "Shift Pagi", time(7), time(15), False, False), ("SIANG", "Shift Siang", time(15), time(23), False, False), ("MALAM", "Shift Malam", time(23), time(7), True, False),
+          ("GS-12", "General Shift 12", time(7), time(12), False, True), ("GS-14", "General Shift 14", time(7), time(14), False, True), ("GS-16", "General Shift 16", time(7), time(16), False, True)]
+GROUP_LETTERS = "ABCDEFG"
+ROTATING_DEPTS = {"PRD": hr.ShiftGroup.P2, "GDG": hr.ShiftGroup.P2, "MTC": hr.ShiftGroup.P2, "PKG": hr.ShiftGroup.P3}  # dept lain = general shift (GS)
+REASONS = ["Keperluan keluarga", "Urusan administrasi", "Kontrol dokter", "Acara keluarga", "Tukar giliran dengan rekan"]
 
 
 class Command(BaseCommand):
@@ -43,7 +49,7 @@ class Command(BaseCommand):
         if hr.Employee.all_objects.filter(nik__startswith="DM").exists(): raise CommandError("Data demo sudah ada (NIK berawalan DM). Tidak ada yang diubah.")
         self.r, self.pw, self.today = random.Random(o["seed"]), o["password"], timezone.localdate()
         n = max(20, min(o["employees"], 1500))
-        self.users(); self.master(); self.employees(n); self.requests(); self.leave(); self.info(); self.hrd_ops(); self.poli(); self.audit()
+        self.users(); self.master(); self.employees(n); self.requests(); self.swaps(); self.leave(); self.info(); self.hrd_ops(); self.poli(); self.audit()
         s = self.stat
         self.stdout.write(self.style.SUCCESS(f"Data demo selesai: {s}"))
         self.stdout.write("Akun demo (sandi sama untuk semuanya): " + o["password"])
@@ -68,10 +74,32 @@ class Command(BaseCommand):
     def master(self):
         self.depts = {c: hr.Department.objects.create(code=c, name=n) for c, n, _ in DEPTS}
         self.pos = {n: hr.Position.objects.create(name=n, level=l) for n, l in POS}
-        self.shifts = [hr.Shift.objects.create(name="Shift Pagi", start=time(7), end=time(15)), hr.Shift.objects.create(name="Shift Siang", start=time(15), end=time(23)),
-                       hr.Shift.objects.create(name="Shift Malam", start=time(23), end=time(7), crosses_midnight=True)]
+        made = [hr.Shift.objects.create(code=c, name=n, start=a, end=b, crosses_midnight=x, is_gs=g) for c, n, a, b, x, g in SHIFTS]
+        self.shifts, self.gs = [x for x in made if not x.is_gs], [x for x in made if x.is_gs]  # shifts = PAGI/SIANG/MALAM (rotasi); gs = general shift
+        self.group_cycle = {hr.ShiftGroup.P2: 0, hr.ShiftGroup.P3: 0}
+        self.groups = {hr.ShiftGroup.P2: [hr.ShiftGroup.objects.create(code=l, pattern=hr.ShiftGroup.P2) for l in GROUP_LETTERS],
+                       hr.ShiftGroup.P3: [hr.ShiftGroup.objects.create(code=f"{l}_pack", pattern=hr.ShiftGroup.P3) for l in GROUP_LETTERS]}
+        self.rotation()
         for c, nm in (("PRD", "Budi"), ("GDG", "Andi"), ("QC", "Rina"), ("PKG", "Siti")):
             self.mk(f"admin_{c.lower()}", nm, f"Admin {self.depts[c].name}", Role.DEPT_ADMIN, self.depts[c])
+
+    def rotation(self):
+        """Tabel rotasi mingguan CONTOH (bukan tabel resmi): tiap kelompok libur 1 hari/minggu (kelompok ke-g libur pada hari ke-g, 0=Senin); sisanya dibagi rata
+        PAGI/SIANG (pola 2 shift) atau PAGI/SIANG/MALAM (pola 3 shift/PACK). Ganti dengan tabel resmi lewat /admin/ → Kelompok shift & rotasi."""
+        pagi, siang, malam = self.shifts
+        for pattern, groups in self.groups.items():
+            for g, grp in enumerate(groups):
+                for w in range(7):
+                    k = (g - w) % 7  # 0 = libur; 1..6 = urutan kerja pada hari itu
+                    sh = None if k == 0 else (pagi if k <= 3 else siang) if pattern == hr.ShiftGroup.P2 else (None if k == 0 else pagi if k <= 2 else siang if k <= 4 else malam)
+                    hr.ShiftRotation.objects.create(group=grp, weekday=w, shift=sh)
+
+    def shift_for(self, dept_code):
+        """(shift tetap/GS, kelompok rotasi) untuk karyawan baru: dept rotasi → kelompok bergilir A..G (shift kosong), lainnya → general shift."""
+        pattern = ROTATING_DEPTS.get(dept_code)
+        if not pattern: return self.gs[self.r.randrange(len(self.gs))], None
+        i = self.group_cycle[pattern]; self.group_cycle[pattern] += 1
+        return None, self.groups[pattern][i % len(GROUP_LETTERS)]
 
     # ---------- karyawan + kontrak + BPJS
     def employees(self, n):
@@ -85,11 +113,12 @@ class Command(BaseCommand):
             used.add(name)
             tenure = r.randint(30, 3200); join = today - timedelta(days=tenure)
             lvl = "Operator" if c in ("PRD", "PKG", "GDG") and r.random() < .7 else r.choice(["Staf", "Teknisi", "Leader", "Supervisor"] if tenure > 900 else ["Staf", "Operator", "Teknisi"])
+            shift, group = self.shift_for(c)
             e = hr.Employee.objects.create(
                 nik=f"DM{i:05d}", nik_ktp="33" + "".join(str(r.randint(0, 9)) for _ in range(14)), name=name, gender=g,
                 marital_status=r.choice(["Belum menikah", "Menikah", "Menikah"]), education=r.choice(["SMA", "SMK", "D3", "S1"]),
                 address=f"Jl. Contoh No. {r.randint(1, 99)}, Tegal", phone="08" + "".join(str(r.randint(0, 9)) for _ in range(10)), department=d, position=self.pos[lvl],
-                status="nonaktif" if r.random() < .04 else "aktif", join_date=join, shift=r.choice(self.shifts) if c in ("PRD", "PKG", "GDG", "MTC") else self.shifts[0],
+                status="nonaktif" if r.random() < .04 else "aktif", join_date=join, shift=shift, shift_group=group,
                 bpjs_kes="000" + "".join(str(r.randint(0, 9)) for _ in range(10)), bpjs_tk="26" + "".join(str(r.randint(0, 9)) for _ in range(9)),
                 npwp="".join(str(r.randint(0, 9)) for _ in range(15)), bank_name=r.choice(["BCA", "BRI", "Mandiri", "BNI"]), bank_account="".join(str(r.randint(0, 9)) for _ in range(10)))
             self.emps.append(e)
@@ -116,11 +145,11 @@ class Command(BaseCommand):
         r, today = self.r, self.today
         admins = {u.department_id: u for u in User.objects.filter(role=Role.DEPT_ADMIN)}
         specs = [("cuti", "pending", 5), ("mutasi_dept", "pending", 2), ("shift", "pending", 2), ("izin", "pending", 1), ("cuti", "approved", 4), ("cuti", "rejected", 3), ("sakit", "approved", 3),
-                 ("cuti", "executed", 8), ("izin_terlambat", "executed", 4), ("tukar_shift", "submitted", 2), ("cuti", "draft", 2), ("izin_pulang", "cancelled", 1), ("mutasi_jabatan", "approved", 1)]
+                 ("cuti", "executed", 8), ("izin_terlambat", "executed", 4), ("cuti", "draft", 2), ("izin_pulang", "cancelled", 1), ("mutasi_jabatan", "approved", 1)]
         self.reqs = []
         for typ, st, cnt in specs:
             for _ in range(cnt):
-                e = r.choice(self.active); who = admins.get(e.department_id, self.hrd_u)
+                e = r.choice([x for x in self.active if x.shift_id] if typ == "shift" else self.active); who = admins.get(e.department_id, self.hrd_u)  # perubahan shift tetap hanya untuk non-rotasi (GS)
                 s = today + timedelta(days=r.randint(2, 40)) if st in ("pending", "approved", "draft", "submitted") else today - timedelta(days=r.randint(5, 120))
                 days = r.randint(1, 4); p = {"reason": r.choice(["Keperluan keluarga", "Acara pernikahan saudara", "Pulang kampung", "Kontrol dokter", "Urusan administrasi"])}
                 if typ == "cuti": p.update(start_date=s.isoformat(), end_date=(s + timedelta(days=days - 1)).isoformat())
@@ -129,9 +158,7 @@ class Command(BaseCommand):
                 elif typ == "mutasi_jabatan":
                     ps_ = self.pos["Leader"]; p.update(position_id=ps_.pk, position_name=ps_.name, effective_date=s.isoformat())
                 elif typ == "shift":
-                    sh = r.choice(self.shifts); p.update(shift_id=sh.pk, shift_name=sh.name, effective_date=s.isoformat())
-                elif typ == "tukar_shift":
-                    sh = r.choice(self.shifts); p.update(date=s.isoformat(), shift_id=sh.pk, shift_name=sh.name)
+                    sh = r.choice([x for x in self.gs if x.pk != e.shift_id]); p.update(shift_id=sh.pk, shift_name=sh.name, effective_date=s.isoformat())
                 elif typ in ("izin", "sakit"): p.update(start_date=s.isoformat(), end_date=(s + timedelta(days=days - 1)).isoformat())
                 else: p.update(date=s.isoformat(), time="10:30")
                 q = hr.ChangeRequest.objects.create(type=typ, employee=e, department=e.department, status=st, payload=p, requested_by=who,
@@ -140,6 +167,79 @@ class Command(BaseCommand):
                 hr.ChangeRequest.objects.filter(pk=q.pk).update(created_at=self.at(today if st == "pending" else today - timedelta(days=r.randint(1, 60))))
                 self.reqs.append(q)
         self.stat += f", {len(self.reqs)} pengajuan"
+
+
+    # ---------- tukar shift/libur: 1 orang (sendiri) dan 2 orang (dengan rekan), konsisten dengan jadwal efektif
+    def swaps(self):
+        """Pengajuan tukar demo yang dihitung dari jadwal efektif (schedule.build_rows) — jadi aturan yang sama dengan form/pelaksanaan. Yang berstatus
+        'executed' benar-benar menulis ShiftAssignment untuk kedua karyawan. Bila kombinasi tidak ditemukan (data kecil) pengajuan itu dilewati."""
+        r, today = self.r, self.today
+        admins = {u.department_id: u for u in User.objects.filter(role=Role.DEPT_ADMIN)}
+        used, cals, made = set(), {}, {"1 orang": 0, "2 orang": 0}
+        pool = [e for e in self.active if e.department.code != "POL"]
+        by_dept = {}
+        for e in pool: by_dept.setdefault(e.department_id, []).append(e)
+
+        def cal(e):
+            if e.pk not in cals: cals[e.pk] = {x["date"]: x for x in schedule.schedule_range(e, today + timedelta(days=2), 28)}
+            return cals[e.pk]
+
+        def days(e, off): return [d for d, x in cal(e).items() if x["off"] == off and (e.pk, d) not in used]
+
+        def mk(typ, st, e, partner, rows, payload):
+            who = admins.get(e.department_id, self.hrd_u)
+            p = {**payload, "reason": r.choice(REASONS)}
+            if partner: p.update(partner_id=partner.pk, partner_nik=partner.nik, partner_name=partner.name)
+            q = hr.ChangeRequest.objects.create(type=typ, employee=e, department=e.department, status=st, payload=p, requested_by=who,
+                                                decided_by=self.hrd_u if st in ("approved", "rejected", "executed") else None,
+                                                note="Ditolak: jadwal produksi padat" if st == "rejected" else "")
+            hr.ChangeRequest.objects.filter(pk=q.pk).update(created_at=self.at(today if st == "pending" else today - timedelta(days=r.randint(1, 10))))
+            for emp, d, kind, sh in rows:
+                used.add((emp.pk, d))
+                if st == "executed": hr.ShiftAssignment.objects.create(employee=emp, date=d, kind=kind, shift=sh, request=q, created_by=self.hrd_u)
+            cals.pop(e.pk, None); cals.pop(partner.pk, None) if partner else None  # jadwal efektif berubah → hitung ulang
+            self.reqs.append(q); made["2 orang" if partner else "1 orang"] += 1
+
+        def pairs():
+            for lst in by_dept.values():
+                for i, a in enumerate(lst):
+                    for b in lst[i + 1:]: yield a, b
+
+        def solo_shift(st):
+            for e in r.sample(pool, len(pool)):
+                for d in r.sample(days(e, False), len(days(e, False))):
+                    cur = cal(e)[d]["shift"]
+                    opts = [x for x in self.shifts if cur and x.pk != cur.pk and not (x.crosses_midnight and e.shift_group and e.shift_group.pattern == hr.ShiftGroup.P2)] if cur else []
+                    if not opts: continue
+                    sh = r.choice(opts); pl = {"date": d.isoformat(), "shift_id": sh.pk, "shift_name": sh.name}
+                    return mk("tukar_shift", st, e, None, schedule.build_rows("tukar_shift", e, None, pl), pl)
+
+        def solo_libur(st):
+            for e in r.sample(pool, len(pool)):
+                offs, works = days(e, True), days(e, False)
+                if offs and works:
+                    d1, d2 = r.choice(offs), r.choice(works); pl = {"date": d1.isoformat(), "date_to": d2.isoformat()}
+                    return mk("tukar_libur", st, e, None, schedule.build_rows("tukar_libur", e, None, pl), pl)
+
+        def duo_shift(st):
+            for a, b in r.sample(list(pairs()), len(list(pairs()))):
+                ok = [d for d in days(a, False) if d in set(days(b, False)) and cal(a)[d]["shift"] and cal(b)[d]["shift"] and cal(a)[d]["shift"].pk != cal(b)[d]["shift"].pk]
+                if ok:
+                    pl = {"date": r.choice(ok).isoformat()}
+                    return mk("tukar_shift", st, a, b, schedule.build_rows("tukar_shift", a, b, pl), pl)
+
+        def duo_libur(st):
+            for a, b in r.sample(list(pairs()), len(list(pairs()))):
+                d1s = [d for d in days(a, True) if d in set(days(b, False))]; d2s = [d for d in days(b, True) if d in set(days(a, False))]
+                if d1s and d2s:
+                    pl = {"date": r.choice(d1s).isoformat(), "date_to": r.choice(d2s).isoformat()}
+                    return mk("tukar_libur", st, a, b, schedule.build_rows("tukar_libur", a, b, pl), pl)
+
+        for fn, st in ((duo_shift, "executed"), (duo_shift, "approved"), (duo_shift, "pending"), (duo_shift, "pending"), (duo_shift, "rejected"), (duo_shift, "draft"),
+                       (duo_libur, "executed"), (duo_libur, "approved"), (duo_libur, "pending"), (duo_libur, "pending"), (duo_libur, "cancelled"),
+                       (solo_libur, "executed"), (solo_libur, "approved"), (solo_libur, "pending"), (solo_libur, "pending"),
+                       (solo_shift, "executed"), (solo_shift, "pending"), (solo_shift, "pending")): fn(st)
+        self.stat += f", tukar jadwal {made['1 orang']} (1 orang) + {made['2 orang']} (2 orang)"
 
     # ---------- saldo cuti
     def leave(self):

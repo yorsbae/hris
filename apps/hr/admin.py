@@ -17,3 +17,13 @@ class EmployeeAdmin(admin.ModelAdmin):
         n = 0
         for e in qs.filter(deleted_at__isnull=False): e.restore(); n += 1
         self.message_user(request, f"{n} karyawan dipulihkan.")
+
+
+class RotationInline(admin.TabularInline):
+    model = models.ShiftRotation; extra = 0; max_num = 7; ordering = ("weekday",)
+
+
+@admin.register(models.ShiftGroup)
+class ShiftGroupAdmin(admin.ModelAdmin):
+    """Kelompok rotasi + tabel rotasi mingguan (hari 0=Senin … 6=Minggu; shift kosong = libur kelompok)."""
+    list_display = ("code", "pattern"); list_filter = ("pattern",); inlines = [RotationInline]

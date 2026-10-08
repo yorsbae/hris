@@ -10,5 +10,14 @@ const fbt=JSON.parse(document.getElementById("fbt").textContent),sel=document.ge
 const always=["type","nik"];
 function sync(){const use=fbt[sel.value]||[];
 document.querySelectorAll(".fld").forEach(d=>{d.hidden=!(always.includes(d.dataset.f)||use.includes(d.dataset.f))});}
-sel.onchange=sync;sync();
+/* Tukar shift/libur: 1 orang (kolom rekan kosong) atau 2 orang (rekan diisi). Label dan kolom Shift tujuan menyesuaikan; validasi tetap di server. */
+const L={tukar_shift:{solo:{date:"Tanggal",shift:"Shift tujuan"},duo:{date:"Tanggal (keduanya masuk)"}},
+ tukar_libur:{solo:{date:"Tanggal libur Anda (jadi masuk)",date_to:"Hari kerja yang dijadikan libur"},duo:{date:"Tanggal libur Anda (rekan yang masuk)",date_to:"Tanggal libur rekan (Anda yang masuk)"}}};
+const lab=n=>document.querySelector('.fld[data-f="'+n+'"] label'),orig={};
+function mode(){const t=sel.value,pn=document.getElementById("id_partner_nik");if(!pn||!L[t])return;
+ const duo=pn.value.trim()!=="",m=L[t][duo?"duo":"solo"];
+ ["date","date_to","shift"].forEach(n=>{const l=lab(n);if(!l)return;if(!(n in orig))orig[n]=l.textContent;l.textContent=m[n]||orig[n]});
+ const sh=document.querySelector('.fld[data-f="shift"]');if(sh&&t==="tukar_shift")sh.hidden=duo||!(fbt[t]||[]).includes("shift");}
+sel.onchange=function(){sync();mode()};sync();mode();
+const pnEl=document.getElementById("id_partner_nik");if(pnEl){pnEl.addEventListener("input",mode);pnEl.addEventListener("lookup:select",mode);pnEl.addEventListener("lookup:clear",mode);pnEl.addEventListener("change",mode)}
 </script>{% endblock %}

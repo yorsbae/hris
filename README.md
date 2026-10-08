@@ -11,7 +11,7 @@
     gunicorn config.wsgi -b 127.0.0.1:8000   # taruh Nginx di depan (WAJIB isi TRUSTED_PROXY_IPS di .env, kirim X-Forwarded-For/-Proto; bila HTTPS: HTTPS=True); PostgreSQL hanya listen 127.0.0.1/server
 
 ## Data demo & /admin/ (putaran 16)
-`python manage.py seed_demo` mengisi data uji coba (karyawan, pengajuan, cuti, HRD, poliklinik) dan akun `superadmin`/`hrd`/`poli`/`admin_prd`… (sandi bawaan `Demo#HRIS-2026`; **jangan di produksi**). `/admin/` kini bertema sama dengan dashboard (sidebar navy, KPI). Login: ikon mata, sandi tampil selama ditekan-tahan.
+`python manage.py seed_demo` mengisi data uji coba (master shift berkode + kelompok rotasi A–G / A_pack–G_pack, karyawan, tukar shift/libur 1 & 2 orang, pengajuan, cuti, HRD, poliklinik) dan akun `superadmin`/`hrd`/`poli`/`admin_prd`… (sandi bawaan `Demo#HRIS-2026`; **jangan di produksi**). `/admin/` kini bertema sama dengan dashboard (sidebar navy, KPI). Login: ikon mata, sandi tampil selama ditekan-tahan.
 
 ## Keamanan (sudah ada)
 Argon2, RBAC (`require_roles`), scope departemen (`scope_by_department`, 404 saat URL diubah), rate limit login,
@@ -25,7 +25,7 @@ Mengacu pada `docs/ui-reference/dashboard-hrd.png` (hanya gaya; fitur mengikuti 
 
 ## Belum dibuat (ringkas; rincian & urutan di `docs/PROGRESS.md`)
 reset sandi mandiri/2FA, ekspor & retensi audit, keputusan enkripsi kolom medis, batalkan resep, register kehamilan, lot/kedaluwarsa obat,
-pola libur reguler per karyawan & hari libur nasional, batalkan pelaksanaan, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
+hari libur nasional, halaman HRD tabel rotasi/jadwal per departemen, konfirmasi rekan tukar, batalkan pelaksanaan, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
 
 ## Status tahap (acuan: `docs/VISION.md`)
 - Tahap 1 Fondasi ✅ (+ `/users/`, `/audit/`, `/password/change/`: Superadmin) · Tahap 3 Workflow ✅ UI `/requests/` + penerapan tukar shift/libur (`ShiftAssignment`, master shift tidak berubah) + saldo cuti `/leave/` (HRD) + batalkan pengajuan · Tahap 4 Informasi ✅ `/notifications/`, `/announcements/`
@@ -33,6 +33,6 @@ pola libur reguler per karyawan & hari libur nasional, batalkan pelaksanaan, exp
 - Tahap 5 Poli ✅ `/poli/` (khusus Poli/Superadmin; HRD & Admin Dept → 403): rekam medis + resep (stok berkurang atomik), kecelakaan kerja, kehamilan, catatan tambahan, kartu stok obat (stok masuk/penyesuaian), master diagnosa, rujukan + surat rujukan PDF, surat izin pulang PDF
 - Tahap 2b Operasional HRD ✅ `/hrd/` (khusus HRD/Superadmin): bantuan, cuti hamil, kerja harian proyek, katering (tepak besar/kecil), status BPJS K/TK
 - Tahap 6–7: belum (tabel absensi sudah disiapkan)
-- Tes: `python manage.py test` (367 tes; lulus di SQLite; PostgreSQL 16 terakhir diuji penuh di putaran 11; 11 tes konkurensi berthread hanya jalan di PostgreSQL). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
+- Tes: `python manage.py test` (444 tes; lulus di SQLite dan PostgreSQL 16 (putaran 17b); tes konkurensi berthread hanya jalan di PostgreSQL). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
 
 Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.

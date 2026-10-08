@@ -9,11 +9,11 @@
 {% if r.decided_by %}<tr><th>Diputuskan oleh</th><td>{{ r.decided_by.get_username }}</td></tr>{% endif %}
 {% if r.note %}<tr><th>Catatan</th><td style="white-space:pre-line">{{ r.note }}</td></tr>{% endif %}
 </table></div>
-{% if schedule_rows %}<h3>Penyesuaian jadwal yang ditulis</h3><div class="wrap"><table><thead><tr><th>Tanggal</th><th>Jadwal</th></tr></thead><tbody>
-{% for a in schedule_rows %}<tr><td>{{ a.date|date:"D, d M Y" }}</td><td>{{ a.get_kind_display }}{% if a.shift %}: {{ a.shift.name }} ({{ a.shift.start|time:"H:i" }}–{{ a.shift.end|time:"H:i" }}){% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if schedule_rows %}<h3>Penyesuaian jadwal yang ditulis</h3><div class="wrap"><table><thead><tr><th>Tanggal</th><th>Karyawan</th><th>Jadwal</th></tr></thead><tbody>
+{% for a in schedule_rows %}<tr><td>{{ a.date|date:"D, d M Y" }}</td><td>{{ a.employee.nik }} · {{ a.employee.name }}</td><td>{{ a.get_kind_display }}{% if a.shift %}: {{ a.shift.name }} ({{ a.shift.start|time:"H:i" }}–{{ a.shift.end|time:"H:i" }}){% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 {% if leave_rows %}<h3>Pemotongan saldo cuti</h3><div class="wrap"><table><thead><tr><th>Tahun</th><th>Hari</th><th>Keterangan</th></tr></thead><tbody>
 {% for l in leave_rows %}<tr><td>{{ l.year }}</td><td>{{ l.days }}</td><td>{{ l.note }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 {% if actions %}<form method="post" class="card form" style="margin-top:12px">{% csrf_token %}
 {% if "approved" in actions or "cancelled" in actions %}<label>Catatan (wajib bila menolak, atau membatalkan pengajuan yang sudah diajukan)</label><textarea name="note" rows="2"></textarea>{% endif %}
-<p>{% for a in actions %}<button formaction="/requests/{{ r.pk }}/{{ a }}/"{% if a == "rejected" or a == "cancelled" %} class="danger"{% endif %}>{% if a == "submit" %}Ajukan{% elif a == "approved" %}Setujui{% elif a == "rejected" %}Tolak{% elif a == "cancelled" %}Batalkan{% else %}Laksanakan ({% if r.type == "tukar_shift" or r.type == "tukar_libur" %}tulis penyesuaian jadwal{% elif r.type == "cuti" %}potong saldo cuti{% else %}terapkan ke data karyawan{% endif %}){% endif %}</button> {% endfor %}</p></form>{% endif %}
+<p>{% for a in actions %}<button formaction="/requests/{{ r.pk }}/{{ a }}/"{% if a == "rejected" or a == "cancelled" %} class="danger"{% endif %}>{% if a == "submit" %}Ajukan{% elif a == "approved" %}Setujui{% elif a == "rejected" %}Tolak{% elif a == "cancelled" %}Batalkan{% else %}Laksanakan ({% if r.type == "tukar_shift" or r.type == "tukar_libur" %}tulis penyesuaian jadwal{% if r.payload.partner_id %} untuk kedua karyawan{% endif %}{% elif r.type == "cuti" %}potong saldo cuti{% else %}terapkan ke data karyawan{% endif %}){% endif %}</button> {% endfor %}</p></form>{% endif %}
 {% endblock %}

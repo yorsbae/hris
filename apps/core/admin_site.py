@@ -11,7 +11,7 @@ _ICONS = (("employee", "users"), ("user", "user"), ("group", "key"), ("departmen
 
 # Nama tampilan Indonesia (presentasi saja; tanpa mengubah model/migrasi)
 _ID = {"Group": "Grup", "Announcement": "Pengumuman", "ChangeRequest": "Pengajuan", "Contract": "Kontrak", "Department": "Departemen", "Employee": "Karyawan",
-       "Position": "Jabatan", "Shift": "Shift", "Aid": "Bantuan", "BpjsMembership": "Keanggotaan BPJS", "BpjsStatusLog": "Log status BPJS", "CateringOrder": "Pesanan katering",
+       "Position": "Jabatan", "Shift": "Shift", "ShiftGroup": "Kelompok shift & rotasi", "Aid": "Bantuan", "BpjsMembership": "Keanggotaan BPJS", "BpjsStatusLog": "Log status BPJS", "CateringOrder": "Pesanan katering",
        "MaternityLeave": "Cuti hamil", "Project": "Proyek", "ProjectDailyLog": "Catatan harian proyek", "Diagnosis": "Diagnosa", "Medicine": "Obat", "StockMovement": "Kartu stok obat"}
 
 
