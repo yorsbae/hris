@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, F, Q
 import csv
 from django.http import Http404, HttpResponse, JsonResponse
@@ -18,10 +19,10 @@ from apps.core.scope import require_roles
 from apps.hr.models import Employee
 from . import services
 from . import reports
-from .forms import (AddendumForm, AddPrescriptionForm, DiagnosisForm, DiagnosisMedicineForm, MedicineForm, PrescriptionFormSet, RecordForm, ReferralForm,
+from .forms import (LetterForm, EXAM_CONCLUSIONS, INJURY_TYPES, AddendumForm, AddPrescriptionForm, DiagnosisForm, DiagnosisMedicineForm, MedicineForm, PrescriptionFormSet, RecordForm, ReferralForm,
                     ReturnPrescriptionForm, StockAdjustForm, StockInForm)
-from .models import Diagnosis, DiagnosisMedicine, MedicalRecord, Medicine, Prescription, Referral, SickLeaveLetter, StockMovement
-from .pdf import referral_pdf
+from .models import Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, Prescription, Referral, SickLeaveLetter, StockMovement
+from .pdf import referral_pdf, sick_leave_pdf
 
 PER_PAGE = 50
 
@@ -66,17 +67,25 @@ def identity_rows(e):
 
 
 EXAM_LABELS = {"tensi": "Tensi", "suhu": "Suhu (°C)", "nadi": "Nadi (x/menit)", "bb": "Berat badan (kg)", "tb": "Tinggi badan (cm)"}
-INCIDENT_LABELS = {"lokasi": "Lokasi kejadian", "kronologi": "Kronologi"}
-PREG_LABELS = {"usia_minggu": "Usia kehamilan (minggu)", "hpl": "HPL", "tfu": "TFU (cm)", "djj": "DJJ (x/menit)"}
+INCIDENT_LABELS = {"lokasi": "Lokasi kejadian", "kronologi": "Kronologi", "bagian_tubuh": "Bagian tubuh cedera", "jenis_cedera": "Jenis cedera", "hari_hilang": "Hari kehilangan kerja"}
+PREG_LABELS = {"hpht": "HPHT", "hpl": "HPL", "usia_minggu": "Usia kehamilan (minggu)", "g": "G (gravida)", "p": "P (para)", "a": "A (abortus)", "tfu": "TFU (cm)", "djj": "DJJ (x/menit)", "letak": "Letak janin"}
+EXAMRES_LABELS = {"kesimpulan": "Kesimpulan", "hasil": "Hasil pemeriksaan"}
+INJURY = dict(INJURY_TYPES); CONCL = dict(EXAM_CONCLUSIONS)
 
 
 def exam_rows(exam):
     """Daftar (label, nilai) dari JSON pemeriksaan; kunci tak dikenal diabaikan (template tidak pernah mencetak JSON mentah)."""
     if not isinstance(exam, dict): return []
     rows = [(EXAM_LABELS[k], exam[k]) for k in EXAM_LABELS if k in exam]
-    for key, labels in (("kecelakaan", INCIDENT_LABELS), ("kehamilan", PREG_LABELS)):
+    for key, labels in (("kecelakaan", INCIDENT_LABELS), ("kehamilan", PREG_LABELS), ("pemeriksaan", EXAMRES_LABELS)):
         sub = exam.get(key)
-        if isinstance(sub, dict): rows += [(labels[k], sub[k]) for k in labels if k in sub]
+        if isinstance(sub, dict):
+            for k in labels:
+                if k not in sub: continue
+                v = sub[k]
+                if k == "jenis_cedera": v = INJURY.get(v, v)
+                if k == "kesimpulan": v = CONCL.get(v, v)
+                rows.append((labels[k], v))
     return rows
 
 
@@ -129,12 +138,12 @@ def record_new(request):
 def record_detail(request, pk):
     r = get_object_or_404(MedicalRecord.objects.select_related("employee", "employee__department", "employee__position", "diagnosis", "created_by"), pk=pk)
     log(request, "poli", "view_record", r)  # akses data medis tercatat
-    letter = SickLeaveLetter.objects.filter(record=r).first()
+    letters = list(SickLeaveLetter.objects.filter(record=r).order_by("id"))
     rx = list(r.prescriptions.select_related("medicine", "added_by").prefetch_related("returns").order_by("id"))
     for p in rx: p.returned = sum(x.qty for x in p.returns.all()); p.net = p.qty - p.returned  # jumlah bersih = diberikan − retur
     return render(request, "poli/record_detail.html", {
         "r": r, "idn": identity_rows(r.employee), "rx": rx, "add_form": AddPrescriptionForm(), "ret_form": ReturnPrescriptionForm(), "addenda": r.addenda.select_related("created_by"),
-        "referrals": r.referral_set.order_by("-id"), "letter": letter, "addendum_form": AddendumForm(),
+        "referrals": r.referral_set.order_by("-id"), "letters": letters, "addendum_form": AddendumForm(),
         "exam_rows": exam_rows(r.exam)})
 
 
@@ -398,3 +407,48 @@ def stock_report(request):
     return render(request, "poli/stock_report.html", {
         "data": data, "period": period, "f": f, "cur": key(d), "prev_url": f"?{base}&{paramname}={key(prev)}", "next_url": f"?{base}&{paramname}={key(nxt)}",
         "csv_url": f"?{base}&{paramname}={key(d)}&format=csv", "xlsx_url": f"?{base}&{paramname}={key(d)}&format=xlsx", "show_all": request.GET.get("all") == "1"})
+
+
+# ================================================================ Surat Poli (izin pulang / libur / hamil)
+@poli_only
+def letter_new(request, pk):
+    """Buat surat menurut jenis (satu per rekam medis per jenis). Pembuatan lewat POST (bukan GET); cetak ulang lewat tautan PDF."""
+    r = get_object_or_404(MedicalRecord.objects.select_related("employee", "employee__department"), pk=pk)
+    initial = {"kind": request.GET.get("jenis", "izin_libur"), "start_date": date.today(), "days": 1}
+    form = LetterForm(request.POST or None, record=r, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        d = form.cleaned_data
+        with transaction.atomic():
+            letter = SickLeaveLetter.objects.filter(record=r, kind=d["kind"]).first()
+            if letter is None:
+                extra = {"start_date": d.get("start_date"), "days": d.get("days"), "purpose": d.get("purpose") or ""} if d["kind"] != "izin_pulang" else {}
+                letter = SickLeaveLetter.objects.create(record=r, kind=d["kind"], number=LetterCounter.next_number(SickLeaveLetter.COUNTER[d["kind"]], timezone.now()), **extra)
+                log(request, "poli", "create_letter", letter, None, {"kind": letter.kind, "number": letter.number})
+        return redirect("poli_letter_pdf", pk=letter.pk)
+    return render(request, "poli/letter_form.html", {"form": form, "r": r, "idn": identity_rows(r.employee), "existing": r.sickleaveletter_set.order_by("id")})
+
+
+@poli_only
+def letter_pdf(request, pk):
+    letter = get_object_or_404(SickLeaveLetter.objects.select_related("record__employee__department", "record__created_by"), pk=pk)
+    log(request, "poli", "print_letter", letter)
+    resp = HttpResponse(sick_leave_pdf(letter), content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{letter.number.replace("/", "-")}.pdf"'
+    return resp
+
+
+# ================================================================ Ringkasan medis untuk detail karyawan (hanya Poli/Superadmin)
+def medical_summary(e):
+    """Riwayat Poli satu karyawan untuk halaman detail karyawan: kunjungan, kehamilan terakhir, surat, rujukan. Hanya dipanggil untuk Poli/Superadmin; isi keluhan/tindakan TIDAK ikut."""
+    recs = list(e.medical_records.select_related("diagnosis").order_by("-visit_at", "-id")[:10])
+    kinds = dict(e.medical_records.values_list("kind").annotate(n=Count("id")))
+    preg = None
+    last_p = e.medical_records.filter(kind="kehamilan").order_by("-visit_at", "-id").first()
+    if last_p and isinstance(last_p.exam, dict):
+        k = last_p.exam.get("kehamilan") or {}
+        hpl = k.get("hpl")
+        preg = {"record": last_p, "hpht": k.get("hpht"), "hpl": hpl, "weeks": k.get("usia_minggu"), "gpa": "/".join(str(k.get(x, "-")) for x in ("g", "p", "a")) if any(x in k for x in ("g", "p", "a")) else None,
+                "active": bool(hpl) and hpl >= date.today().isoformat()}
+    return {"visits": recs, "total": sum(kinds.values()), "kinds": [(label, kinds.get(code, 0)) for code, label in MedicalRecord.KINDS], "pregnancy": preg,
+            "letters": list(SickLeaveLetter.objects.filter(record__employee=e).select_related("record").order_by("-issued_at")[:10]),
+            "referrals": list(Referral.objects.filter(record__employee=e).order_by("-id")[:5])}

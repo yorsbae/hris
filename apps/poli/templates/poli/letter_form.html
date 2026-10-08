@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Surat Poli{% endblock %}{% block content %}
+<p><a href="{% url 'poli_record_detail' r.pk %}">‹ Rekam medis #{{ r.pk }}</a></p>
+<h2>Buat surat · {{ r.get_kind_display }}</h2>
+<div class="card"><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table></div>
+<form method="post" class="card form" style="margin-top:12px;max-width:560px">{% csrf_token %}{{ form.non_field_errors }}
+{% include "poli/_fld.html" with f=form.kind %}
+<fieldset class="kf" id="lt-range"><legend>Masa berlaku</legend>{% include "poli/_fld.html" with f=form.start_date %}{% include "poli/_fld.html" with f=form.days %}</fieldset>
+<fieldset class="kf" id="lt-purpose"><legend>Izin hamil</legend>{% include "poli/_fld.html" with f=form.purpose %}</fieldset>
+<p style="color:var(--mu);font-size:13px">Surat tidak memuat diagnosa. Satu surat per jenis per rekam medis; bila sudah ada, surat yang ada dicetak ulang dan isian di atas diabaikan.</p>
+<p><button>Buat &amp; cetak surat</button></p></form>
+{% if existing %}<h3>Surat yang sudah dibuat</h3><div class="wrap"><table><tbody>{% for l in existing %}<tr><td>{{ l.get_kind_display }}</td><td><a href="{% url 'poli_letter_pdf' l.pk %}" target="_blank">{{ l.number }}</a></td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<style>fieldset.kf{border:1px solid var(--bd,#d0d7e2);border-radius:8px;margin:0 0 12px;padding:8px 12px}fieldset.kf[hidden]{display:none}</style>
+<script>(function(){var k=document.getElementById("id_kind"),a=document.getElementById("lt-range"),b=document.getElementById("lt-purpose");
+function sync(){var v=k.value;a.hidden=v==="izin_pulang";b.hidden=v!=="izin_hamil";[].forEach.call(a.querySelectorAll("input"),function(x){x.disabled=a.hidden});[].forEach.call(b.querySelectorAll("select"),function(x){x.disabled=b.hidden})}
+k.addEventListener("change",sync);sync()})();</script>
+{% endblock %}

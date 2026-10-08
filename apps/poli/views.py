@@ -44,8 +44,8 @@ def letter_pdf(request, record_id):
     """Buat (sekali per rekam medis) lalu kirim PDF surat izin pulang; pencetakan diaudit."""
     rec = get_object_or_404(MedicalRecord.objects.select_related("employee__department", "created_by"), pk=record_id)
     with transaction.atomic():
-        letter = SickLeaveLetter.objects.filter(record=rec).first() or SickLeaveLetter.objects.create(
-            record=rec, number=LetterCounter.next_number("sip", tz.now()))
+        letter = SickLeaveLetter.objects.filter(record=rec, kind="izin_pulang").first() or SickLeaveLetter.objects.create(
+            record=rec, kind="izin_pulang", number=LetterCounter.next_number("sip", tz.now()))
     log(request, "poli", "print_letter", letter)
     resp = HttpResponse(sick_leave_pdf(letter), content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="{letter.number.replace("/", "-")}.pdf"'

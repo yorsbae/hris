@@ -34,7 +34,7 @@ per role (saat ini masih per role + scope; matriks per aksi dikerjakan bertahap,
 
 ## Shift, jadwal & tukar shift/libur  **[BARU]**
 **Master shift** (`/master/shift/`): nama, **kode** (PAGI, SIANG, MALAM, GS-12, GS-14, GS-16), jam masuk/pulang, melewati tengah malam, **GS** (general shift, tidak ikut rotasi kelompok), **aktif** (nonaktif = tidak ditawarkan lagi di form, histori tetap).
-**Kelompok rotasi**: pola **3 shift** (**A7–G7**; Pagi–Siang–Malam) dan pola **2 shift** (**A7_pack–G7_pack**; Pagi–Siang). Kelompok pola 2 dan pola 3 **berbeda walau hurufnya sama**. Tiap kelompok punya **tabel rotasi mingguan** (hari → shift, atau kosong = libur kelompok). Tabel resmi mengikuti *Aturan Pengaturan Jadwal Shift 2026* (diisi lewat **impor CSV/XLSX** di `/master/shift/` → “Impor tabel rotasi” atau `/admin/`; belum ada editor khusus).
+**Kelompok rotasi** (sumber: `docs/jadwal_shift_2026.md`): pola **2 shift** (**A–G**; Pagi–Siang; 3 Pagi + 3 Siang + 1 Libur per hari) dan pola **3 shift/PACK** (**A_pack–G_pack**; Pagi–Siang–Malam; 2+2+2+1 per hari). `A` ≠ `A_pack`: dua kelompok berbeda walau hurufnya sama. Jam: Pagi 06–14, Siang 14–22, Malam 22–06; GS 08–16 (GS-14 / GS-12 hanya pada hari kerja sebelum libur GS).
 **General Shift (GS)**: semua karyawan GS **08:00–16:00** (GS-16). Pada hari kerja **tepat sebelum hari libur GS** jam pulang dipersingkat: sebagian **GS-14 (08–14)**, sebagian **GS-12 (08–12)** (dipilih per karyawan, `gs_short`).
 **Sumber jadwal dasar karyawan = salah satu**: kelompok rotasi **atau** shift tetap/GS (tidak keduanya).
 **Jadwal efektif** pada tanggal D (urutan prioritas): ① penyesuaian hasil tukar yang sudah dilaksanakan (per tanggal) → ② rotasi kelompok → ③ shift tetap/GS (Minggu libur reguler). Master (`Employee.shift`, `shift_group`) **tidak pernah diubah oleh tukar**.
@@ -73,7 +73,7 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 2c. **[BARU] HR Lanjutan**: Surat Peringatan (SP1–SP3), pengajuan administrasi, BPJS lanjutan (kelas, faskes, JKK/JHT/JKM/JP, iuran, laporan)
 3. **Workflow**: mutasi, promosi/demosi, izin, cuti, tukar shift/libur (**1 orang atau 2 orang**), **administrasi**, approval
 4. **Informasi**: notifikasi, pengumuman, peraturan, read/unread. **[BARU]** reminder (cuti, SP, kontrak, stok menipis, obat mendekati kedaluwarsa, sinkronisasi absensi)
-5. **Poli**: rekam medis, obat, diagnosa, kecelakaan kerja, kehamilan, rujukan, surat izin pulang
+5. **Poli**: rekam medis (form menyesuaikan jenis kunjungan), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat izin (pulang / libur / hamil), riwayat poli di detail karyawan untuk user Poli
 5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis
 6. **Absensi**: integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran
 7. **Payroll** — *tetap dalam visi, dikerjakan paling akhir (belum diproses sekarang)*: komponen gaji, tunjangan, potongan, BPJS, periode, slip gaji. Data payroll tetap di tabel terpisah dari karyawan.
@@ -176,7 +176,7 @@ Menyembunyikan menu hanya kenyamanan; izin tetap diperiksa di server.
 | 9 | Meal 02:00 | Dihitung ke **tanggal kerja shift malam** |
 | 10 | Tidak dipakai | WhatsApp, Active Directory, ERP/Finance, Odoo Accounting, workflow pengajuan BPJS |
 | 11 | Tukar shift/libur | **Dua mode**: 1 orang (menukar liburnya/shiftnya sendiri) dan 2 orang (dengan rekan; kedua jadwal berubah dalam satu pengajuan). Lihat "Shift, jadwal & tukar shift/libur" |
-| 12 | Master shift baru | Kode shift, GS, kelompok rotasi (pola 3 shift A7–G7 / pola 2 shift A7_pack–G7_pack) dan tabel rotasi mingguan menjadi sumber jadwal dasar. *Tabel rotasi resmi & jam GS-12/14/16 masih perlu dimasukkan dari Aturan Pengaturan Jadwal Shift 2026* |
+| 12 | Master shift baru | Kode shift, GS, kelompok rotasi (pola 2 shift A–G / pola 3 shift/PACK A_pack–G_pack) dan tabel rotasi mingguan menjadi sumber jadwal dasar. *Tabel rotasi resmi & jam GS-12/14/16 masih perlu dimasukkan dari Aturan Pengaturan Jadwal Shift 2026* |
 
 ## Urutan prioritas
 Security › Integritas data › Role/permission › Department scope › Approval › Histori › Audit › Backup › Performa › Scalability › Maintainability › Integrasi masa depan.

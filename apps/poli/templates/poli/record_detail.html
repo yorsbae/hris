@@ -14,8 +14,10 @@
 <details class="card" style="margin-top:8px"><summary><b style="font-size:inherit">+ Tambah obat</b></summary>
 <form method="post" action="{% url 'poli_rx_add' r.pk %}" class="bar" style="margin-top:8px">{% csrf_token %}{{ add_form.medicine }}<input type="text" data-lookup="medicine" data-target="#{{ add_form.medicine.id_for_label }}" data-q-available="1" placeholder="Ketik nama/kode obat…" aria-label="Obat" required style="min-width:220px" autocomplete="off"><input name="qty" type="number" min="1" value="1" style="width:90px" aria-label="Jumlah"><input name="dosage" placeholder="Aturan pakai" maxlength="100"><button>Tambahkan</button></form>
 <small style="color:var(--mu)">Obat tambahan mengurangi stok dan tercatat sebagai baris baru; rekam medis asli tidak berubah. Pengurangan = retur ke stok dengan alasan.</small></details>
-<h3>Dokumen & rujukan</h3>
-<p><a class="btn" style="margin-left:0" href="/api/poli/records/{{ r.pk }}/letter.pdf" target="_blank">{% if letter %}Cetak ulang surat izin pulang ({{ letter.number }}){% else %}Buat & cetak surat izin pulang{% endif %}</a>
+<h3>Dokumen & rujukan</h3>{% if letters %}<div class="wrap" style="margin-bottom:8px"><table><thead><tr><th>Surat</th><th>No.</th><th>Masa berlaku</th></tr></thead><tbody>{% for l in letters %}<tr><td>{{ l.get_kind_display }}</td><td><a href="{% url 'poli_letter_pdf' l.pk %}" target="_blank">{{ l.number }} — cetak ulang</a></td><td>{% if l.start_date %}{{ l.start_date|date:"d M Y" }} – {{ l.end_date|date:"d M Y" }} ({{ l.days }} hari){% else %}-{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<p><a class="btn" style="margin-left:0" href="{% url 'poli_letter_new' r.pk %}?jenis=izin_pulang">Surat izin pulang</a>
+<a class="btn" href="{% url 'poli_letter_new' r.pk %}?jenis=izin_libur">Surat izin libur</a>
+{% if r.kind == "kehamilan" %}<a class="btn" href="{% url 'poli_letter_new' r.pk %}?jenis=izin_hamil">Surat izin hamil</a>{% endif %}
 <a class="btn" href="{% url 'poli_referral_new' r.pk %}">+ Rujukan</a></p>
 {% if referrals %}<div class="wrap"><table><thead><tr><th>No.</th><th>Tujuan</th><th>Status</th></tr></thead><tbody>{% for x in referrals %}<tr><td><a href="{% url 'poli_referral_detail' x.pk %}">{{ x.number }}</a></td><td>{{ x.facility }}</td><td>{{ x.get_status_display }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 <h3>Catatan tambahan / koreksi</h3>

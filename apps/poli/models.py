@@ -100,9 +100,23 @@ class LetterCounter(models.Model):  # nomor surat otomatis, per jenis per bulan
             c, _ = cls.objects.select_for_update().get_or_create(kind=kind, period=today.strftime("%Y%m"))
             c.last += 1; c.save()
             return f"{kind.upper()}/{c.period}/{c.last:04d}"
-class SickLeaveLetter(models.Model):  # surat izin pulang
+class SickLeaveLetter(models.Model):
+    """Surat dari Poli. Satu per rekam medis per JENIS: izin pulang, izin libur (istirahat beberapa hari), izin hamil. Tanpa diagnosa di surat."""
+    KINDS = [("izin_pulang", "Surat izin pulang"), ("izin_libur", "Surat izin libur / istirahat"), ("izin_hamil", "Surat izin hamil")]
+    PURPOSES = [("kontrol", "Kontrol kehamilan"), ("ringan", "Keringanan tugas"), ("cuti_melahirkan", "Rekomendasi cuti melahirkan")]
+    COUNTER = {"izin_pulang": "sip", "izin_libur": "sil", "izin_hamil": "sih"}
     number = models.CharField(max_length=30, unique=True)
     record = models.ForeignKey(MedicalRecord, on_delete=models.PROTECT); issued_at = models.DateTimeField(auto_now_add=True)
+    kind = models.CharField(max_length=20, choices=KINDS, default="izin_pulang")
+    start_date = models.DateField(null=True, blank=True); days = models.PositiveSmallIntegerField(null=True, blank=True)  # izin_libur / izin_hamil
+    purpose = models.CharField(max_length=20, blank=True, choices=PURPOSES)  # izin_hamil
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["record", "kind"], name="uniq_letter_record_kind"),
+                       models.CheckConstraint(name="letter_days_range", condition=models.Q(days__isnull=True) | models.Q(days__gte=1, days__lte=365))]
+    @property
+    def end_date(self):
+        from datetime import timedelta
+        return self.start_date + timedelta(days=self.days - 1) if self.start_date and self.days else None
 
 def dispense(medicine_id, qty, user, ref=""):
     """Obat keluar atomik; menolak qty ≤ 0 (qty negatif akan MENAMBAH stok) dan stok negatif."""

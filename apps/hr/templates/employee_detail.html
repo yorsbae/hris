@@ -17,6 +17,16 @@
 {% for a in schedule_rows %}<tr><td>{{ a.date|date:"D, d M Y" }}</td><td>{{ a.get_kind_display }}{% if a.shift %}: {{ a.shift.name }}{% endif %}</td><td><a href="{% url 'request_detail' a.request_id %}">#{{ a.request_id }}</a></td></tr>
 {% empty %}<tr><td class="empty" colspan="3">Tidak ada penyesuaian (mengikuti shift reguler).</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
+{% if medical %}
+<h3>Riwayat poliklinik <a class="btn" href="{% url 'poli_record_new' %}?nik={{ e.nik|urlencode }}">+ Kunjungan baru</a> <a class="btn" href="{% url 'poli_employee_history' e.pk %}">Semua riwayat</a></h3>
+<div class="card"><p style="margin:0 0 6px"><b>{{ medical.total }}</b> kunjungan tercatat{% for label, n in medical.kinds %}{% if n %} · {{ label }}: {{ n }}{% endif %}{% endfor %}</p>
+{% if medical.pregnancy %}<p style="margin:0"><span class="pill {% if medical.pregnancy.active %}aktif{% else %}nonaktif{% endif %}">{% if medical.pregnancy.active %}Hamil (HPL belum lewat){% else %}Kehamilan tercatat{% endif %}</span> HPHT {{ medical.pregnancy.hpht|default:"-" }} · HPL {{ medical.pregnancy.hpl|default:"-" }} · usia {{ medical.pregnancy.weeks|default:"-" }} minggu{% if medical.pregnancy.gpa %} · G/P/A {{ medical.pregnancy.gpa }}{% endif %} <a href="{% url 'poli_record_detail' medical.pregnancy.record.pk %}">rekam medis #{{ medical.pregnancy.record.pk }}</a></p>{% endif %}</div>
+<h4>Riwayat berobat</h4>
+<div class="wrap"><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Diagnosa</th></tr></thead><tbody>{% for r in medical.visits %}<tr><td><a href="{% url 'poli_record_detail' r.pk %}">{{ r.visit_at|date:"d M Y H:i" }}</a></td><td>{{ r.get_kind_display }}</td><td>{% if r.diagnosis %}{{ r.diagnosis.code }} · {{ r.diagnosis.name }}{% else %}-{% endif %}</td></tr>{% empty %}<tr><td class="empty" colspan="3">Belum ada kunjungan.</td></tr>{% endfor %}</tbody></table></div>
+<h4>Surat izin</h4>
+<div class="wrap"><table><thead><tr><th>Jenis</th><th>No.</th><th>Terbit</th><th>Masa berlaku</th></tr></thead><tbody>{% for l in medical.letters %}<tr><td>{{ l.get_kind_display }}</td><td><a href="{% url 'poli_letter_pdf' l.pk %}" target="_blank">{{ l.number }}</a></td><td>{{ l.issued_at|date:"d M Y" }}</td><td>{% if l.start_date %}{{ l.start_date|date:"d M" }} – {{ l.end_date|date:"d M Y" }} ({{ l.days }} hari){% else %}-{% endif %}</td></tr>{% empty %}<tr><td class="empty" colspan="4">Belum ada surat.</td></tr>{% endfor %}</tbody></table></div>
+{% if medical.referrals %}<h4>Rujukan</h4><div class="wrap"><table><tbody>{% for x in medical.referrals %}<tr><td><a href="{% url 'poli_referral_detail' x.pk %}">{{ x.number }}</a></td><td>{{ x.facility }}</td><td>{{ x.get_status_display }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% endif %}
 {% if full %}
 <h3>Kontrak</h3>
 <div class="wrap"><table><thead><tr><th>Nomor</th><th>Jenis</th><th>Mulai</th><th>Berakhir</th><th>Status</th><th>Perpanjangan dari</th></tr></thead><tbody>

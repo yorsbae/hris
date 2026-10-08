@@ -60,6 +60,9 @@ def employee_detail_page(request, pk):
         ctx["leave_balance"], ctx["leave_available"] = leave.balance(e, today.year), leave.available(e, today.year)
         ctx["schedule_days"] = schedule.schedule_range(e, today, 14)  # jadwal efektif 14 hari ke depan (rotasi/shift tetap + penyesuaian tukar)
         ctx["schedule_rows"] = ShiftAssignment.objects.filter(employee=e, date__gte=today - timedelta(days=7)).select_related("shift").order_by("date")[:30]
+    if request.user.role in (Role.POLI, Role.SUPERADMIN):  # riwayat Poli hanya untuk Poli (Superadmin lolos seperti di /poli/); akses tercatat, isi medis tidak masuk audit
+        from apps.poli.pages import medical_summary
+        log(request, "poli", "view_history", e); ctx["medical"] = medical_summary(e)
     if full:
         ctx["history"] = e.history.order_by("-effective_date", "-id")[:50]
         ctx["contracts"] = e.contracts.order_by("-start")
