@@ -5,6 +5,7 @@ from apps.hr import views as hr, request_views as rq, info_views as iv, emp_view
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core.dashboard import dashboard, home
+from apps.core.dashboard_panels import panels as dashboard_panels
 admin.site.site_header = admin.site.site_title = "HRIS & Poliklinik — Administrasi data"
 admin.site.index_title = "Administrasi data (khusus Superadmin; pekerjaan harian lewat menu aplikasi)"
 urlpatterns = [
@@ -55,6 +56,7 @@ urlpatterns = [
     path("hrd/", include("apps.hrd.urls")),
     path("poli/", include("apps.poli.urls")),
     path("api/dashboard/", dashboard),
+    path("api/dashboard/panels/", dashboard_panels),
     path("api/poli/records/", poli.record_create),
     path("api/poli/records/<int:record_id>/letter.pdf", poli.letter_pdf),
 ]

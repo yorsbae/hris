@@ -1,5 +1,5 @@
-{% extends "base.html" %}{% block title %}Masuk · HRIS{% endblock %}{% block content %}
-<div class="card" style="max-width:380px;margin:56px auto;padding:24px"><h2 style="justify-content:center">Masuk ke HRIS</h2>
+{% extends "base.html" %}{% block title %}Masuk · HRIS{% endblock %}{% block bodyclass %}{% if not user.is_authenticated %}auth{% endif %}{% endblock %}{% block content %}
+<div class="card" style="max-width:400px;margin:0 auto;padding:28px"><div style="display:flex;justify-content:center;margin-bottom:6px"><svg viewBox="0 0 40 40" width="46" height="46" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#1d5fd1"/><path d="M11 11l18 18M29 11L11 29" stroke="#fff" stroke-width="5" stroke-linecap="round"/></svg></div><h2 style="justify-content:center">HRIS &amp; Poliklinik {{ company_name }}</h2>
 <p class="help" style="text-align:center;margin-top:-6px">Gunakan akun yang diberikan Superadmin.</p>
 <form method="post">{% csrf_token %}{% if form.errors %}<p class="msg error" role="alert"><span>Username atau password salah.</span></p>{% endif %}
 <div class="fld"><label for="u">Username</label><input id="u" name="username" autocomplete="username" autofocus required autocapitalize="none" spellcheck="false"></div>

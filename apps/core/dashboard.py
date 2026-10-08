@@ -22,7 +22,8 @@ def dashboard(request):
                  aid_pending=Aid.objects.filter(status="diajukan").count(),
                  bpjs_inactive=BpjsMembership.objects.filter(status="nonaktif", employee__status="aktif", employee__deleted_at__isnull=True).count())
         if u.role == Role.SUPERADMIN:
-            d.update(users=User.objects.filter(is_active=True).count(),
+            d.update(visits_today=MedicalRecord.objects.filter(visit_at__date=today).count(),  # agregat saja (tanpa nama pasien)
+                     users=User.objects.filter(is_active=True).count(),
                      audit_24h=AuditLog.objects.filter(created_at__gte=timezone.now() - timedelta(days=1)).count())
     elif u.role == Role.DEPT_ADMIN:
         from django.db.models import Count
