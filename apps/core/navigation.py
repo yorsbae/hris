@@ -10,16 +10,16 @@ _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 def _groups(role):
     if role == Role.SUPERADMIN:
         return [("Utama", [_DASH, _EMP, ("Pengajuan", "/requests/", "clipboard"), ("Cuti & Libur", "/leave/", "calendar"),
-                           ("Jadwal Shift", "/schedule/", "clock"), ("Operasional HRD", "/hrd/", "briefcase")]),
+                           ("Operasional HRD", "/hrd/", "briefcase")]),
                 ("Poliklinik", _poli(True)),
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
         return [("HRD", [_DASH, _EMP, ("Mutasi & Pengajuan", "/requests/", "clipboard"), ("Cuti & Libur", "/leave/", "calendar"),
-                        ("Jadwal Shift", "/schedule/", "clock"), ("Operasional HRD", "/hrd/", "briefcase"), ("Master Data", "/master/department/", "sliders")]), _INFO]
+                        ("Operasional HRD", "/hrd/", "briefcase"), ("Master Data", "/master/department/", "sliders")]), _INFO]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
-                                      ("Pengajuan & Monitoring", "/requests/", "clipboard"), ("Jadwal Shift", "/schedule/", "clock")]), _INFO]
+                                      ("Pengajuan & Monitoring", "/requests/", "clipboard")]), _INFO]
     if role == Role.POLI:
         return [("Poli", [_DASH, ("Data Pasien/Karyawan", "/employees/", "users")] + _poli(True)), _INFO]
     return []
@@ -29,6 +29,7 @@ def _poli(with_hub):
     return items + [("Pemeriksaan & Rekam Medis", "/poli/records/", "activity"), ("Obat & Stok", "/poli/medicines/", "pill"), ("Rekap Stok Obat", "/poli/reports/stock/", "file"),
                     ("Rujukan", "/poli/referrals/", "repeat"), ("Master Diagnosa", "/poli/diagnoses/", "file")]
 
+# Catatan: halaman jadwal mingguan (/schedule/) tidak punya menu sendiri (putaran 18); dibuka dari Data Karyawan dan membuat butir itu aktif.
 def build(user, path):
     """Kembalikan (kelompok, breadcrumb). Satu butir aktif: yang awalan URL-nya paling panjang cocok ("/" hanya untuk beranda)."""
     groups = _groups(user.role)
@@ -37,7 +38,7 @@ def build(user, path):
         for it in items:
             url = it[1]
             prefix = "/master/" if url.startswith("/master/") else url  # Master: semua jenis master tetap satu butir
-            m = (path == "/") if url == "/" else path.startswith(prefix)
+            m = (path == "/") if url == "/" else path.startswith(prefix) or (url == "/employees/" and path.startswith("/schedule/"))
             if m and len(prefix) > best_len: best, best_len = it, len(prefix)
     out = [{"title": t, "items": [{"label": i[0], "url": i[1], "icon": i[2], "active": i is best} for i in items]} for t, items in groups]
     return out, (best[0] if best and best[1] != "/" else "")

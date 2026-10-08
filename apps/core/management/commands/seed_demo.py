@@ -28,7 +28,7 @@ COMPLAINTS = ["Keluhan flu dan demam", "Sakit kepala sejak pagi", "Nyeri lambung
 REAL_NOW = timezone.now
 # Master shift (Aturan Pengaturan Jadwal Shift 2026): kode, jam, melewati tengah malam, GS?  Jam GS-12/14/16 = DATA CONTOH (jam pulang 12/14/16) — samakan dengan aturan resmi di /master/shift/.
 SHIFTS = [("PAGI", "Shift Pagi", time(7), time(15), False, False), ("SIANG", "Shift Siang", time(15), time(23), False, False), ("MALAM", "Shift Malam", time(23), time(7), True, False),
-          ("GS-12", "General Shift 12", time(7), time(12), False, True), ("GS-14", "General Shift 14", time(7), time(14), False, True), ("GS-16", "General Shift 16", time(7), time(16), False, True)]
+          ("GS-12", "General Shift 12", time(8), time(12), False, True), ("GS-14", "General Shift 14", time(8), time(14), False, True), ("GS-16", "General Shift 16", time(8), time(16), False, True)]
 GROUP_LETTERS = "ABCDEFG"
 ROTATING_DEPTS = {"PRD": hr.ShiftGroup.P2, "GDG": hr.ShiftGroup.P2, "MTC": hr.ShiftGroup.P2, "PKG": hr.ShiftGroup.P3}  # dept lain = general shift (GS)
 REASONS = ["Keperluan keluarga", "Urusan administrasi", "Kontrol dokter", "Acara keluarga", "Tukar giliran dengan rekan"]
@@ -77,8 +77,8 @@ class Command(BaseCommand):
         made = [hr.Shift.objects.create(code=c, name=n, start=a, end=b, crosses_midnight=x, is_gs=g) for c, n, a, b, x, g in SHIFTS]
         self.shifts, self.gs = [x for x in made if not x.is_gs], [x for x in made if x.is_gs]  # shifts = PAGI/SIANG/MALAM (rotasi); gs = general shift
         self.group_cycle = {hr.ShiftGroup.P2: 0, hr.ShiftGroup.P3: 0}
-        self.groups = {hr.ShiftGroup.P2: [hr.ShiftGroup.objects.create(code=l, pattern=hr.ShiftGroup.P2) for l in GROUP_LETTERS],
-                       hr.ShiftGroup.P3: [hr.ShiftGroup.objects.create(code=f"{l}_pack", pattern=hr.ShiftGroup.P3) for l in GROUP_LETTERS]}
+        self.groups = {hr.ShiftGroup.P2: [hr.ShiftGroup.objects.create(code=f"{l}7_pack", pattern=hr.ShiftGroup.P2) for l in GROUP_LETTERS],
+                       hr.ShiftGroup.P3: [hr.ShiftGroup.objects.create(code=f"{l}7", pattern=hr.ShiftGroup.P3) for l in GROUP_LETTERS]}
         self.rotation()
         for c, nm in (("PRD", "Budi"), ("GDG", "Andi"), ("QC", "Rina"), ("PKG", "Siti")):
             self.mk(f"admin_{c.lower()}", nm, f"Admin {self.depts[c].name}", Role.DEPT_ADMIN, self.depts[c])
@@ -97,7 +97,7 @@ class Command(BaseCommand):
     def shift_for(self, dept_code):
         """(shift tetap/GS, kelompok rotasi) untuk karyawan baru: dept rotasi → kelompok bergilir A..G (shift kosong), lainnya → general shift."""
         pattern = ROTATING_DEPTS.get(dept_code)
-        if not pattern: return self.gs[self.r.randrange(len(self.gs))], None
+        if not pattern: return next(x for x in self.gs if x.code == "GS-16"), None  # semua GS: 08–16; GS-14/GS-12 hanya sebelum libur GS (Employee.gs_short)
         i = self.group_cycle[pattern]; self.group_cycle[pattern] += 1
         return None, self.groups[pattern][i % len(GROUP_LETTERS)]
 
@@ -118,7 +118,7 @@ class Command(BaseCommand):
                 nik=f"DM{i:05d}", nik_ktp="33" + "".join(str(r.randint(0, 9)) for _ in range(14)), name=name, gender=g,
                 marital_status=r.choice(["Belum menikah", "Menikah", "Menikah"]), education=r.choice(["SMA", "SMK", "D3", "S1"]),
                 address=f"Jl. Contoh No. {r.randint(1, 99)}, Tegal", phone="08" + "".join(str(r.randint(0, 9)) for _ in range(10)), department=d, position=self.pos[lvl],
-                status="nonaktif" if r.random() < .04 else "aktif", join_date=join, shift=shift, shift_group=group,
+                status="nonaktif" if r.random() < .04 else "aktif", join_date=join, shift=shift, shift_group=group, gs_short=r.choice(["14", "12"]),
                 bpjs_kes="000" + "".join(str(r.randint(0, 9)) for _ in range(10)), bpjs_tk="26" + "".join(str(r.randint(0, 9)) for _ in range(9)),
                 npwp="".join(str(r.randint(0, 9)) for _ in range(15)), bank_name=r.choice(["BCA", "BRI", "Mandiri", "BNI"]), bank_account="".join(str(r.randint(0, 9)) for _ in range(10)))
             self.emps.append(e)

@@ -24,15 +24,16 @@ class Shift(models.Model):  # master shift; penyesuaian per tanggal ada di Shift
 
 
 class ShiftGroup(models.Model):
-    """Kelompok rotasi. Pola 2 shift memakai A–G; pola 3 shift/PACK memakai A_pack–G_pack (BUKAN kelompok yang sama; aturan §2)."""
+    """Kelompok rotasi (putaran 18). Pola 3 shift (Pagi–Siang–Malam) berkode A7–G7; pola 2 shift (Pagi–Siang) berkode A7_pack–G7_pack.
+    Kedua pola adalah kelompok yang berbeda walau hurufnya sama."""
     P2, P3 = "2_SHIFT", "3_SHIFT"
-    PATTERNS = [(P2, "2 shift (Pagi–Siang)"), (P3, "3 shift / PACK (Pagi–Siang–Malam)")]
+    PATTERNS = [(P2, "2 shift / pack (Pagi–Siang)"), (P3, "3 shift (Pagi–Siang–Malam)")]
     code = models.CharField("Kode kelompok", max_length=12, unique=True)
     pattern = models.CharField("Pola", max_length=8, choices=PATTERNS)
     class Meta:
         ordering = ["pattern", "code"]
         constraints = [models.CheckConstraint(name="shift_group_pack_suffix_matches_pattern",
-                                              condition=(models.Q(pattern="3_SHIFT", code__endswith="_pack") | (models.Q(pattern="2_SHIFT") & ~models.Q(code__endswith="_pack"))))]
+                                              condition=(models.Q(pattern="2_SHIFT", code__endswith="_pack") | (models.Q(pattern="3_SHIFT") & ~models.Q(code__endswith="_pack"))))]
     def __str__(self): return self.code
 
 
@@ -72,6 +73,9 @@ class Employee(models.Model):
     supervisor = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL)
     shift = models.ForeignKey(Shift, null=True, blank=True, on_delete=models.SET_NULL)
     shift_group = models.ForeignKey("ShiftGroup", null=True, blank=True, on_delete=models.SET_NULL, related_name="members", verbose_name="Kelompok shift")
+    # Karyawan GS: pada hari kerja SEBELUM hari libur GS (mis. Sabtu), jam pulang dipersingkat ke GS-14 (08–14) atau GS-12 (08–12). Bawaan 14.
+    GS_SHORT = [("14", "GS-14 (08:00–14:00)"), ("12", "GS-12 (08:00–12:00)")]
+    gs_short = models.CharField("GS sebelum libur", max_length=2, choices=GS_SHORT, default="14")
     bpjs_kes = EncryptedTextField(max_length=20, blank=True); bpjs_tk = EncryptedTextField(max_length=20, blank=True)  # SENSITIF
     npwp = EncryptedTextField(max_length=25, blank=True)  # SENSITIF
     bank_name = models.CharField(max_length=50, blank=True); bank_account = EncryptedTextField(max_length=30, blank=True)  # SENSITIF

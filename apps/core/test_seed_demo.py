@@ -46,7 +46,7 @@ class SeedDemoTests(TestCase):
         self.assertEqual(set(Shift.objects.values_list("code", flat=True)), {"PAGI", "SIANG", "MALAM", "GS-12", "GS-14", "GS-16"})
         self.assertEqual(set(Shift.objects.filter(is_gs=True).values_list("code", flat=True)), {"GS-12", "GS-14", "GS-16"})
         self.assertEqual(ShiftGroup.objects.count(), 14)
-        self.assertEqual(set(ShiftGroup.objects.filter(pattern="3_SHIFT").values_list("code", flat=True)), {f"{l}_pack" for l in "ABCDEFG"})
+        self.assertEqual(set(ShiftGroup.objects.filter(pattern="3_SHIFT").values_list("code", flat=True)), {f"{l}7" for l in "ABCDEFG"})
         self.assertEqual(ShiftRotation.objects.count(), 14 * 7)  # tiap kelompok punya 7 hari
         for g in ShiftGroup.objects.all():
             rows = list(g.rotation.all()); self.assertEqual(sum(r.shift_id is None for r in rows), 1, g.code)  # tepat 1 hari libur per minggu

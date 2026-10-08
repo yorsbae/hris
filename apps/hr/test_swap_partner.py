@@ -22,9 +22,9 @@ class RotBase(Base):
         cls.pagi = Shift.objects.create(code="PAGI", name="Shift Pagi", start=time(7), end=time(15))
         cls.siang = Shift.objects.create(code="SIANG", name="Shift Siang", start=time(15), end=time(23))
         cls.malam = Shift.objects.create(code="MALAM", name="Shift Malam", start=time(23), end=time(7), crosses_midnight=True)
-        cls.gs = Shift.objects.create(code="GS-12", name="GS 12", start=time(7), end=time(12), is_gs=True)
-        cls.gA = ShiftGroup.objects.create(code="A", pattern=ShiftGroup.P2)
-        cls.gB = ShiftGroup.objects.create(code="B", pattern=ShiftGroup.P2)
+        cls.gs = Shift.objects.create(code="GS-12", name="GS 12", start=time(8), end=time(12), is_gs=True)
+        cls.gA = ShiftGroup.objects.create(code="A7_pack", pattern=ShiftGroup.P2)
+        cls.gB = ShiftGroup.objects.create(code="B7_pack", pattern=ShiftGroup.P2)
         sh = {"PAGI": cls.pagi, "SIANG": cls.siang, None: None}
         for grp, tbl in ((cls.gA, A), (cls.gB, B)):
             for w, code in tbl.items(): ShiftRotation.objects.create(group=grp, weekday=w, shift=sh[code])
@@ -62,7 +62,7 @@ class RotationScheduleTests(RotBase):
         self.assertEqual(self.sched(self.e1, next_weekday(6)), "LIBUR")
 
     def test_group_without_row_for_that_day_falls_back_to_fixed(self):
-        g = ShiftGroup.objects.create(code="C", pattern=ShiftGroup.P2); ShiftRotation.objects.create(group=g, weekday=0, shift=self.siang)
+        g = ShiftGroup.objects.create(code="C7_pack", pattern=ShiftGroup.P2); ShiftRotation.objects.create(group=g, weekday=0, shift=self.siang)
         e = Employee.objects.create(nik="900", name="X", gender="L", department=self.d1, position=self.pos, join_date=date(2020, 1, 1), shift=self.gs, shift_group=g)
         self.assertEqual(self.sched(e, next_weekday(0)), "SIANG")  # ada baris → rotasi
         self.assertEqual(self.sched(e, next_weekday(1)), "GS-12")  # tidak ada baris → shift tetap
@@ -88,7 +88,7 @@ class RotationScheduleTests(RotBase):
         with self.assertRaises(ValidationError): bad(self.gA, self.malam)  # pola 2 shift tanpa Malam
         self.pagi.active = False
         with self.assertRaises(ValidationError): bad(self.gA, self.pagi)  # shift nonaktif
-        p3 = ShiftGroup(code="A_pack", pattern=ShiftGroup.P3); p3.save(); ShiftRotation(group=p3, weekday=0, shift=self.malam).clean()  # pola 3 shift boleh Malam
+        p3 = ShiftGroup(code="A7", pattern=ShiftGroup.P3); p3.save(); ShiftRotation(group=p3, weekday=0, shift=self.malam).clean()  # pola 3 shift boleh Malam
 
     def test_employee_form_rejects_group_and_fixed_shift_together(self):
         f = EmployeeForm({"nik": "777", "name": "N", "gender": "L", "join_date": "2020-01-01", "department": self.d1.pk, "shift": self.gs.pk, "shift_group": self.gA.pk,
@@ -309,9 +309,11 @@ class WeekPageAndNotifyTests(RotBase):
         for bad in ("start=bukan-tanggal", "start=0001-01-01", "group=abc", "department=99999999999999", "q=%00"):
             self.assertEqual(self.client.get("/schedule/?" + bad).status_code in (200, 400), True, bad)
 
-    def test_nav_has_schedule_for_hrd_and_dept_admin_not_poli(self):
+    def test_schedule_not_in_sidebar_but_linked_from_employees_page(self):  # putaran 18: submenu Jadwal Shift dihapus
         for u, want in (("hrd", True), ("adm1", True), ("poli", False)):
-            self.login(u); self.assertEqual("/schedule/" in self.client.get("/").content.decode(), want, u)
+            self.login(u)
+            self.assertNotIn('href="/schedule/"', self.client.get("/").content.decode(), u)
+            self.assertEqual('href="/schedule/"' in self.client.get("/employees/").content.decode(), want, u)
 
     def test_notify_requester_and_partner_dept_admin_on_execute(self):
         req = self.do_exec(self.duo_shift_req(next_weekday(0), a=self.e3, b=self.e5))  # rekan di departemen lain
@@ -363,3 +365,46 @@ class PartnerConcurrencyTests(TransactionTestCase):
         r1, r2 = self.req(self.a, self.b, self.d1), self.req(self.b, self.a, self.d2)  # (A,B) dan (B,A) bersamaan, tanggal berbeda
         self.assertEqual(self.race([(r1, self.hrd1), (r2, self.hrd2)]), ["ok", "ok"])
         self.assertEqual(ShiftAssignment.objects.count(), 4)
+
+
+class GsAndGroupCodeTests(TestCase):
+    """Putaran 18: GS 08–16, sebelum libur GS jadi GS-14/GS-12; kode kelompok A7–G7 (3 shift) dan A7_pack–G7_pack (2 shift)."""
+    @classmethod
+    def setUpTestData(cls):
+        cls.d = Department.objects.create(code="GS", name="Dept GS")
+        cls.g16 = Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
+        cls.g14 = Shift.objects.create(code="GS-14", name="GS 14", start=time(8), end=time(14), is_gs=True)
+        cls.g12 = Shift.objects.create(code="GS-12", name="GS 12", start=time(8), end=time(12), is_gs=True)
+        mk = lambda n, short: Employee.objects.create(nik=n, name=n, gender="L", join_date=date(2024, 1, 1), department=cls.d, shift=cls.g16, gs_short=short)
+        cls.a, cls.b = mk("G01", "14"), mk("G02", "12")
+
+    def day(self, wd):  # tanggal depan dengan weekday tertentu
+        d = date.today() + timedelta(days=1)
+        while d.weekday() != wd: d += timedelta(days=1)
+        return d
+
+    def test_gs_normal_days_are_8_to_16(self):
+        for wd in range(0, 5):  # Senin–Jumat (Sabtu = sebelum libur Minggu)
+            for e in (self.a, self.b): self.assertEqual(schedule.effective_schedule(e, self.day(wd))["shift"].code, "GS-16", (e.nik, wd))
+
+    def test_gs_day_before_off_day_is_shortened_per_employee(self):
+        sat = self.day(5)
+        self.assertEqual(schedule.effective_schedule(self.a, sat)["shift"].code, "GS-14")
+        self.assertEqual(schedule.effective_schedule(self.b, sat)["shift"].code, "GS-12")
+        self.assertTrue(schedule.effective_schedule(self.a, self.day(6))["off"])  # Minggu libur
+
+    def test_range_and_grid_agree_with_single_day(self):
+        mon = self.day(0)
+        for e, cells in schedule.schedule_grid([self.a, self.b], mon, 7):
+            for c in cells: self.assertEqual(c["shift"], schedule.effective_schedule(e, c["date"])["shift"], (e.nik, c["date"]))
+        self.assertEqual([c["shift"].code for c in schedule.schedule_range(self.b, mon, 7) if c["shift"]], ["GS-16"] * 5 + ["GS-12"])
+
+    def test_missing_short_shift_falls_back_to_gs_shift(self):
+        Shift.objects.filter(code__in=("GS-14", "GS-12")).delete()
+        self.assertEqual(schedule.effective_schedule(self.a, self.day(5))["shift"].code, "GS-16")
+
+    def test_group_code_suffix_rule(self):
+        from django.db import IntegrityError, transaction
+        ShiftGroup.objects.create(code="C7", pattern=ShiftGroup.P3); ShiftGroup.objects.create(code="C7_pack", pattern=ShiftGroup.P2)
+        for code, pat in (("D7_pack", ShiftGroup.P3), ("D7", ShiftGroup.P2)):
+            with self.assertRaises(IntegrityError), transaction.atomic(): ShiftGroup.objects.create(code=code, pattern=pat)

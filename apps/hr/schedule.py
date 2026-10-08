@@ -8,6 +8,8 @@ Jadwal efektif karyawan pada tanggal D (urutan prioritas):
   2. rotasi kelompok: bila karyawan punya `shift_group` dan tabel `ShiftRotation` kelompok itu punya baris untuk hari-D
      (shift kosong = libur kelompok);
   3. shift tetap/GS (`Employee.shift`), dengan hari libur global `settings.REGULAR_OFF_WEEKDAYS` (Minggu).
+     GS masuk 08:00 dan pulang 16:00 (GS-16); pada hari kerja tepat sebelum hari libur GS jam pulang menjadi 14:00 (GS-14) atau 12:00 (GS-12)
+     menurut `Employee.gs_short`.
 
 Tukar jadwal (`tukar_shift`, `tukar_libur`) punya dua mode, ditentukan oleh ada/tidaknya rekan (`payload.partner_id`):
   • 1 orang (tanpa rekan)
@@ -34,13 +36,31 @@ def _d(v): return v if isinstance(v, date) else date.fromisoformat(v)
 def regular_off(d: date) -> bool: return d.weekday() in settings.REGULAR_OFF_WEEKDAYS
 
 
-def _base(employee: Employee, d: date, rotation=None) -> dict:
-    """Jadwal dasar tanpa penyesuaian. `rotation` (dict weekday→baris) dipakai agar rentang tanggal tidak menanyakan DB berulang."""
+class gs_shorts:
+    """{'14': Shift GS-14, '12': Shift GS-12} — shift GS untuk hari kerja sebelum libur GS. Dimuat MALAS (1 query, hanya bila ada karyawan GS
+    yang jatuh pada hari tersebut) sehingga jumlah query jadwal untuk non-GS tidak berubah."""
+    def __init__(self): self._m = None
+    def get(self, key):
+        if self._m is None: self._m = {s.code[3:]: s for s in Shift.objects.filter(code__in=("GS-14", "GS-12"))}
+        return self._m.get(key)
+
+
+def _fixed_shift(employee: Employee, d: date, gs=None):
+    """Shift tetap pada tanggal d. GS: hari kerja tepat sebelum hari libur GS (mis. Sabtu) memakai GS-14 atau GS-12 sesuai `Employee.gs_short`;
+    hari lain memakai shift GS-nya (GS-16, 08–16). Bila shift GS pendek belum ada di master, tetap memakai shift GS karyawan."""
+    sh = employee.shift
+    if sh and sh.is_gs and regular_off(d + timedelta(days=1)):
+        sh = (gs if gs is not None else gs_shorts()).get(employee.gs_short) or sh
+    return sh
+
+
+def _base(employee: Employee, d: date, rotation=None, gs=None) -> dict:
+    """Jadwal dasar tanpa penyesuaian. `rotation` (dict weekday→baris) dan `gs` dipakai agar rentang tanggal tidak menanyakan DB berulang."""
     if employee.shift_group_id:
         row = (rotation if rotation is not None else {r.weekday: r for r in ShiftRotation.objects.select_related("shift").filter(group_id=employee.shift_group_id)}).get(d.weekday())
         if row: return {"off": row.shift_id is None, "shift": row.shift, "via": "rotation"}  # tanpa baris untuk hari itu → jatuh ke shift tetap
     if regular_off(d): return {"off": True, "shift": None, "via": "fixed"}
-    return {"off": False, "shift": employee.shift, "via": "fixed"}
+    return {"off": False, "shift": _fixed_shift(employee, d, gs), "via": "fixed"}
 
 
 def base_schedule(employee: Employee, d: date) -> dict:
@@ -64,19 +84,19 @@ def schedule_range(employee: Employee, start: date, days: int) -> list:
     """Jadwal efektif `days` hari berturut-turut mulai `start` dengan jumlah query tetap (2), bukan per hari."""
     rot = {r.weekday: r for r in ShiftRotation.objects.select_related("shift").filter(group_id=employee.shift_group_id)} if employee.shift_group_id else {}
     ov = {a.date: a for a in ShiftAssignment.objects.select_related("shift").filter(employee=employee, date__gte=start, date__lt=start + timedelta(days=days))}
-    out = []
+    gs, out = gs_shorts(), []
     for i in range(days):
         d = start + timedelta(days=i)
-        out.append({"date": d, **_with_override(employee, d, ov.get(d), _base(employee, d, rot))})
+        out.append({"date": d, **_with_override(employee, d, ov.get(d), _base(employee, d, rot, gs))})
     return out
 
 
 def schedule_grid(employees, start: date, days: int = 7):
     """[(karyawan, [sel harian])] untuk banyak karyawan dengan jumlah query tetap (rotasi + penyesuaian), bukan per karyawan."""
-    emps = list(employees); rot = {}
+    emps = list(employees); rot = {}; gs = gs_shorts()
     for r in ShiftRotation.objects.select_related("shift").filter(group_id__in={e.shift_group_id for e in emps if e.shift_group_id}): rot.setdefault(r.group_id, {})[r.weekday] = r
     ov = {(a.employee_id, a.date): a for a in ShiftAssignment.objects.select_related("shift").filter(employee__in=emps, date__gte=start, date__lt=start + timedelta(days=days))}
-    return [(e, [{"date": d, **_with_override(e, d, ov.get((e.pk, d)), _base(e, d, rot.get(e.shift_group_id, {})))} for d in (start + timedelta(days=i) for i in range(days))]) for e in emps]
+    return [(e, [{"date": d, **_with_override(e, d, ov.get((e.pk, d)), _base(e, d, rot.get(e.shift_group_id, {}), gs))} for d in (start + timedelta(days=i) for i in range(days))]) for e in emps]
 
 
 def dates_of(type_, payload):

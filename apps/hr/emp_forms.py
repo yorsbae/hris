@@ -19,14 +19,14 @@ class EmployeeForm(forms.ModelForm):
 
     class Meta:
         model = Employee
-        fields = ["nik", "name", "gender", "join_date", "department", "position", "shift", "shift_group", "status", "marital_status", "education",
+        fields = ["nik", "name", "gender", "join_date", "department", "position", "shift", "shift_group", "gs_short", "status", "marital_status", "education",
                   "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account"]
         widgets = {"join_date": forms.DateInput(attrs={"type": "date"}), "address": forms.Textarea(attrs={"rows": 2}),
                    **{f: forms.TextInput() for f in Employee.ENCRYPTED}}
         labels = {"nik": "NIK induk kerja", "name": "Nama", "gender": "Jenis kelamin", "join_date": "Tanggal masuk", "nik_ktp": "NIK KTP",
                   "bpjs_kes": "BPJS Kesehatan", "bpjs_tk": "BPJS Ketenagakerjaan", "bank_name": "Bank", "bank_account": "No. rekening",
                   "marital_status": "Status pernikahan", "education": "Pendidikan", "address": "Alamat", "phone": "Telepon",
-                  "department": "Departemen", "position": "Jabatan", "shift": "Shift tetap / GS", "shift_group": "Kelompok shift (rotasi)"}
+                  "department": "Departemen", "position": "Jabatan", "shift": "Shift tetap / GS", "shift_group": "Kelompok shift (rotasi)", "gs_short": "GS sebelum libur"}
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
@@ -37,7 +37,8 @@ class EmployeeForm(forms.ModelForm):
         self.fields["shift"].help_text = "Untuk karyawan non-rotasi (mis. GS). Kosongkan bila memakai kelompok rotasi."
         self.fields["shift_group"].required = False
         self.fields["shift_group"].queryset = ShiftGroup.objects.order_by("pattern", "code")
-        self.fields["shift_group"].help_text = "Pola 2 shift: A–G. Pola 3 shift/PACK: A_pack–G_pack (kelompok berbeda walau hurufnya sama)."
+        self.fields["shift_group"].help_text = "Pola 3 shift (Pagi–Siang–Malam): A7–G7. Pola 2 shift (Pagi–Siang): A7_pack–G7_pack. Kelompok berbeda walau hurufnya sama."
+        self.fields["gs_short"].help_text = "Khusus karyawan GS: jam pulang pada hari kerja sebelum libur GS (mis. Sabtu): GS-14 atau GS-12. Pada hari biasa GS 08:00–16:00."
         if self.instance.pk: self.fields["supervisor_nik"].widget.attrs["data-q-exclude"] = self.instance.nik
         self.supervisor = None
         if self.instance.pk:
