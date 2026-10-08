@@ -12,6 +12,9 @@ MAX_ROWS, MAX_BYTES = tabular.MAX_ROWS, tabular.MAX_BYTES
 EXAMPLE = ["EMP-0001", "Budi Santoso", "L", "2024-01-15", "PROD", "Staff", "Pagi", "aktif", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 
 
+def template_csv(): return tabular.to_bytes(COLUMNS, [EXAMPLE], "csv")[0].decode("utf-8")  # (BOM di awal; pembaca CSV memakai utf-8-sig)
+
+
 def template_rows(): return COLUMNS, EXAMPLE
 
 

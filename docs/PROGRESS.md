@@ -1,7 +1,7 @@
 # PROGRESS — HRIS & Poliklinik
 
 Terakhir diperbarui: 8 Oktober 2026 (putaran 18) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
-Uji: `python manage.py test` (450 tes; putaran 17c: lulus di SQLite (13 dilewati) dan PostgreSQL 16 (450, 0 dilewati); sebelumnya 355 tes; PostgreSQL 16 terakhir diuji penuh di putaran 11 (327 tes) — putaran 12–14 hanya menyentuh template/JS + 1 endpoint baca-saja; 11 tes konkurensi berthread hanya jalan di PostgreSQL) · Dokumen ini diperbarui di setiap putaran kerja.
+Uji: `python manage.py test` (469 tes; putaran 18: lulus di SQLite, 13 dilewati karena khusus PostgreSQL; **belum diuji ulang di PostgreSQL 16** — terakhir penuh di putaran 17c (450 tes). Jalankan paralel: `pip install tblib` lalu `--parallel 4`)
 
 ## 1. Peta kemajuan terhadap VISION
 
@@ -171,7 +171,8 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
   | **Tabel rotasi kelompok** (A7–G7, A7_pack–G7_pack × hari → shift/libur; kelompok dibuat otomatis) | `/master/rotasi/import/` | `/master/rotasi/export/` |
   | Obat, diagnosa (Poli) | `/poli/medicines/import/`, `/poli/diagnoses/import/` (stok **tidak** diimpor) | `?export=1` di daftar; rekap stok kini juga XLSX |
   | Jadwal mingguan, saldo cuti, pengajuan, audit log | — | `?export=1&format=csv\|xlsx` pada halaman masing-masing (hasil filter penuh, bukan satu halaman; audit tanpa kolom before/after) |
-- Tes baru: `apps/hr/test_bulk_export.py` (14 tes) dan `GsAndGroupCodeTests` (5 tes); tes lama disesuaikan (kode kelompok, nav).
+- Tes baru: `apps/hr/test_bulk_export.py` (14 tes) dan `GsAndGroupCodeTests` (5 tes); tes lama disesuaikan (kode kelompok, nav). Total 469 tes lulus di SQLite.
+- Catatan teknis: `Employee.gs_short` tidak wajib di form (kosong = pertahankan nilai lama; karyawan baru = 14) agar formulir/impor lama tetap valid; tipe konten CSV ekspor tetap `text/csv; charset=utf-8-sig`.
 
 **Asumsi putaran 18 yang perlu dikonfirmasi (mudah diubah)**
 - **A29. Arti “kode a7b7c7…”**: dibaca sebagai **kode kelompok rotasi** (A7…G7 untuk 3 shift; A7_pack…G7_pack untuk 2 shift). Kode shift master (PAGI/SIANG/MALAM/GS-xx) **tidak diubah**. Jika yang dimaksud mengganti kode shift Pagi/Siang/Malam itu sendiri (mis. Pagi=A7, Siang=B7, Malam=C7), cukup ubah kolom `code` di `/master/shift/`; tidak ada kode yang bergantung pada nilai itu kecuali GS-14/GS-12/GS-16.

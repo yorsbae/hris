@@ -38,6 +38,7 @@ class EmployeeForm(forms.ModelForm):
         self.fields["shift_group"].required = False
         self.fields["shift_group"].queryset = ShiftGroup.objects.order_by("pattern", "code")
         self.fields["shift_group"].help_text = "Pola 3 shift (Pagi–Siang–Malam): A7–G7. Pola 2 shift (Pagi–Siang): A7_pack–G7_pack. Kelompok berbeda walau hurufnya sama."
+        self.fields["gs_short"].required = False  # kosong = pertahankan nilai lama (karyawan baru: 14)
         self.fields["gs_short"].help_text = "Khusus karyawan GS: jam pulang pada hari kerja sebelum libur GS (mis. Sabtu): GS-14 atau GS-12. Pada hari biasa GS 08:00–16:00."
         if self.instance.pk: self.fields["supervisor_nik"].widget.attrs["data-q-exclude"] = self.instance.nik
         self.supervisor = None
@@ -45,6 +46,9 @@ class EmployeeForm(forms.ModelForm):
             self.fields["supervisor_nik"].initial = self.instance.supervisor.nik if self.instance.supervisor_id else ""
         else:
             del self.fields["effective_date"]  # karyawan baru: belum ada riwayat
+
+    def clean_gs_short(self):
+        return self.cleaned_data.get("gs_short") or (self.instance.gs_short if self.instance.pk else "14")
 
     def clean_nik(self):
         nik = self.cleaned_data["nik"].strip()

@@ -40,7 +40,7 @@ def to_bytes(header, rows, kind="csv", sheet="Data"):
         for r in rows: ws.append(r)
         out = io.BytesIO(); wb.save(out); return out.getvalue(), XLSX
     out = io.StringIO(); w = csv.writer(out); w.writerow(header); w.writerows(rows)
-    return ("\ufeff" + out.getvalue()).encode("utf-8"), "text/csv; charset=utf-8"
+    return ("\ufeff" + out.getvalue()).encode("utf-8"), "text/csv; charset=utf-8-sig"
 
 
 def export_response(name, header, rows, request, sheet="Data"):
