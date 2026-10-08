@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Surat Peringatan{% endblock %}{% block content %}
+<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<h2>Surat Peringatan <a class="btn" href="{% url 'hrd_warning_new' %}">+ Terbitkan SP</a></h2>
+<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama / nomor">
+<select name="level"><option value="">Semua tingkat</option>{% for k, v in levels %}<option value="{{ k }}"{% if f.level == k|stringformat:"s" %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+<select name="state"><option value="">Semua status</option><option value="aktif"{% if f.state == "aktif" %} selected{% endif %}>Aktif</option><option value="kedaluwarsa"{% if f.state == "kedaluwarsa" %} selected{% endif %}>Kedaluwarsa</option><option value="dicabut"{% if f.state == "dicabut" %} selected{% endif %}>Dicabut</option></select><button>Filter</button></form>
+<div class="wrap"><table><thead><tr><th>Nomor</th><th>Karyawan</th><th>Tingkat</th><th>Terbit</th><th>Berlaku s/d</th><th>Pelanggaran</th><th>Status</th></tr></thead><tbody>
+{% for w in page %}<tr><td><a href="{% url 'hrd_warning_detail' w.pk %}">{{ w.number }}</a></td><td>{{ w.employee.nik }} · {{ w.employee.name }}</td><td>{{ w.get_level_display }}</td><td>{{ w.issue_date|date:"d M Y" }}</td><td>{{ w.valid_until|date:"d M Y" }}</td><td>{{ w.violation|truncatechars:50 }}</td>
+<td><span class="pill {% if w.state_label == 'aktif' %}pending{% elif w.state_label == 'dicabut' %}rejected{% else %}nonaktif{% endif %}">{{ w.state_label }}</span></td></tr>
+{% empty %}<tr><td class="empty" colspan="7">Belum ada Surat Peringatan.</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% endblock %}

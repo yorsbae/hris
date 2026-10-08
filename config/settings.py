@@ -5,6 +5,14 @@ env = environ.Env()
 environ.Env.read_env(BASE_DIR / ".env")
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 COMPANY_NAME = env("COMPANY_NAME", default="PT X")  # sementara; kelak dari konfigurasi sistem (VISION → Konfigurasi sistem)
+# Kop & penanda tangan surat cetak (putaran 20). Nama di formulir contoh hanya TEMPLATE: isi lewat .env sesuai pejabat yang bertugas.
+COMPANY_ADDRESS = env("COMPANY_ADDRESS", default="")
+POLI_NAME = env("POLI_NAME", default="")  # kosong → "POLIKLINIK <COMPANY_NAME>"
+POLI_DOCTOR_NAME = env("POLI_DOCTOR_NAME", default="")  # dokter perusahaan; kosong → nama pengguna Poli yang membuat surat
+HRD_SIGNER_NAME = env("HRD_SIGNER_NAME", default="")  # penanda tangan HRD (mis. Manager HRD / Kabag Personalia)
+HRD_SIGNER_TITLE = env("HRD_SIGNER_TITLE", default="Manager HRD")
+PERSONALIA_SIGNER_NAME = env("PERSONALIA_SIGNER_NAME", default="")  # persetujuan cuti hamil
+PERSONALIA_SIGNER_TITLE = env("PERSONALIA_SIGNER_TITLE", default="Kabag Personalia")
 APP_VERSION = "1.1.0"
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")  # enkripsi kolom sensitif; lihat apps/core/crypto.py
 DEBUG = env.bool("DJANGO_DEBUG", False)

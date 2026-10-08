@@ -43,7 +43,7 @@ aside.side{position:fixed;inset:0 auto 0 0;width:260px;background:linear-gradien
 nav.main{padding:4px 10px 18px;flex:1}.ng{margin-top:14px}.ng h2{margin:0 0 6px;padding:0 10px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--nvg);font-weight:700;display:block}
 nav.main a{display:flex;align-items:center;gap:11px;padding:9px 10px;margin-bottom:2px;border-radius:8px;color:var(--nvt);text-decoration:none;font-size:14px}
 nav.main a:hover{background:rgba(255,255,255,.08);color:#fff}nav.main a[aria-current]{background:var(--nva);color:#fff;font-weight:600}
-nav.main a:focus-visible,.brand:focus-visible{outline-color:#fff}
+nav.main a.sub{padding:6px 10px 6px 38px;font-size:13px}nav.main a:focus-visible,.brand:focus-visible{outline-color:#fff}
 .ic{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .col{flex:1;min-width:0;margin-left:260px;display:flex;flex-direction:column;min-height:100vh}
 header.top{position:sticky;top:0;z-index:30;display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:0 24px;min-height:58px;background:var(--card);border-bottom:1px solid var(--bd);box-shadow:var(--sh)}
@@ -72,7 +72,7 @@ main{padding:14px 12px 30px}table{font-size:14px}th,td{padding:8px}.clock{displa
 {% include "_icons.html" %}
 {% if user.is_authenticated %}<div class="shell">
 <aside class="side" id="side"><a class="brand" href="/"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#1d5fd1"/><path d="M11 11l18 18M29 11L11 29" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M29 11L11 29" stroke="#6ea8ff" stroke-width="5" stroke-linecap="round" opacity=".0"/></svg><span>HRIS &amp; POLIKLINIK<br>{{ company_name }}</span></a>
-<nav class="main" id="nav" aria-label="Navigasi utama">{% for g in nav_groups %}<div class="ng"><h2>{{ g.title }}</h2>{% for i in g.items %}<a href="{{ i.url }}"{% if i.active %} aria-current="page"{% endif %}><svg class="ic" aria-hidden="true"><use href="#i-{{ i.icon }}"/></svg><span>{{ i.label }}</span>{% if i.url == "/announcements/" and unread_ann %}<span class="badge" aria-label="{{ unread_ann }} belum dibaca">{{ unread_ann }}</span>{% endif %}</a>{% endfor %}</div>{% endfor %}</nav></aside>
+<nav class="main" id="nav" aria-label="Navigasi utama">{% for g in nav_groups %}<div class="ng"><h2>{{ g.title }}</h2>{% for i in g.items %}<a href="{{ i.url }}"{% if i.sub %} class="sub"{% endif %}{% if i.active %} aria-current="page"{% endif %}><svg class="ic" aria-hidden="true"><use href="#i-{{ i.icon }}"/></svg><span>{{ i.label }}</span>{% if i.url == "/announcements/" and unread_ann %}<span class="badge" aria-label="{{ unread_ann }} belum dibaca">{{ unread_ann }}</span>{% endif %}</a>{% endfor %}</div>{% endfor %}</nav></aside>
 <div class="scrim" id="scrim"></div>
 <div class="col"><header class="top"><button class="nt" type="button" aria-expanded="false" aria-controls="side" id="nt">Menu</button>
 <form class="gs" role="search" method="get" action="/employees/"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><input type="search" name="q" placeholder="Cari NIK / nama karyawan" aria-label="Cari karyawan berdasarkan NIK atau nama" autocomplete="off" maxlength="100"></form>

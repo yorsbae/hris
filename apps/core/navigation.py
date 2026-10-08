@@ -5,21 +5,27 @@ from .models import Role
 # (label, url, ikon). Kelompok = (judul, [butir]).
 _DASH = ("Dashboard", "/", "home")
 _EMP = ("Data Karyawan", "/employees/", "users")
+def _req(all_label, status):
+    """Butir Pengajuan + submenu per fungsi (putaran 20). Admin Dept tidak melihat Perubahan Status (hanya HRD)."""
+    items = [(all_label, "/requests/", "clipboard"), ("Izin & Cuti", "/requests/g/izin/", "clipboard", True), ("Mutasi & Promosi", "/requests/g/mutasi/", "clipboard", True)]
+    if status: items.append(("Perubahan Status", "/requests/g/status/", "clipboard", True))
+    return items + [("Shift & Tukar Jadwal", "/requests/g/jadwal/", "clipboard", True)]
+
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 
 def _groups(role):
     if role == Role.SUPERADMIN:
-        return [("Utama", [_DASH, _EMP, ("Pengajuan", "/requests/", "clipboard"), ("Cuti & Libur", "/leave/", "calendar"),
+        return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"),
                            ("Operasional HRD", "/hrd/", "briefcase")]),
                 ("Poliklinik", _poli(True)),
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
-        return [("HRD", [_DASH, _EMP, ("Mutasi & Pengajuan", "/requests/", "clipboard"), ("Cuti & Libur", "/leave/", "calendar"),
+        return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"),
                         ("Operasional HRD", "/hrd/", "briefcase"), ("Master Data", "/master/department/", "sliders")]), _INFO]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
-                                      ("Pengajuan & Monitoring", "/requests/", "clipboard")]), _INFO]
+                                      *_req("Pengajuan & Monitoring", False)]), _INFO]
     if role == Role.POLI:
         return [("Poli", [_DASH, ("Data Pasien/Karyawan", "/employees/", "users")] + _poli(True)), _INFO]
     return []
@@ -40,5 +46,5 @@ def build(user, path):
             prefix = "/master/" if url.startswith("/master/") else url  # Master: semua jenis master tetap satu butir
             m = (path == "/") if url == "/" else path.startswith(prefix) or (url == "/employees/" and path.startswith("/schedule/"))
             if m and len(prefix) > best_len: best, best_len = it, len(prefix)
-    out = [{"title": t, "items": [{"label": i[0], "url": i[1], "icon": i[2], "active": i is best} for i in items]} for t, items in groups]
+    out = [{"title": t, "items": [{"label": i[0], "url": i[1], "icon": i[2], "active": i is best, "sub": len(i) > 3} for i in items]} for t, items in groups]
     return out, (best[0] if best and best[1] != "/" else "")

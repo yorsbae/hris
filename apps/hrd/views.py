@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Sum
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from apps.core.audit import log
@@ -14,8 +14,8 @@ from apps.core.models import Role
 from apps.core.scope import require_roles
 from apps.hr.models import Department, Employee
 from . import services
-from .forms import (AidForm, BpjsStatusForm, CateringForm, FinishMaternityForm, MaternityForm, ProjectForm, ProjectLogForm, ReceiveCateringForm)
-from .models import (Aid, BpjsMembership, BpjsScheme, BpjsState, BpjsStatusLog, CateringOrder, MaternityLeave, Project, ProjectDailyLog)
+from .forms import AidForm, BpjsStatusForm, CateringForm, FinishMaternityForm, MaternityForm, ProjectForm, ProjectWorkForm, WarningForm
+from .models import Aid, BpjsMembership, BpjsScheme, BpjsState, BpjsStatusLog, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
 
 PER_PAGE = 50
 
@@ -52,10 +52,11 @@ def _qs(request, *keys):
 def hub(request):
     today = date.today()
     cards = [
-        ("Bantuan", "/hrd/aids/", Aid.objects.filter(status="diajukan").count(), "menunggu keputusan"),
+        ("Bantuan (rekap)", "/hrd/aids/", Aid.objects.filter(event_date__year=today.year).count(), "tercatat tahun ini"),
         ("Cuti hamil", "/hrd/maternity/", MaternityLeave.objects.filter(state="aktif", start_date__lte=today, end_date__gte=today).count(), "sedang cuti"),
-        ("Kerja harian proyek", "/hrd/projects/", Project.objects.filter(status="aktif").count(), "proyek aktif"),
-        ("Katering", "/hrd/catering/", CateringOrder.objects.filter(date=today).exclude(status="batal").count(), "pesanan hari ini"),
+        ("Pekerja harian proyek", "/hrd/projects/", Project.objects.filter(status="aktif").count(), "proyek aktif"),
+        ("Katering (rekap)", "/hrd/catering/", CateringOrder.objects.filter(date=today).count(), "rekap hari ini"),
+        ("Surat Peringatan", "/hrd/warnings/", WarningLetter.objects.filter(revoked_at__isnull=True, issue_date__lte=today, valid_until__gte=today).count(), "SP aktif"),
         ("Status BPJS", "/hrd/bpjs/", BpjsMembership.objects.filter(status="nonaktif", employee__status="aktif", employee__deleted_at__isnull=True).count(), "nonaktif (karyawan aktif)"),
     ]
     return render(request, "hrd/hub.html", {"cards": cards})
@@ -106,17 +107,20 @@ def bpjs_detail(request, pk):
     return render(request, "hrd/bpjs_detail.html", {"e": e, "form": form, "current": current, "logs": e.bpjs_logs.select_related("changed_by")[:50]})
 
 
-# ================================================================ Bantuan
+# ================================================================ Bantuan (rekap)
 @hrd_only
 def aid_list(request):
-    f = {k: request.GET.get(k, "").strip() for k in ("q", "status", "kind")}
+    f = {k: request.GET.get(k, "").strip() for k in ("q", "kind", "year")}
     qs = Aid.objects.select_related("employee", "employee__department")
-    if f["status"]: qs = qs.filter(status=f["status"])
     if f["kind"]: qs = qs.filter(kind=f["kind"])
+    if _int(f["year"]): qs = qs.filter(event_date__year=_int(f["year"]))
     if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
-    total = qs.exclude(status="ditolak").aggregate(t=Sum("amount"))["t"] or 0
-    return render(request, "hrd/aid_list.html", {"page": paginate(request, qs), "f": f, "statuses": Aid.STATUSES, "kinds": Aid.KINDS, "total": total,
-                                                  "qs": _qs(request, "q", "status", "kind")})
+    agg = qs.aggregate(t=Sum("amount"), n=Count("id"))
+    by_kind = list(qs.values("kind").annotate(n=Count("id"), t=Sum("amount")).order_by("-t"))
+    labels = dict(Aid.KINDS)
+    for r in by_kind: r["label"] = labels.get(r["kind"], r["kind"])
+    return render(request, "hrd/aid_list.html", {"page": paginate(request, qs), "f": f, "kinds": Aid.KINDS, "total": agg["t"] or 0, "count": agg["n"] or 0, "by_kind": by_kind,
+                                                  "qs": _qs(request, "q", "kind", "year")})
 
 
 @hrd_only
@@ -127,22 +131,13 @@ def aid_new(request):
         with transaction.atomic():
             a = Aid.objects.create(employee=form.employee, kind=d["kind"], event_date=d["event_date"], amount=d["amount"], description=d["description"], created_by=request.user)
             log(request, "hrd", "aid_create", a, None, {"employee": form.employee.nik, "kind": a.kind, "amount": a.amount, "event_date": str(a.event_date)})
-        messages.success(request, "Bantuan dicatat (status: Diajukan).")
-        return redirect("hrd_aid_detail", pk=a.pk)
+        messages.success(request, "Bantuan dicatat."); return redirect("hrd_aids")
     return render(request, "hrd/form.html", {"form": form, "title": "Bantuan baru", "back": "/hrd/aids/"})
-
-
-@hrd_only
-def aid_detail(request, pk):
-    a = get_object_or_404(Aid.objects.select_related("employee", "employee__department", "decided_by", "created_by"), pk=pk)
-    return render(request, "hrd/aid_detail.html", {"a": a, "next": sorted(Aid.FLOW.get(a.status, ()))})
 
 
 @hrd_only
 def aid_edit(request, pk):
     a = get_object_or_404(Aid.objects.select_related("employee"), pk=pk)
-    if a.status != "diajukan":
-        messages.error(request, "Hanya bantuan berstatus Diajukan yang bisa diubah."); return redirect("hrd_aid_detail", pk=a.pk)
     form = AidForm(request.POST or None, instance=a)
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
@@ -150,23 +145,19 @@ def aid_edit(request, pk):
         with transaction.atomic():
             a.kind, a.event_date, a.amount, a.description = d["kind"], d["event_date"], d["amount"], d["description"]; a.save()
             log(request, "hrd", "aid_update", a, before, {"kind": a.kind, "amount": a.amount, "event_date": str(a.event_date), "description": a.description})
-        messages.success(request, "Perubahan disimpan."); return redirect("hrd_aid_detail", pk=a.pk)
-    return render(request, "hrd/form.html", {"form": form, "title": f"Ubah bantuan #{a.pk}", "back": f"/hrd/aids/{a.pk}/"})
+        messages.success(request, "Perubahan disimpan."); return redirect("hrd_aids")
+    return render(request, "hrd/form.html", {"form": form, "title": f"Ubah bantuan · {a.employee.name}", "back": "/hrd/aids/"})
 
 
 @hrd_only
 @require_POST
-def aid_action(request, pk, action):
-    to = {"approve": "disetujui", "reject": "ditolak", "pay": "dibayar"}.get(action)
-    if not to: raise Http404
-    get_object_or_404(Aid, pk=pk)
-    try:
-        with transaction.atomic():
-            a, before = services.aid_transition(pk, to, request.user, note=request.POST.get("note", ""), paid_at=_date(request.POST.get("paid_at")))
-            log(request, "hrd", f"aid_{action}", a, {"status": before}, {"status": a.status, "note": a.decision_note})
-        messages.success(request, f"Status bantuan: {a.get_status_display()}.")
-    except ValueError as ex: messages.error(request, str(ex))
-    return redirect("hrd_aid_detail", pk=pk)
+def aid_delete(request, pk):
+    """Rekapan boleh dihapus (salah ketik); isi sebelum dihapus tetap tercatat di audit."""
+    a = get_object_or_404(Aid.objects.select_related("employee"), pk=pk)
+    with transaction.atomic():
+        log(request, "hrd", "aid_delete", a, {"employee": a.employee.nik, "kind": a.kind, "amount": a.amount, "event_date": str(a.event_date)}, None)
+        a.delete()
+    messages.success(request, "Catatan bantuan dihapus."); return redirect("hrd_aids")
 
 
 # ================================================================ Cuti hamil
@@ -248,7 +239,7 @@ def maternity_action(request, pk, action):
 @hrd_only
 def project_list(request):
     f = {k: request.GET.get(k, "").strip() for k in ("q", "status")}
-    qs = Project.objects.annotate(n_logs=Count("logs"))
+    qs = Project.objects.annotate(n_logs=Count("works"))
     if f["status"]: qs = qs.filter(status=f["status"])
     if f["q"]: qs = qs.filter(Q(name__icontains=f["q"]) | Q(code__icontains=f["q"]))
     return render(request, "hrd/project_list.html", {"page": paginate(request, qs.order_by("-start_date", "code")), "f": f, "statuses": Project.STATUSES, "qs": _qs(request, "q", "status")})
@@ -272,89 +263,148 @@ def project_form(request, pk=None):
 @hrd_only
 def project_detail(request, pk):
     p = get_object_or_404(Project, pk=pk)
-    qs = p.logs.prefetch_related("workers")
+    qs = p.works.all()
     d1, d2 = _date(request.GET.get("from")), _date(request.GET.get("to"))
     if d1: qs = qs.filter(work_date__gte=d1)
     if d2: qs = qs.filter(work_date__lte=d2)
-    days = qs.values("work_date").distinct().count()
+    q = request.GET.get("q", "").strip()
+    if q: qs = qs.filter(worker_name__icontains=q)
+    agg = qs.aggregate(t=Sum("wage"), n=Count("id"), days=Count("work_date", distinct=True))
+    per_worker = list(qs.values("worker_name").annotate(days=Count("work_date", distinct=True), total=Sum("wage")).order_by("worker_name"))
     page = paginate(request, qs)
-    return render(request, "hrd/project_detail.html", {"p": p, "page": page, "days": days, "from": request.GET.get("from", ""), "to": request.GET.get("to", ""),
-                                                        "qs": _qs(request, "from", "to")})
+    return render(request, "hrd/project_detail.html", {"p": p, "page": page, "agg": agg, "per_worker": per_worker, "from": request.GET.get("from", ""), "to": request.GET.get("to", ""),
+                                                        "q": q, "qs": _qs(request, "from", "to", "q")})
 
 
 @hrd_only
-def project_log_form(request, pk, log_id=None):
+def project_work_form(request, pk, work_id=None):
     p = get_object_or_404(Project, pk=pk)
-    obj = get_object_or_404(ProjectDailyLog, pk=log_id, project=p) if log_id else None
+    obj = get_object_or_404(ProjectWork, pk=work_id, project=p) if work_id else None
     if not obj and p.status != "aktif":
-        messages.error(request, "Catatan harian baru hanya untuk proyek berstatus Aktif."); return redirect("hrd_project_detail", pk=p.pk)
-    before = {"work_date": str(obj.work_date), "activity": obj.activity, "headcount": obj.headcount, "workers": sorted(obj.workers.values_list("nik", flat=True)), "note": obj.note} if obj else None
-    form = ProjectLogForm(request.POST or None, instance=obj, project=p)
+        messages.error(request, "Catatan baru hanya untuk proyek berstatus Aktif."); return redirect("hrd_project_detail", pk=p.pk)
+    fields = ("work_date", "worker_name", "activity", "wage", "note")
+    before = {f: str(getattr(obj, f)) for f in fields} if obj else None
+    form = ProjectWorkForm(request.POST or None, instance=obj, project=p, initial={"work_date": request.GET.get("date") or date.today()} if not obj else None)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             o = form.save(commit=False)
             if not obj: o.created_by = request.user
-            o.save(); o.workers.set(form.workers)
-            log(request, "hrd", "project_log_update" if obj else "project_log_create", o, before,
-                {"work_date": str(o.work_date), "activity": o.activity, "headcount": o.headcount, "workers": sorted(w.nik for w in form.workers), "note": o.note})
-        messages.success(request, "Catatan harian disimpan."); return redirect("hrd_project_detail", pk=p.pk)
-    return render(request, "hrd/form.html", {"form": form, "title": f"{'Ubah' if obj else 'Catatan harian'} · {p.code} {p.name}", "back": f"/hrd/projects/{p.pk}/"})
+            o.save()
+            log(request, "hrd", "project_work_update" if obj else "project_work_create", o, before, {f: str(getattr(o, f)) for f in fields})
+        messages.success(request, "Catatan pekerja harian disimpan.")
+        if "again" in request.POST: return redirect(f"{request.path}?date={o.work_date.isoformat()}")  # input beruntun untuk hari yang sama
+        return redirect("hrd_project_detail", pk=p.pk)
+    return render(request, "hrd/form.html", {"form": form, "title": f"{'Ubah' if obj else 'Pekerja harian'} · {p.code} {p.name}", "back": f"/hrd/projects/{p.pk}/", "again": not obj})
 
 
-# ================================================================ Katering
+@hrd_only
+@require_POST
+def project_work_delete(request, pk, work_id):
+    w = get_object_or_404(ProjectWork, pk=work_id, project_id=pk)
+    with transaction.atomic():
+        log(request, "hrd", "project_work_delete", w, {"worker": w.worker_name, "date": str(w.work_date), "activity": w.activity, "wage": w.wage}, None)
+        w.delete()
+    messages.success(request, "Catatan dihapus."); return redirect("hrd_project_detail", pk=pk)
+
+
+# ================================================================ Katering (rekap)
 @hrd_only
 def catering_list(request):
     today = date.today()
     d1 = _date(request.GET.get("from")) or today.replace(day=1)
     d2 = _date(request.GET.get("to")) or today
-    f = {"meal": request.GET.get("meal", "").strip(), "department": request.GET.get("department", "").strip()}
-    qs = CateringOrder.objects.select_related("department").filter(date__gte=d1, date__lte=d2)
+    f = {"meal": request.GET.get("meal", "").strip()}
+    qs = CateringOrder.objects.filter(date__gte=d1, date__lte=d2)
     if f["meal"]: qs = qs.filter(meal=f["meal"])
-    if _int(f["department"]): qs = qs.filter(department_id=_int(f["department"]))
-    live = qs.exclude(status="batal")
-    # rekap memakai jumlah diterima bila sudah diterima, selain itu jumlah dipesan
-    rows = list(live)
-    big = sum((o.received_large if o.status == "diterima" and o.received_large is not None else o.qty_large) for o in rows)
-    small = sum((o.received_small if o.status == "diterima" and o.received_small is not None else o.qty_small) for o in rows)
-    cost = sum(o.total_cost for o in rows)
-    page = paginate(request, qs)
-    return render(request, "hrd/catering_list.html", {"page": page, "f": f, "from": d1.isoformat(), "to": d2.isoformat(), "meals": CateringOrder.MEALS,
-                                                       "departments": Department.objects.order_by("name"), "sum_large": big, "sum_small": small, "sum_cost": cost,
-                                                       "qs": _qs(request, "from", "to", "meal", "department")})
+    t = qs.aggregate(ol=Sum("qty_large"), os=Sum("qty_small"), rl=Sum("received_large"), rs=Sum("received_small"))
+    pending = qs.filter(received_large__isnull=True).count()
+    return render(request, "hrd/catering_list.html", {"page": paginate(request, qs), "f": f, "from": d1.isoformat(), "to": d2.isoformat(), "meals": CateringOrder.MEALS,
+                                                       "t": {k: v or 0 for k, v in t.items()}, "pending": pending, "qs": _qs(request, "from", "to", "meal")})
 
 
 @hrd_only
 def catering_form(request, pk=None):
     o = get_object_or_404(CateringOrder, pk=pk) if pk else None
-    if o and o.status != "dipesan":
-        messages.error(request, "Hanya pesanan berstatus Dipesan yang bisa diubah."); return redirect("hrd_catering")
-    before = {f: str(getattr(o, f)) for f in CateringForm.Meta.fields} if o else None
+    fields = CateringForm.Meta.fields
+    before = {f: str(getattr(o, f)) for f in fields} if o else None
     form = CateringForm(request.POST or None, instance=o)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             x = form.save(commit=False)
             if not o: x.created_by = request.user
             x.save()
-            log(request, "hrd", "catering_update" if o else "catering_create", x, before, {f: str(getattr(x, f)) for f in CateringForm.Meta.fields})
-        messages.success(request, "Pesanan katering disimpan."); return redirect("hrd_catering")
-    return render(request, "hrd/form.html", {"form": form, "title": "Ubah pesanan katering" if o else "Pesanan katering baru", "back": "/hrd/catering/"})
+            log(request, "hrd", "catering_update" if o else "catering_create", x, before, {f: str(getattr(x, f)) for f in fields})
+        messages.success(request, "Rekap katering disimpan."); return redirect("hrd_catering")
+    return render(request, "hrd/form.html", {"form": form, "title": "Ubah rekap katering" if o else "Rekap katering baru", "back": "/hrd/catering/"})
 
 
 @hrd_only
 @require_POST
-def catering_action(request, pk, action):
-    if action not in ("receive", "cancel"): raise Http404
-    get_object_or_404(CateringOrder, pk=pk)
+def catering_delete(request, pk):
+    o = get_object_or_404(CateringOrder, pk=pk)
+    with transaction.atomic():
+        log(request, "hrd", "catering_delete", o, {"date": str(o.date), "meal": o.meal, "large": o.qty_large, "small": o.qty_small}, None)
+        o.delete()
+    messages.success(request, "Rekap dihapus."); return redirect("hrd_catering")
+
+
+# ================================================================ Surat Peringatan
+@hrd_only
+def warning_list(request):
+    f = {k: request.GET.get(k, "").strip() for k in ("q", "level", "state")}
+    qs = WarningLetter.objects.select_related("employee", "employee__department")
+    today = date.today()
+    if f["level"] in ("1", "2", "3"): qs = qs.filter(level=int(f["level"]))
+    if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]) | Q(number__icontains=f["q"]))
+    if f["state"] == "aktif": qs = qs.filter(revoked_at__isnull=True, issue_date__lte=today, valid_until__gte=today)
+    elif f["state"] == "kedaluwarsa": qs = qs.filter(revoked_at__isnull=True, valid_until__lt=today)
+    elif f["state"] == "dicabut": qs = qs.filter(revoked_at__isnull=False)
+    page = paginate(request, qs)
+    for w in page: w.state_label = w.state(today)
+    return render(request, "hrd/warning_list.html", {"page": page, "f": f, "levels": WarningLetter.LEVELS, "qs": _qs(request, "q", "level", "state")})
+
+
+@hrd_only
+def warning_new(request):
+    form = WarningForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        d = form.cleaned_data
+        with transaction.atomic():
+            w = services.issue_warning(form.employee, d["level"], d["issue_date"], d["valid_until"], d["violation"], d["description"], request.user)
+            log(request, "hrd", "warning_create", w, None, {"number": w.number, "employee": form.employee.nik, "level": w.level, "valid_until": str(w.valid_until), "violation": w.violation})
+        if form.skipped: messages.warning(request, f"Perhatian: SP {w.level} diterbitkan tanpa SP {w.level - 1} aktif sebelumnya (lompat tingkat).")
+        messages.success(request, f"SP {w.level} diterbitkan: {w.number}.")
+        return redirect("hrd_warning_detail", pk=w.pk)
+    return render(request, "hrd/form.html", {"form": form, "title": "Surat Peringatan baru", "back": "/hrd/warnings/",
+                                              "hint": "Satu karyawan tidak boleh punya dua SP aktif pada tingkat sama/lebih rendah. Masa berlaku bawaan 6 bulan."})
+
+
+@hrd_only
+def warning_detail(request, pk):
+    w = get_object_or_404(WarningLetter.objects.select_related("employee", "employee__department", "employee__position", "created_by", "revoked_by"), pk=pk)
+    history = WarningLetter.objects.filter(employee=w.employee).exclude(pk=w.pk).order_by("-issue_date")[:10]
+    return render(request, "hrd/warning_detail.html", {"w": w, "state": w.state(date.today()), "history": history})
+
+
+@hrd_only
+@require_POST
+def warning_revoke(request, pk):
+    get_object_or_404(WarningLetter, pk=pk)
     try:
         with transaction.atomic():
-            if action == "receive":
-                f = ReceiveCateringForm(request.POST)
-                if not f.is_valid(): raise ValueError("Jumlah diterima harus angka 0 atau lebih.")
-                o, before = services.catering_receive(pk, f.cleaned_data["received_large"], f.cleaned_data["received_small"])
-                log(request, "hrd", "catering_receive", o, before, {"status": "diterima", "large": o.received_large, "small": o.received_small})
-            else:
-                o = services.catering_cancel(pk, request.POST.get("reason", ""))
-                log(request, "hrd", "catering_cancel", o, {"status": "dipesan"}, {"status": "batal", "note": o.note})
-        messages.success(request, "Pesanan ditandai diterima." if action == "receive" else "Pesanan dibatalkan.")
+            w = services.revoke_warning(pk, request.POST.get("reason", ""), request.user)
+            log(request, "hrd", "warning_revoke", w, {"revoked": False}, {"revoked": True, "reason": w.revoke_reason})
+        messages.success(request, "SP dicabut.")
     except ValueError as ex: messages.error(request, str(ex))
-    return redirect("hrd_catering")
+    return redirect("hrd_warning_detail", pk=pk)
+
+
+@hrd_only
+def warning_pdf(request, pk):
+    from .pdf import warning_pdf as make
+    w = get_object_or_404(WarningLetter.objects.select_related("employee", "employee__department", "employee__position"), pk=pk)
+    if w.revoked_at: raise Http404
+    log(request, "hrd", "print_warning", w)
+    resp = HttpResponse(make(w), content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{w.number.replace("/", "-")}.pdf"'
+    return resp

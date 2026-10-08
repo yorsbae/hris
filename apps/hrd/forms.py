@@ -4,7 +4,7 @@ from datetime import date
 from django import forms
 from apps.hr.models import Employee
 from . import services
-from .models import Aid, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectDailyLog
+from .models import Aid, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
 
 D = lambda: forms.DateInput(attrs={"type": "date"})  # noqa: E731
 
@@ -62,7 +62,7 @@ class AidForm(EmployeeByNik):
         if self.instance: self.employee = self.instance.employee
         elif not self._find_employee(d): return d
         if d.get("kind") and d.get("event_date"):
-            dup = Aid.objects.filter(employee=self.employee, kind=d["kind"], event_date=d["event_date"]).exclude(status="ditolak")
+            dup = Aid.objects.filter(employee=self.employee, kind=d["kind"], event_date=d["event_date"])
             if self.instance: dup = dup.exclude(pk=self.instance.pk)
             if dup.exists(): raise forms.ValidationError("Bantuan jenis ini untuk karyawan dan tanggal kejadian yang sama sudah tercatat.")
         return d
@@ -121,45 +121,46 @@ class ProjectForm(forms.ModelForm):
         return d
 
 
-NIK_SPLIT = re.compile(r"[\s,;]+")
-MAX_WORKERS = 300
-
-
-class ProjectLogForm(forms.ModelForm):
-    worker_niks = forms.CharField(label="Pekerja (NIK)", required=False, widget=forms.Textarea(attrs={"rows": 3}),
-                                  help_text=f"Pisahkan dengan baris baru/koma. Maks {MAX_WORKERS}. Kosongkan bila hanya jumlah orang yang dicatat.")
-
+class ProjectWorkForm(forms.ModelForm):
+    """Satu pekerja harian (bukan karyawan) pada satu hari: nama, pekerjaan, upah."""
     class Meta:
-        model = ProjectDailyLog
-        fields = ["work_date", "activity", "worker_niks", "headcount", "note"]
-        widgets = {"work_date": D(), "activity": forms.Textarea(attrs={"rows": 4})}
-        labels = {"work_date": "Tanggal kerja", "activity": "Pekerjaan yang dilakukan", "headcount": "Jumlah orang (bila NIK tidak diisi)", "note": "Catatan"}
+        model = ProjectWork
+        fields = ["work_date", "worker_name", "activity", "wage", "note"]
+        widgets = {"work_date": D()}
+        labels = {"work_date": "Tanggal kerja", "worker_name": "Nama pekerja", "activity": "Mengerjakan apa", "wage": "Upah hari itu (Rp)", "note": "Catatan"}
 
     def __init__(self, *a, project, **k):
-        super().__init__(*a, **k); self.project, self.workers = project, []
-        if self.instance.pk: self.initial["worker_niks"] = "\n".join(self.instance.workers.order_by("nik").values_list("nik", flat=True))
+        super().__init__(*a, **k); self.project = project
+        self.fields["wage"].min_value = 0
+
+    def clean_worker_name(self):
+        n = " ".join(self.cleaned_data["worker_name"].split())
+        if not n: raise forms.ValidationError("Nama pekerja wajib diisi.")
+        return n
+
+    def clean_wage(self):
+        w = self.cleaned_data["wage"]
+        if w is None or w < 0 or w > 100_000_000: raise forms.ValidationError("Upah harus 0 – 100.000.000.")
+        return w
 
     def clean_work_date(self):
         d = self.cleaned_data["work_date"]
-        if d > date.today(): raise forms.ValidationError("Catatan harian tidak boleh untuk tanggal masa depan.")
+        if d > date.today(): raise forms.ValidationError("Tanggal kerja tidak boleh di masa depan.")
         if d < self.project.start_date: raise forms.ValidationError(f"Sebelum proyek dimulai ({self.project.start_date:%d-%m-%Y}).")
         if self.project.end_date and d > self.project.end_date: raise forms.ValidationError(f"Setelah proyek berakhir ({self.project.end_date:%d-%m-%Y}).")
         return d
 
-    def clean_worker_niks(self):
-        niks = list(dict.fromkeys(n for n in NIK_SPLIT.split(self.cleaned_data["worker_niks"].strip()) if n))
-        if len(niks) > MAX_WORKERS: raise forms.ValidationError(f"Maksimal {MAX_WORKERS} pekerja per catatan.")
-        found = {e.nik: e for e in Employee.objects.filter(nik__in=niks, status="aktif")}
-        missing = [n for n in niks if n not in found]
-        if missing: raise forms.ValidationError("NIK tidak ditemukan/tidak aktif: " + ", ".join(missing[:10]) + (" …" if len(missing) > 10 else ""))
-        self.workers = list(found.values())
-        return "\n".join(niks)
+    def clean(self):
+        d = super().clean()
+        if d.get("work_date") and d.get("worker_name") and d.get("activity"):  # cegah dobel ketik (pekerja + tanggal + pekerjaan sama)
+            dup = ProjectWork.objects.filter(project=self.project, work_date=d["work_date"], worker_name__iexact=d["worker_name"], activity__iexact=d["activity"])
+            if self.instance.pk: dup = dup.exclude(pk=self.instance.pk)
+            if dup.exists(): raise forms.ValidationError("Catatan yang sama (pekerja, tanggal, pekerjaan) sudah ada.")
+        return d
 
     def save(self, commit=True):
         obj = super().save(commit=False); obj.project = self.project
-        if self.workers: obj.headcount = len(self.workers)
-        if commit:
-            obj.save(); obj.workers.set(self.workers)
+        if commit: obj.save()
         return obj
 
 
@@ -167,27 +168,46 @@ class ProjectLogForm(forms.ModelForm):
 class CateringForm(forms.ModelForm):
     class Meta:
         model = CateringOrder
-        fields = ["date", "meal", "department", "qty_large", "qty_small", "price_large", "price_small", "vendor", "note"]
+        fields = ["date", "meal", "qty_large", "qty_small", "received_large", "received_small", "note"]
         widgets = {"date": D()}
-        labels = {"date": "Tanggal", "meal": "Waktu makan", "department": "Departemen (kosong = umum)", "qty_large": "Tepak besar (jumlah)",
-                  "qty_small": "Tepak kecil (jumlah)", "price_large": "Harga tepak besar (Rp)", "price_small": "Harga tepak kecil (Rp)", "vendor": "Vendor", "note": "Catatan"}
-
-    def __init__(self, *a, **k):
-        super().__init__(*a, **k)
-        from apps.hr.models import Department
-        self.fields["department"].queryset = Department.objects.order_by("name"); self.fields["department"].required = False
+        labels = {"date": "Tanggal", "meal": "Jam makan", "qty_large": "Dipesan — tepak besar", "qty_small": "Dipesan — tepak kecil",
+                  "received_large": "Diterima — tepak besar", "received_small": "Diterima — tepak kecil", "note": "Catatan"}
+        help_texts = {"received_large": "Kosongkan bila belum diterima.", "received_small": "Kosongkan bila belum diterima."}
 
     def clean(self):
         d = super().clean()
         if d.get("qty_large") is None or d.get("qty_small") is None: return d
-        if d["qty_large"] + d["qty_small"] == 0: raise forms.ValidationError("Isi minimal satu tepak (besar atau kecil).")
+        if d["qty_large"] + d["qty_small"] == 0: raise forms.ValidationError("Isi minimal satu tepak (besar atau kecil) yang dipesan.")
+        rl, rs = d.get("received_large"), d.get("received_small")
+        if (rl is None) != (rs is None): raise forms.ValidationError("Isi jumlah diterima untuk KEDUA ukuran (boleh 0), atau kosongkan keduanya.")
         if d.get("date") and d.get("meal"):
-            dup = CateringOrder.objects.filter(date=d["date"], meal=d["meal"], department=d.get("department")).exclude(status="batal")
+            dup = CateringOrder.objects.filter(date=d["date"], meal=d["meal"])
             if self.instance.pk: dup = dup.exclude(pk=self.instance.pk)
-            if dup.exists(): raise forms.ValidationError("Pesanan untuk tanggal, waktu makan, dan departemen ini sudah ada. Ubah pesanan yang ada.")
+            if dup.exists(): raise forms.ValidationError("Rekap untuk tanggal dan jam makan ini sudah ada. Ubah yang sudah ada.")
         return d
 
 
-class ReceiveCateringForm(forms.Form):
-    received_large = forms.IntegerField(label="Tepak besar diterima", min_value=0)
-    received_small = forms.IntegerField(label="Tepak kecil diterima", min_value=0)
+# ---------------------------------------------------------------- Surat Peringatan
+class WarningForm(EmployeeByNik):
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+    level = forms.TypedChoiceField(label="Tingkat", choices=WarningLetter.LEVELS, coerce=int)
+    issue_date = forms.DateField(label="Tanggal terbit", initial=date.today, widget=D())
+    valid_until = forms.DateField(label="Berlaku sampai", required=False, widget=D(), help_text="Kosongkan = 6 bulan sejak tanggal terbit.")
+    violation = forms.CharField(label="Pelanggaran", max_length=200)
+    description = forms.CharField(label="Uraian / kronologi", required=False, widget=forms.Textarea(attrs={"rows": 4}), max_length=2000)
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k); self.employee, self.skipped = None, False
+
+    def clean(self):
+        d = super().clean()
+        if not self._find_employee(d): return d
+        if not (d.get("level") and d.get("issue_date")): return d
+        d["valid_until"] = d.get("valid_until") or services.add_months(d["issue_date"], 6)
+        if d["valid_until"] < d["issue_date"]: self.add_error("valid_until", "Tidak boleh sebelum tanggal terbit.")
+        active = [w for w in WarningLetter.objects.filter(employee=self.employee, revoked_at__isnull=True, valid_until__gte=d["issue_date"], issue_date__lte=d["issue_date"])]
+        top = max((w.level for w in active), default=0)
+        if top >= d["level"]:
+            raise forms.ValidationError(f"Karyawan ini masih punya SP {top} yang berlaku pada tanggal tersebut. Terbitkan tingkat yang lebih tinggi, atau cabut SP lama terlebih dahulu.")
+        self.skipped = d["level"] > top + 1  # lompat tingkat: hanya diperingatkan (kebijakan perusahaan)
+        return d

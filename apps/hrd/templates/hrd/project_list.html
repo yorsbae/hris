@@ -3,7 +3,7 @@
 <h2>Kerja harian proyek <a class="btn" href="{% url 'hrd_project_new' %}">+ Proyek baru</a></h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari kode / nama proyek">
 <select name="status"><option value="">Semua status</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>
-<div class="wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th>Lokasi</th><th>Periode</th><th>Status</th><th>Catatan harian</th></tr></thead><tbody>
+<div class="wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th>Lokasi</th><th>Periode</th><th>Status</th><th>Catatan pekerja-hari</th></tr></thead><tbody>
 {% for p in page %}<tr><td><a href="{% url 'hrd_project_detail' p.pk %}">{{ p.code }}</a></td><td>{{ p.name }}</td><td>{{ p.location|default:"—" }}</td><td>{{ p.start_date|date:"d M Y" }} – {{ p.end_date|date:"d M Y"|default:"…" }}</td><td>{{ p.get_status_display }}</td><td>{{ p.n_logs }}</td></tr>
 {% empty %}<tr><td class="empty" colspan="6">Belum ada proyek.</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}

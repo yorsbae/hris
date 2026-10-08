@@ -40,12 +40,12 @@ const KPI={
  dept_admin:[["employees","Karyawan Departemen","users",""],["req_wait","Pengajuan Menunggu","clipboard","orange"],["req_ok","Pengajuan Disetujui","user","green"],["req_no","Pengajuan Ditolak","clipboard","red"]],
  poli:[["visits_today","Kunjungan Hari Ini","plus","green"],["accidents_month","Kecelakaan Kerja (Bulan Ini)","activity","red"],["open_referrals","Rujukan Terbuka","repeat","orange"],["low_stock","Obat Stok Minimum","pill",""]]};
 const L={contract_expired:"Kontrak berakhir",contract_le_7:"Kontrak ≤ 7 hari",contract_le_30:"Kontrak ≤ 30 hari",contract_le_60:"Kontrak ≤ 60 hari",users:"User aktif",audit_24h:"Aktivitas 24 jam",
-accidents_month:"Kecelakaan kerja (bulan ini)",open_referrals:"Rujukan terbuka",low_stock:"Obat stok minimum",maternity_active:"Cuti hamil berjalan",aid_pending:"Bantuan menunggu keputusan",
+accidents_month:"Kecelakaan kerja (bulan ini)",open_referrals:"Rujukan terbuka",low_stock:"Obat stok minimum",maternity_active:"Cuti hamil berjalan",warnings_active:"Surat Peringatan aktif",
 bpjs_inactive:"BPJS nonaktif (karyawan aktif)",unread_notifications:"Notifikasi belum dibaca",pending_requests:"Pengajuan menunggu",visits_today:"Kunjungan hari ini",employees:"Total karyawan",active:"Karyawan aktif"};
 const H={employees:"/employees/",active:"/employees/",contract_expired:"/employees/",contract_le_7:"/employees/",contract_le_30:"/employees/",contract_le_60:"/employees/",
 pending_requests:"/requests/?status=pending",req_wait:"/requests/?status=pending",req_ok:"/requests/?status=approved",req_no:"/requests/?status=rejected",users:"/users/",audit_24h:"/audit/",visits_today:"/poli/records/",
-accidents_month:"/poli/records/",open_referrals:"/poli/referrals/",low_stock:"/poli/medicines/",maternity_active:"/hrd/maternity/",aid_pending:"/hrd/aids/",bpjs_inactive:"/hrd/bpjs/",unread_notifications:"/notifications/"};
-const WARN=new Set(["contract_le_60","contract_le_30","pending_requests","aid_pending","low_stock","open_referrals"]),BAD=new Set(["contract_expired","contract_le_7","bpjs_inactive"]);
+accidents_month:"/poli/records/",open_referrals:"/poli/referrals/",low_stock:"/poli/medicines/",maternity_active:"/hrd/maternity/",warnings_active:"/hrd/warnings/",bpjs_inactive:"/hrd/bpjs/",unread_notifications:"/notifications/"};
+const WARN=new Set(["contract_le_60","contract_le_30","pending_requests","warnings_active","low_stock","open_referrals"]),BAD=new Set(["contract_expired","contract_le_7","bpjs_inactive"]);
 const nf=new Intl.NumberFormat("id-ID");
 function clock(){const n=new Date();$("dt").textContent=n.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});$("tm").textContent=n.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}).replace(".",":")}
 clock();setInterval(clock,30000);

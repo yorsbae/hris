@@ -22,6 +22,13 @@ LABELS = {
     "sakit": "Sakit", "izin_terlambat": "Izin terlambat", "izin_pulang": "Izin pulang", "izin_khusus": "Izin khusus",
     "tukar_shift": "Tukar shift", "tukar_libur": "Tukar libur",
 }
+# Submenu Pengajuan (putaran 20): tiap grup = halaman daftar sendiri (/requests/g/<slug>/); semua jenis tetap satu model/alur.
+REQUEST_GROUPS = {
+    "izin": ("Izin & Cuti", ("izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus")),
+    "mutasi": ("Mutasi & Promosi", ("mutasi_dept", "mutasi_jabatan", "promosi", "demosi", "rotasi")),
+    "status": ("Perubahan Status", ("status",)),
+    "jadwal": ("Shift & Tukar Jadwal", ("shift", "tukar_shift", "tukar_libur")),
+}
 OPTIONAL_FIELDS = {"partner_nik"}  # tidak wajib: kosong = tukar sendiri (1 orang), terisi = tukar dengan rekan (2 orang)
 HRD_ONLY_TYPES = {"status"}  # Admin Departemen tidak boleh mengajukan perubahan status karyawan
 RANGE_TYPES = set(GROUPS["range"][0])
@@ -49,10 +56,12 @@ class RequestForm(forms.Form):
     status = forms.ChoiceField(label="Status baru", required=False, choices=[("", "---"), ("aktif", "aktif"), ("nonaktif", "nonaktif")])
     reason = forms.CharField(label="Alasan / keterangan", widget=forms.Textarea(attrs={"rows": 3}), max_length=1000)
 
-    def __init__(self, *a, user, **k):
+    def __init__(self, *a, user, group=None, **k):
         super().__init__(*a, **k)
         self.user, self.employee = user, None
-        self.fields["type"].choices = [(t, LABELS[t]) for t in allowed_types(user)]
+        types = allowed_types(user)
+        if group in REQUEST_GROUPS: types = [t for t in types if t in REQUEST_GROUPS[group][1]]  # buat dari submenu: hanya jenis grup itu
+        self.fields["type"].choices = [(t, LABELS[t]) for t in types]
 
     def clean(self):
         d = super().clean()

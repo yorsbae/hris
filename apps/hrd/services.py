@@ -4,7 +4,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from apps.hr.models import ChangeRequest
-from .models import Aid, BpjsMembership, BpjsStatusLog, MaternityLeave
+from .models import BpjsMembership, BpjsStatusLog, MaternityLeave
 
 # Bawaan cuti melahirkan: 1,5 bulan sebelum + 1,5 bulan sesudah HPL (≈ 45 + 45 hari). Dapat diubah lewat settings;
 # HRD tetap bisa mengubah tanggal per kasus. Sesuaikan dengan kebijakan perusahaan.
@@ -32,25 +32,6 @@ def set_bpjs_status(employee, scheme, status, effective_date, note, user):
             return old
     except IntegrityError:  # dua HRD mencatat bersamaan untuk karyawan/program yang sama
         raise ValueError("Status baru saja dicatat pengguna lain. Muat ulang halaman.")
-
-
-# ---------------------------------------------------------------- Bantuan
-def aid_transition(aid_id, to, user, note="", paid_at=None):
-    """diajukan → disetujui/ditolak → dibayar. Baris dikunci agar dua klik/dua HRD tidak memproses dua kali."""
-    with transaction.atomic():
-        aid = Aid.objects.select_for_update().get(pk=aid_id)
-        if to not in Aid.FLOW.get(aid.status, set()):
-            raise ValueError(f"Tidak bisa dari status '{aid.get_status_display()}' ke '{to}'.")
-        note = (note or "").strip()
-        if to == "ditolak" and not note: raise ValueError("Alasan wajib diisi saat menolak.")
-        before = aid.status
-        aid.status = to
-        if to in ("disetujui", "ditolak"):
-            aid.decided_by, aid.decided_at, aid.decision_note = user, timezone.now(), note[:300]
-        if to == "dibayar":
-            aid.paid_at = paid_at or timezone.localdate()
-        aid.save()
-        return aid, before
 
 
 # ---------------------------------------------------------------- Cuti hamil
@@ -95,25 +76,33 @@ def maternity_cancel(leave_id, reason):
         return m
 
 
-# ---------------------------------------------------------------- Katering
-def catering_receive(order_id, received_large, received_small):
-    from .models import CateringOrder
+# ---------------------------------------------------------------- Surat Peringatan
+def add_months(d, n):
+    """Tambah n bulan; tanggal 31 dipotong ke akhir bulan tujuan."""
+    import calendar
+    m = d.month - 1 + n; y, m = d.year + m // 12, m % 12 + 1
+    return d.replace(year=y, month=m, day=min(d.day, calendar.monthrange(y, m)[1]))
+
+
+ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"]
+
+
+def issue_warning(employee, level, issue_date, valid_until, violation, description, user):
+    """Terbitkan SP; nomor = <pk 4 digit>/SP-<tingkat>/HRD/<bulan romawi>/<tahun> (pk menjamin unik tanpa penghitung terpisah)."""
+    from .models import WarningLetter
     with transaction.atomic():
-        o = CateringOrder.objects.select_for_update().get(pk=order_id)
-        if o.status != "dipesan": raise ValueError("Hanya pesanan berstatus 'Dipesan' yang bisa dikonfirmasi diterima.")
-        before = {"status": o.status}
-        o.status, o.received_large, o.received_small = "diterima", received_large, received_small
-        o.save()
-        return o, before
+        w = WarningLetter.objects.create(employee=employee, level=level, issue_date=issue_date, valid_until=valid_until, violation=violation.strip(),
+                                         description=description.strip(), created_by=user, number=f"TMP-{timezone.now().timestamp()}")
+        w.number = f"{w.pk:04d}/SP-{level}/HRD/{ROMAN[issue_date.month - 1]}/{issue_date.year}"; w.save(update_fields=["number"])
+        return w
 
 
-def catering_cancel(order_id, reason):
-    from .models import CateringOrder
+def revoke_warning(pk, reason, user):
+    from .models import WarningLetter
     reason = (reason or "").strip()
-    if not reason: raise ValueError("Alasan pembatalan wajib diisi.")
+    if not reason: raise ValueError("Alasan pencabutan wajib diisi.")
     with transaction.atomic():
-        o = CateringOrder.objects.select_for_update().get(pk=order_id)
-        if o.status != "dipesan": raise ValueError("Hanya pesanan berstatus 'Dipesan' yang bisa dibatalkan.")
-        o.status, o.note = "batal", f"Dibatalkan: {reason}"[:300]
-        o.save()
-        return o
+        w = WarningLetter.objects.select_for_update().get(pk=pk)
+        if w.revoked_at: raise ValueError("SP ini sudah dicabut.")
+        w.revoked_at, w.revoked_by, w.revoke_reason = timezone.now(), user, reason[:300]; w.save()
+        return w

@@ -17,9 +17,9 @@ def dashboard(request):
              "contract_expired": c.filter(end__lt=today).count(),
              **{f"contract_le_{n}": c.filter(end__gte=today, end__lte=today + timedelta(days=n)).count() for n in (7, 30, 60)},
              "pending_requests": ChangeRequest.objects.filter(status="pending").count()}
-        from apps.hrd.models import Aid, BpjsMembership, MaternityLeave
+        from apps.hrd.models import BpjsMembership, MaternityLeave, WarningLetter
         d.update(maternity_active=MaternityLeave.objects.filter(state="aktif", start_date__lte=today, end_date__gte=today).count(),
-                 aid_pending=Aid.objects.filter(status="diajukan").count(),
+                 warnings_active=WarningLetter.objects.filter(revoked_at__isnull=True, issue_date__lte=today, valid_until__gte=today).count(),
                  bpjs_inactive=BpjsMembership.objects.filter(status="nonaktif", employee__status="aktif", employee__deleted_at__isnull=True).count())
         if u.role == Role.SUPERADMIN:
             d.update(visits_today=MedicalRecord.objects.filter(visit_at__date=today).count(),  # agregat saja (tanpa nama pasien)

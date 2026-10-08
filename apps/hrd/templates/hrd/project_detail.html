@@ -1,14 +1,16 @@
 {% extends "base.html" %}{% block title %}{{ p.code }}{% endblock %}{% block content %}
 <p><a href="/hrd/projects/">‹ Daftar proyek</a></p>
 <h2>{{ p.code }} · {{ p.name }} <span class="pill">{{ p.get_status_display }}</span></h2>
-<div class="bar"><a class="btn" style="margin-left:0" href="{% url 'hrd_project_edit' p.pk %}">Ubah proyek</a>{% if p.status == "aktif" %}<a class="btn" href="{% url 'hrd_project_log_new' p.pk %}">+ Catatan harian</a>{% endif %}</div>
+<div class="bar"><a class="btn" style="margin-left:0" href="{% url 'hrd_project_edit' p.pk %}">Ubah proyek</a>{% if p.status == "aktif" %}<a class="btn" href="{% url 'hrd_project_work_new' p.pk %}">+ Pekerja harian</a>{% endif %}</div>
 <div class="card"><table><tr><th>Lokasi</th><td>{{ p.location|default:"—" }}</td></tr><tr><th>Periode</th><td>{{ p.start_date|date:"d M Y" }} – {{ p.end_date|date:"d M Y"|default:"…" }}</td></tr><tr><th>Catatan</th><td>{{ p.note|default:"—" }}</td></tr></table></div>
-<h3>Catatan harian <small style="color:var(--mu)">({{ days }} hari tercatat)</small></h3>
-<form method="get" class="bar">Dari <input type="date" name="from" value="{{ from }}"> sampai <input type="date" name="to" value="{{ to }}"><button>Filter</button></form>
-<div class="wrap"><table><thead><tr><th>Tanggal</th><th>Pekerjaan</th><th>Orang</th><th>Pekerja</th><th></th></tr></thead><tbody>
-{% for l in page %}<tr><td style="white-space:nowrap">{{ l.work_date|date:"D, d M Y" }}</td><td>{{ l.activity|linebreaksbr }}{% if l.note %}<br><small style="color:var(--mu)">{{ l.note }}</small>{% endif %}</td><td>{{ l.headcount }}</td>
-<td>{% for w in l.workers.all|slice:":5" %}{{ w.nik }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if l.workers.all|length > 5 %} +{{ l.workers.all|length|add:"-5" }}{% endif %}</td>
-<td><a href="{% url 'hrd_project_log_edit' p.pk l.pk %}">Ubah</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="5">Belum ada catatan harian.</td></tr>{% endfor %}</tbody></table></div>
+<h3>Pekerja harian <small style="color:var(--mu)">(bukan karyawan)</small></h3>
+<form method="get" class="bar">Dari <input type="date" name="from" value="{{ from }}"> sampai <input type="date" name="to" value="{{ to }}"><input name="q" value="{{ q }}" placeholder="Nama pekerja"><button>Filter</button></form>
+<div class="grid" style="margin-bottom:12px"><div class="card"><b>{{ agg.n }}</b><span>Catatan orang-hari</span></div><div class="card"><b>{{ agg.days }}</b><span>Hari kerja</span></div><div class="card"><b>Rp {{ agg.t|default:0|floatformat:0 }}</b><span>Total upah (hasil filter)</span></div></div>
+{% if per_worker %}<details style="margin-bottom:12px"><summary>Rekap per pekerja ({{ per_worker|length }} orang)</summary><div class="wrap"><table><thead><tr><th>Pekerja</th><th>Hari</th><th>Total upah</th></tr></thead><tbody>{% for r in per_worker %}<tr><td>{{ r.worker_name }}</td><td>{{ r.days }}</td><td>Rp {{ r.total|floatformat:0 }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
+<div class="wrap"><table><thead><tr><th>Tanggal</th><th>Pekerja</th><th>Mengerjakan</th><th>Upah</th><th></th></tr></thead><tbody>
+{% for l in page %}<tr><td style="white-space:nowrap">{{ l.work_date|date:"D, d M Y" }}</td><td>{{ l.worker_name }}</td><td>{{ l.activity }}{% if l.note %}<br><small style="color:var(--mu)">{{ l.note }}</small>{% endif %}</td><td>Rp {{ l.wage|floatformat:0 }}</td>
+<td style="white-space:nowrap"><a href="{% url 'hrd_project_work_edit' p.pk l.pk %}">Ubah</a>
+<form method="post" action="{% url 'hrd_project_work_delete' p.pk l.pk %}" style="display:inline">{% csrf_token %}<button class="danger lnk" style="color:var(--er)">Hapus</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada catatan pekerja harian.</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

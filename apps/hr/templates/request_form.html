@@ -1,6 +1,6 @@
-{% extends "base.html" %}{% block title %}Buat pengajuan{% endblock %}{% block content %}
-<h2>Buat pengajuan</h2>
-<form method="post" class="card form">{% csrf_token %}
+{% extends "base.html" %}{% block title %}{{ title }}{% endblock %}{% block content %}
+<h2>{{ title }}</h2>
+<form method="post" class="card form">{% csrf_token %}{% if grp %}<input type="hidden" name="grp" value="{{ grp }}">{% endif %}
 {{ form.non_field_errors }}
 {% for f in form %}<div class="fld" data-f="{{ f.name }}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
 <p><button name="draft">Simpan draft</button> <button name="submit" value="1">Ajukan ke HRD</button></p></form>

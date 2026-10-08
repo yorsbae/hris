@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}{{ w.number }}{% endblock %}{% block content %}
+<p><a href="/hrd/warnings/">‹ Surat Peringatan</a></p>
+<h2>{{ w.get_level_display }} · {{ w.number }} <span class="pill {% if state == 'aktif' %}pending{% elif state == 'dicabut' %}rejected{% else %}nonaktif{% endif %}">{{ state }}</span></h2>
+<div class="bar">{% if not w.revoked_at %}<a class="btn" style="margin-left:0" href="{% url 'hrd_warning_pdf' w.pk %}" target="_blank">Cetak PDF</a>{% endif %}</div>
+<div class="card"><table>
+<tr><th>Karyawan</th><td>{{ w.employee.nik }} · {{ w.employee.name }} ({{ w.employee.position.name }}, {{ w.employee.department.name }})</td></tr>
+<tr><th>Tanggal terbit</th><td>{{ w.issue_date|date:"d M Y" }}</td></tr><tr><th>Berlaku sampai</th><td>{{ w.valid_until|date:"d M Y" }}</td></tr>
+<tr><th>Pelanggaran</th><td>{{ w.violation }}</td></tr><tr><th>Uraian</th><td>{{ w.description|linebreaksbr|default:"—" }}</td></tr>
+<tr><th>Diterbitkan oleh</th><td>{{ w.created_by.get_username|default:"—" }} · {{ w.created_at|date:"d M Y H:i" }}</td></tr>
+{% if w.revoked_at %}<tr><th>Dicabut</th><td>{{ w.revoked_at|date:"d M Y H:i" }} oleh {{ w.revoked_by.get_username|default:"—" }} — {{ w.revoke_reason }}</td></tr>{% endif %}</table></div>
+{% if not w.revoked_at %}<form method="post" action="{% url 'hrd_warning_revoke' w.pk %}" class="bar" style="margin-top:12px">{% csrf_token %}<input name="reason" placeholder="Alasan pencabutan (wajib)" required maxlength="300" style="min-width:280px"><button class="danger">Cabut SP</button></form>{% endif %}
+{% if history %}<h3>SP lain karyawan ini</h3><div class="wrap"><table><thead><tr><th>Nomor</th><th>Tingkat</th><th>Terbit</th><th>Berlaku s/d</th></tr></thead><tbody>{% for h in history %}<tr><td><a href="{% url 'hrd_warning_detail' h.pk %}">{{ h.number }}</a></td><td>{{ h.get_level_display }}</td><td>{{ h.issue_date|date:"d M Y" }}</td><td>{{ h.valid_until|date:"d M Y" }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% endblock %}

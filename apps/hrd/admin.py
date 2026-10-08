@@ -1,7 +1,7 @@
 from django.contrib import admin
 from . import models
 
-for m in (models.Aid, models.MaternityLeave, models.Project, models.ProjectDailyLog, models.CateringOrder, models.BpjsMembership):
+for m in (models.Aid, models.MaternityLeave, models.Project, models.ProjectWork, models.CateringOrder, models.WarningLetter, models.BpjsMembership):
     admin.site.register(m)
 
 

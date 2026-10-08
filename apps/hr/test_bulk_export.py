@@ -72,16 +72,6 @@ class MasterImportTests(BulkBase):
         self.post("/master/position/import/", [["name", "level"], ["Operator", "1"], ["operator", "2"]]); self.assertEqual(Position.objects.count(), 0)  # dobel (huruf beda)
         self.post("/master/position/import/", [["name", "level"], ["Operator", "1"]]); self.assertEqual(Position.objects.count(), 1)
 
-    def test_rotation_import_creates_groups_by_code_and_validates(self):
-        self.login("hrd"); pagi = Shift.objects.create(code="PAGI", name="Pagi", start=time(7), end=time(15)); malam = Shift.objects.create(code="MALAM", name="Malam", start=time(23), end=time(7), crosses_midnight=True)
-        r = self.post("/master/rotasi/import/", [["group", "weekday", "shift_code"], ["A_pack", "senin", "PAGI"], ["A_pack", "selasa", "MALAM"], ["A_pack", "rabu", ""], ["A", "senin", "PAGI"]])
-        self.assertContains(r, "4 ditambahkan")
-        self.assertEqual(ShiftGroup.objects.get(code="A_pack").pattern, "3_SHIFT"); self.assertEqual(ShiftGroup.objects.get(code="A").pattern, "2_SHIFT")
-        self.assertIsNone(ShiftRotation.objects.get(group__code="A_pack", weekday=2).shift)  # kosong = libur
-        for bad in ([["group", "weekday", "shift_code"], ["A", "selasa", "MALAM"]], [["group", "weekday", "shift_code"], ["A7", "senin", "PAGI"]], [["group", "weekday", "shift_code"], ["B_pack", "hari", "PAGI"]]):
-            self.assertContains(self.post("/master/rotasi/import/", bad), "Tidak ada yang disimpan")
-        self.assertFalse(ShiftGroup.objects.filter(code__in=("B_pack",)).exists())
-
     def test_import_requires_hrd(self):
         for u, code in (("poli", 403), ("adm", 403)):
             self.login(u); self.assertEqual(self.client.get("/master/shift/import/").status_code, code)

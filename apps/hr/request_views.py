@@ -4,13 +4,14 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 from apps.core.audit import log
 from apps.core.models import Notification, Role
 from apps.core.scope import get_scoped_or_404, require_roles, scope_by_department
 from . import schedule, services
-from .forms import FIELDS_BY_TYPE, LABELS, RequestForm
+from .forms import FIELDS_BY_TYPE, LABELS, REQUEST_GROUPS, RequestForm, allowed_types
 from .models import ChangeRequest
 
 ROLES = (Role.HRD, Role.DEPT_ADMIN)  # Superadmin lolos otomatis di require_roles
@@ -24,8 +25,13 @@ STATUS_LABELS = {"draft": "Draft", "submitted": "Diajukan", "pending": "Menunggu
 
 @login_required
 @require_roles(*ROLES)
-def request_list(request):
+def request_list(request, grp=None):
+    if grp is not None and grp not in REQUEST_GROUPS: raise Http404
     qs = scope_by_department(request.user, ChangeRequest.objects.select_related("employee", "department", "requested_by"))
+    group_types = [t for t in allowed_types(request.user) if grp is None or t in REQUEST_GROUPS[grp][1]]
+    if grp is not None:
+        if not group_types: raise Http404  # mis. Admin Dept membuka Perubahan Status (hanya HRD)
+        qs = qs.filter(type__in=group_types)
     f = {k: request.GET.get(k, "").strip() for k in ("status", "type", "q")}
     if f["status"]: qs = qs.filter(status=f["status"])
     if f["type"]: qs = qs.filter(type=f["type"])
@@ -38,13 +44,16 @@ def request_list(request):
         return tabular.export_response("pengajuan", ["no", "jenis", "status", "nik", "nama", "departemen", "diajukan_oleh", "dibuat"], rows, request, sheet="Pengajuan")
     page = Paginator(qs.order_by("-created_at"), 50).get_page(request.GET.get("page", 1))
     for r in page: r.status_label = STATUS_LABELS.get(r.status, r.status)
-    return render(request, "requests_list.html", {"page": page, "f": f, "types": LABELS, "statuses": STATUS_LABELS})
+    types = {t: LABELS[t] for t in (group_types if grp else LABELS)}
+    return render(request, "requests_list.html", {"page": page, "f": f, "types": types, "statuses": STATUS_LABELS, "grp": grp,
+                                                  "title": REQUEST_GROUPS[grp][0] if grp else "Semua pengajuan"})
 
 
 @login_required
 @require_roles(*ROLES)
 def request_new(request):
-    form = RequestForm(request.POST or None, user=request.user)
+    grp = request.GET.get("grp") or request.POST.get("grp") or None
+    form = RequestForm(request.POST or None, user=request.user, group=grp)
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
         req = ChangeRequest.objects.create(type=d["type"], employee=form.employee, department=form.employee.department,
@@ -59,7 +68,8 @@ def request_new(request):
         else:
             messages.success(request, "Draft tersimpan. Ajukan dari halaman detail bila sudah siap.")
         return redirect("request_detail", pk=req.pk)
-    return render(request, "request_form.html", {"form": form, "fields_by_type": FIELDS_BY_TYPE})
+    return render(request, "request_form.html", {"form": form, "fields_by_type": FIELDS_BY_TYPE, "grp": grp if grp in REQUEST_GROUPS else "",
+                                                 "title": REQUEST_GROUPS[grp][0] if grp in REQUEST_GROUPS else "Buat pengajuan"})
 
 
 def _actions(user, req):

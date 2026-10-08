@@ -195,17 +195,68 @@ def master_form(request, kind, pk=None):
 @login_required
 @require_roles(*HRD_ROLES)
 def master_export(request, kind):
-    """Ekspor master (departemen/jabatan/shift) atau, untuk kind=rotasi, tabel rotasi kelompok shift. Kolom sama dengan template impor."""
+    """Ekspor master (departemen/jabatan/shift). Kolom sama dengan template impor."""
     from apps.core import tabular
-    from .models import ShiftRotation
-    if kind == "rotasi":
-        names = ["senin", "selasa", "rabu", "kamis", "jumat", "sabtu", "minggu"]
-        header = ["group", "weekday", "shift_code"]
-        rows = [[r.group.code, names[r.weekday], r.shift.code if r.shift_id else ""] for r in ShiftRotation.objects.select_related("group", "shift").order_by("group__pattern", "group__code", "weekday")]
-    else:
-        label, M, _ = _master(kind)
-        if kind == "department": header = ["code", "name", "parent_code"]; rows = [[d.code, d.name, d.parent.code if d.parent_id else ""] for d in M.objects.select_related("parent").order_by("code")]
-        elif kind == "position": header = ["name", "level"]; rows = [[p.name, p.level] for p in M.objects.order_by("name")]
-        else: header = ["code", "name", "start", "end", "crosses_midnight", "is_gs", "active"]; rows = [[x.code, x.name, x.start, x.end, x.crosses_midnight, x.is_gs, x.active] for x in M.objects.order_by("start", "code")]
+    label, M, _ = _master(kind)
+    if kind == "department": header = ["code", "name", "parent_code"]; rows = [[d.code, d.name, d.parent.code if d.parent_id else ""] for d in M.objects.select_related("parent").order_by("code")]
+    elif kind == "position": header = ["name", "level"]; rows = [[p.name, p.level] for p in M.objects.order_by("name")]
+    else: header = ["code", "name", "start", "end", "crosses_midnight", "is_gs", "active"]; rows = [[x.code, x.name, x.start, x.end, x.crosses_midnight, x.is_gs, x.active] for x in M.objects.order_by("start", "code")]
     log(request, "hr", "master_export", None, None, {"kind": kind, "rows": len(rows)})
     return tabular.export_response(f"master-{kind}", header, rows, request, sheet=kind)
+
+
+@login_required
+@require_roles(*HRD_ROLES)
+def rotation_edit(request):
+    """Ubah tabel rotasi kelompok langsung di halaman (menggantikan impor/ekspor, putaran 20). Satu form berisi seluruh sel (kelompok × Senin…Minggu);
+    tiap sel = shift rotasi aktif (non-GS) atau Libur. Pola 2 shift tidak boleh memakai shift yang melewati tengah malam. Simpan dalam satu transaksi;
+    penyimpangan dari aturan jumlah per hari (docs/jadwal_shift_2026.md) hanya DIPERINGATKAN (HRD boleh menyimpang sementara), bukan ditolak."""
+    from . import rotation_table as rt
+    from .models import Shift, ShiftGroup, ShiftRotation
+    shifts = list(Shift.objects.filter(active=True, is_gs=False).order_by("start", "code"))
+    by_code = {s.code: s for s in shifts if s.code}
+    groups = list(ShiftGroup.objects.order_by("pattern", "code"))
+    cur = {(r.group_id, r.weekday): (r.shift.code if r.shift_id else "") for r in ShiftRotation.objects.select_related("shift")}
+    errors, posted = [], {}
+    if request.method == "POST":
+        if request.POST.get("action") == "reset":  # kembalikan ke tabel resmi
+            with transaction.atomic():
+                before = {f"{g}|{w}": c for (g, w), c in cur.items()}
+                for pattern in (rt.P2, rt.P3):
+                    for code, cells in rt.official(pattern).items():
+                        g, _ = ShiftGroup.objects.get_or_create(code=code, defaults={"pattern": pattern})
+                        for wd, sc in enumerate(cells):
+                            sh = by_code.get(sc) if sc else None
+                            if sc and not sh: errors.append(f"Shift {sc} tidak ada/nonaktif; sel {code} {rt.DAY_NAMES[wd]} dilewati."); continue
+                            ShiftRotation.objects.update_or_create(group=g, weekday=wd, defaults={"shift": sh})
+                log(request, "hr", "rotation_reset", None, None, {"groups": len(groups)})
+            messages.success(request, "Tabel rotasi dikembalikan ke aturan resmi 2026." + (" Ada sel dilewati." if errors else ""))
+            if not errors: return redirect("master_list", kind="shift")
+        else:
+            changes, new = [], {}
+            for g in groups:
+                for wd in range(7):
+                    key = f"c_{g.pk}_{wd}"; v = (request.POST.get(key) or "").strip(); posted[key] = v
+                    sh = None
+                    if v:
+                        sh = by_code.get(v)
+                        if not sh: errors.append(f"{g.code} {rt.DAY_NAMES[wd]}: shift '{v}' tidak valid."); continue
+                        if g.pattern == ShiftGroup.P2 and sh.crosses_midnight:
+                            errors.append(f"{g.code} {rt.DAY_NAMES[wd]}: pola 2 shift tidak boleh memakai {sh.code} (melewati tengah malam)."); continue
+                    new[(g.pk, wd)] = sh
+                    if cur.get((g.pk, wd), None) != (sh.code if sh else ""): changes.append((g, wd, sh))
+            if not errors:
+                with transaction.atomic():
+                    for g, wd, sh in changes: ShiftRotation.objects.update_or_create(group=g, weekday=wd, defaults={"shift": sh})
+                    log(request, "hr", "rotation_update", None, {f"{g.code}|{rt.DAY_NAMES[wd]}": cur.get((g.pk, wd), "-") or "libur" for g, wd, sh in changes},
+                        {f"{g.code}|{rt.DAY_NAMES[wd]}": (sh.code if sh else "libur") for g, wd, sh in changes})
+                messages.success(request, f"Tabel rotasi disimpan ({len(changes)} sel berubah)." if changes else "Tidak ada perubahan.")
+                return redirect("master_list", kind="shift")
+    blocks = []
+    for pattern, title in ((ShiftGroup.P2, "Pola 2 shift — kelompok A–G"), (ShiftGroup.P3, "Pola 3 shift / PACK — kelompok A_pack–G_pack")):
+        rows = []
+        for g in (x for x in groups if x.pattern == pattern):
+            rows.append((g, [{"name": f"c_{g.pk}_{wd}", "value": posted.get(f"c_{g.pk}_{wd}", cur.get((g.pk, wd), ""))} for wd in range(7)]))
+        blocks.append({"title": title, "rows": rows,
+                       "options": [s for s in shifts if pattern == ShiftGroup.P3 or not s.crosses_midnight]})
+    return render(request, "rotation_edit.html", {"blocks": blocks, "days": rt.DAY_NAMES, "errors": errors})

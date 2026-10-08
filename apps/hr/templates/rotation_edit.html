@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Ubah tabel rotasi{% endblock %}{% block content %}
+<h2>Ubah tabel rotasi kelompok</h2>
+<p style="color:var(--mu);font-size:13px">Pilih shift tiap kelompok per hari, atau <b>Libur</b>. Aturan resmi 2026: pola 2 shift = 3 Pagi + 3 Siang + 1 Libur per hari; pola 3 shift/PACK = 2 Pagi + 2 Siang + 2 Malam + 1 Libur per hari. Penyimpangan hanya diperingatkan di halaman Master Shift, tidak ditolak. Perubahan berlaku untuk jadwal efektif seluruh anggota kelompok dan tercatat di audit.</p>
+{% if errors %}<div class="card" role="alert" style="border-color:#dc2626;margin-bottom:10px"><b>Tidak disimpan:</b><ul style="margin:4px 0 0 18px">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post">{% csrf_token %}
+{% for b in blocks %}<h4 style="margin:14px 0 6px">{{ b.title }}</h4>
+<div class="wrap"><table><thead><tr><th>Kelompok</th>{% for d in days %}<th>{{ d }}</th>{% endfor %}</tr></thead><tbody>
+{% for g, cells in b.rows %}<tr><td><b>{{ g.code }}</b></td>{% for c in cells %}<td><select name="{{ c.name }}" aria-label="{{ g.code }}"><option value="">Libur</option>{% for s in b.options %}<option value="{{ s.code }}"{% if s.code == c.value %} selected{% endif %}>{{ s.code }}</option>{% endfor %}</select></td>{% endfor %}</tr>{% empty %}<tr><td class="empty" colspan="8">Belum ada kelompok.</td></tr>{% endfor %}</tbody></table></div>{% endfor %}
+<p><button class="btn" type="submit" name="action" value="save">Simpan</button> <a class="btn" href="{% url 'master_list' 'shift' %}" style="opacity:.7">Batal</a>
+<button class="btn danger" type="submit" name="action" value="reset" style="float:right">Kembalikan ke aturan resmi</button></p>
+</form>{% endblock %}

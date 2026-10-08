@@ -7,78 +7,47 @@ from .test_base import HrdBase
 
 
 class AidTests(HrdBase):
+    """Bantuan = rekap (putaran 20): tanpa status/persetujuan; ubah & hapus boleh, semuanya tercatat di audit."""
     def setUp(self): self.login()
 
     def new(self, **kw):
         d = {"nik": "001", "kind": "kematian", "event_date": self.today().isoformat(), "amount": 1_000_000, "description": ""}; d.update(kw)
         return self.client.post(reverse("hrd_aid_new"), d)
 
-    def test_create_and_audit(self):
-        r = self.new(description="Ayah meninggal"); a = Aid.objects.get()
-        self.assertRedirects(r, reverse("hrd_aid_detail", args=[a.pk]))
-        self.assertEqual((a.employee, a.status, a.amount, a.created_by), (self.e1, "diajukan", 1_000_000, self.hrd))
-        self.assertEqual(self.last_audit("aid_create").after["employee"], "001")
+    def test_create_and_audit_without_status(self):
+        self.assertRedirects(self.new(description="Ayah meninggal"), reverse("hrd_aids"))
+        a = Aid.objects.get(); self.assertEqual((a.employee_id, a.kind, a.amount, a.created_by_id), (self.e1.pk, "kematian", 1_000_000, self.hrd.pk))
+        self.assertFalse(hasattr(a, "status")); self.assertEqual(self.last_audit("aid_create").after["amount"], 1_000_000)
 
     def test_rejects_bad_input(self):
-        self.assertContains(self.new(nik="999"), "tidak ditemukan")
-        self.assertContains(self.new(nik="009"), "tidak ditemukan")       # karyawan nonaktif
-        self.assertEqual(self.new(amount=0).status_code, 200); self.assertEqual(self.new(amount=-5).status_code, 200); self.assertEqual(self.new(amount="abc").status_code, 200)
-        self.assertEqual(self.new(kind="zzz").status_code, 200); self.assertEqual(self.new(event_date="bukan-tanggal").status_code, 200)
+        self.assertContains(self.new(nik="999"), "tidak ditemukan"); self.assertContains(self.new(nik="009"), "tidak ditemukan")
+        for bad in ({"amount": 0}, {"amount": -5}, {"amount": "abc"}, {"kind": "zzz"}, {"event_date": "bukan-tanggal"}):
+            self.assertEqual(self.new(**bad).status_code, 200)
         self.assertEqual(Aid.objects.count(), 0)
 
     def test_deleted_employee_not_found(self):
         self.e3.soft_delete(self.hrd, "uji"); self.assertContains(self.new(nik="003"), "tidak ditemukan")
 
-    def test_duplicate_event_blocked_unless_previous_rejected(self):
+    def test_duplicate_same_employee_kind_date_blocked(self):
         self.new(); self.assertContains(self.new(), "sudah tercatat"); self.assertEqual(Aid.objects.count(), 1)
-        self.new(kind="pernikahan"); self.assertEqual(Aid.objects.count(), 2)                  # jenis lain boleh
-        a = Aid.objects.get(kind="kematian"); services.aid_transition(a.pk, "ditolak", self.hrd, "tidak memenuhi syarat")
-        self.new(); self.assertEqual(Aid.objects.count(), 3)                                    # yang ditolak tidak menghalangi
+        self.new(kind="pernikahan"); self.assertEqual(Aid.objects.count(), 2)
 
-    def test_full_flow(self):
-        self.new(); a = Aid.objects.get(); act = lambda x, **d: self.client.post(reverse("hrd_aid_action", args=[a.pk, x]), d, follow=True)  # noqa: E731
-        act("approve", note="OK"); a.refresh_from_db()
-        self.assertEqual((a.status, a.decided_by, a.decision_note), ("disetujui", self.hrd, "OK")); self.assertIsNotNone(a.decided_at)
-        act("pay", paid_at="2025-03-01"); a.refresh_from_db(); self.assertEqual((a.status, str(a.paid_at)), ("dibayar", "2025-03-01"))
-        self.assertEqual(self.last_audit("aid_pay").before, {"status": "disetujui"})
-
-    def test_invalid_transitions(self):
+    def test_edit_any_time_audited_and_delete_audited(self):
         self.new(); a = Aid.objects.get()
-        r = self.client.post(reverse("hrd_aid_action", args=[a.pk, "pay"]), follow=True)          # belum disetujui
-        self.assertIn("Tidak bisa", " ".join(self.msgs(r))); a.refresh_from_db(); self.assertEqual(a.status, "diajukan")
-        self.client.post(reverse("hrd_aid_action", args=[a.pk, "approve"]))
-        r = self.client.post(reverse("hrd_aid_action", args=[a.pk, "approve"]), follow=True)      # klik dua kali
-        self.assertIn("Tidak bisa", " ".join(self.msgs(r)))
-        r = self.client.post(reverse("hrd_aid_action", args=[a.pk, "reject"], ), {"note": "x"}, follow=True)  # sudah disetujui, tidak bisa ditolak
-        a.refresh_from_db(); self.assertEqual(a.status, "disetujui")
-
-    def test_reject_requires_reason(self):
-        self.new(); a = Aid.objects.get()
-        r = self.client.post(reverse("hrd_aid_action", args=[a.pk, "reject"]), {"note": "  "}, follow=True)
-        self.assertIn("Alasan wajib", " ".join(self.msgs(r))); a.refresh_from_db(); self.assertEqual(a.status, "diajukan")
-        self.client.post(reverse("hrd_aid_action", args=[a.pk, "reject"]), {"note": "Dokumen tidak lengkap"}); a.refresh_from_db()
-        self.assertEqual((a.status, a.decision_note), ("ditolak", "Dokumen tidak lengkap"))
-
-    def test_final_states_cannot_change(self):
-        self.new(); a = Aid.objects.get(); services.aid_transition(a.pk, "ditolak", self.hrd, "x")
-        for to in ("disetujui", "dibayar", "ditolak"):
-            with self.assertRaises(ValueError): services.aid_transition(a.pk, to, self.hrd, "y")
-
-    def test_edit_only_while_submitted_and_audited(self):
-        self.new(); a = Aid.objects.get(); url = reverse("hrd_aid_edit", args=[a.pk])
-        r = self.client.post(url, {"nik": "002", "kind": "kematian", "event_date": a.event_date.isoformat(), "amount": 2_500_000, "description": "revisi"})  # nik dikunci
-        a.refresh_from_db(); self.assertEqual((a.amount, a.employee), (2_500_000, self.e1))
+        r = self.client.post(reverse("hrd_aid_edit", args=[a.pk]), {"kind": "kematian", "event_date": self.today().isoformat(), "amount": 2_500_000, "description": "koreksi"})
+        self.assertRedirects(r, reverse("hrd_aids")); a.refresh_from_db(); self.assertEqual(a.amount, 2_500_000)
         au = self.last_audit("aid_update"); self.assertEqual((au.before["amount"], au.after["amount"]), (1_000_000, 2_500_000))
-        services.aid_transition(a.pk, "disetujui", self.hrd); self.assertRedirects(self.client.get(url), reverse("hrd_aid_detail", args=[a.pk]))
-        self.client.post(url, {"nik": "001", "kind": "kematian", "event_date": a.event_date.isoformat(), "amount": 9, "description": ""}); a.refresh_from_db(); self.assertEqual(a.amount, 2_500_000)
+        self.assertEqual(self.client.get(reverse("hrd_aid_delete", args=[a.pk])).status_code, 405)  # hapus hanya POST
+        self.client.post(reverse("hrd_aid_delete", args=[a.pk])); self.assertEqual(Aid.objects.count(), 0)
+        self.assertEqual(self.last_audit("aid_delete").before["amount"], 2_500_000)
 
-    def test_list_filter_total_excludes_rejected_and_xss(self):
-        self.new(amount=1000); self.new(kind="pernikahan", amount=2000); self.new(kind="kelahiran", amount=4000, description="<script>alert(1)</script>")
-        services.aid_transition(Aid.objects.get(kind="kelahiran").pk, "ditolak", self.hrd, "x")
-        r = self.client.get("/hrd/aids/"); self.assertEqual(r.context["total"], 3000)
-        self.assertEqual(len(self.client.get("/hrd/aids/?status=ditolak").context["page"]), 1)
-        self.assertEqual(len(self.client.get("/hrd/aids/?q=budi&kind=pernikahan").context["page"]), 1)
-        self.assertNotContains(self.client.get(reverse("hrd_aid_detail", args=[Aid.objects.get(kind="kelahiran").pk])), "<script>alert(1)</script>")
+    def test_list_filter_totals_and_xss(self):
+        Aid.objects.create(employee=self.e1, kind="kematian", event_date=date(2026, 1, 5), amount=1000, description="<script>x</script>")
+        Aid.objects.create(employee=self.e2, kind="pernikahan", event_date=date(2025, 3, 5), amount=500)
+        r = self.client.get(reverse("hrd_aids")); self.assertEqual((r.context["total"], r.context["count"]), (1500, 2)); self.assertNotContains(r, "<script>x</script>")
+        r = self.client.get(reverse("hrd_aids") + "?kind=kematian"); self.assertEqual(r.context["total"], 1000)
+        r = self.client.get(reverse("hrd_aids") + "?year=2025"); self.assertEqual(r.context["total"], 500)
+        self.assertEqual(self.client.get(reverse("hrd_aids") + "?year=abc&q=%27").status_code, 200)
 
 
 class MaternityTests(HrdBase):

@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from apps.core.models import AuditLog, Notification, Role, User
 from apps.hr import models as hr, schedule, rotation_table as rt
-from apps.hrd import models as hrd
+from apps.hrd import models as hrd, services as hrd_services
 from apps.poli import models as pl, services as ps
 
 FIRST = ["Budi", "Siti", "Andi", "Rina", "Dewi", "Agus", "Wulan", "Rizky", "Fitri", "Joko", "Sri", "Dimas", "Putri", "Eko", "Ayu", "Hendra", "Lestari", "Bayu", "Nur", "Yusuf", "Maya", "Rudi", "Intan", "Fajar", "Tri", "Ahmad", "Dian", "Slamet", "Ratna", "Doni"]
@@ -264,26 +264,30 @@ class Command(BaseCommand):
     # ---------- operasional HRD
     def hrd_ops(self):
         r, today = self.r, self.today
-        for k, st in (("kematian", "diajukan"), ("pernikahan", "disetujui"), ("kelahiran", "dibayar"), ("musibah", "ditolak"), ("pernikahan", "diajukan")):
+        for k in ("kematian", "pernikahan", "kelahiran", "musibah", "pernikahan"):
             e = r.choice(self.active)
             hrd.Aid.objects.create(employee=e, kind=k, event_date=today - timedelta(days=r.randint(3, 50)), amount=r.choice([500_000, 750_000, 1_000_000, 1_500_000]),
-                                   description="Data demo", status=st, created_by=self.hrd_u, decided_by=self.hrd_u if st != "diajukan" else None,
-                                   decided_at=REAL_NOW() if st != "diajukan" else None, paid_at=today - timedelta(days=2) if st == "dibayar" else None,
-                                   decision_note="Tidak memenuhi syarat (demo)" if st == "ditolak" else "")
+                                   description="Data demo", created_by=self.hrd_u)
         women = [e for e in self.active if e.gender == "P"]
         if women:
             e = r.choice(women); due = today + timedelta(days=40)
             hrd.MaternityLeave.objects.create(employee=e, due_date=due, start_date=due - timedelta(days=45), end_date=due + timedelta(days=45), note="Data demo", created_by=self.hrd_u)
         pr = [hrd.Project.objects.create(code="PRJ-2026-01", name="Perluasan Gudang B", location="Area Timur", start_date=today - timedelta(days=60), created_by=self.hrd_u),
               hrd.Project.objects.create(code="PRJ-2026-02", name="Renovasi Kantin", location="Gedung Utama", start_date=today - timedelta(days=20), created_by=self.hrd_u)]
+        names = ["Sutrisno", "Wahyu", "Ngatiman", "Slamet", "Parman", "Darto"]
         for p in pr:
             for k in range(4):
-                w = r.sample(self.active, 5); lg = hrd.ProjectDailyLog.objects.create(project=p, work_date=today - timedelta(days=k + 1), activity=r.choice(["Pengecoran lantai", "Pemasangan rangka atap", "Pengecatan dinding", "Pemasangan keramik"]), headcount=5, created_by=self.hrd_u)
-                lg.workers.set(w)
+                for nm in r.sample(names, 3):
+                    hrd.ProjectWork.objects.create(project=p, work_date=today - timedelta(days=k + 1), worker_name=nm, wage=r.choice([100_000, 120_000, 150_000]), created_by=self.hrd_u,
+                                                   activity=r.choice(["Pengecoran lantai", "Pemasangan rangka atap", "Pengecatan dinding", "Pemasangan keramik"]))
         for k in range(10):
             d = today - timedelta(days=k)
-            hrd.CateringOrder.objects.create(date=d, meal=r.choice(["siang", "malam"]), qty_large=r.randint(40, 90), qty_small=r.randint(10, 30), price_large=18000, price_small=12000,
-                                             vendor="Katering Bu Sari", status="diterima" if k else "dipesan", received_large=None, created_by=self.hrd_u)
+            for meal in ("0900", "1200", "1800", "0200")[:2 + k % 3]:
+                ql, qs = r.randint(40, 90), r.randint(10, 30)
+                hrd.CateringOrder.objects.create(date=d, meal=meal, qty_large=ql, qty_small=qs, received_large=ql if k else None, received_small=qs if k else None, created_by=self.hrd_u)
+        for lvl, nik_i in ((1, 0), (2, 1)):
+            e = self.active[nik_i]
+            w = hrd_services.issue_warning(e, lvl, today - timedelta(days=30 * lvl), hrd_services.add_months(today - timedelta(days=30 * lvl), 6), "Terlambat berulang (demo)", "Data demo", self.hrd_u)
         self.stat += ", operasional HRD"
 
     # ---------- poliklinik
