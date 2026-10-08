@@ -8,20 +8,46 @@ Database tidak pernah di komputer client.
 > Gambar dashboard (`docs/ui-reference/dashboard-hrd.png`) dipakai **hanya sebagai rujukan tampilan** agar UI/UX rapi dan ramah pengguna;
 > fitur ditentukan oleh visi ini, bukan oleh isi gambar. Bagian bertanda **[BARU]** berasal dari penggabungan; keputusan dicatat di "Keputusan penyelarasan".
 
+> **Pembaruan 8 Oktober 2026.** Ditambahkan (bertanda **[BARU]**): tombol ikon tema terang/gelap · Rekap Seragam · Validasi kehadiran
+> HRD → Admin Departemen · format rupiah tanpa ",00" · menu BPJS (Ketenagakerjaan/Kesehatan) + rekap potongan + impor/ekspor XLSX ·
+> Tagihan Mitra untuk Poli · bagian "Kemungkinan / belum diputuskan" (role Payroll & IT) · pertahanan keamanan berlapis · strategi skalabilitas.
+> Butir yang sudah ada sebelumnya tidak diduplikasi, hanya dirujuk. Komponen baru keamanan/skalabilitas **disetujui pemilik produk**; angka ambang/sasaran yang bertanda *usulan* masih dapat disetel.
+
 ## Role
 | Role | Cakupan |
 |---|---|
 | Superadmin | Semua: user, role, permission, master, konfigurasi sistem, audit, backup, pengaturan perusahaan (nama, logo, alamat, kontak, tahun berjalan) |
-| HRD | Dashboard HRD, karyawan, struktur organisasi, departemen, jabatan, grade, status kepegawaian, shift, kontrak, mutasi/promosi, tukar shift, izin/cuti/libur, absensi, **surat peringatan**, BPJS, **recruitment**, informasi, laporan, monitoring pengajuan, **halaman Operasional HRD** (bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS) |
-| Admin Departemen (±20) | Hanya departemennya: lihat karyawan, konfirmasi absensi, **mengajukan** mutasi/izin/cuti/tukar shift/tukar libur/**administrasi**, memantau status & riwayat pengajuan, terima informasi HRD. Tanpa CRUD master, data sensitif, data medis, tanpa approve, tanpa mengubah BPJS bebas |
-| Poli (Medis) | Identitas minimum karyawan + seluruh modul poliklinik (pemeriksaan, rekam medis, diagnosis, tindakan, obat, stok, MCU, laporan medis) |
+| HRD | Dashboard HRD, karyawan, struktur organisasi, departemen, jabatan, grade, status kepegawaian, shift, kontrak, mutasi/promosi, tukar shift, izin/cuti/libur, absensi, **surat peringatan**, BPJS (**submenu Ketenagakerjaan/Kesehatan + rekap potongan**), **seragam**, **validasi kehadiran**, **recruitment**, informasi, laporan, monitoring pengajuan, **halaman Operasional HRD** (bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS) |
+| Admin Departemen (±20) | Hanya departemennya: lihat karyawan, konfirmasi absensi (**atas permintaan HRD**, lihat "Validasi kehadiran"), **mengajukan** mutasi/izin/cuti/tukar shift/tukar libur/**administrasi**, memantau status & riwayat pengajuan, terima informasi HRD. Tanpa CRUD master, data sensitif, data medis, tanpa approve, tanpa mengubah BPJS bebas |
+| Poli (Medis) | Identitas minimum karyawan + seluruh modul poliklinik (pemeriksaan, rekam medis, diagnosis, tindakan, obat, stok, MCU, laporan medis, **tagihan mitra**) |
 | Employee | **Bukan role/login.** Data dikelola HRD; pengajuan lewat Admin Departemen **[BARU, dikonfirmasi]** |
+
+> **Role tambahan (Payroll, IT)**: mungkin diterapkan, mungkin tidak — lihat "[BARU] Kemungkinan / belum diputuskan". Desain role harus tetap memungkinkan penambahan tanpa mengubah struktur data.
 
 ## Keamanan
 RBAC + **department scope di backend/query** (ubah ID di URL → 404). Data sensitif/medis hanya role berwenang.
 Password hash, rate limit login, CSRF, validasi input, session aman, audit log, soft delete untuk data penting.
 Data medis wajib berpembatasan akses (karena sensitif). **[BARU]** Hak akses akhirnya berbasis aksi — *View · Create · Edit · Delete · Approve · Reject · Export · Print* —
 per role (saat ini masih per role + scope; matriks per aksi dikerjakan bertahap, lihat A7 di PROGRESS).
+
+### [BARU] Pertahanan berlapis (banjir request, brute force, dan serangan umum)
+Prinsip: **tidak ada satu lapisan yang diandalkan sendirian.** Lapisan luar (firewall/Nginx) menahan beban sebelum menyentuh Django; lapisan aplikasi menahan
+penyalahgunaan per akun; lapisan data membatasi dampak bila ada yang lolos. Angka di bawah adalah **usulan awal**, disetel lewat konfigurasi setelah diuji.
+
+| Ancaman | Kontrol |
+|---|---|
+| **Terlalu banyak request** (flood/DoS dari satu IP, skrip rusak, klien salah) | Nginx `limit_req` + `limit_conn` per IP dengan zona terpisah (login sangat ketat · API/daftar sedang · ekspor/unduh/unggah ketat); batas ukuran body dan timeout. Di aplikasi: throttling per user **dan** per IP memakai **cache bersama (Redis)** agar berlaku lintas worker (cache per proses tidak cukup bila worker > 1). Jawaban **429 + `Retry-After`**, tercatat. Timeout dan jumlah worker gunicorn dibatasi agar satu endpoint lambat tidak menghabiskan semua worker; pekerjaan berat dialihkan ke antrean (lihat Skalabilitas) |
+| **Terlalu banyak login / brute force / credential stuffing** | Pembatasan **per IP dan per username** (satu orang tidak mengunci semua, tetapi satu akun juga tidak bisa ditebak terus-menerus); jeda bertambah progresif; akun terkunci sementara setelah N kali gagal dan dapat dibuka Superadmin; pesan galat **sama** untuk username salah dan sandi salah (tidak membocorkan akun yang ada); kebijakan sandi (panjang minimum, sandi umum ditolak); **2FA (TOTP)** bertahap — wajib untuk Superadmin, lalu HRD/Poli; notifikasi ke Superadmin saat lonjakan gagal login; login gagal/terkunci tercatat di audit |
+| **Pengambilalihan sesi / penyadapan** | Cookie `HttpOnly`/`Secure`/`SameSite`; **timeout idle**; sesi diputus saat ganti/reset sandi (sudah ada); ID sesi diganti saat login; opsi batasi sesi bersamaan; **TLS juga di LAN** (sertifikat CA internal) supaya sandi dan sesi tidak terbaca di jaringan |
+| **Injeksi & skrip** (SQLi, XSS, CSRF, clickjacking) | ORM tanpa SQL mentah dari input; keluaran di-escape / `textContent` (sudah ada); CSRF (sudah ada); **CSP ketat** (mudah karena tanpa CDN); `frame-ancestors`/`X-Frame-Options`, `nosniff`, `Referrer-Policy`, HSTS bila HTTPS; sel berawalan `=`/`@` ditolak/dinetralkan di impor-ekspor (sudah ada) |
+| **Akses antar-data yang tidak sah** (IDOR, eskalasi hak) | Scope di backend (ubah ID → 404, sudah ada); permission per aksi (A7); tes RBAC otomatis setiap URL × role; **tinjauan hak akses berkala** (Superadmin meninjau daftar user & role tiap kuartal); hak minimum, termasuk untuk role Payroll/IT bila diterapkan |
+| **Unggahan berbahaya** | Ekstensi + magic bytes + ukuran (sudah ada), nama berkas uuid, unduh lewat view ber-izin (sudah ada); tambahan **pemindai antivirus (ClamAV)**; satu helper validasi untuk semua jalur unggah (lampiran pengumuman, tagihan mitra, dokumen) |
+| **Kebocoran data massal** (orang dalam, akun dibajak) | Ekspor data sensitif hanya role berwenang dan diaudit (sudah ada); **kuota + rate limit ekspor**; peringatan otomatis untuk pola janggal (ekspor besar berulang, akses di luar jam kerja, banyak 403/404 beruntun = pemindaian); enkripsi kolom (sudah ada) dan keputusan enkripsi data medis (A12); nilai sensitif tidak masuk log |
+| **Pemindaian & serangan jaringan** | Firewall: hanya 80/443 dari subnet yang diizinkan; PostgreSQL hanya di **localhost/socket**, tidak terjangkau dari LAN; SSH hanya kunci; **fail2ban** membaca log Nginx/aplikasi dan memblokir IP; segmentasi VLAN; Career Portal di host terpisah (sudah ada di keputusan #8) |
+| **Kelemahan komponen** (dependensi, konfigurasi) | `manage.py check --deploy`; pembaruan dependensi berkala + `pip-audit`; analisis statis (`bandit`) di pengujian; rahasia hanya di `.env` (tidak di repo); `DEBUG=False`; akun layanan hak minimum |
+| **Perusakan / ransomware / kehilangan data** | Backup terenkripsi, **salinan di lokasi lain yang tidak dapat ditimpa dari server utama** (immutable/offline), uji restore terjadwal, kunci enkripsi disimpan terpisah; audit log append-only (sudah ada) + salinan ke host log terpisah |
+| **Insiden** | Runbook singkat (siapa memutus akses, memutar kunci/sandi, memulihkan), retensi log, latihan berkala |
+
 
 ## Prinsip data
 - Jangan menimpa data lama: simpan **histori** departemen, jabatan, grade, lokasi, status, shift, kontrak, organisasi, mutasi, pendidikan, pekerjaan sebelumnya.
@@ -53,6 +79,29 @@ Aturan: tanggal tidak lampau; tidak bentrok dengan tukar lain (baik sebagai pemo
 Pagination server-side, indeks, search NIK/nama, filter departemen/jabatan/status/shift/kontrak. Jangan kirim 3.000+ data sekaligus.
 **[BARU]** Dashboard memakai agregasi di server (hitung/kelompokkan di database, bukan memuat baris), dengan indeks pendukung dan cache singkat bila perlu.
 
+### [BARU] Skalabilitas — tetap cepat saat data dan pengguna bertambah
+3.000 karyawan itu kecil bagi PostgreSQL. Yang tumbuh cepat adalah **tabel berumur panjang**: log absensi mentah (3.000 karyawan × ±4 tap/hari ≈ 4 juta baris/tahun),
+audit log, notifikasi, kartu stok, rekam medis, katering. Rancangannya tiga lapis: **cepat sejak awal** (indeks, agregasi di database) ·
+**tumbuh tanpa ubah struktur** (partisi, arsip, ringkasan) · **request pengguna tidak pernah menunggu pekerjaan berat** (antrean). Itu juga yang menjaga pengiriman data/notifikasi
+dan request tetap lancar saat jam sibuk (pergantian shift 06/14/22, awal jam kerja).
+
+| Lapisan | Langkah | Kapan |
+|---|---|---|
+| Query & indeks | Indeks sesuai pola filter (komposit, mis. karyawan+tanggal); tinjau `EXPLAIN`, `pg_stat_statements`/slow query log; tanpa N+1 (tes jumlah query sudah ada); hitung/kelompokkan di database | Sejak sekarang |
+| Paginasi tabel besar | `OFFSET` untuk tabel kecil/menengah; **keyset pagination** (berdasarkan id/tanggal) untuk tabel jutaan baris (audit, absensi, kartu stok); filter tanggal bawaan; jumlah total perkiraan | Saat tabel > ±1 juta baris |
+| Partisi & arsip | Partisi PostgreSQL per bulan/tahun untuk absensi mentah dan audit; **retensi** (data aktif ±2 tahun di tabel panas, sisanya arsip yang tetap dapat dicari); data medis/hukum tidak dihapus, hanya dipindah | Sebelum Tahap 6 produksi |
+| Ringkasan terhitung | Tabel rollup / materialized view untuk dashboard, rekap absensi bulanan, laporan; diperbarui terjadwal | Saat laporan mulai lambat |
+| Koneksi database | **PgBouncer** (pooling), `CONN_MAX_AGE`, jumlah worker diselaraskan dengan `max_connections`; autovacuum disetel untuk tabel yang sering ditulis | Saat worker > ±8 atau multi-server |
+| Cache | **Redis**: cache bersama (master, dashboard 30–60 dtk), penyimpanan rate limit dan sesi. Kunci cache memuat **scope role** agar tidak bocor lintas peran | Rate limit: sekarang; sisanya bertahap |
+| Pekerjaan berat di luar request | **Antrean** (Celery/RQ + Redis) untuk ekspor XLSX/PDF besar, impor massal (karyawan, potongan BPJS, seragam), sinkronisasi Fingerspot, rekap bulanan, notifikasi massal/pengingat. UI: "Sedang diproses → unduh bila selesai" + notifikasi | Impor/ekspor > ±1.000 baris; wajib untuk Tahap 6 |
+| Server aplikasi | Nginx (statis, gzip, keepalive) → gunicorn (worker ≈ 2×CPU+1, `max_requests` untuk daur ulang); **worker antrean terpisah** dari worker web | Saat produksi |
+| Sinkronisasi mesin absensi | **Bulk insert + upsert** idempoten (unik karyawan+waktu+mesin), terjadwal dan berkelompok, tidak lewat request web, dengan log hasil | Tahap 6 |
+| Front-end | Debounce pencarian, daftar bertahap/berpaginasi, JSON ringkas; tidak pernah memuat seluruh tabel | Terus-menerus |
+| Pemantauan | Latensi p95, panjang antrean, koneksi DB, disk, ukuran tabel; peringatan ke Superadmin/IT; health check; log galat terpusat | Saat produksi |
+| Uji beban | Locust/k6 dengan data sintetis ±3.000+ karyawan dan 3–5 tahun riwayat. Sasaran **usulan**: daftar & detail p95 < 500 ms, dashboard < 1 dtk, ekspor besar tidak memblokir web. Diulang tiap rilis besar | Sebelum go-live |
+| Kapasitas | SSD NVMe, RAM cukup untuk working set + cache PostgreSQL; naik **vertikal** dulu; **read replica** untuk laporan berat bila perlu; `media/` di penyimpanan terpisah | Rencana, bukan kebutuhan awal |
+
+
 ## Backup
 Harian + mingguan, retensi, **lokasi berbeda dari server utama**, termasuk file/dokumen, prosedur restore teruji.
 
@@ -60,28 +109,32 @@ Harian + mingguan, retensi, **lokasi berbeda dari server utama**, termasuk file/
 Authentication · User & Permission · Employee · Organization · Contract · Shift · Mutation · Leave · Attendance ·
 Notification · Clinic · Medicine · Referral · Document · Reporting · Audit · Payroll (tetap dalam visi; pengerjaan belakangan) ·
 **Aid (bantuan) · Maternity (cuti hamil) · ProjectLog (kerja harian proyek) · Catering/Meal · BPJS Status** (semua di bawah Operasional HRD) ·
-**[BARU]** Warning (Surat Peringatan) · Recruitment (+ Career Portal) · MCU · Export · Company/System settings · Holiday/Calendar.
+**[BARU]** Warning (Surat Peringatan) · Recruitment (+ Career Portal) · MCU · Export · Company/System settings · Holiday/Calendar · **Uniform (Seragam)** · **BPJS Deduction (Potongan BPJS)** · **Attendance Confirmation (Validasi kehadiran)** · **Partner Billing (Tagihan Mitra)** · **Security/Throttling**.
 
 ## Rantai masa depan
 Karyawan → Jabatan → Status → Kontrak → Shift → Absensi → Lembur → Izin/Cuti → Tunjangan → Potongan → BPJS → Payroll → Slip Gaji
 Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya bila scope diperbarui rantai dan struktur datanya sudah searah.
 
+**[BARU]** Potongan seragam, potongan BPJS, dan alfa (setelah divalidasi) adalah **sumber komponen Potongan** pada rantai ini. Semuanya disimpan di tabel sendiri sejak sekarang, supaya Payroll kelak tinggal membacanya.
+
 ## Tahapan
 1. **Fondasi**: auth, user, role, permission, scope, audit, dashboard
 2. **HR Core**: karyawan, departemen, jabatan, shift, kontrak, histori. **[BARU]** juga grade, bagian, lokasi kerja, jenis karyawan, status karyawan, company, hari libur & kalender kerja, data keluarga, riwayat pendidikan/pekerjaan.
 2b. **Operasional HRD** (halaman khusus akun HRD, lihat bagian di bawah): bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS
-2c. **[BARU] HR Lanjutan**: Surat Peringatan (SP1–SP3), pengajuan administrasi, BPJS lanjutan (kelas, faskes, JKK/JHT/JKM/JP, iuran, laporan)
+2c. **[BARU] HR Lanjutan**: Surat Peringatan (SP1–SP3), pengajuan administrasi, BPJS lanjutan (kelas, faskes, JKK/JHT/JKM/JP, iuran, laporan), **menu BPJS (submenu Ketenagakerjaan/Kesehatan) + rekap potongan karyawan + impor/ekspor XLSX**
+2d. **[BARU] Seragam**: rekap pembelian seragam + ukuran, tarif potongan L/P, ekspor XLSX (di bawah Operasional HRD)
 3. **Workflow**: mutasi, promosi/demosi, izin, cuti, tukar shift/libur (**1 orang atau 2 orang**), **administrasi**, approval
 4. **Informasi**: notifikasi, pengumuman, peraturan, read/unread. **[BARU]** reminder (cuti, SP, kontrak, stok menipis, obat mendekati kedaluwarsa, sinkronisasi absensi)
 5. **Poli**: rekam medis (form menyesuaikan jenis kunjungan), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat izin (pulang / libur / hamil), riwayat poli di detail karyawan untuk user Poli
-5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis
-6. **Absensi**: integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran
+5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis, **tagihan mitra (rekap tagihan, identitas karyawan, total)**
+6. **Absensi**: integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran, **validasi kehadiran HRD → Admin Departemen** (kerangka alurnya boleh dikerjakan lebih dulu, tanpa mesin)
 7. **Payroll** — *tetap dalam visi, dikerjakan paling akhir (belum diproses sekarang)*: komponen gaji, tunjangan, potongan, BPJS, periode, slip gaji. Data payroll tetap di tabel terpisah dari karyawan.
 8. **[BARU] Laporan & Ekspor**: laporan HR, Poli, Meal; ekspor Excel/PDF/cetak; pencarian global
 9. **[BARU] Recruitment**: lowongan, kandidat, lamaran, screening, interview, seleksi, laporan; Career Portal (profil perusahaan, daftar lowongan, apply)
+10. **[BARU] Penguatan keamanan & skalabilitas** (lintas tahap): pertahanan berlapis dan strategi skalabilitas di bagian Keamanan/Performa; komponen baru (Redis, antrean, PgBouncer, 2FA, ClamAV, fail2ban) **disetujui pemilik produk (8 Okt 2026)** dan masuk bertahap menurut urutan prioritas.
 
 ## Operasional HRD (halaman khusus akun HRD)
-Satu pintu `/hrd/` dengan lima halaman. **Hanya HRD (dan Superadmin)**; Admin Departemen dan Poli tidak punya akses (403).
+Satu pintu `/hrd/` dengan lima halaman, ditambah **[BARU] Rekap Seragam** (bagian khusus di bawah). **[BARU]** BPJS kini juga menjadi menu sidebar tersendiri dengan submenu Ketenagakerjaan/Kesehatan (bagian khusus di bawah). **Hanya HRD (dan Superadmin)**; Admin Departemen dan Poli tidak punya akses (403).
 Semua perubahan tercatat di audit log; data tidak ditimpa diam-diam (ada histori/status).
 
 1. **Bantuan** — pencatatan bantuan kepada karyawan (mis. kematian keluarga, pernikahan, kelahiran, musibah, rawat inap, pendidikan).
@@ -99,7 +152,60 @@ Semua perubahan tercatat di audit log; data tidak ditimpa diam-diam (ada histori
 5. **Status BPJS** — status keanggotaan **BPJS Kesehatan (K)** dan **BPJS Ketenagakerjaan (TK)** per karyawan: **aktif / nonaktif**, tanggal efektif, alasan.
    Setiap perubahan menambah baris histori (tidak menimpa). Nomor BPJS tetap terenkripsi di data karyawan dan tidak ditampilkan di daftar.
    Daftar dapat difilter (aktif / nonaktif / belum dicatat) dan menandai anomali (mis. karyawan nonaktif tetapi BPJS masih aktif).
-   **[BARU]** Kelengkapan yang dituju: kelas, faskes, cabang, tanggal kepesertaan, komponen JKK/JHT/JKM/JP, iuran, sinkronisasi, laporan.
+   **[BARU]** Kelengkapan yang dituju: kelas, faskes, cabang, tanggal kepesertaan, komponen JKK/JHT/JKM/JP, iuran, sinkronisasi, laporan. **[BARU]** Halaman ini menjadi tab "Status" di dalam menu BPJS (lihat "Menu BPJS"); URL lama diarahkan.
+
+## [BARU] Menu BPJS (Ketenagakerjaan & Kesehatan)
+Menu sidebar tersendiri **BPJS** (HRD dan Superadmin; Admin Departemen dan Poli → 403) dengan dua submenu:
+
+| Submenu | Isi |
+|---|---|
+| **BPJS Ketenagakerjaan (TK)** | Status kepesertaan TK (komponen JKK/JHT/JKM/JP) · rekap potongan karyawan · impor/ekspor |
+| **BPJS Kesehatan (K)** | Status kepesertaan K (kelas, faskes) · rekap potongan karyawan · impor/ekspor |
+
+Isi tiap submenu:
+1. **Status kepesertaan** — halaman "Status BPJS" yang sudah ada (aktif/nonaktif, tanggal efektif, histori, anomali) menjadi tab pertama.
+2. **Rekap potongan karyawan** per periode (bulan): NIK, nama, departemen, **potongan porsi karyawan**, porsi perusahaan (informasi), total; ringkasan per departemen dan total keseluruhan; filter periode/departemen/status karyawan/cari NIK-nama. Nomor BPJS **tidak** ditampilkan di daftar.
+3. **Sumber angka**: **impor XLSX** (hasil hitung payroll/rekap eksternal atau tagihan BPJS) dan/atau **hitung dari master tarif** (persentase dan batas upah **berlaku sejak tanggal**, tidak ditanam di kode) bila Payroll sudah ada.
+4. **Impor/ekspor XLSX** (+ template): pola sama dengan impor lain — divalidasi dengan aturan form yang sama, **semua-atau-tidak-sama-sekali**, mode "Periksa saja", audit hanya ringkasan. Kunci: karyawan + periode + program. Impor ulang periode yang sama = **batch baru yang menggantikan batch lama dengan jejak** (batch lama ditandai diganti), bukan menimpa diam-diam. Ekspor = seluruh hasil filter (bukan satu halaman); nomor BPJS tidak ikut kecuali dipilih eksplisit oleh role berwenang dan tercatat di audit.
+5. **Anomali** ditandai: BPJS aktif tetapi tidak ada potongan pada periode itu, atau dipotong padahal nonaktif.
+6. Potongan disimpan di **tabel sendiri** (tidak di tabel karyawan) dan menjadi sumber komponen Potongan → BPJS pada rantai Payroll. Tetap berlaku: BPJS **tanpa workflow pengajuan/approval**.
+
+## [BARU] Rekap Seragam (HRD)
+Pencatatan pembelian **seragam** karyawan **beserta ukuran** (hanya seragam, bukan pakaian lain). Halaman di `/hrd/` — HRD dan Superadmin saja (Admin Departemen dan Poli → 403).
+- **Catatan pembelian**: karyawan (lewat NIK; harus aktif), tanggal, jenis seragam (master), **ukuran** (master), jumlah, tarif potongan, status potongan (belum/sudah dipotong), catatan. Pembelian ganda untuk karyawan + tanggal + jenis + ukuran yang sama ditolak.
+- **Tarif potongan menurut jenis kelamin** (dari data karyawan): **Laki-laki Rp 19.000 · Perempuan Rp 17.000** (nominal awal). Disimpan di **master tarif dengan tanggal berlaku**, bukan ditanam di kode; nilai tarif **disalin ke baris** saat dicatat sehingga perubahan tarif tidak mengubah transaksi lama. *Dikonfirmasi pemilik produk: "pot" = potongan gaji; nominal berlaku per satuan pembelian.*
+- **Rekap**: per periode, per departemen, per karyawan, dan per **ukuran × jenis kelamin** (untuk pesanan ke vendor); total pcs dan total potongan.
+- **Ekspor XLSX** untuk rekap dan rincian (+ template impor XLSX opsional dengan aturan impor yang sama).
+- Data di tabel sendiri, menjadi sumber komponen Potongan → Seragam di Payroll. Perubahan tercatat audit; koreksi lewat pembatalan beralasan (baris pembalik), bukan hapus diam-diam.
+
+## [BARU] Validasi kehadiran (HRD → Admin Departemen)
+Tujuan: HRD ingin memastikan bahwa **karyawan X pada tanggal X** berangkat / izin / sakit / cuti / alfa, **melalui perantara Admin Departemen** karyawan itu (HRD tidak menghubungi karyawan langsung, dan Admin Departemen yang paling tahu kondisi lapangan). Hasilnya dipakai untuk rekap, potongan alfa, dan payroll.
+1. **HRD membuat permintaan konfirmasi**: memilih satu atau beberapa karyawan (lewat NIK) **atau** seluruh/sebagian departemen, untuk satu tanggal atau rentang. Contoh: "Apakah A (NIK …) hadir pada 5 Okt?". Permintaan **otomatis diteruskan ke Admin Departemen** departemen karyawan itu (notifikasi + tautan). Sistem mengisi **dugaan awal** bila sudah diketahui — sakit/izin/cuti dari pengajuan yang *Executed*, libur dari jadwal efektif, kehadiran dari mesin (Tahap 6) — sehingga yang ditanyakan hanya yang belum jelas; sebelum Tahap 6 alur ini tetap berjalan tanpa mesin.
+2. **Admin Departemen** (hanya departemennya) **menjawab** per karyawan-tanggal: **Hadir / Izin / Sakit / Cuti / Alfa** + keterangan (izin & alfa wajib beralasan, lampiran opsional). Pengingat menjelang batas waktu.
+3. **HRD memverifikasi** jawaban: Terima / Kembalikan dengan pertanyaan lanjutan (alasan) / Ubah dengan catatan. Setelah **Diverifikasi** data terkunci; koreksi setelahnya berupa **catatan koreksi tambahan** (append-only), bukan ubah diam-diam.
+
+Status: *Diminta → Dijawab Admin → Diverifikasi HRD* (atau *Dikembalikan*); lewat batas tanpa jawaban → ditandai *Terlambat* ke HRD; HRD dapat *Membatalkan* permintaan (alasan).
+Aturan: karyawan harus dalam scope departemen Admin penjawab (di luar itu → 404); permintaan HRD ke karyawan yang tidak punya Admin Departemen aktif ditolak dengan pesan jelas; tanggal masa depan ditolak; "Alfa" yang bertabrakan dengan izin/cuti *Executed* ditandai konflik; satu karyawan-tanggal satu catatan aktif (permintaan ganda ditolak); Admin Departemen hanya melihat status "Sakit", **bukan diagnosa**; semua langkah diaudit. Dashboard: HRD melihat permintaan yang belum dijawab/terlambat, Admin Departemen melihat tugas jawabannya. Ekspor XLSX rekap validasi. Hasil terverifikasi menjadi sumber Absensi/Payroll (alfa → Potongan).
+
+## [BARU] Tagihan Mitra (akun Poli)
+**Mitra** = pihak luar yang melayani karyawan dan menagih perusahaan (rumah sakit/klinik rujukan, laboratorium, apotek, optik, dst.). Hanya **Poli (dan Superadmin)**; HRD dan Admin Departemen → 403.
+Karena tagihan memuat **keluhan dan diagnosa**, seluruh modul ini diperlakukan sebagai **data medis** (aturan sama dengan rekam medis).
+- **Master mitra**: nama, jenis, alamat/kontak, nomor perjanjian, termin bayar (hari), aktif/nonaktif, catatan.
+- **Tagihan**: mitra, **nomor tagihan mitra** (unik per mitra), tanggal tagihan, jatuh tempo, periode layanan, **identitas karyawan** (NIK, nama, departemen; dicari lewat NIK), tanggal & jenis layanan (rawat jalan/rawat inap/lab/obat/lainnya), **keluhan**, **diagnosa** (dipilih lewat **kode** dari master diagnosa; teks tambahan bila perlu), **kaitan ke rekam medis/rujukan** (opsional; bila tertaut, keluhan/diagnosa dapat diisi dari sana lalu disesuaikan, bila tidak diisi manual), rincian biaya per baris, **total tagihan** (dihitung dari rincian; selisih dengan total di surat tagihan ditandai), penanggung (perusahaan / BPJS / karyawan), dan **input lainnya**: catatan, lampiran (invoice/kuitansi/rincian/hasil; magic bytes divalidasi), tanggal & nomor pembayaran.
+- **Alur**: Diterima → Diverifikasi → Disetujui bayar / Ditolak (alasan wajib) → Dibayar; transisi divalidasi di servis dan atomik; koreksi lewat catatan/baris pembalik, bukan timpa. Tagihan ganda (mitra + nomor tagihan) ditolak.
+- **Rekap**: per mitra, per periode, per departemen, per karyawan, **per diagnosa**, per status (belum dibayar / lewat jatuh tempo / dibayar); total tagihan dan sisa; **ekspor XLSX**.
+- **Perlindungan data medis**: keluhan/diagnosa **tidak masuk audit log** (hanya penanda "diubah"); membuka tagihan beridentitas dan mengekspor dicatat di audit; **ekspor yang memuat keluhan/diagnosa hanya untuk Poli**, sedangkan ekspor ringkasan (mitra, periode, total) tanpa kolom medis. Kolom keluhan/diagnosa ikut keputusan enkripsi data medis (A12) — sebaiknya terenkripsi sejak awal.
+- *Keputusan terbuka:* apakah HRD/Payroll perlu melihat **agregat biaya** (total per departemen/periode, **tanpa** keluhan/diagnosa dan tanpa identitas bila memungkinkan).
+
+## [BARU] Format rupiah
+Aturan berlaku **khusus nilai rupiah** (dikonfirmasi pemilik produk); angka lain mengikuti kebutuhannya masing-masing. Berlaku di UI, PDF/cetak, XLSX, notifikasi, dashboard, dan grafik:
+- **Pemisah ribuan titik, tanpa ",00"**: `1.500.000` / `Rp 1.500.000` (pola `0.000`), bukan `1.500.000,00`.
+- **Satu helper terpusat** (filter template, util Python, util JS, number-format XLSX); halaman tidak boleh memformat rupiah sendiri-sendiri.
+- Nilai rupiah disimpan sebagai **angka** (bukan teks). Pembulatan ke rupiah penuh didefinisikan **satu kali di perhitungan** (bukan hanya tampilan) agar total = jumlah baris.
+- **Bukan rupiah = tidak berubah**: saldo cuti (0,5 hari), suhu, berat/tinggi badan, tanda vital, jumlah barang/stok, persentase, usia kehamilan, dan sejenisnya tetap memakai format masing-masing.
+- **Input** rupiah menerima `1500000`, `1.500.000`, atau `Rp 1.500.000`.
+- **XLSX**: sel rupiah numerik (dapat dijumlah) dengan format ribuan tanpa desimal. **CSV**: angka polos tanpa pemisah ribuan agar aman diimpor ulang.
+- Hanya memengaruhi tampilan; data yang sudah tersimpan tidak berubah.
 
 ## [BARU] Cakupan fungsional dari spesifikasi HRMS
 Ringkasan butir spesifikasi yang kini menjadi bagian visi. Status pengerjaan ada di `docs/PROGRESS.md`.
@@ -120,7 +226,7 @@ Ringkasan butir spesifikasi yang kini menjadi bagian visi. Status pengerjaan ada
 - **Absensi & integrasi**: kehadiran, terlambat, pulang cepat, tidak hadir, sakit, izin, cuti, alpha, rekap; Fingerspot (impor, sinkronisasi, mapping NIK, log).
 - **Notifikasi**: pengajuan baru/disetujui/ditolak/menunggu, reminder cuti & SP, stok obat menipis, obat mendekati kedaluwarsa, sinkronisasi absensi, notifikasi sistem.
 - **Laporan**: HR (karyawan aktif/nonaktif, turnover, mutasi, jabatan, departemen, grade, absensi, cuti, shift, SP, BPJS), Poli (kunjungan, pasien, diagnosis, penyakit, obat, stok, MCU), Meal (jumlah, tepak, per departemen/shift/waktu, vendor).
-- **Ekspor**: Excel, PDF, cetak, untuk Employee, Attendance, Shift, Leave, Mutation, SP, BPJS, Medical, Medicine, Stock, Meal, Recruitment.
+- **Ekspor**: Excel, PDF, cetak, untuk Employee, Attendance, Shift, Leave, Mutation, SP, BPJS, Medical, Medicine, Stock, Meal, Recruitment, **Uniform (seragam), BPJS Deduction (potongan), Partner Billing (tagihan mitra), Attendance Confirmation**.
   *Aturan*: ekspor data sensitif (NIK KTP, rekening, BPJS, medis) hanya untuk role berwenang, tercatat di audit, dan hasilnya tidak memuat nilai sensitif kecuali memang diperlukan.
 - **Pencarian global**: NIK, nama, departemen, jabatan (sesuai scope role). Filter: departemen, jabatan, grade, status, shift, tanggal, jenis & status pengajuan.
 - **Konfigurasi sistem**: informasi perusahaan, logo, tahun berjalan, kalender kerja, hari libur, serta master di atas.
@@ -134,12 +240,12 @@ Yang ditiru: tata letak, gaya, dan pola komponen. Yang **tidak** mengikat: butir
 
 ### Pola visual yang dirujuk
 - **Sidebar kiri gelap (navy)**, ±260 px, logo + nama sistem di atas; butir menu berikon garis, butir aktif berlatar biru. Kelompok menu berjudul huruf kapital kecil. Di layar kecil menjadi laci (tombol Menu).
-- **Bilah atas putih**: lonceng notifikasi dengan lencana belum dibaca; menu pengguna (inisial/foto, nama, label peran, ganti sandi, keluar).
+- **Bilah atas putih**: lonceng notifikasi dengan lencana belum dibaca; **[BARU] tombol ikon tema terang/gelap**; menu pengguna (inisial/foto, nama, label peran, ganti sandi, keluar).
 - **Isi halaman**: breadcrumb, judul besar, sub-judul sambutan, tanggal dan jam di kanan atas; footer tipis (nama sistem + versi, "Internal Use Only · PT X").
 - **Kartu KPI** di baris atas (ikon dalam lingkaran lembut, label, angka besar, selisih ↑ hijau / ↓ merah), tiap kartu berupa tautan ke daftar terkait.
 - **Kartu grafik** dengan judul berikon + pemilih periode: donat (persentase di tengah, legenda jumlah + persen), garis area, batang berlabel nilai.
 - **Daftar ringkas**: "Aktivitas Terbaru" (tabel dengan pill status) dan "Pending Approval" (kartu berikon, pill "Menunggu", tautan "Lihat Semua").
-- **Palet**: navy (sidebar) · biru primer (aksen/tombol/tautan) · hijau = berhasil/disetujui/selesai · oranye = menunggu/perhatian · merah = ditolak/bahaya · abu-abu = netral. Kartu putih bersudut membulat, bayangan tipis, sans-serif bersih. Tema gelap tetap tersedia.
+- **Palet**: navy (sidebar) · biru primer (aksen/tombol/tautan) · hijau = berhasil/disetujui/selesai · oranye = menunggu/perhatian · merah = ditolak/bahaya · abu-abu = netral. Kartu putih bersudut membulat, bayangan tipis, sans-serif bersih. **[BARU] Tema terang/gelap** diganti lewat **tombol ikon** di bilah atas (ikon bulan saat terang → beralih ke gelap; ikon matahari saat gelap → beralih ke terang; `aria-label` dan `aria-pressed`, dapat dipakai dengan keyboard). Pilihan **diingat per pengguna** (bawaan mengikuti pengaturan sistem/`prefers-color-scheme`), diterapkan sebelum halaman tergambar agar tidak berkedip, dan berlaku di login serta `/admin/`. Grafik, pill status, dan tabel tetap terbaca di kedua tema; cetak selalu terang.
 
 ### Tampilan menyesuaikan peran
 Gambar memperlihatkan Superadmin (melihat semua kelompok menu dan semua kartu). Peran lain memakai pola visual yang sama tetapi **menu dan dashboard hanya berisi yang relevan bagi perannya**:
@@ -147,9 +253,9 @@ Gambar memperlihatkan Superadmin (melihat semua kelompok menu dan semua kartu). 
 | Peran | Menu | Dashboard |
 |---|---|---|
 | Superadmin | Semua kelompok + Pengaturan (Users, Roles/Permissions, Company, Master Data, Audit Log) | Ringkasan HR + pengajuan + (kelak) kehadiran + ringkasan Poli (agregat) + aktivitas sistem |
-| HRD | Dashboard · Data Karyawan · Recruitment · Mutasi & Promosi · Shift & Jadwal · Cuti & Libur · Surat Peringatan · BPJS · Operasional HRD · Laporan (+ Absensi bila ada) | Kartu/grafik HR, kontrak yang akan habis, pengajuan menunggu, cuti; **tanpa data poli** |
-| Admin Departemen | Dashboard · Data Karyawan Departemen · Pengajuan Mutasi/Shift/Cuti-Libur/Administrasi · Monitoring Pengajuan | **Hanya angka departemennya**: karyawan, status pengajuan miliknya, kehadiran departemen (kelak); tanpa data poli |
-| Poli | Dashboard · Data Pasien/Karyawan · Pemeriksaan · Rekam Medis · Obat · Stok Obat · Riwayat Kunjungan · Laporan Medis (+ MCU) | Kunjungan hari ini, pasien menunggu/selesai, statistik penyakit, penggunaan obat, stok menipis; aktivitas medis hanya tampil di sini |
+| HRD | Dashboard · Data Karyawan · Recruitment · Mutasi & Promosi · Shift & Jadwal · Cuti & Libur · Surat Peringatan · BPJS (**Ketenagakerjaan · Kesehatan**) · **Seragam** · Operasional HRD · **Validasi Kehadiran** · Laporan (+ Absensi bila ada) | Kartu/grafik HR, kontrak yang akan habis, pengajuan menunggu, cuti; **tanpa data poli** |
+| Admin Departemen | Dashboard · Data Karyawan Departemen · Pengajuan Mutasi/Shift/Cuti-Libur/Administrasi · Monitoring Pengajuan · **Konfirmasi Kehadiran** | **Hanya angka departemennya**: karyawan, status pengajuan miliknya, kehadiran departemen (kelak); tanpa data poli |
+| Poli | Dashboard · Data Pasien/Karyawan · Pemeriksaan · Rekam Medis · Obat · Stok Obat · Riwayat Kunjungan · Laporan Medis (+ MCU) · **Tagihan Mitra** | Kunjungan hari ini, pasien menunggu/selesai, statistik penyakit, penggunaan obat, stok menipis; aktivitas medis hanya tampil di sini |
 
 Menyembunyikan menu hanya kenyamanan; izin tetap diperiksa di server.
 
@@ -177,6 +283,26 @@ Menyembunyikan menu hanya kenyamanan; izin tetap diperiksa di server.
 | 10 | Tidak dipakai | WhatsApp, Active Directory, ERP/Finance, Odoo Accounting, workflow pengajuan BPJS |
 | 11 | Tukar shift/libur | **Dua mode**: 1 orang (menukar liburnya/shiftnya sendiri) dan 2 orang (dengan rekan; kedua jadwal berubah dalam satu pengajuan). Lihat "Shift, jadwal & tukar shift/libur" |
 | 12 | Master shift baru | Kode shift, GS, kelompok rotasi (pola 2 shift A–G / pola 3 shift/PACK A_pack–G_pack) dan tabel rotasi mingguan menjadi sumber jadwal dasar. *Tabel rotasi resmi & jam GS-12/14/16 masih perlu dimasukkan dari Aturan Pengaturan Jadwal Shift 2026* |
+| 13 | Tema terang/gelap | **[BARU]** Tombol ikon di bilah atas; pilihan diingat per pengguna |
+| 14 | Rekap seragam | **[BARU]** Halaman HRD; seragam + ukuran saja; potongan gaji **L Rp 19.000 / P Rp 17.000 per satuan pembelian (dikonfirmasi)**; tarif di master berlaku-sejak; ekspor XLSX |
+| 15 | Validasi kehadiran | **[BARU]** (dikonfirmasi) HRD menanyakan karyawan X pada tanggal X → diteruskan ke Admin Departemen sebagai perantara → Admin menjawab hadir/izin/sakit/cuti/alfa → HRD memverifikasi dan mengunci |
+| 16 | Format rupiah | **[BARU]** (dikonfirmasi) Hanya nilai rupiah: ribuan titik, tanpa ",00"; helper terpusat. Angka lain tetap menurut kebutuhannya |
+| 17 | Menu BPJS | **[BARU]** Submenu Ketenagakerjaan/Kesehatan + rekap potongan + impor/ekspor XLSX; Status BPJS menjadi tab di dalamnya |
+| 18 | Tagihan Mitra | **[BARU]** Khusus Poli: master mitra, tagihan (identitas karyawan, **keluhan, diagnosa**, total, lampiran, alur bayar), rekap, XLSX. Diperlakukan sebagai data medis (tidak masuk audit, ekspor medis hanya Poli) |
+| 19 | Role Payroll & IT | **[BARU] Belum diputuskan** — mungkin diterapkan atau tidak; desain tidak boleh menghalangi |
+| 20 | Keamanan berlapis | **[BARU]** (komponen disetujui) Rate limit berlapis, kunci login per IP+username, 2FA bertahap, CSP/TLS, fail2ban, ClamAV, backup immutable, Redis untuk cache bersama |
+| 21 | Skalabilitas | **[BARU]** (komponen disetujui) Keyset pagination, partisi/arsip, rollup, PgBouncer, Redis, antrean untuk pekerjaan berat, uji beban |
+
+## [BARU] Kemungkinan / belum diputuskan (mungkin diterapkan, mungkin tidak)
+Butir di bawah **bukan komitmen**; dicatat agar desain sekarang tidak menutup kemungkinannya. Pemilik produk memutuskan; bila diterapkan, butir dipindah ke bagian terkait dan dicatat di "Keputusan penyelarasan".
+
+| Kemungkinan | Gambaran bila diterapkan | Keputusan terbuka |
+|---|---|---|
+| Role **Payroll** (user baru) | Mengelola komponen gaji, potongan (seragam, BPJS, alfa), periode, slip gaji. Membaca rekap potongan dan kehadiran terverifikasi. **Tanpa** data medis; data sensitif (rekening, NIK KTP) hanya yang diperlukan | Siapa yang menginput potongan (HRD atau Payroll)? Boleh melihat rekening? Boleh mengekspor? |
+| Role **IT** (user baru) | Operasional teknis: kesehatan sistem, backup/restore, antrean, log sistem, akun teknis. **Bukan** akses data karyawan/medis dan tidak menyetujui apa pun | Boleh melihat audit log (tanpa before/after)? Boleh mereset sandi? Atau tetap hanya Superadmin |
+
+Implikasi desain: menambah role = menambah satu nilai role + aturan scope + menu/dashboard per peran (pola tabel "Tampilan menyesuaikan peran") + tes RBAC; tidak boleh ada logika role yang tersebar di banyak tempat.
+Matriks permission per aksi (A7) memudahkan ini. **Bila tidak diputuskan**: tidak ada role tambahan; fungsi IT dijalankan Superadmin, potongan diinput HRD.
 
 ## Urutan prioritas
 Security › Integritas data › Role/permission › Department scope › Approval › Histori › Audit › Backup › Performa › Scalability › Maintainability › Integrasi masa depan.
