@@ -31,11 +31,21 @@ class SeedDemoTests(TestCase):
         for e in Employee.objects.filter(status="aktif"):
             self.assertGreaterEqual(LeaveLedger.objects.filter(employee=e).aggregate(s=Sum("days"))["s"] or 0, 0)
 
+    def test_bpjs_deductions_and_uniforms_seeded_consistently(self):
+        from decimal import Decimal
+        from apps.hrd.models import BpjsDeduction, BpjsMembership, UniformPurchase
+        self.assertTrue(BpjsDeduction.objects.exists()); self.assertTrue(UniformPurchase.objects.exists())
+        for d in BpjsDeduction.objects.select_related("employee"):                                    # hanya anggota aktif → tidak ada anomali "dipotong padahal nonaktif" di data demo
+            self.assertTrue(BpjsMembership.objects.filter(employee=d.employee, scheme=d.scheme, status="aktif").exists())
+        for p in UniformPurchase.objects.select_related("employee"):
+            self.assertEqual(p.deduction_amount, p.rate_amount * p.quantity); self.assertEqual(p.gender, p.employee.gender)
+            self.assertEqual(p.rate_amount, Decimal(19000) if p.gender == "L" else Decimal(17000))
+
     def test_second_run_refuses(self):
         with self.assertRaises(CommandError): call_command("seed_demo", "--employees", "20", stdout=StringIO())
 
     def test_pages_render_for_each_role(self):
-        for uname, paths in (("superadmin", ["/", "/admin/", "/audit/"]), ("hrd", ["/", "/employees/", "/requests/", "/hrd/"]),
+        for uname, paths in (("superadmin", ["/", "/admin/", "/audit/"]), ("hrd", ["/", "/employees/", "/requests/", "/hrd/", "/hrd/uniforms/", "/hrd/uniforms/master/", "/hrd/bpjs/deductions/", "/hrd/bpjs/deductions/kes/"]),
                              ("poli", ["/", "/poli/records/", "/poli/medicines/"]), ("admin_prd", ["/", "/employees/", "/requests/"])):
             self.client.force_login(User.objects.get(username=uname))
             for p in paths: self.assertLess(self.client.get(p).status_code, 500, (uname, p))

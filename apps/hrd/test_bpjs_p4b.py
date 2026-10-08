@@ -70,6 +70,12 @@ class TabularUnitTests(HrdBase):
         ws = load_workbook(io.BytesIO(b)).worksheets[0]
         self.assertEqual(ws.cell(2, 1).value, "ya"); self.assertEqual(ws.cell(2, 2).value, "'=1+1"); self.assertEqual(ws.cell(2, 3).value, "12")
 
+    def test_num_cols_are_plain_numbers_without_money_format(self):
+        b, _ = tabular.to_bytes(["nama", "pcs"], [["a", 3], ["b", Decimal("4")]], "xlsx", num_cols=("pcs",))
+        ws = load_workbook(io.BytesIO(b)).worksheets[0]
+        self.assertEqual([ws.cell(r, 2).value for r in (2, 3)], [3, 4]); self.assertNotEqual(ws.cell(2, 2).number_format, XLSX_RUPIAH_FORMAT)
+        c, _ = tabular.to_bytes(["nama", "pcs"], [["a", 3]], "csv", num_cols=(1,)); self.assertIn("a,3", c.decode("utf-8-sig"))
+
     def test_default_behavior_unchanged_without_money_cols(self):
         b, _ = tabular.to_bytes(["a"], [[Decimal("1.50")]], "csv"); self.assertIn("1.50", b.decode("utf-8-sig"))
 

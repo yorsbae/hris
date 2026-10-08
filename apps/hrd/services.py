@@ -106,3 +106,41 @@ def revoke_warning(pk, reason, user):
         if w.revoked_at: raise ValueError("SP ini sudah dicabut.")
         w.revoked_at, w.revoked_by, w.revoke_reason = timezone.now(), user, reason[:300]; w.save()
         return w
+
+
+# ---------------------------------------------------------------- Seragam (putaran 23, P5)
+def uniform_rate_for(gender, on_date):
+    """Tarif yang berlaku untuk jenis kelamin pada tanggal itu (effective_from terbaru ≤ tanggal), atau None."""
+    from .models import UniformRate
+    return UniformRate.objects.filter(gender=gender, effective_from__lte=on_date).order_by("-effective_from").first()
+
+
+def _period_valid(v):
+    return bool(v) and len(v) == 7 and v[4] == "-" and v[:4].isdigit() and v[5:].isdigit() and 2000 <= int(v[:4]) <= 2100 and 1 <= int(v[5:]) <= 12
+
+
+def void_uniform_purchase(pk, reason, user):
+    """Batalkan pembelian dengan alasan (baris tidak dihapus; keluar dari rekap). Ditolak bila sudah dipotong dari gaji atau sudah batal."""
+    from .models import UniformPurchase
+    reason = (reason or "").strip()
+    if not reason: raise ValueError("Alasan pembatalan wajib diisi.")
+    with transaction.atomic():
+        p = UniformPurchase.objects.select_for_update().get(pk=pk)
+        if p.voided_at: raise ValueError("Pembelian ini sudah dibatalkan.")
+        if p.deduction_status == "sudah": raise ValueError("Pembelian yang sudah dipotong dari gaji tidak dapat dibatalkan.")
+        p.voided_at, p.voided_by, p.void_reason = timezone.now(), user, reason[:300]; p.save(update_fields=["voided_at", "voided_by", "void_reason"])
+        return p
+
+
+def mark_uniform_deducted(pk, period, user):
+    """Tandai sudah dipotong pada periode gaji tertentu. Satu arah (data gaji sudah terpakai): tidak ada 'batal tandai'."""
+    from .models import UniformPurchase
+    period = (period or "").strip()
+    if not _period_valid(period): raise ValueError("Periode harus berformat YYYY-MM.")
+    with transaction.atomic():
+        p = UniformPurchase.objects.select_for_update().get(pk=pk)
+        if p.voided_at: raise ValueError("Pembelian yang dibatalkan tidak dapat ditandai dipotong.")
+        if p.deduction_status == "sudah": raise ValueError("Sudah ditandai dipotong.")
+        if period < p.purchase_date.strftime("%Y-%m"): raise ValueError("Periode potongan tidak boleh sebelum bulan pembelian.")
+        p.deduction_status, p.deducted_period = "sudah", period; p.save(update_fields=["deduction_status", "deducted_period"])
+        return p

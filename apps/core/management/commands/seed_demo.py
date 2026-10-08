@@ -288,6 +288,21 @@ class Command(BaseCommand):
         for lvl, nik_i in ((1, 0), (2, 1)):
             e = self.active[nik_i]
             w = hrd_services.issue_warning(e, lvl, today - timedelta(days=30 * lvl), hrd_services.add_months(today - timedelta(days=30 * lvl), 6), "Terlambat berulang (demo)", "Data demo", self.hrd_u)
+        # potongan BPJS bulan ini (putaran 22/23): hanya anggota berstatus aktif; sebagian karyawan sengaja dilewati agar anomali "belum dipotong" terlihat
+        period = today.strftime("%Y-%m")
+        for m in hrd.BpjsMembership.objects.filter(status="aktif", employee__in=self.active[: max(5, len(self.active) * 2 // 3)]).select_related("employee"):
+            base = Decimal(r.choice([2_500_000, 3_000_000, 3_500_000]))
+            hrd.BpjsDeduction.objects.get_or_create(employee=m.employee, scheme=m.scheme, period=period, defaults={
+                "employee_amount": (base * Decimal("0.01" if m.scheme == "kes" else "0.02")).quantize(Decimal(1)), "employer_amount": (base * Decimal("0.04" if m.scheme == "kes" else "0.037")).quantize(Decimal(1)),
+                "note": "Data demo", "created_by": self.hrd_u})
+        # seragam (putaran 23, P5): master + tarif L/P sudah dibuat migrasi hrd/0007
+        sizes, utype = list(hrd.UniformSize.objects.filter(is_active=True)), hrd.UniformType.objects.filter(is_active=True).first()
+        if sizes and utype:
+            for e in r.sample(self.active, min(12, len(self.active))):
+                d, z, q = today - timedelta(days=r.randint(0, 25)), r.choice(sizes), r.randint(1, 3); rate = hrd_services.uniform_rate_for(e.gender, d)
+                if rate and d >= e.join_date:
+                    hrd.UniformPurchase.objects.get_or_create(employee=e, purchase_date=d, utype=utype, size=z, voided_at=None, defaults={
+                        "gender": e.gender, "quantity": q, "rate_amount": rate.amount, "deduction_amount": rate.amount * q, "note": "Data demo", "created_by": self.hrd_u})
         self.stat += ", operasional HRD"
 
     # ---------- poliklinik

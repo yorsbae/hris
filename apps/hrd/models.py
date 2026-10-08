@@ -74,6 +74,87 @@ class BpjsDeduction(models.Model):
         ordering = ["-period", "scheme", "employee_id"]
 
 
+# ---------------------------------------------------------------- Seragam (putaran 23, P5)
+class UniformType(models.Model):
+    """Master jenis seragam (mis. 'Seragam Kerja'). Dinonaktifkan, tidak dihapus: pembelian lama tetap merujuknya."""
+    name = models.CharField(max_length=80, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta: ordering = ["name"]
+
+    def __str__(self): return self.name
+
+
+class UniformSize(models.Model):
+    """Master ukuran (S, M, L, XL …). `sort` mengatur urutan tampil di rekap pesanan vendor."""
+    code = models.CharField(max_length=10, unique=True)
+    sort = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta: ordering = ["sort", "code"]
+
+    def __str__(self): return self.code
+
+
+class UniformRate(models.Model):
+    """Tarif potongan gaji per satuan pembelian menurut jenis kelamin, berlaku sejak tanggal. Append-only: tarif baru = baris baru
+    (tidak ada ubah/hapus); yang berlaku untuk suatu pembelian = baris dengan `effective_from` terbaru yang ≤ tanggal pembelian. Nilainya DISALIN ke pembelian."""
+    GENDERS = [("L", "Laki-laki"), ("P", "Perempuan")]
+    gender = models.CharField(max_length=1, choices=GENDERS)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    effective_from = models.DateField()
+    created_by = models.ForeignKey(USER, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["gender", "effective_from"], name="uniq_uniform_rate"),
+                       models.CheckConstraint(condition=models.Q(amount__gte=0), name="uniform_rate_nonneg")]
+        ordering = ["gender", "-effective_from"]
+
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Tarif seragam tidak boleh diubah; tambahkan tarif baru dengan tanggal berlaku.")
+        super().save(*a, **k)
+
+    def delete(self, *a, **k): raise PermissionError("Tarif seragam tidak boleh dihapus.")
+
+
+class UniformPurchase(models.Model):
+    """Pembelian seragam karyawan = sumber komponen Potongan → Seragam di Payroll kelak. Tabel SENDIRI (tidak di Employee).
+    Tarif, jenis kelamin, dan total potongan DISALIN saat dicatat → perubahan tarif/data karyawan tidak mengubah transaksi lama.
+    Tidak ada ubah/hapus: koreksi = pembatalan beralasan (`voided_*`); baris batal tetap tampil tetapi tidak masuk rekap dan tidak lagi menghalangi pencatatan ulang."""
+    class Status(models.TextChoices):
+        BELUM = "belum", "Belum dipotong"
+        SUDAH = "sudah", "Sudah dipotong"
+
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="uniform_purchases")
+    purchase_date = models.DateField()
+    utype = models.ForeignKey(UniformType, on_delete=models.PROTECT, related_name="purchases")
+    size = models.ForeignKey(UniformSize, on_delete=models.PROTECT, related_name="purchases")
+    gender = models.CharField(max_length=1, choices=UniformRate.GENDERS)       # salinan jenis kelamin karyawan saat dicatat
+    quantity = models.PositiveSmallIntegerField()
+    rate_amount = models.DecimalField(max_digits=14, decimal_places=2)         # salinan tarif per satuan
+    deduction_amount = models.DecimalField(max_digits=14, decimal_places=2)    # = rate_amount × quantity (disalin; A40)
+    deduction_status = models.CharField(max_length=5, choices=Status.choices, default=Status.BELUM)
+    deducted_period = models.CharField(max_length=7, blank=True, help_text="YYYY-MM periode gaji saat dipotong")
+    note = models.CharField(max_length=300, blank=True)
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    void_reason = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey(USER, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["employee", "purchase_date", "utype", "size"], condition=models.Q(voided_at__isnull=True), name="uniq_uniform_purchase_active"),
+                       models.CheckConstraint(condition=models.Q(quantity__gte=1, rate_amount__gte=0, deduction_amount__gte=0), name="uniform_purchase_valid")]
+        indexes = [models.Index(fields=["purchase_date"]), models.Index(fields=["deduction_status"])]
+        ordering = ["-purchase_date", "-id"]
+
+    @property
+    def is_void(self): return self.voided_at is not None
+
+    def delete(self, *a, **k): raise PermissionError("Pembelian seragam tidak boleh dihapus; batalkan dengan alasan.")
+
+
 # ---------------------------------------------------------------- Bantuan
 class Aid(models.Model):
     """Bantuan kepada karyawan — REKAPAN saja (putaran 20): tidak ada status/alur persetujuan; hanya dicatat siapa, jenis, tanggal, nominal."""

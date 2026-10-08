@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% load money %}{% block title %}Pembelian seragam{% endblock %}{% block content %}
+<p><a href="/hrd/uniforms/?period={{ p.purchase_date|date:'Y-m' }}">‹ Rekap Seragam</a></p>
+<h2>Pembelian seragam #{{ p.pk }}{% if p.is_void %} <span class="pill rejected">dibatalkan</span>{% endif %}</h2>
+<div class="card"><table>
+<tr><th>Karyawan</th><td>{{ p.employee.nik }} — {{ p.employee.name }} ({{ p.employee.department.name }})</td></tr>
+<tr><th>Tanggal pembelian</th><td>{{ p.purchase_date|date:"d-m-Y" }}</td></tr>
+<tr><th>Jenis / ukuran</th><td>{{ p.utype.name }} / {{ p.size.code }}</td></tr>
+<tr><th>Jumlah</th><td>{{ p.quantity }} pcs</td></tr>
+<tr><th>Jenis kelamin (salinan)</th><td>{{ p.gender }}</td></tr>
+<tr><th>Tarif per satuan (salinan)</th><td>{{ p.rate_amount|rupiah }}</td></tr>
+<tr><th>Total potongan</th><td>{{ p.deduction_amount|rupiah }}</td></tr>
+<tr><th>Status potongan</th><td>{{ p.get_deduction_status_display }}{% if p.deducted_period %} (periode {{ p.deducted_period }}){% endif %}</td></tr>
+<tr><th>Catatan</th><td>{{ p.note|default:"—" }}</td></tr>
+<tr><th>Dicatat</th><td>{{ p.created_at|date:"d-m-Y H:i" }}{% if p.created_by %} oleh {{ p.created_by.username }}{% endif %}</td></tr>
+{% if p.is_void %}<tr><th>Dibatalkan</th><td>{{ p.voided_at|date:"d-m-Y H:i" }}{% if p.voided_by %} oleh {{ p.voided_by.username }}{% endif %} — {{ p.void_reason }}</td></tr>{% endif %}
+</table></div>
+{% if not p.is_void %}
+{% if p.deduction_status == "belum" %}
+<form method="post" action="{% url 'hrd_uniform_mark' p.pk %}" class="card form">{% csrf_token %}<h3>Tandai sudah dipotong</h3>
+<p style="color:var(--mu)">Satu arah: setelah ditandai, pembelian tidak dapat dibatalkan.</p>
+<div class="fld"><label for="period">Periode gaji (YYYY-MM)</label><input id="period" name="period" value="{{ this_period }}" pattern="\d{4}-\d{2}" required></div>
+<p><button>Tandai sudah dipotong</button></p></form>
+<form method="post" action="{% url 'hrd_uniform_void' p.pk %}" class="card form">{% csrf_token %}<h3>Batalkan pembelian</h3>
+<div class="fld"><label for="reason">Alasan (wajib)</label><input id="reason" name="reason" maxlength="300" required></div>
+<p><button class="danger">Batalkan pembelian</button></p></form>
+{% else %}<p style="color:var(--mu)">Sudah dipotong dari gaji — tidak dapat dibatalkan. Koreksi dilakukan bersama Payroll.</p>{% endif %}
+{% endif %}
+{% endblock %}

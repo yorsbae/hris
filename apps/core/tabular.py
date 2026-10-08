@@ -43,10 +43,12 @@ def _num(v):
 def _is_money(v): return isinstance(v, (int, Decimal)) and not isinstance(v, bool)
 
 
-def to_bytes(header, rows, kind="csv", sheet="Data", money_cols=()):
+def to_bytes(header, rows, kind="csv", sheet="Data", money_cols=(), num_cols=()):
     """`money_cols`: nama kolom (dari `header`) atau indeks yang berisi rupiah. Di XLSX sel itu menjadi ANGKA ber-format rupiah
-    (bisa dijumlah/diurutkan di Excel, bukan teks); di CSV ditulis sebagai angka polos tanpa ',00'."""
-    mc = {header.index(c) if isinstance(c, str) else c for c in money_cols}
+    (bisa dijumlah/diurutkan di Excel, bukan teks); di CSV ditulis sebagai angka polos tanpa ',00'.
+    `num_cols`: kolom angka biasa (jumlah pcs, hitungan) — angka sungguhan di XLSX, tanpa format uang. Kolom lain tetap teks."""
+    idx = lambda cols: {header.index(c) if isinstance(c, str) else c for c in cols}  # noqa: E731
+    mc, nc = idx(money_cols), idx(num_cols)
     if kind == "xlsx":
         from openpyxl import Workbook
         from openpyxl.cell import WriteOnlyCell
@@ -56,16 +58,17 @@ def to_bytes(header, rows, kind="csv", sheet="Data", money_cols=()):
             for i, c in enumerate(r):
                 if i in mc and _is_money(c):
                     cell = WriteOnlyCell(ws, value=_num(c)); cell.number_format = XLSX_RUPIAH_FORMAT; line.append(cell)
+                elif i in nc and _is_money(c): line.append(_num(c))
                 else: line.append(_cell(c))
             ws.append(line)
         out = io.BytesIO(); wb.save(out); return out.getvalue(), XLSX
     out = io.StringIO(); w = csv.writer(out); w.writerow(header)
-    w.writerows([[str(_num(c)) if i in mc and _is_money(c) else _cell(c) for i, c in enumerate(r)] for r in rows])
+    w.writerows([[str(_num(c)) if (i in mc or i in nc) and _is_money(c) else _cell(c) for i, c in enumerate(r)] for r in rows])
     return ("\ufeff" + out.getvalue()).encode("utf-8"), "text/csv; charset=utf-8-sig"
 
 
-def export_response(name, header, rows, request, sheet="Data", money_cols=()):
-    kind = fmt(request); body, ctype = to_bytes(header, rows, kind, sheet, money_cols)
+def export_response(name, header, rows, request, sheet="Data", money_cols=(), num_cols=()):
+    kind = fmt(request); body, ctype = to_bytes(header, rows, kind, sheet, money_cols, num_cols)
     r = HttpResponse(body, content_type=ctype); r["Content-Disposition"] = f'attachment; filename="{name}.{kind}"'; return r
 
 

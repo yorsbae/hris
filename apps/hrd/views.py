@@ -16,7 +16,7 @@ from apps.core.scope import require_roles
 from apps.hr.models import Department, Employee
 from . import services
 from .forms import AidForm, BpjsDeductionForm, BpjsStatusForm, CateringForm, FinishMaternityForm, MaternityForm, ProjectForm, ProjectWorkForm, WarningForm
-from .models import Aid, BpjsDeduction, BpjsMembership, BpjsScheme, BpjsState, BpjsStatusLog, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
+from .models import Aid, BpjsDeduction, BpjsMembership, BpjsScheme, BpjsState, BpjsStatusLog, CateringOrder, MaternityLeave, Project, ProjectWork, UniformPurchase, WarningLetter
 
 PER_PAGE = 50
 
@@ -59,6 +59,7 @@ def hub(request):
         ("Katering (rekap)", "/hrd/catering/", CateringOrder.objects.filter(date=today).count(), "rekap hari ini"),
         ("Surat Peringatan", "/hrd/warnings/", WarningLetter.objects.filter(revoked_at__isnull=True, issue_date__lte=today, valid_until__gte=today).count(), "SP aktif"),
         ("Potongan BPJS", "/hrd/bpjs/deductions/", BpjsDeduction.objects.filter(period=today.strftime("%Y-%m")).count(), "baris potongan bulan ini"),
+        ("Seragam", "/hrd/uniforms/", UniformPurchase.objects.filter(deduction_status="belum", voided_at__isnull=True).count(), "pembelian belum dipotong"),
         ("Status BPJS", "/hrd/bpjs/", BpjsMembership.objects.filter(status="nonaktif", employee__status="aktif", employee__deleted_at__isnull=True).count(), "nonaktif (karyawan aktif)"),
     ]
     return render(request, "hrd/hub.html", {"cards": cards})

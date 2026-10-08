@@ -5,7 +5,7 @@ from django import forms
 from apps.core.money import RupiahField
 from apps.hr.models import Employee
 from . import services
-from .models import Aid, BpjsDeduction, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
+from .models import Aid, BpjsDeduction, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectWork, UniformPurchase, UniformRate, UniformSize, UniformType, WarningLetter
 
 D = lambda: forms.DateInput(attrs={"type": "date"})  # noqa: E731
 
@@ -77,6 +77,58 @@ class BpjsDeductionForm(forms.Form):
         obj, _ = BpjsDeduction.objects.update_or_create(employee=self.employee, scheme=d["scheme"], period=d["period"],
             defaults={"employee_amount": d["employee_amount"], "employer_amount": d.get("employer_amount") or 0, "note": d.get("note", "").strip(), "created_by": self.user})
         return obj
+
+
+# ---------------------------------------------------------------- Seragam (putaran 23, P5)
+class UniformPurchaseForm(EmployeeByNik):
+    """Satu aturan untuk input manual DAN impor. Karyawan harus AKTIF; tarif menurut jenis kelamin karyawan pada tanggal pembelian (disalin ke baris);
+    pembelian ganda (karyawan+tanggal+jenis+ukuran) yang belum dibatalkan ditolak."""
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+    purchase_date = forms.DateField(label="Tanggal pembelian", initial=date.today, widget=D())
+    utype = forms.ModelChoiceField(label="Jenis seragam", queryset=UniformType.objects.none(), empty_label="— pilih —")
+    size = forms.ModelChoiceField(label="Ukuran", queryset=UniformSize.objects.none(), empty_label="— pilih —")
+    quantity = forms.IntegerField(label="Jumlah (pcs)", min_value=1, max_value=50, initial=1)
+    note = forms.CharField(label="Catatan", required=False, max_length=300)
+
+    def __init__(self, *a, instance=None, user=None, **k):
+        super().__init__(*a, **k); self.instance, self.employee, self.user, self.rate = instance, None, user, None
+        self.fields["utype"].queryset = UniformType.objects.filter(is_active=True); self.fields["size"].queryset = UniformSize.objects.filter(is_active=True)
+
+    def clean_purchase_date(self):
+        v = self.cleaned_data["purchase_date"]
+        if v > date.today(): raise forms.ValidationError("Tanggal pembelian tidak boleh di masa depan.")
+        return v
+
+    def clean(self):
+        d = super().clean()
+        if not self._find_employee(d): return d
+        emp, when = self.employee, d.get("purchase_date")
+        if when and when < emp.join_date: self.add_error("purchase_date", "Sebelum tanggal masuk karyawan.")
+        if when and emp.gender in ("L", "P"):
+            self.rate = services.uniform_rate_for(emp.gender, when)
+            if not self.rate: self.add_error("purchase_date", "Belum ada tarif potongan seragam yang berlaku pada tanggal ini untuk jenis kelamin karyawan (tambahkan di Master Seragam).")
+        elif when: self.add_error("nik", "Jenis kelamin karyawan belum diisi/tidak valid; lengkapi data karyawan dulu.")
+        if when and d.get("utype") and d.get("size") and not self.errors:
+            if UniformPurchase.objects.filter(employee=emp, purchase_date=when, utype=d["utype"], size=d["size"], voided_at__isnull=True).exists():
+                raise forms.ValidationError("Pembelian yang sama (karyawan, tanggal, jenis, ukuran) sudah tercatat. Batalkan yang lama bila keliru.")
+        return d
+
+    def save(self):
+        d = self.cleaned_data
+        return UniformPurchase.objects.create(employee=self.employee, purchase_date=d["purchase_date"], utype=d["utype"], size=d["size"], gender=self.employee.gender, quantity=d["quantity"],
+                                              rate_amount=self.rate.amount, deduction_amount=self.rate.amount * d["quantity"], note=d.get("note", "").strip(), created_by=self.user)
+
+
+class UniformRateForm(forms.Form):
+    gender = forms.ChoiceField(label="Jenis kelamin", choices=UniformRate.GENDERS)
+    amount = RupiahField(label="Potongan per satuan (Rp)", min_value=0, max_value=100_000_000)
+    effective_from = forms.DateField(label="Berlaku sejak", widget=D())
+
+    def clean(self):
+        d = super().clean()
+        if d.get("gender") and d.get("effective_from") and UniformRate.objects.filter(gender=d["gender"], effective_from=d["effective_from"]).exists():
+            raise forms.ValidationError("Sudah ada tarif untuk jenis kelamin dan tanggal berlaku ini. Tarif tidak dapat diubah; pakai tanggal berlaku yang lain.")
+        return d
 
 
 # ---------------------------------------------------------------- Bantuan

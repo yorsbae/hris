@@ -3,7 +3,8 @@ from apps.core.bulk import import_view as bulk_import_view, template_view as bul
 from apps.core.models import Role
 from apps.core.scope import require_roles
 from . import views as v
-from .bulk_specs import BPJS_DEDUCTION
+from .bulk_specs import BPJS_DEDUCTION, UNIFORM_PURCHASE
+from . import uniform_views as uv
 
 urlpatterns = [
     path("", v.hub, name="hrd_hub"),
@@ -15,6 +16,14 @@ urlpatterns = [
     path("bpjs/deductions/import/", bulk_import_view(BPJS_DEDUCTION, require_roles(Role.HRD)), name="hrd_bpjs_deduction_import"),
     path("bpjs/deductions/import/template.csv", bulk_template_view(BPJS_DEDUCTION, require_roles(Role.HRD))),
     path("bpjs/<int:pk>/", v.bpjs_detail, name="hrd_bpjs_detail"),
+    path("uniforms/", uv.uniforms, name="hrd_uniforms"),
+    path("uniforms/new/", uv.uniform_new, name="hrd_uniform_new"),
+    path("uniforms/master/", uv.uniform_master, name="hrd_uniform_master"),
+    path("uniforms/import/", bulk_import_view(UNIFORM_PURCHASE, require_roles(Role.HRD)), name="hrd_uniform_import"),
+    path("uniforms/import/template.csv", bulk_template_view(UNIFORM_PURCHASE, require_roles(Role.HRD))),
+    path("uniforms/<int:pk>/", uv.uniform_detail, name="hrd_uniform_detail"),
+    path("uniforms/<int:pk>/void/", uv.uniform_void, name="hrd_uniform_void"),
+    path("uniforms/<int:pk>/mark/", uv.uniform_mark, name="hrd_uniform_mark"),
     path("aids/", v.aid_list, name="hrd_aids"),
     path("aids/new/", v.aid_new, name="hrd_aid_new"),
     path("aids/<int:pk>/edit/", v.aid_edit, name="hrd_aid_edit"),
