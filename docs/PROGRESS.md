@@ -1,7 +1,7 @@
 # PROGRESS — HRIS & Poliklinik
 
-Terakhir diperbarui: 9 Oktober 2026 (putaran 21 — P2 rupiah ✅, P3 tema ikon ✅, P1 keamanan dasar ◐; kode + migrasi `core/0004`) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
-Uji: `python manage.py test` (**540 tes**, putaran 21: lulus di SQLite dengan **Django 5.2.18**, 13 dilewati karena khusus PostgreSQL; sebelum putaran 21: 486 tes; putaran 19: lulus di SQLite, 13 dilewati karena khusus PostgreSQL; galat sesekali pada run paralel di `test_docs_import` (`FileNotFoundError` di `/tmp/tmp…/employee_docs`) **akar masalahnya ditemukan dan diperbaiki di putaran 21** (direktori sementara tingkat-modul dibagi ke semua worker `--parallel`, lalu dihapus oleh `tearDownModule` begitu satu worker selesai; kini dibersihkan sekali lewat `atexit` di proses induk; pola yang sama di `test_info`); **belum diuji ulang di PostgreSQL 16** — terakhir penuh di putaran 17c (450 tes). Jalankan paralel: `pip install tblib` lalu `--parallel 4`)
+Terakhir diperbarui: 9 Oktober 2026 (putaran 22 — P4 potongan BPJS ◐ (kode + migrasi `hrd/0005`), notifikasi kunci akun ke Superadmin ✅; sebelumnya putaran 21: P2 rupiah ✅, P3 tema ikon ✅, P1 keamanan dasar ◐) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
+Uji: `python manage.py test` (**563 tes**, putaran 22: lulus di SQLite dengan Django 5.2.18, 13 dilewati karena khusus PostgreSQL; **belum diuji di PostgreSQL 16 sejak putaran 17c**. Putaran 21: 540 tes; lulus di SQLite dengan **Django 5.2.18**, 13 dilewati karena khusus PostgreSQL; sebelum putaran 21: 486 tes; putaran 19: lulus di SQLite, 13 dilewati karena khusus PostgreSQL; galat sesekali pada run paralel di `test_docs_import` (`FileNotFoundError` di `/tmp/tmp…/employee_docs`) **akar masalahnya ditemukan dan diperbaiki di putaran 21** (direktori sementara tingkat-modul dibagi ke semua worker `--parallel`, lalu dihapus oleh `tearDownModule` begitu satu worker selesai; kini dibersihkan sekali lewat `atexit` di proses induk; pola yang sama di `test_info`); **belum diuji ulang di PostgreSQL 16** — terakhir penuh di putaran 17c (450 tes). Jalankan paralel: `pip install tblib` lalu `--parallel 4`)
 
 ## 1. Peta kemajuan terhadap VISION
 
@@ -16,7 +16,7 @@ Uji: `python manage.py test` (**540 tes**, putaran 21: lulus di SQLite dengan **
 | 5 | Poli: rekam medis, obat, diagnosa, kecelakaan kerja, kehamilan, rujukan, surat izin pulang | ✅ model + stok + PDF surat + alur rujukan + catatan tambahan | ✅ `/poli/…` | Putaran 10. Sisa & utang: lihat §3 (register kehamilan, enkripsi kolom medis, batalkan resep, kedaluwarsa/lot obat, laporan) |
 | 6 | Absensi | ◐ tabel mentah/harian disiapkan | ✗ | Impor fingerprint, alpa, terlambat, lembur, rekap belum |
 | 7 | Payroll | ✗ | ✗ | Sengaja terakhir; data payroll tidak dicampur ke tabel karyawan |
-| 2c+ | **[BARU]** Menu BPJS (TK/Kesehatan) + rekap potongan + impor/ekspor XLSX | ✗ | ✗ | Putaran 20 paket P4. Status BPJS (putaran 8) menjadi tab di dalamnya |
+| 2c+ | **[BARU]** Menu BPJS (TK/Kesehatan) + rekap potongan + impor/ekspor XLSX | ◐ `BpjsDeduction` (putaran 22) | ◐ `/hrd/bpjs/deductions/` (rekap, input, impor, ekspor, anomali) | **Putaran 22 (P4 sebagian).** Sisa: sidebar BPJS dengan submenu TK/K, master tarif `BpjsRate` + hitung otomatis, ringkasan per departemen, kelas/faskes/JKK-JHT-JKM-JP. Lihat putaran 22 |
 | 2d | **[BARU]** Rekap Seragam (+ ukuran, potongan L 19.000 / P 17.000) | ✗ | ✗ | Putaran 20 paket P5 |
 | 5c | **[BARU]** Tagihan Mitra (Poli; memuat keluhan & diagnosa) | ✗ | ✗ | Putaran 20 paket P6 |
 | 6a | **[BARU]** Validasi kehadiran HRD → Admin Dept | ✗ | ✗ | Putaran 20 paket P7; kerangka bisa jalan sebelum Tahap 6 |
@@ -163,7 +163,43 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 ### Putaran 13a — perbaikan /admin/ (dari riwayat git; dicatat belakangan)
 `/admin/` tampil tanpa CSS karena `DEBUG=False`: ditambah WhiteNoise untuk `/static/`, nama app & judul admin berbahasa Indonesia, dan tes regresi (`apps/core/test_static_admin.py`). Tes 332 → 337.
 
-### Putaran 21 — P2 format rupiah, P3 tema ikon, P1 keamanan dasar (sebagian) + Django 5.2 LTS ← terbaru
+### Putaran 22 — P4 Potongan BPJS (sebagian) + notifikasi kunci akun ← terbaru
+Permintaan: lanjutkan, perbarui progres & visi, kirim `.patch` sebelum token habis. Pengiriman: `putaran22.patch` (`git format-patch` di atas commit `900bc4c`; terapkan `git am putaran22.patch`). Setelah itu: `python manage.py migrate` (**`hrd/0005_bpjs_deduction`**: tabel baru, tanpa mengubah data lama). Tidak ada dependensi baru. Suite: **563 tes lulus** (SQLite, Django 5.2.18; +23 dari 540). Diperiksa dulu: baseline putaran 21 memang hijau (satu galat yang terlihat hanya karena `FIELD_ENCRYPTION_KEY` tak diisi di sandbox, bukan bug).
+
+**P4 — Potongan BPJS ◐** (`apps/hrd/`: `models.BpjsDeduction`, `forms.BpjsDeductionForm`, `bulk_specs.py`, `views.bpjs_deductions/bpjs_deduction_new`, `templates/hrd/bpjs_deductions.html`)
+- **Model `BpjsDeduction`** (tabel sendiri, bukan di `Employee`): karyawan, program (kes/tk), periode `YYYY-MM`, **porsi karyawan** dan **porsi perusahaan** (Decimal), catatan, pembuat. Unik per (karyawan, program, periode); constraint DB nominal ≥ 0.
+- **Satu form untuk input manual dan impor** (`BpjsDeductionForm`): periode `YYYY-MM` valid (bulan 1–12, tahun 2000–2100) dan tidak sebelum bulan masuk karyawan; nominal lewat `RupiahField` (P2; `1.500.000`, `Rp …` diterima, `1.5`/negatif ditolak). Menyimpan ulang kombinasi yang sama **mengganti** nilai lama (update_or_create). **Karyawan nonaktif boleh** diberi potongan (gaji bulan terakhir); kejanggalan ditandai, bukan ditolak.
+- **Impor CSV/XLSX** `/hrd/bpjs/deductions/import/` (+ template): memakai mesin `core/bulk.py` → semua-atau-tidak-sama-sekali, mode "Periksa saja", sel berawalan `=`/`@` ditolak, kunci dobel di file ditolak, hanya ringkasan masuk audit (`potongan-bpjs_import`). Kolom program menerima `kes/k/kesehatan` dan `tk/ketenagakerjaan/jht`.
+- **Rekap** `/hrd/bpjs/deductions/`: filter periode (bawaan bulan ini)/program/departemen/cari NIK-nama; kartu total porsi karyawan, porsi perusahaan, dan per program (format `Rp 1.400.000`, tanpa `,00`); paginasi 50.
+- **Anomali** (dua arah, sesuai VISION): *dipotong padahal nonaktif* = karyawan nonaktif **atau** status program karyawan itu bukan "aktif" (ditandai per baris dengan penyebab); *aktif tapi belum dipotong* = anggota aktif (status program aktif, karyawan aktif) tanpa baris potongan pada periode itu (daftar maks. 200, jumlah penuh ditampilkan).
+- **Ekspor** CSV/XLSX (`?export=1&format=xlsx`) mengikuti filter, maks. 20.000 baris, **tanpa nomor BPJS** (hanya NIK, nama, departemen, program, periode, nominal), tercatat di audit (`bpjs_deduction_export`).
+- **Akses**: HRD/Superadmin saja; Admin Dept & Poli → 403 di semua URL dan POST; anonim → redirect login. Audit tidak memuat nomor BPJS. Tautan ditambahkan di halaman Status BPJS dan kartu "Potongan BPJS" di hub `/hrd/`.
+- **Tes** (`apps/hrd/test_bpjs_deduction.py`, 22 tes): RBAC semua URL × semua role (+ POST), buat/ganti/terpisah per program-periode, validasi (periode, NIK, nominal, program, sebelum bulan masuk), impor (periksa saja, tambah lalu impor ulang mengganti, semua-atau-tidak-sama-sekali, dobel, formula, program tak dikenal, template), rekap total & format rupiah, kedua anomali, ekspor tanpa nomor BPJS + audit, filter sampah tidak 500. **Uji mutasi** — 5 aturan dirusak satu per satu (impor tanpa pembatasan role; ganti → hanya-buat; anomali nonaktif dihapus; audit ekspor dimatikan; validasi periode dimatikan): **semua tertangkap**; mutan ke-3 awalnya *lolos* (tes lama tidak membedakan "karyawan nonaktif" dari "status program tidak aktif") → ditambah tes pembeda, kini tertangkap.
+
+**Belum dikerjakan di P4 (tetap berlaku)**
+- **Sidebar "BPJS" dengan submenu TK/Kesehatan** dan pemindahan halaman Status menjadi tab (kini: halaman terpisah di bawah Operasional HRD, saling tertaut). Sengaja ditunda: perubahan navigasi per peran lebih baik dikerjakan bersama paket lain yang menambah menu (Seragam, Tagihan Mitra).
+- **Master tarif `BpjsRate`** (persen, batas upah, berlaku-sejak) dan **hitung otomatis** — baru bermakna bila ada sumber upah (Payroll); kini angka datang dari impor.
+- **Ringkasan per departemen**, batch impor yang "menggantikan batch lama dengan jejak" (kini: ganti nilai; jejak = audit ringkasan, nilai lama tidak disimpan per baris), kelas/faskes, JKK/JHT/JKM/JP terpisah, validasi format nomor BPJS.
+- **Belum diuji di PostgreSQL 16**, dan XLSX belum dibuka di Excel/LibreOffice sungguhan (hanya diuji menghasilkan berkas 200); sel angka diekspor sebagai angka (`XLSX_RUPIAH_FORMAT` belum diterapkan pada sel — `tabular.to_bytes` generik; bila diinginkan, perlu argumen format kolom).
+
+**Notifikasi kunci akun ke Superadmin ✅** (`apps/core/lockout.py::_notify_superadmins`, sisa P1)
+- Saat akun terkunci, semua Superadmin **aktif** menerima notifikasi (`kind=security`, tautan ke `/users/<id>/` tempat tombol Buka kunci berada). **Satu notifikasi belum-dibaca per akun terkunci** (kunci berjenjang berikutnya tidak menumpuk; setelah dibaca, kunci baru memberi tahu lagi). Judul memuat username dan lama kunci, **tidak** IP atau sandi. Pengguna nonaktif dan non-Superadmin tidak diberi tahu.
+- Tes (+1) dan uji mutasi: 3 mutan (notifikasi dimatikan, dedupe dimatikan, Superadmin nonaktif ikut diberi tahu) → semua tertangkap.
+
+**Asumsi putaran 22 (A50–A53; mudah diubah, mohon konfirmasi)**
+- **A50.** Potongan BPJS disimpan **per baris (karyawan+program+periode)** dengan dua porsi (karyawan, perusahaan). Bila perusahaan hanya butuh porsi karyawan, kolom perusahaan boleh 0/kosong.
+- **A51.** Karyawan **nonaktif boleh** punya potongan (gaji terakhir); ditandai anomali agar HRD memeriksa, bukan diblokir.
+- **A52.** Impor ulang periode yang sama **mengganti** nilai (bukan menumpuk). Nilai lama tidak disimpan per baris; hanya ringkasan impor di audit. Bila perlu riwayat nilai, tambah tabel batch/baris pembalik (usulan P4 lanjutan).
+- **A53.** Notifikasi kunci akun hanya ke Superadmin (bukan HRD), karena hanya Superadmin yang dapat membuka kunci.
+
+**Yang akan dilakukan (urut)**
+1. **Selesaikan P4**: sidebar BPJS + submenu + tab Status; master tarif `BpjsRate`; ringkasan per departemen; format sel XLSX rupiah.
+2. **P5 Rekap Seragam** → **P6 Tagihan Mitra** → **P7 Validasi kehadiran** (pola sama: form tunggal + `core/bulk` + `RupiahField` + uji mutasi).
+3. **Sisa P1** tanpa infrastruktur: CSP nonce (pindahkan skrip inline ke berkas statis), kunci per username+IP, 2FA TOTP Superadmin; lalu uji nyata Redis + Nginx + fail2ban.
+4. **P8 Skalabilitas** bertahap (wajib sebelum Tahap 6).
+5. Uji penuh di **PostgreSQL 16**, uji peramban nyata (tema, form RM, Master Shift, halaman potongan), utang lama (tabel rotasi di UI, register kehamilan, hari libur nasional, enkripsi kolom medis A12, Tahap 6, Tahap 7).
+
+### Putaran 21 — P2 format rupiah, P3 tema ikon, P1 keamanan dasar (sebagian) + Django 5.2 LTS
 Permintaan: lanjutkan rencana putaran 20 sesuai urutan (P1 → P2 → P3), perbarui progres & visi, kirim `.patch`. Pengiriman: `putaran21.patch` (`git format-patch` di atas commit `a6e441e`, 2 commit; terapkan `git am putaran21.patch`). Setelah itu: `pip install -r requirements.txt` (**Django naik ke 5.2 LTS**, tambah `redis`), `python manage.py migrate` (`core/0004_user_login_lockout`: 3 kolom di `User`), perbarui `.env` (lihat `.env.example`). Dikerjakan berurutan **P2 → P3 → P1** (P2/P3 kecil dan tanpa migrasi, dibuat lebih dulu agar ada hasil utuh; P1 menyusul).
 
 **P2 — Format rupiah ✅** (`apps/core/money.py`, `apps/core/templatetags/money.py`)
@@ -403,7 +439,7 @@ Cakupan baru yang **belum dibuat**: Surat Peringatan (SP1–3) · Grade/Bagian/C
   - Bantuan: belum ada lampiran bukti, dan pembuat bisa juga menyetujui (pemisahan tugas belum diberlakukan); nominal belum terhubung ke Payroll
   - Catatan harian proyek bisa diubah tetapi **tidak bisa dihapus** (koreksi lewat ubah; jejaknya ada di audit). Belum ada rekap upah/lembur per pekerja per proyek, belum ada ekspor
   - Katering: belum ada master vendor/menu, belum ada ekspor/rekap CSV untuk penagihan vendor, harga diketik per pesanan
-  - BPJS: belum ada ubah massal/impor status, belum ada validasi format nomor BPJS (13 digit untuk Kesehatan; format TK berbeda), belum ada iuran/potongan (itu Payroll). Status tidak otomatis nonaktif saat karyawan dinonaktifkan; hanya ditandai lewat filter anomali
+  - BPJS: belum ada ubah massal/impor status, belum ada validasi format nomor BPJS (13 digit untuk Kesehatan; format TK berbeda); rekap potongan sudah ada sejak putaran 22 (angka dari impor/input, belum dari Payroll). Status tidak otomatis nonaktif saat karyawan dinonaktifkan; hanya ditandai lewat filter anomali
   - Semua halaman baru belum punya hapus/arsip (hanya batal/selesai); penelusuran audit umum kini ada (`/audit/`, putaran 11); belum ada tampilan khusus modul ini
 - **Poliklinik — utang & batasan** (putaran 10):
   - **Kolom medis belum terenkripsi** (`complaint`, `treatment`, `exam`, `outcome`, catatan tambahan tersimpan plaintext di DB; hanya akses aplikasi yang dibatasi). VISION menyebut data medis hanya role berwenang, bukan enkripsi, tetapi data ini lebih sensitif daripada NIK KTP yang sudah dienkripsi. Mekanisme `EncryptedTextField` sudah ada; `exam` (JSON) perlu dipecah/dibungkus dulu. **Perlu keputusan** (lihat A12)
@@ -422,7 +458,7 @@ Cakupan baru yang **belum dibuat**: Surat Peringatan (SP1–3) · Grade/Bagian/C
 ## 4. Rencana berikutnya (diurutkan menurut prioritas VISION: Security › Integritas data › Role › Scope › Approval › Histori › Audit › Backup › Performa)
 
 ### Rencana terbaru
-Lihat **putaran 21 → "Yang akan dilakukan"** (sisa P1, lalu P4–P8 dari rencana putaran 20) untuk rencana yang berlaku sekarang; daftar di bawah adalah rencana lama dan tetap relevan untuk butir yang tidak disebut di putaran 20.
+Lihat **putaran 22 → "Yang akan dilakukan"** (selesaikan P4, lalu P5–P7, sisa P1, P8) untuk rencana yang berlaku sekarang; daftar di bawah adalah rencana lama dan tetap relevan untuk butir yang tidak disebut di putaran 20.
 
 ### Rencana berikutnya (usulan setelah putaran 11; urut menurut prioritas VISION)
 1. **Operasi produksi** (Security/Backup): pasang Nginx + systemd, jalankan smoke test proxy nyata, uji `backup.sh`/`restore.sh` (pg_dump/pg_restore) dan salinan `media/` ke lokasi lain, cache bersama untuk rate limit bila multi-worker.

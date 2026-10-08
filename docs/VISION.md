@@ -55,6 +55,11 @@ penyalahgunaan per akun; lapisan data membatasi dampak bila ada yang lolos. Angk
 | **Insiden** | Runbook singkat (siapa memutus akses, memutar kunci/sandi, memulihkan), retensi log, latihan berkala |
 
 
+> **Pembaruan 9 Oktober 2026 (putaran 22).** (1) **Potongan BPJS** kini ada sebagai tabel sendiri dengan rekap per periode, input manual, impor/ekspor CSV/XLSX, dan dua arah anomali —
+> angka berasal dari **impor/input** dulu, **hitung dari master tarif** menunggu Payroll; (2) prinsip yang dipertahankan dari paket ini untuk semua paket berikutnya: **satu form untuk input dan impor**,
+> ekspor **tanpa nomor identitas/BPJS** dan tercatat di audit, hal janggal **ditandai, bukan diblokir** bila ada alasan sah (mis. potongan gaji terakhir karyawan nonaktif); (3) Superadmin kini
+> **diberi tahu** saat akun terkunci. Status rinci & sisa: `docs/PROGRESS.md` → putaran 22.
+
 ### Status & prinsip tambahan (putaran 21)
 - **Satu pintu kontrol untuk semua jalur masuk**: kunci akun, rate limit IP, dan audit berlaku sama di `/login/` dan `/admin/login/`; jalur baru apa pun (API token, SSO kelak) wajib melewati `authenticate()` yang sama.
 - **Pesan seragam**: login gagal, akun terkunci, dan username tak dikenal tampil identik (tidak membocorkan keberadaan akun). Kunci akun **selalu sementara** dan dapat dibuka Superadmin; tiap penguncian tercatat di audit.
@@ -169,6 +174,8 @@ Semua perubahan tercatat di audit log; data tidak ditimpa diam-diam (ada histori
    **[BARU]** Kelengkapan yang dituju: kelas, faskes, cabang, tanggal kepesertaan, komponen JKK/JHT/JKM/JP, iuran, sinkronisasi, laporan. **[BARU]** Halaman ini menjadi tab "Status" di dalam menu BPJS (lihat "Menu BPJS"); URL lama diarahkan.
 
 ## [BARU] Menu BPJS (Ketenagakerjaan & Kesehatan)
+> **Status (putaran 22):** butir 2, 4, 5, 6 sudah ada sebagai halaman di bawah Operasional HRD (`/hrd/bpjs/deductions/`); **belum**: sidebar BPJS dengan submenu TK/K, butir 3 bagian "hitung dari master tarif", ringkasan per departemen, kelas/faskes/komponen JKK-JHT-JKM-JP.
+
 Menu sidebar tersendiri **BPJS** (HRD dan Superadmin; Admin Departemen dan Poli → 403) dengan dua submenu:
 
 | Submenu | Isi |
