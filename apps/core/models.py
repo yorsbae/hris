@@ -13,6 +13,10 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=Role.choices, db_index=True)
     department = models.ForeignKey("hr.Department", null=True, blank=True, on_delete=models.PROTECT)
     must_change_password = models.BooleanField(default=False)  # sandi dibuat/direset Superadmin → wajib diganti saat login berikutnya
+    # Penguncian akun per username (putaran 21, P1): salah sandi berulang → kunci sementara dengan jeda progresif; dibuka otomatis atau oleh Superadmin
+    failed_logins = models.PositiveSmallIntegerField(default=0)
+    last_failed_at = models.DateTimeField(null=True, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
     objects = AppUserManager()
     def save(self, *a, **k):
         if self.role == Role.DEPT_ADMIN and not self.department_id:

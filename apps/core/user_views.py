@@ -67,8 +67,9 @@ def user_new(request):
 def user_detail(request, pk):
     u = get_object_or_404(User.objects.select_related("department"), pk=pk)
     recent = AuditLog.objects.filter(user=u).defer("before", "after").order_by("-id")[:20]
-    return render(request, "users/detail.html", {"u": u, "is_self": u.pk == request.user.pk, "recent": recent,
-                                                 "deactivate": DeactivateForm()})
+    from . import lockout
+    return render(request, "users/detail.html", {"u": u, "is_self": u.pk == request.user.pk, "recent": recent, "deactivate": DeactivateForm(),
+                                                 "locked": lockout.is_locked(u), "lock_minutes": -(-lockout.remaining_seconds(u) // 60)})
 
 
 @superadmin_only
@@ -103,7 +104,8 @@ def user_reset_password(request, pk):
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             target.set_password(form.cleaned_data["password1"]); target.must_change_password = True
-            target.save(update_fields=["password", "must_change_password"])  # hash berubah → semua sesi aktif user ini terputus otomatis
+            target.failed_logins, target.last_failed_at, target.locked_until = 0, None, None  # sandi baru → kunci akun ikut dibuka
+            target.save(update_fields=["password", "must_change_password", "failed_logins", "last_failed_at", "locked_until"])  # hash berubah → semua sesi aktif user ini terputus otomatis
             log(request, "users", "password_reset", target, after={"must_change_password": True})  # TANPA sandi
         messages.success(request, f"Sandi {target.username} direset; semua sesi lamanya diputus dan ia wajib menggantinya saat login.")
         return redirect("user_detail", pk=pk)
@@ -128,6 +130,20 @@ def user_deactivate(request, pk):
     except UserRuleError as e:
         messages.error(request, str(e)); return redirect("user_detail", pk=pk)
     messages.success(request, "User dinonaktifkan; sesi yang sedang berjalan langsung tidak berlaku.")
+    return redirect("user_detail", pk=pk)
+
+
+@require_POST
+@superadmin_only
+def user_unlock(request, pk):
+    """Buka kunci akun akibat salah sandi berulang (putaran 21, P1). Tercatat di audit."""
+    from . import lockout
+    with transaction.atomic():
+        t = get_object_or_404(User.objects.select_for_update(), pk=pk)
+        was = lockout.is_locked(t)
+        lockout.clear(t)
+        log(request, "users", "user_unlock", t, before={"locked": was}, after={"locked": False})
+    messages.success(request, f"Kunci akun {t.username} dibuka." if was else f"{t.username} tidak sedang terkunci; hitungan gagal dibersihkan.")
     return redirect("user_detail", pk=pk)
 
 

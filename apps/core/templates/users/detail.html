@@ -6,9 +6,11 @@
 <tr><th>Role</th><td>{{ u.role|default:"(tanpa role)" }}</td></tr><tr><th>Departemen</th><td>{{ u.department.name|default:"-" }}</td></tr>
 <tr><th>Login terakhir</th><td>{{ u.last_login|date:"d M Y H:i"|default:"belum pernah" }}</td></tr>
 <tr><th>Dibuat</th><td>{{ u.date_joined|date:"d M Y H:i" }}</td></tr>
+<tr><th>Kunci login</th><td>{% if locked %}<span class="pill rejected">terkunci ± {{ lock_minutes }} menit lagi</span> <small class="help">salah sandi {{ u.failed_logins }}×</small>{% elif u.failed_logins %}tidak terkunci <small class="help">(salah sandi {{ u.failed_logins }}× terakhir)</small>{% else %}tidak terkunci{% endif %}</td></tr>
 <tr><th>Sandi</th><td>{% if u.must_change_password %}<span class="pill pending">wajib diganti saat login berikutnya</span>{% else %}normal{% endif %}</td></tr></table></div>
 <p><a class="btn" style="margin-left:0" href="/users/{{ u.pk }}/edit/">Ubah</a>
 {% if not is_self %}<a class="btn" href="/users/{{ u.pk }}/reset-password/">Reset sandi</a>{% endif %}
+{% if locked or u.failed_logins %}<form method="post" action="/users/{{ u.pk }}/unlock/" style="display:inline">{% csrf_token %}<button class="ghost" style="margin-left:8px">Buka kunci login</button></form>{% endif %}
 <a class="btn" href="/audit/?user={{ u.username|urlencode }}&amp;from=&amp;to=">Semua aktivitas di audit</a></p>
 {% if not is_self %}
 {% if u.is_active %}<form method="post" action="/users/{{ u.pk }}/deactivate/" class="card form">{% csrf_token %}

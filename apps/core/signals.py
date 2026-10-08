@@ -1,4 +1,6 @@
 from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
+import logging
+import time
 from django.dispatch import receiver
 from .models import AuditLog
 from .net import client_ip
@@ -13,7 +15,9 @@ def _write(action, request, user):
 
 
 @receiver(user_logged_in, dispatch_uid="audit_login")
-def on_login(sender, request=None, user=None, **kw): _write("login", request, user)
+def on_login(sender, request=None, user=None, **kw):
+    _write("login", request, user)
+    if request is not None and hasattr(request, "session"): request.session["_last"] = int(time.time())  # stempel awal timeout idle (ikut tersimpan bersama sesi login)
 
 
 @receiver(user_logged_out, dispatch_uid="audit_logout")
@@ -21,4 +25,7 @@ def on_logout(sender, request=None, user=None, **kw): _write("logout", request, 
 
 
 @receiver(user_login_failed, dispatch_uid="audit_login_failed")
-def on_login_failed(sender, request=None, credentials=None, **kw): _write("login_failed", request, None)  # username yang dicoba sengaja tidak disimpan (sering berisi sandi yang salah ketik)
+def on_login_failed(sender, request=None, credentials=None, **kw):
+    _write("login_failed", request, None)
+    logging.getLogger("hris.security").warning("login_failed ip=%s", client_ip(request) if request else "-")  # untuk fail2ban (scripts/fail2ban-hris.conf)
+    # username yang dicoba sengaja tidak disimpan (sering berisi sandi yang salah ketik)
