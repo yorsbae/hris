@@ -1,8 +1,10 @@
 <!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{% block title %}HRIS{% endblock %}</title>
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
 <style>
 :root{--bg:#f5f6f8;--card:#fff;--tx:#1d2330;--mu:#667085;--ac:#1f6feb;--ac2:#1859c4;--bd:#e3e6eb;--bd2:#d0d5dd;--hov:#f0f4fb;--ok:#05603a;--okb:#abefc6;--wn:#7a4b00;--wnb:#fedf89;--er:#d92d20;--erb:#fecdca;--inf:#175cd3;--infb:#d1e0ff;--sh:0 1px 2px rgba(16,24,40,.06);--r:10px;--nv:#0d2149;--nv2:#12306b;--nvt:#c9d6f2;--nva:#1d5fd1;--nvg:#6ea8ff}
-@media(prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--tx:#e7eaf0;--mu:#97a0b0;--ac:#5b9bff;--ac2:#7db0ff;--bd:#2b3240;--bd2:#3a4354;--hov:#222a38;--ok:#75e0a7;--okb:#0b3b27;--wn:#fec84b;--wnb:#4a3300;--er:#f97066;--erb:#4a1612;--inf:#84adff;--infb:#12284f;--sh:none;--nv:#0a1530;--nv2:#0f2252}}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12151b;--card:#1b2029;--tx:#e7eaf0;--mu:#97a0b0;--ac:#5b9bff;--ac2:#7db0ff;--bd:#2b3240;--bd2:#3a4354;--hov:#222a38;--ok:#75e0a7;--okb:#0b3b27;--wn:#fec84b;--wnb:#4a3300;--er:#f97066;--erb:#4a1612;--inf:#84adff;--infb:#12284f;--sh:none;--nv:#0a1530;--nv2:#0f2252}}
+html[data-theme=dark]{--bg:#12151b;--card:#1b2029;--tx:#e7eaf0;--mu:#97a0b0;--ac:#5b9bff;--ac2:#7db0ff;--bd:#2b3240;--bd2:#3a4354;--hov:#222a38;--ok:#75e0a7;--okb:#0b3b27;--wn:#fec84b;--wnb:#4a3300;--er:#f97066;--erb:#4a1612;--inf:#84adff;--infb:#12284f;--sh:none;--nv:#0a1530;--nv2:#0f2252}html[data-theme=dark]{color-scheme:dark}html[data-theme=light]{color-scheme:light}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx)}
 a{color:var(--ac)}a:hover{color:var(--ac2)}h2{margin:.2em 0 .7em;font-size:22px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}h3{margin:1.2em 0 .5em;font-size:17px}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px;border-radius:6px}
@@ -67,21 +69,31 @@ body.auth{background:linear-gradient(160deg,var(--nv),var(--nv2) 60%,#1d4fa8)}bo
 @media(max-width:1000px){aside.side{transform:translateX(-100%);transition:transform .2s}body.navopen aside.side{transform:none;box-shadow:0 0 40px rgba(0,0,0,.4)}
 .col{margin-left:0}.nt{display:block}.gs{flex:1}header.top{padding:0 12px}.um .who{display:none}body.navopen .scrim{display:block;position:fixed;inset:0;background:rgba(10,20,40,.5);z-index:35}
 main{padding:14px 12px 30px}table{font-size:14px}th,td{padding:8px}.clock{display:none}}
-@media print{aside.side,header.top,.pager,.nt,footer.foot,.crumb{display:none}.col{margin:0}body{background:#fff}main{padding:0;max-width:none}}
+.tt{display:grid;place-items:center;width:38px;height:38px;min-height:0;padding:0;border-radius:50%;background:none;color:var(--mu);border:0}.tt:hover{background:var(--hov);color:var(--tx)}
+.tt[aria-pressed=true] .i-moon,.tt[aria-pressed=false] .i-sun{display:none}.tt.float{position:fixed;top:12px;right:12px;z-index:50;background:var(--card);border:1px solid var(--bd);color:var(--tx)}
+@media print{:root,html[data-theme=dark]{--bg:#fff;--card:#fff;--tx:#000;--mu:#444;--bd:#ccc;--bd2:#bbb;--hov:#fff;color-scheme:light}aside.side,header.top,.pager,.nt,footer.foot,.crumb{display:none}.col{margin:0}body{background:#fff}main{padding:0;max-width:none}}
 </style></head><body class="{% block bodyclass %}{% endblock %}"><a class="skip" href="#main">Lewati ke isi</a>
 {% include "_icons.html" %}
+{% if not user.is_authenticated %}<button type="button" class="tt float" id="tt" aria-pressed="false" aria-label="Mode gelap" title="Ganti tema terang/gelap"><svg class="ic i-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic i-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>{% endif %}
 {% if user.is_authenticated %}<div class="shell">
 <aside class="side" id="side"><a class="brand" href="/"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#1d5fd1"/><path d="M11 11l18 18M29 11L11 29" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M29 11L11 29" stroke="#6ea8ff" stroke-width="5" stroke-linecap="round" opacity=".0"/></svg><span>HRIS &amp; POLIKLINIK<br>{{ company_name }}</span></a>
 <nav class="main" id="nav" aria-label="Navigasi utama">{% for g in nav_groups %}<div class="ng"><h2>{{ g.title }}</h2>{% for i in g.items %}<a href="{{ i.url }}"{% if i.sub %} class="sub"{% endif %}{% if i.active %} aria-current="page"{% endif %}><svg class="ic" aria-hidden="true"><use href="#i-{{ i.icon }}"/></svg><span>{{ i.label }}</span>{% if i.url == "/announcements/" and unread_ann %}<span class="badge" aria-label="{{ unread_ann }} belum dibaca">{{ unread_ann }}</span>{% endif %}</a>{% endfor %}</div>{% endfor %}</nav></aside>
 <div class="scrim" id="scrim"></div>
 <div class="col"><header class="top"><button class="nt" type="button" aria-expanded="false" aria-controls="side" id="nt">Menu</button>
 <form class="gs" role="search" method="get" action="/employees/"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><input type="search" name="q" placeholder="Cari NIK / nama karyawan" aria-label="Cari karyawan berdasarkan NIK atau nama" autocomplete="off" maxlength="100"></form>
+<button type="button" class="tt" id="tt" aria-pressed="false" aria-label="Mode gelap" title="Ganti tema terang/gelap"><svg class="ic i-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic i-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>
 <a class="bell" href="/notifications/" aria-label="Notifikasi{% if unread_count %}, {{ unread_count }} belum dibaca{% endif %}"><svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg>{% if unread_count %}<span class="badge" aria-hidden="true">{{ unread_count }}</span>{% endif %}</a>
 <details class="um"><summary><span class="av" aria-hidden="true">{{ user.get_username|slice:":2"|upper }}</span><span class="who">{{ user.get_full_name|default:user.get_username }}<small>{{ user.get_role_display|default:user.role }}</small></span><svg class="ic" style="width:15px;height:15px;color:var(--mu)" aria-hidden="true"><use href="#i-chev"/></svg></summary>
 <div class="menu"><a href="/password/change/">Ganti sandi</a><form method="post" action="/logout/">{% csrf_token %}<button>Keluar</button></form></div></details></header>{% endif %}
 <main id="main">{% if user.is_authenticated and crumb %}<nav class="crumb" aria-label="Jejak halaman"><a href="/" aria-label="Dashboard"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg></a><i>/</i><b>{{ crumb }}</b></nav>{% endif %}{% for m in messages %}<div class="msg {{ m.tags }}" role="{% if m.tags == 'error' %}alert{% else %}status{% endif %}"><span>{{ m }}</span><button class="x" type="button" aria-label="Tutup pesan">×</button></div>{% endfor %}{% block content %}{% endblock %}</main>
 {% if user.is_authenticated %}<footer class="foot"><span>HRIS &amp; POLIKLINIK {{ company_name }} · v{{ app_version }}</span><span>Internal Use Only · {{ company_name }}</span></footer></div></div>{% endif %}
 <script>
+(function(){var b=document.getElementById("tt"),de=document.documentElement,mq=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)");
+function dark(){var t=de.getAttribute("data-theme");return t?t==="dark":!!(mq&&mq.matches)}
+function sync(){if(b)b.setAttribute("aria-pressed",dark()?"true":"false")}sync();
+if(b)b.addEventListener("click",function(){var t=dark()?"light":"dark";de.setAttribute("data-theme",t);try{localStorage.setItem("theme",t)}catch(e){}sync()});
+if(mq&&mq.addEventListener)mq.addEventListener("change",sync)})();
+document.addEventListener("focusout",function(e){var i=e.target;if(!i||!i.matches||!i.matches("input[data-rupiah]"))return;var d=i.value.replace(/^\s*rp\.?/i,"").replace(/,\d{0,2}$/,"").replace(/\D/g,"");if(d)i.value=d.replace(/\B(?=(\d{3})+(?!\d))/g,".")});
 (function(){var f=document.querySelector("main form[method=post], main form[method=POST]");var errs=document.querySelectorAll("main form .errorlist");if(!f||!errs.length)return;
 var n=0,box=document.createElement("div"),ul=document.createElement("ul"),sp=document.createElement("span");box.className="msg error errsum";box.setAttribute("role","alert");box.tabIndex=-1;
 errs.forEach(function(e){var fld=e.closest(".fld"),lb=fld&&fld.querySelector("label"),c=fld&&fld.querySelector("input,select,textarea");if(c){c.setAttribute("aria-invalid","true");if(!n)n=c}

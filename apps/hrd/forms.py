@@ -2,6 +2,7 @@
 import re
 from datetime import date
 from django import forms
+from apps.core.money import RupiahField
 from apps.hr.models import Employee
 from . import services
 from .models import Aid, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
@@ -48,7 +49,7 @@ class AidForm(EmployeeByNik):
     nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
     kind = forms.ChoiceField(label="Jenis bantuan", choices=Aid.KINDS)
     event_date = forms.DateField(label="Tanggal kejadian", widget=D())
-    amount = forms.IntegerField(label="Nominal (Rp)", min_value=1, max_value=2_000_000_000)
+    amount = RupiahField(label="Nominal (Rp)", min_value=1, max_value=2_000_000_000)
     description = forms.CharField(label="Keterangan", required=False, widget=forms.Textarea(attrs={"rows": 3}), max_length=1000)
 
     def __init__(self, *a, instance=None, **k):
@@ -127,7 +128,8 @@ class ProjectWorkForm(forms.ModelForm):
         model = ProjectWork
         fields = ["work_date", "worker_name", "activity", "wage", "note"]
         widgets = {"work_date": D()}
-        labels = {"work_date": "Tanggal kerja", "worker_name": "Nama pekerja", "activity": "Mengerjakan apa", "wage": "Upah hari itu (Rp)", "note": "Catatan"}
+        labels = {"work_date": "Tanggal kerja", "worker_name": "Nama pekerja", "activity": "Mengerjakan apa", "note": "Catatan"}
+    wage = RupiahField(label="Upah hari itu (Rp)", min_value=0)
 
     def __init__(self, *a, project, **k):
         super().__init__(*a, **k); self.project = project
