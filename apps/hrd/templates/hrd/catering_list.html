@@ -12,6 +12,6 @@
 <td>{% if o.status == "dipesan" %}<a href="{% url 'hrd_catering_edit' o.pk %}">Ubah</a>
 <form method="post" action="{% url 'hrd_catering_action' o.pk 'receive' %}" style="display:flex;gap:4px;margin-top:4px">{% csrf_token %}<input name="received_large" type="number" min="0" value="{{ o.qty_large }}" style="width:70px" title="Besar diterima"><input name="received_small" type="number" min="0" value="{{ o.qty_small }}" style="width:70px" title="Kecil diterima"><button>Diterima</button></form>
 <form method="post" action="{% url 'hrd_catering_action' o.pk 'cancel' %}" style="display:flex;gap:4px;margin-top:4px">{% csrf_token %}<input name="reason" placeholder="Alasan batal" required maxlength="200"><button class="danger">Batal</button></form>{% else %}{{ o.note|default:"" }}{% endif %}</td></tr>
-{% empty %}<tr><td colspan="8">Tidak ada pesanan pada periode ini.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="8">Tidak ada pesanan pada periode ini.</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

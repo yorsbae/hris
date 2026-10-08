@@ -11,5 +11,5 @@
 <div class="wrap"><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Hari</th><th>Keterangan</th><th>Pengajuan</th><th>Oleh</th></tr></thead><tbody>
 {% for l in ledger %}<tr><td>{{ l.created_at|date:"d M Y H:i" }}</td><td>{{ l.get_kind_display }}</td><td>{{ l.days }}</td><td>{{ l.note|default:"—" }}</td>
 <td>{% if l.request_id %}<a href="/requests/{{ l.request_id }}/">#{{ l.request_id }}</a>{% else %}—{% endif %}</td><td>{{ l.created_by.get_username|default:"sistem" }}</td></tr>
-{% empty %}<tr><td colspan="6">Belum ada catatan untuk tahun ini.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada catatan untuk tahun ini.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

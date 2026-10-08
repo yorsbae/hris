@@ -4,7 +4,7 @@
 <label><input type="checkbox" name="unread" value="1"{% if unread %} checked{% endif %}> belum dibaca</label><button>Filter</button></form>
 {% for a in page %}<div class="card" style="margin-bottom:10px"><a href="/announcements/{{ a.pk }}/">{% if not a.is_read %}<span class="badge">baru</span> {% endif %}<b style="display:inline;font-size:16px">{{ a.title }}</b></a>
 <br><span>{{ a.kind_label }} · {{ a.created_at|date:"d M Y H:i" }} · {{ a.created_by.get_username }}{% if a.attachment %} · 📎{% endif %}</span></div>
-{% empty %}<p>Tidak ada pengumuman.</p>{% endfor %}
+{% empty %}<p class="empty">Tidak ada pengumuman.</p>{% endfor %}
 <p>{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}&kind={{ kind }}{% if unread %}&unread=1{% endif %}">‹</a>{% endif %}
 Halaman {{ page.number }} / {{ page.paginator.num_pages }}
 {% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}&kind={{ kind }}{% if unread %}&unread=1{% endif %}">›</a>{% endif %}</p>

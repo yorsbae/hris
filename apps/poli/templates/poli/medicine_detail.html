@@ -8,6 +8,6 @@
 <h3>Kartu stok</h3>
 <div class="wrap"><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Masuk/keluar</th><th>Saldo</th><th>Ref / catatan</th><th>Petugas</th></tr></thead><tbody>
 {% for s in page %}<tr><td>{{ s.created_at|date:"d M Y H:i" }}</td><td>{% if s.reason == "purchase" %}Masuk{% elif s.reason == "prescription" %}Resep{% else %}Penyesuaian{% endif %}</td><td>{% if s.qty > 0 %}+{% endif %}{{ s.qty }}</td><td>{{ s.balance_after }}</td><td>{{ s.ref }}{% if s.ref and s.note %} · {% endif %}{{ s.note }}</td><td>{{ s.created_by.username|default:"-" }}</td></tr>
-{% empty %}<tr><td colspan="6">Belum ada mutasi stok.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada mutasi stok.</td></tr>{% endfor %}</tbody></table></div>
 {% include "poli/_pager.html" %}
 {% endblock %}

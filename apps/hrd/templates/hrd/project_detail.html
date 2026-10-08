@@ -9,6 +9,6 @@
 {% for l in page %}<tr><td style="white-space:nowrap">{{ l.work_date|date:"D, d M Y" }}</td><td>{{ l.activity|linebreaksbr }}{% if l.note %}<br><small style="color:var(--mu)">{{ l.note }}</small>{% endif %}</td><td>{{ l.headcount }}</td>
 <td>{% for w in l.workers.all|slice:":5" %}{{ w.nik }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if l.workers.all|length > 5 %} +{{ l.workers.all|length|add:"-5" }}{% endif %}</td>
 <td><a href="{% url 'hrd_project_log_edit' p.pk l.pk %}">Ubah</a></td></tr>
-{% empty %}<tr><td colspan="5">Belum ada catatan harian.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada catatan harian.</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

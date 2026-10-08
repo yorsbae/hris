@@ -9,6 +9,6 @@
 {% for u in page %}<tr><td>{{ u.username }}</td><td>{{ u.get_full_name }}</td><td>{{ u.role|default:"(tanpa role)" }}</td><td>{{ u.department.name|default:"-" }}</td>
 <td>{% if u.is_active %}<span class="pill approved">aktif</span>{% else %}<span class="pill rejected">nonaktif</span>{% endif %}{% if u.must_change_password %} <span class="pill pending">wajib ganti sandi</span>{% endif %}</td>
 <td>{{ u.last_login|date:"d M Y H:i"|default:"belum pernah" }}</td><td><a href="/users/{{ u.pk }}/">Kelola</a></td></tr>
-{% empty %}<tr><td colspan="7">Tidak ada data.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="7">Tidak ada data.</td></tr>{% endfor %}</tbody></table></div>
 {% include "_pager.html" %}
 {% endblock %}

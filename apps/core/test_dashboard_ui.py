@@ -150,3 +150,26 @@ class PanelsTests(DashboardUiBase):
         for u in (self.su, self.hrd, self.adm, self.poli):
             h = self.get(u, "/").content.decode()
             self.assertIn("Selamat datang", h); self.assertIn('id="kpis"', h); self.assertIn("PT X", h)
+
+
+class ListPatternTests(DashboardUiBase):
+    def test_global_search_form_for_every_role_points_to_scoped_list(self):
+        for u in (self.su, self.hrd, self.adm, self.poli):
+            h = self.get(u, "/employees/").content.decode()
+            self.assertIn('role="search"', h); self.assertIn('action="/employees/"', h); self.assertIn('name="q"', h)
+        self.client.logout(); self.assertNotIn('role="search"', self.client.get("/login/").content.decode())
+
+    def test_empty_states_are_styled_and_have_colspan(self):
+        for path in ("/requests/", "/notifications/", "/leave/?q=zzzz", "/hrd/aids/", "/hrd/maternity/", "/hrd/projects/", "/poli/referrals/", "/poli/records/", "/poli/medicines/", "/poli/diagnoses/"):
+            u = self.poli if path.startswith("/poli") else self.hrd
+            r = self.get(u, path); self.assertEqual(r.status_code, 200, path)
+            self.assertIn('class="empty"', r.content.decode().split("<main",1)[1], path)
+
+    def test_audit_and_users_empty_state_for_superadmin(self):
+        self.assertIn('class="empty"', self.get(self.su, "/audit/?module=tidak-ada").content.decode())
+
+    def test_form_error_summary_script_and_server_errors_present(self):
+        r = self.get(self.su, "/users/new/"); self.assertIn("Periksa isian yang ditandai", r.content.decode())
+        self.client.force_login(self.su)
+        r = self.client.post("/users/new/", {"username": "", "role": "hrd"})
+        self.assertEqual(r.status_code, 200); self.assertIn("errorlist", r.content.decode())

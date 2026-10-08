@@ -6,5 +6,5 @@
 {% if kind == "department" %}<th>Kode</th><th>Nama</th><th>Induk</th>{% elif kind == "position" %}<th>Nama</th><th>Level</th>{% else %}<th>Nama</th><th>Masuk</th><th>Pulang</th><th>Lewat tengah malam</th>{% endif %}<th></th></tr></thead><tbody>
 {% for i in items %}<tr>
 {% if kind == "department" %}<td>{{ i.code }}</td><td>{{ i.name }}</td><td>{{ i.parent.name|default:"—" }}</td>{% elif kind == "position" %}<td>{{ i.name }}</td><td>{{ i.level }}</td>{% else %}<td>{{ i.name }}</td><td>{{ i.start|time:"H:i" }}</td><td>{{ i.end|time:"H:i" }}</td><td>{{ i.crosses_midnight|yesno:"ya,tidak" }}</td>{% endif %}
-<td><a href="{% url 'master_edit' kind i.pk %}">Ubah</a></td></tr>{% empty %}<tr><td colspan="5">Belum ada data.</td></tr>{% endfor %}</tbody></table></div>
+<td><a href="{% url 'master_edit' kind i.pk %}">Ubah</a></td></tr>{% empty %}<tr><td class="empty" colspan="5">Belum ada data.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

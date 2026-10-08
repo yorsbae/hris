@@ -19,5 +19,5 @@
 <h3>Aktivitas terakhir (20)</h3>
 <div class="wrap"><table><thead><tr><th>Waktu</th><th>IP</th><th>Modul</th><th>Aksi</th><th>Objek</th></tr></thead><tbody>
 {% for a in recent %}<tr><td><a href="/audit/{{ a.pk }}/">{{ a.created_at|date:"d M Y H:i:s" }}</a></td><td>{{ a.ip|default:"-" }}</td><td>{{ a.module }}</td><td>{{ a.action }}</td><td>{{ a.object_type }} {{ a.object_id }}</td></tr>
-{% empty %}<tr><td colspan="5">Belum ada aktivitas.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada aktivitas.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

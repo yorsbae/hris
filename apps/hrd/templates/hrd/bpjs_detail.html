@@ -11,5 +11,5 @@
 <h3>Histori</h3>
 <div class="wrap"><table><thead><tr><th>Efektif</th><th>Program</th><th>Dari</th><th>Menjadi</th><th>Keterangan</th><th>Oleh</th><th>Dicatat</th></tr></thead><tbody>
 {% for l in logs %}<tr><td>{{ l.effective_date|date:"d M Y" }}</td><td>{{ l.get_scheme_display }}</td><td>{{ l.old_status|default:"—" }}</td><td>{{ l.new_status }}</td><td>{{ l.note|default:"—" }}</td><td>{{ l.changed_by.get_username|default:"—" }}</td><td>{{ l.created_at|date:"d M Y H:i" }}</td></tr>
-{% empty %}<tr><td colspan="7">Belum ada histori.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="7">Belum ada histori.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

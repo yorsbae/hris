@@ -8,6 +8,6 @@
 <div class="wrap"><table><thead><tr><th>#</th><th>Karyawan</th><th>Jenis</th><th>Kejadian</th><th>Nominal</th><th>Status</th></tr></thead><tbody>
 {% for a in page %}<tr><td><a href="{% url 'hrd_aid_detail' a.pk %}">{{ a.pk }}</a></td><td>{{ a.employee.nik }} · {{ a.employee.name }}</td><td>{{ a.get_kind_display }}</td><td>{{ a.event_date|date:"d M Y" }}</td><td>Rp {{ a.amount|floatformat:0 }}</td>
 <td><span class="pill {% if a.status == 'disetujui' or a.status == 'dibayar' %}approved{% elif a.status == 'ditolak' %}rejected{% else %}pending{% endif %}">{{ a.get_status_display }}</span></td></tr>
-{% empty %}<tr><td colspan="6">Belum ada data bantuan.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada data bantuan.</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

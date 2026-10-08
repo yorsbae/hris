@@ -1,7 +1,7 @@
 # PROGRESS — HRIS & Poliklinik
 
-Terakhir diperbarui: 8 Oktober 2026 (putaran 14) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
-Uji: `python manage.py test` (351 tes; lulus di SQLite; PostgreSQL 16 terakhir diuji penuh di putaran 11 (327 tes) — putaran 12–14 hanya menyentuh template/JS + 1 endpoint baca-saja; 11 tes konkurensi berthread hanya jalan di PostgreSQL) · Dokumen ini diperbarui di setiap putaran kerja.
+Terakhir diperbarui: 8 Oktober 2026 (putaran 15) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
+Uji: `python manage.py test` (355 tes; lulus di SQLite; PostgreSQL 16 terakhir diuji penuh di putaran 11 (327 tes) — putaran 12–14 hanya menyentuh template/JS + 1 endpoint baca-saja; 11 tes konkurensi berthread hanya jalan di PostgreSQL) · Dokumen ini diperbarui di setiap putaran kerja.
 
 ## 1. Peta kemajuan terhadap VISION
 
@@ -158,7 +158,16 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 ### Putaran 13a — perbaikan /admin/ (dari riwayat git; dicatat belakangan)
 `/admin/` tampil tanpa CSS karena `DEBUG=False`: ditambah WhiteNoise untuk `/static/`, nama app & judul admin berbahasa Indonesia, dan tes regresi (`apps/core/test_static_admin.py`). Tes 332 → 337.
 
-### Putaran 14 — UI/UX menurut gambar rujukan (`docs/ui-reference/dashboard-hrd.png`) ← terbaru
+### Putaran 15 — pola daftar seragam, pencarian global, ringkasan galat formulir ← terbaru
+Lanjutan "Sisa UI/UX" butir 1–3 (sebagian). **Hanya template/CSS/JS + 1 berkas tes; tanpa perubahan model, migrasi, URL, view, atau izin.** Patch: `putaran15-uiux.patch` (di atas patch putaran 14; `git am`).
+- **Keadaan kosong seragam**: semua baris "Tidak ada data / Belum ada …" di 15 daftar server-render (`/requests/`, `/leave/`, `/users/`, `/audit/`, `/notifications/`, `/announcements/`, `/hrd/*`, `/poli/*`, `/master/*`) kini memakai kelas `empty` (rata tengah, abu-abu, jarak lega); sebelumnya teks polos di pojok kiri tabel, dan baris kosong notifikasi tanpa `colspan`.
+- **Pencarian cepat global** di bilah atas (NIK/nama) → `/employees/?q=…`; memakai daftar karyawan yang sudah ada sehingga **scope peran tetap berlaku di server** (Admin Dept hanya melihat departemennya). Bukan pencarian lintas modul (itu Tahap 8; lihat sisa).
+- **Ringkasan galat formulir** (JS umum di `base.html`): bila formulir POST kembali dengan galat, muncul kotak `role=alert` "Periksa isian yang ditandai (n masalah)" berisi label + pesan tiap galat, fokus dipindah ke kotak itu, dan bidang bermasalah diberi `aria-invalid`. Teks lewat `textContent`. Berlaku untuk semua formulir tanpa mengubah templatnya.
+- Judul `<h2>` halaman dalam diperbesar (24 px) agar selaras dengan judul dashboard.
+- **Tes**: +4 di `apps/core/test_dashboard_ui.py` (`ListPatternTests`): formulir cari ada untuk tiap peran dan tidak ada di login, 10 daftar menampilkan keadaan kosong bergaya, audit kosong, skrip ringkasan galat ada + galat server tetap dirender. Total 351 → **355**. JS diperiksa `node --check`; **belum** diuji di peramban nyata (ringkasan galat dan pencarian perlu dicoba manual).
+- **Sengaja belum**: pesan khusus "tidak ada data yang cocok dengan filter" (kini teks keadaan kosong biasa), seragamisasi pager/filter lama di `/leave/` (masih `<p>` + `form.bar`), `fieldset` pengelompokan formulir panjang, draft rekam medis di peramban, detail karyawan bertab.
+
+### Putaran 14 — UI/UX menurut gambar rujukan (`docs/ui-reference/dashboard-hrd.png`)
 Dasar: VISION → "Rujukan UI/UX" + "Aturan penerapan" 1–7. **Gaya ditiru, fitur tetap mengikuti VISION**; tidak ada perubahan model, migrasi, atau izin. Satu endpoint baca-saja baru + satu kunci tambahan di API dashboard.
 - **Kerangka (`base.html`, ditulis ulang)**: **sidebar kiri navy** 260 px (logo + nama sistem + nama perusahaan, judul kelompok huruf kapital kecil, ikon garis SVG inline, butir aktif berlatar biru, lencana pengumuman belum dibaca); **bilah atas** putih berisi **lonceng notifikasi + lencana** (`aria-label` memuat jumlah) dan menu pengguna (inisial, nama lengkap/username, label peran, Ganti sandi, Keluar); **breadcrumb** otomatis (ikon rumah › nama butir menu aktif, sehingga istilah sama dengan sidebar — aturan 7); **footer** ("HRIS & POLIKLINIK PT X · v1.1.0" / "Internal Use Only · PT X"); di layar < 1000 px sidebar menjadi **laci** (tombol Menu, scrim, Esc/klik luar menutup). Tema gelap dan perilaku global putaran 12 (anti klik ganda, konfirmasi `danger`, pesan bisa ditutup) dipertahankan. Cetak menyembunyikan sidebar/header/footer.
 - **Menu per peran** (`apps/core/navigation.py`, disuntik lewat context processor): Superadmin = Utama + Poliklinik + Pengaturan (Master Data, Pengguna, Audit Log) + Informasi; HRD = HRD + Informasi; Admin Dept = Data Karyawan Departemen, Pengajuan & Monitoring; Poli = Dashboard, Data Pasien/Karyawan, Poliklinik, Pemeriksaan & Rekam Medis, Obat & Stok, Rujukan, Master Diagnosa. **Hanya halaman yang sudah ada** yang tampil (butir Recruitment, Surat Peringatan, Shift & Jadwal, BPJS lanjutan, Laporan, Absensi **sengaja belum ada** — bukan tautan mati). Tepat satu butir aktif (awalan URL terpanjang). Menyembunyikan menu hanya kenyamanan; izin tetap di server.
@@ -174,9 +183,9 @@ Dasar: VISION → "Rujukan UI/UX" + "Aturan penerapan" 1–7. **Gaya ditiru, fit
 
 ### Sisa UI/UX (rencana, urut dampak) — belum dikerjakan (diperbarui putaran 14)
 0. **(Putaran 14 selesai)** kerangka sidebar/topbar/breadcrumb/footer, dashboard ber-KPI + grafik + aktivitas + pending approval per peran. **Masih tersisa dari rujukan**: judul halaman + sambutan seragam di semua halaman (kini hanya dashboard; halaman lain memakai `<h2>` sendiri + breadcrumb otomatis), kartu kehadiran/alpha/sakit (menunggu Tahap 6), butir menu Recruitment/Surat Peringatan/Shift & Jadwal/BPJS/Laporan (menunggu fiturnya), logo dan nama perusahaan dari konfigurasi sistem (kini `COMPANY_NAME` + logo "X" bawaan), pemilih periode selain yang ada, uji peramban nyata.
-1. Terapkan pola daftar baru (keadaan kosong, `.filters`, pill) ke daftar server-render: `/requests/`, `/hrd/*`, `/poli/*`, `/users/`, `/audit/`, `/leave/`, `/announcements/` (kini mewarisi gaya baru tetapi belum punya teks "tidak ada data" yang seragam).
-2. Formulir panjang (karyawan, rekam medis + resep, pengajuan): bagian berkelompok (`fieldset`), pesan galat ringkas di atas formulir, penyimpanan draft di sisi peramban untuk rekam medis.
-3. Detail karyawan bertab (Profil · Kontrak · Riwayat · Dokumen · BPJS · Saldo cuti), pencarian cepat global (NIK/nama) di header.
+1. **(Sebagian selesai di putaran 15: keadaan kosong seragam)** Sisa: `.filters`, pill, pager seragam, pesan "tidak cocok dengan filter" pada daftar server-render: `/requests/`, `/hrd/*`, `/poli/*`, `/users/`, `/audit/`, `/leave/`, `/announcements/` (kini mewarisi gaya baru tetapi belum punya teks "tidak ada data" yang seragam).
+2. Formulir panjang (karyawan, rekam medis + resep, pengajuan): bagian berkelompok (`fieldset`) (pesan galat ringkas: selesai putaran 15), penyimpanan draft di sisi peramban untuk rekam medis.
+3. Detail karyawan bertab (Profil · Kontrak · Riwayat · Dokumen · BPJS · Saldo cuti). (Pencarian cepat NIK/nama di header: selesai putaran 15; pencarian lintas modul = Tahap 8.)
 4. Kop surat PDF (`PT ........`) dan tampilan cetak halaman laporan; bagan organisasi (Tahap 2 sisa).
 5. Audit aksesibilitas penuh (kontras tema gelap, urutan fokus, pembaca layar) dan uji peramban nyata.
 

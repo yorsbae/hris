@@ -6,6 +6,6 @@
 <input type="date" name="date_from" value="{{ f.date_from }}" title="Dari tanggal"><input type="date" name="date_to" value="{{ f.date_to }}" title="Sampai tanggal"><button>Filter</button></form>
 <div class="wrap"><table><thead><tr><th>#</th><th>Waktu</th><th>Karyawan</th><th>Departemen</th><th>Jenis</th><th>Diagnosa</th></tr></thead><tbody>
 {% for r in page %}<tr><td><a href="{% url 'poli_record_detail' r.pk %}">{{ r.pk }}</a></td><td>{{ r.visit_at|date:"d M Y H:i" }}</td><td>{{ r.employee.nik }} · {{ r.employee.name }}</td><td>{{ r.employee.department.name }}</td><td>{{ r.get_kind_display }}</td><td>{% if r.diagnosis %}{{ r.diagnosis.code }}{% else %}-{% endif %}</td></tr>
-{% empty %}<tr><td colspan="6">Belum ada rekam medis.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada rekam medis.</td></tr>{% endfor %}</tbody></table></div>
 {% include "poli/_pager.html" %}
 {% endblock %}
