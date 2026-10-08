@@ -54,6 +54,26 @@ class BpjsStatusLog(models.Model):
     def delete(self, *a, **k): raise PermissionError("Histori BPJS tidak boleh dihapus")
 
 
+class BpjsDeduction(models.Model):
+    """Potongan BPJS per karyawan, program, dan periode gaji (putaran 22, P4). Tabel SENDIRI — nominal tidak dicampur ke Employee.
+    Satu baris per (karyawan, program, periode); impor ulang periode yang sama MENGGANTI nilai (jejak di audit ringkasan impor)."""
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="bpjs_deductions")
+    scheme = models.CharField(max_length=3, choices=BpjsScheme.choices)
+    period = models.CharField(max_length=7, help_text="YYYY-MM")
+    employee_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)  # porsi karyawan (dipotong dari gaji)
+    employer_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)  # porsi perusahaan
+    note = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey(USER, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["employee", "scheme", "period"], name="uniq_bpjs_deduction"),
+                       models.CheckConstraint(condition=models.Q(employee_amount__gte=0, employer_amount__gte=0), name="bpjs_deduction_nonneg")]
+        indexes = [models.Index(fields=["period", "scheme"])]
+        ordering = ["-period", "scheme", "employee_id"]
+
+
 # ---------------------------------------------------------------- Bantuan
 class Aid(models.Model):
     """Bantuan kepada karyawan — REKAPAN saja (putaran 20): tidak ada status/alur persetujuan; hanya dicatat siapa, jenis, tanggal, nominal."""

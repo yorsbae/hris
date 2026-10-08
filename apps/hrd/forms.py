@@ -5,7 +5,7 @@ from django import forms
 from apps.core.money import RupiahField
 from apps.hr.models import Employee
 from . import services
-from .models import Aid, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
+from .models import Aid, BpjsDeduction, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
 
 D = lambda: forms.DateInput(attrs={"type": "date"})  # noqa: E731
 
@@ -42,6 +42,41 @@ class BpjsStatusForm(forms.Form):
         if cur and cur.status == d["status"]: self.add_error("status", "Sama dengan status saat ini.")
         elif cur and d["effective_date"] < cur.effective_date: self.add_error("effective_date", f"Tidak boleh lebih awal dari {cur.effective_date:%d-%m-%Y} (status saat ini).")
         return d
+
+
+class BpjsDeductionForm(forms.Form):
+    """Satu aturan untuk input manual DAN impor XLSX/CSV (mesin core.bulk memanggil form ini). Karyawan nonaktif BOLEH (gaji bulan terakhir);
+    kejanggalan ditandai di halaman rekap, bukan ditolak di sini."""
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+    scheme = forms.ChoiceField(label="Program", choices=BpjsScheme.choices)
+    period = forms.CharField(label="Periode (YYYY-MM)", max_length=7)
+    employee_amount = RupiahField(label="Porsi karyawan (Rp)", min_value=0, max_value=2_000_000_000)
+    employer_amount = RupiahField(label="Porsi perusahaan (Rp)", min_value=0, max_value=2_000_000_000, required=False)
+    note = forms.CharField(label="Keterangan", required=False, max_length=300)
+
+    def __init__(self, *a, instance=None, user=None, **k):
+        super().__init__(*a, **k); self.instance, self.employee, self.user = instance, None, user
+
+    def clean_period(self):
+        v = self.cleaned_data["period"].strip()
+        m = re.fullmatch(r"(\d{4})-(\d{2})", v)
+        if not m or not (2000 <= int(m[1]) <= 2100 and 1 <= int(m[2]) <= 12): raise forms.ValidationError("Periode harus berformat YYYY-MM (mis. 2026-10).")
+        return v
+
+    def clean(self):
+        d = super().clean()
+        nik = (d.get("nik") or "").strip()
+        self.employee = Employee.objects.filter(nik=nik).first() if nik else None
+        if nik and not self.employee: self.add_error("nik", "Karyawan dengan NIK ini tidak ditemukan.")
+        if self.employee and d.get("period") and d["period"] < self.employee.join_date.strftime("%Y-%m"):
+            self.add_error("period", "Periode sebelum bulan masuk karyawan.")
+        return d
+
+    def save(self):
+        d = self.cleaned_data
+        obj, _ = BpjsDeduction.objects.update_or_create(employee=self.employee, scheme=d["scheme"], period=d["period"],
+            defaults={"employee_amount": d["employee_amount"], "employer_amount": d.get("employer_amount") or 0, "note": d.get("note", "").strip(), "created_by": self.user})
+        return obj
 
 
 # ---------------------------------------------------------------- Bantuan

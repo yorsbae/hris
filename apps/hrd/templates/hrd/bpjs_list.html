@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block title %}Status BPJS{% endblock %}{% block content %}
 <p><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Status BPJS (K / TK)</h2>
+<p><a href="/hrd/bpjs/deductions/">Rekap potongan BPJS ›</a></p>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
 <select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
 <select name="emp"><option value="aktif"{% if f.emp == "aktif" %} selected{% endif %}>Karyawan aktif</option><option value="nonaktif"{% if f.emp == "nonaktif" %} selected{% endif %}>Karyawan nonaktif</option><option value="semua"{% if f.emp == "semua" %} selected{% endif %}>Semua karyawan</option></select>

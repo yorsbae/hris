@@ -1,9 +1,17 @@
 from django.urls import path
+from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
+from apps.core.models import Role
+from apps.core.scope import require_roles
 from . import views as v
+from .bulk_specs import BPJS_DEDUCTION
 
 urlpatterns = [
     path("", v.hub, name="hrd_hub"),
     path("bpjs/", v.bpjs_list, name="hrd_bpjs"),
+    path("bpjs/deductions/", v.bpjs_deductions, name="hrd_bpjs_deductions"),
+    path("bpjs/deductions/new/", v.bpjs_deduction_new, name="hrd_bpjs_deduction_new"),
+    path("bpjs/deductions/import/", bulk_import_view(BPJS_DEDUCTION, require_roles(Role.HRD)), name="hrd_bpjs_deduction_import"),
+    path("bpjs/deductions/import/template.csv", bulk_template_view(BPJS_DEDUCTION, require_roles(Role.HRD))),
     path("bpjs/<int:pk>/", v.bpjs_detail, name="hrd_bpjs_detail"),
     path("aids/", v.aid_list, name="hrd_aids"),
     path("aids/new/", v.aid_new, name="hrd_aid_new"),

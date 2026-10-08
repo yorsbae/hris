@@ -9,13 +9,14 @@ from django.db.models import Count, Exists, OuterRef, Q, Subquery, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+from apps.core import tabular
 from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles
 from apps.hr.models import Department, Employee
 from . import services
-from .forms import AidForm, BpjsStatusForm, CateringForm, FinishMaternityForm, MaternityForm, ProjectForm, ProjectWorkForm, WarningForm
-from .models import Aid, BpjsMembership, BpjsScheme, BpjsState, BpjsStatusLog, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
+from .forms import AidForm, BpjsDeductionForm, BpjsStatusForm, CateringForm, FinishMaternityForm, MaternityForm, ProjectForm, ProjectWorkForm, WarningForm
+from .models import Aid, BpjsDeduction, BpjsMembership, BpjsScheme, BpjsState, BpjsStatusLog, CateringOrder, MaternityLeave, Project, ProjectWork, WarningLetter
 
 PER_PAGE = 50
 
@@ -57,6 +58,7 @@ def hub(request):
         ("Pekerja harian proyek", "/hrd/projects/", Project.objects.filter(status="aktif").count(), "proyek aktif"),
         ("Katering (rekap)", "/hrd/catering/", CateringOrder.objects.filter(date=today).count(), "rekap hari ini"),
         ("Surat Peringatan", "/hrd/warnings/", WarningLetter.objects.filter(revoked_at__isnull=True, issue_date__lte=today, valid_until__gte=today).count(), "SP aktif"),
+        ("Potongan BPJS", "/hrd/bpjs/deductions/", BpjsDeduction.objects.filter(period=today.strftime("%Y-%m")).count(), "baris potongan bulan ini"),
         ("Status BPJS", "/hrd/bpjs/", BpjsMembership.objects.filter(status="nonaktif", employee__status="aktif", employee__deleted_at__isnull=True).count(), "nonaktif (karyawan aktif)"),
     ]
     return render(request, "hrd/hub.html", {"cards": cards})
@@ -105,6 +107,64 @@ def bpjs_detail(request, pk):
     cur = {m.scheme: m for m in e.bpjs_memberships.all()}
     current = [(label, cur.get(code), bool(getattr(e, "bpjs_kes" if code == "kes" else "bpjs_tk"))) for code, label in BpjsScheme.choices]
     return render(request, "hrd/bpjs_detail.html", {"e": e, "form": form, "current": current, "logs": e.bpjs_logs.select_related("changed_by")[:50]})
+
+
+# ================================================================ Potongan BPJS (putaran 22, P4)
+def _period_ok(v): return bool(v) and len(v) == 7 and v[4] == "-" and v[:4].isdigit() and v[5:].isdigit() and 1 <= int(v[5:]) <= 12
+
+
+def _deduction_qs(f):
+    """Baris potongan + penanda anomali: karyawan nonaktif, atau status program bukan 'aktif' pada karyawan itu."""
+    member = BpjsMembership.objects.filter(employee=OuterRef("employee"), scheme=OuterRef("scheme"), status="aktif")
+    qs = BpjsDeduction.objects.select_related("employee", "employee__department").annotate(member_active=Exists(member))
+    if _period_ok(f["period"]): qs = qs.filter(period=f["period"])
+    if f["scheme"] in ("kes", "tk"): qs = qs.filter(scheme=f["scheme"])
+    if _int(f["department"]): qs = qs.filter(employee__department_id=_int(f["department"]))
+    if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
+    if f["anomaly"] == "dipotong": qs = qs.filter(Q(employee__status="nonaktif") | Q(member_active=False))
+    return qs.order_by("employee__name", "scheme")
+
+
+def _missing_qs(f):
+    """Karyawan AKTIF dengan status program 'aktif' tetapi belum punya potongan pada periode terpilih."""
+    schemes = [f["scheme"]] if f["scheme"] in ("kes", "tk") else ["kes", "tk"]
+    out = []
+    for sc in schemes:
+        has = BpjsDeduction.objects.filter(employee=OuterRef("employee"), scheme=sc, period=f["period"])
+        qs = BpjsMembership.objects.filter(status="aktif", scheme=sc, employee__status="aktif").annotate(has=Exists(has)).filter(has=False).select_related("employee", "employee__department")
+        if _int(f["department"]): qs = qs.filter(employee__department_id=_int(f["department"]))
+        if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
+        out += [(m.employee, m.scheme) for m in qs.order_by("employee__name")]
+    return out
+
+
+@hrd_only
+def bpjs_deductions(request):
+    f = {k: request.GET.get(k, "").strip() for k in ("q", "period", "scheme", "department", "anomaly")}
+    f["period"] = f["period"] or date.today().strftime("%Y-%m")
+    qs = _deduction_qs(f)
+    if request.GET.get("export"):  # nomor BPJS TIDAK ikut; hanya NIK, nama, nominal
+        log(request, "hrd", "bpjs_deduction_export", None, None, {"period": f["period"], "scheme": f["scheme"], "rows": qs.count()})
+        rows = [(d.employee.nik, d.employee.name, d.employee.department.name, d.get_scheme_display(), d.period, d.employee_amount, d.employer_amount, d.note) for d in qs[:20000]]
+        return tabular.export_response(f"potongan-bpjs-{f['period']}", ["nik", "nama", "departemen", "program", "periode", "porsi_karyawan", "porsi_perusahaan", "keterangan"], rows, request, sheet="Potongan BPJS")
+    totals = qs.aggregate(emp=Sum("employee_amount"), er=Sum("employer_amount"), n=Count("id"))
+    by_scheme = {r["scheme"]: r for r in qs.values("scheme").annotate(emp=Sum("employee_amount"), er=Sum("employer_amount"), n=Count("id"))}
+    missing = _missing_qs(f) if f["anomaly"] == "belum" and _period_ok(f["period"]) else None
+    page = paginate(request, qs)
+    return render(request, "hrd/bpjs_deductions.html", {"page": page, "f": f, "totals": totals, "by_scheme": by_scheme, "missing": missing and missing[:200], "missing_n": len(missing) if missing else 0,
+                                                       "departments": Department.objects.order_by("name"), "qs": _qs(request, "q", "period", "scheme", "department", "anomaly")})
+
+
+@hrd_only
+def bpjs_deduction_new(request):
+    form = BpjsDeductionForm(request.POST or None, user=request.user, initial={"period": date.today().strftime("%Y-%m")})
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            d = form.save()
+            log(request, "hrd", "bpjs_deduction_set", d, None, {"employee": form.employee.nik, "scheme": d.scheme, "period": d.period, "employee_amount": d.employee_amount, "employer_amount": d.employer_amount})
+        messages.success(request, "Potongan BPJS disimpan (periode yang sama diganti bila sudah ada)."); return redirect(f"/hrd/bpjs/deductions/?period={d.period}")
+    return render(request, "hrd/form.html", {"form": form, "title": "Potongan BPJS", "back": "/hrd/bpjs/deductions/",
+                                             "hint": "Satu baris per karyawan, program, dan periode. Menyimpan ulang kombinasi yang sama menggantikan nilai lama. Untuk banyak baris pakai Impor."})
 
 
 # ================================================================ Bantuan (rekap)

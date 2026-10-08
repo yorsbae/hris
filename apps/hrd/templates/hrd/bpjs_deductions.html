@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% load money %}{% block title %}Potongan BPJS{% endblock %}{% block content %}
+<p><a href="/hrd/bpjs/">‹ Status BPJS</a> · <a href="/hrd/">Operasional HRD</a></p>
+<h2>Potongan BPJS — rekap per periode</h2>
+<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
+<input name="period" value="{{ f.period }}" placeholder="YYYY-MM" size="8" pattern="\d{4}-\d{2}" title="YYYY-MM">
+<select name="scheme"><option value="">Semua program</option><option value="kes"{% if f.scheme == "kes" %} selected{% endif %}>K (Kesehatan)</option><option value="tk"{% if f.scheme == "tk" %} selected{% endif %}>TK (Ketenagakerjaan)</option></select>
+<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<select name="anomaly"><option value="">Semua baris</option><option value="dipotong"{% if f.anomaly == "dipotong" %} selected{% endif %}>Anomali: dipotong padahal nonaktif</option><option value="belum"{% if f.anomaly == "belum" %} selected{% endif %}>Anomali: aktif tapi belum dipotong</option></select>
+<button>Filter</button></form>
+<p><a class="btn" href="{% url 'hrd_bpjs_deduction_new' %}">+ Potongan</a> <a href="{% url 'hrd_bpjs_deduction_import' %}">Impor CSV/XLSX</a> · Ekspor: <a href="?{{ qs }}&export=1&format=xlsx">XLSX</a> / <a href="?{{ qs }}&export=1">CSV</a></p>
+<div class="grid">
+<div class="card"><b>{{ totals.emp|rupiah }}</b><span>Porsi karyawan ({{ totals.n }} baris)</span></div>
+<div class="card"><b>{{ totals.er|rupiah }}</b><span>Porsi perusahaan</span></div>
+{% for code, r in by_scheme.items %}<div class="card"><b>{{ r.emp|rupiah }}</b><span>{% if code == "kes" %}K{% else %}TK{% endif %}: karyawan · perusahaan {{ r.er|rupiah }}</span></div>{% endfor %}
+</div>
+{% if missing is not None %}
+<h3>Aktif tetapi belum ada potongan periode {{ f.period }} ({{ missing_n }})</h3>
+<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Program</th></tr></thead><tbody>
+{% for e, sc in missing %}<tr><td>{{ e.nik }}</td><td>{{ e.name }}</td><td>{{ e.department.name }}</td><td>{% if sc == "kes" %}K{% else %}TK{% endif %}</td></tr>{% empty %}<tr><td class="empty" colspan="4">Semua anggota aktif sudah punya potongan.</td></tr>{% endfor %}</tbody></table></div>
+{% else %}
+<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Program</th><th>Periode</th><th>Porsi karyawan</th><th>Porsi perusahaan</th><th>Catatan</th></tr></thead><tbody>
+{% for d in page %}<tr><td>{{ d.employee.nik }}</td><td>{{ d.employee.name }}</td><td>{{ d.employee.department.name }}</td><td>{% if d.scheme == "kes" %}K{% else %}TK{% endif %}</td><td>{{ d.period }}</td><td>{{ d.employee_amount|rupiah }}</td><td>{{ d.employer_amount|rupiah }}</td>
+<td>{% if d.employee.status == "nonaktif" %}<span class="pill rejected">karyawan nonaktif</span> {% elif not d.member_active %}<span class="pill rejected">status program tidak aktif</span> {% endif %}{{ d.note }}</td></tr>
+{% empty %}<tr><td class="empty" colspan="8">Belum ada potongan untuk filter ini.</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}{% endif %}
+{% endblock %}
