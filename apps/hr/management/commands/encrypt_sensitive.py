@@ -14,12 +14,12 @@ class Command(BaseCommand):
         q = connection.ops.quote_name
         todo = 0
         with transaction.atomic(), connection.cursor() as cur:  # baca mentah: from_db_value akan menyembunyikan status asli
-            cur.execute(f"SELECT id, {', '.join(q(c) for c in cols)} FROM {q(table)}")
+            cur.execute(f"SELECT id, {', '.join(q(c) for c in cols)} FROM {q(table)}")  # nosec B608 — nama tabel/kolom dari model & di-quote lewat connection.ops.quote_name; nilai lewat parameter
             for pk, *vals in cur.fetchall():
                 new = {c: encrypt(v) for c, v in zip(cols, vals) if v and not is_encrypted(v)}
                 if not new: continue
                 todo += 1
                 if dry_run: continue
                 sets = ", ".join(f"{q(c)} = %s" for c in new)
-                cur.execute(f"UPDATE {q(table)} SET {sets} WHERE id = %s", [*new.values(), pk])
+                cur.execute(f"UPDATE {q(table)} SET {sets} WHERE id = %s", [*new.values(), pk])  # nosec B608 — nama tabel/kolom dari model & di-quote lewat connection.ops.quote_name; nilai lewat parameter
         self.stdout.write(f"{'Akan dienkripsi' if dry_run else 'Dienkripsi'}: {todo} karyawan.")

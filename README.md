@@ -8,6 +8,7 @@
     python manage.py init_bpjs_status    # sekali, isi awal status BPJS dari nomor yang sudah ada (--dry-run untuk simulasi)
     python manage.py grant_annual_leave --dry-run   # jatah cuti tahunan; ulangi tanpa --dry-run. WAJIB sebelum Admin Dept mengajukan cuti (cuti butuh saldo)
     python manage.py createsuperuser   # otomatis role='superadmin' (akun lama dengan role kosong: ubah via shell). User lain dibuat di /users/
+    pip install -r requirements.txt   # Django 5.2 LTS (+ redis); isi .env (lihat .env.example: REDIS_URL wajib bila gunicorn >1 worker)
     gunicorn config.wsgi -b 127.0.0.1:8000   # taruh Nginx di depan (WAJIB isi TRUSTED_PROXY_IPS di .env, kirim X-Forwarded-For/-Proto; bila HTTPS: HTTPS=True); PostgreSQL hanya listen 127.0.0.1/server
 
 ## Data demo & /admin/ (putaran 16)
@@ -15,7 +16,7 @@
 
 ## Keamanan (sudah ada)
 Argon2, RBAC (`require_roles`), scope departemen (`scope_by_department`, 404 saat URL diubah), rate limit login,
-CSRF, byte NUL ditolak (400), ORM (anti SQL injection), audit log append-only + log login/logout/login gagal (benar-benar tercatat sejak putaran 11; IP klien asli di belakang Nginx via `TRUSTED_PROXY_IPS`), manajemen user & ganti/reset sandi dengan wajib-ganti (`/users/`, `/password/change/`), penelusuran audit (`/audit/`, Superadmin), akses data sensitif tercatat,
+CSRF, **kunci akun per username (progresif) + throttle API/ekspor/unggah + timeout idle + CSP/header + kebijakan sandi (putaran 21)**, byte NUL ditolak (400), ORM (anti SQL injection), audit log append-only + log login/logout/login gagal (benar-benar tercatat sejak putaran 11; IP klien asli di belakang Nginx via `TRUSTED_PROXY_IPS`), manajemen user & ganti/reset sandi dengan wajib-ganti (`/users/`, `/password/change/`), penelusuran audit (`/audit/`, Superadmin), akses data sensitif tercatat,
 **kolom sensitif terenkripsi** (NIK KTP, BPJS, NPWP, rekening; nilainya tidak masuk audit), **soft delete** karyawan,
 **data medis hanya Poli** (isi medis tidak masuk audit; akses baca tercatat). *Catatan: kolom medis belum dienkripsi (keputusan A12 di PROGRESS).*
 Kunci enkripsi hilang = data tidak bisa dibaca → simpan dan backup terpisah dari database.

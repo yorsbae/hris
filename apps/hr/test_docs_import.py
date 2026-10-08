@@ -1,4 +1,4 @@
-import json, os, shutil, tempfile
+import atexit, json, os, shutil, tempfile
 from datetime import date, timedelta
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
@@ -11,7 +11,9 @@ TMP = tempfile.mkdtemp()
 PDF = b"%PDF-1.4\n%fake\n"
 
 
-def tearDownModule(): shutil.rmtree(TMP, ignore_errors=True)
+# Dibuat sekali di proses induk lalu DIBAGI ke semua worker `--parallel`: menghapusnya di tearDownModule (satu worker selesai) membuat worker lain
+# gagal `FileNotFoundError` — akar galat sesekali `test_title_xss_escaped`. Bersihkan sekali saat proses induk keluar.
+atexit.register(shutil.rmtree, TMP, ignore_errors=True)
 
 
 @override_settings(MEDIA_ROOT=TMP, FIELD_ENCRYPTION_KEY=KEY)

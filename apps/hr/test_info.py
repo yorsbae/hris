@@ -1,4 +1,4 @@
-import shutil, tempfile
+import atexit, shutil, tempfile
 from datetime import date
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -6,6 +6,7 @@ from apps.core.models import AuditLog, Notification, Role, User
 from .models import Announcement, AnnouncementRead, Department
 
 MEDIA = tempfile.mkdtemp()
+atexit.register(shutil.rmtree, MEDIA, ignore_errors=True)  # dibagi ke worker --parallel; jangan dihapus per kelas (lihat test_docs_import)
 
 
 @override_settings(MEDIA_ROOT=MEDIA)
@@ -18,10 +19,6 @@ class InfoTests(TestCase):
         cls.a1 = User.objects.create_user("adm1", password=pw, role=Role.DEPT_ADMIN, department=cls.d1)
         cls.a2 = User.objects.create_user("adm2", password=pw, role=Role.DEPT_ADMIN, department=cls.d2)
         cls.poli = User.objects.create_user("poli", password=pw, role=Role.POLI)
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass(); shutil.rmtree(MEDIA, ignore_errors=True)
 
     def login(self, n): self.client.force_login(User.objects.get(username=n))
 

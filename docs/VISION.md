@@ -13,6 +13,12 @@ Database tidak pernah di komputer client.
 > Tagihan Mitra untuk Poli · bagian "Kemungkinan / belum diputuskan" (role Payroll & IT) · pertahanan keamanan berlapis · strategi skalabilitas.
 > Butir yang sudah ada sebelumnya tidak diduplikasi, hanya dirujuk. Komponen baru keamanan/skalabilitas **disetujui pemilik produk**; angka ambang/sasaran yang bertanda *usulan* masih dapat disetel.
 
+> **Pembaruan 9 Oktober 2026 (putaran 21).** Keputusan yang kini tercermin di visi: (1) **kebijakan dependensi** — hanya memakai cabang Django/paket yang masih didukung vendor
+> dan menjalankan `pip-audit` tiap rilis (Django 5.1 ditinggalkan karena 8 kerentanan tanpa perbaikan; sekarang 5.2 LTS); (2) **keamanan dibangun berlapis dan bertahap**: kunci akun per username,
+> throttle per zona, timeout idle, CSP/header, kebijakan sandi sudah ada; **CSP tanpa `'unsafe-inline'` (nonce), 2FA, ClamAV, kunci per username+IP** tetap tujuan; (3) **format rupiah dan tema ikon**
+> sudah menjadi komponen bersama — semua halaman/ekspor baru (BPJS, Seragam, Tagihan Mitra) wajib memakainya; (4) jalur login mana pun (termasuk `/admin/login/`) harus lewat kontrol yang sama
+> (celah `/admin/login/` tanpa rate limit ditutup). Rincian status: `docs/PROGRESS.md` → putaran 21.
+
 ## Role
 | Role | Cakupan |
 |---|---|
@@ -47,6 +53,14 @@ penyalahgunaan per akun; lapisan data membatasi dampak bila ada yang lolos. Angk
 | **Kelemahan komponen** (dependensi, konfigurasi) | `manage.py check --deploy`; pembaruan dependensi berkala + `pip-audit`; analisis statis (`bandit`) di pengujian; rahasia hanya di `.env` (tidak di repo); `DEBUG=False`; akun layanan hak minimum |
 | **Perusakan / ransomware / kehilangan data** | Backup terenkripsi, **salinan di lokasi lain yang tidak dapat ditimpa dari server utama** (immutable/offline), uji restore terjadwal, kunci enkripsi disimpan terpisah; audit log append-only (sudah ada) + salinan ke host log terpisah |
 | **Insiden** | Runbook singkat (siapa memutus akses, memutar kunci/sandi, memulihkan), retensi log, latihan berkala |
+
+
+### Status & prinsip tambahan (putaran 21)
+- **Satu pintu kontrol untuk semua jalur masuk**: kunci akun, rate limit IP, dan audit berlaku sama di `/login/` dan `/admin/login/`; jalur baru apa pun (API token, SSO kelak) wajib melewati `authenticate()` yang sama.
+- **Pesan seragam**: login gagal, akun terkunci, dan username tak dikenal tampil identik (tidak membocorkan keberadaan akun). Kunci akun **selalu sementara** dan dapat dibuka Superadmin; tiap penguncian tercatat di audit.
+- **Halaman data pribadi/medis tidak boleh tersimpan di cache peramban** (`Cache-Control: no-store` untuk user login). Sesi berakhir saat tidak aktif (bawaan 30 menit, dapat disetel).
+- **Ambang adalah konfigurasi, bukan kode** (`.env`): batas login, timeout idle, HSTS bertahap, Redis opsional. Tanpa Redis, batas hanya berlaku per proses → produksi multi-worker **wajib** Redis.
+- **Setiap kontrol baru diuji dengan uji mutasi** (merusak aturan lalu memastikan tes gagal) — kebiasaan yang dipertahankan untuk paket berikutnya.
 
 
 ## Prinsip data
