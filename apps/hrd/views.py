@@ -139,20 +139,25 @@ def _missing_qs(f):
 
 
 @hrd_only
-def bpjs_deductions(request):
+def bpjs_deductions(request, scheme=None):
+    """Rekap potongan. `scheme` dari URL (/kes/, /tk/ — submenu sidebar) hanya bawaan: parameter ?scheme= di query menang (termasuk "" = semua)."""
     f = {k: request.GET.get(k, "").strip() for k in ("q", "period", "scheme", "department", "anomaly")}
+    if scheme and "scheme" not in request.GET: f["scheme"] = scheme
     f["period"] = f["period"] or date.today().strftime("%Y-%m")
     qs = _deduction_qs(f)
     if request.GET.get("export"):  # nomor BPJS TIDAK ikut; hanya NIK, nama, nominal
         log(request, "hrd", "bpjs_deduction_export", None, None, {"period": f["period"], "scheme": f["scheme"], "rows": qs.count()})
         rows = [(d.employee.nik, d.employee.name, d.employee.department.name, d.get_scheme_display(), d.period, d.employee_amount, d.employer_amount, d.note) for d in qs[:20000]]
-        return tabular.export_response(f"potongan-bpjs-{f['period']}", ["nik", "nama", "departemen", "program", "periode", "porsi_karyawan", "porsi_perusahaan", "keterangan"], rows, request, sheet="Potongan BPJS")
+        return tabular.export_response(f"potongan-bpjs-{f['period']}", ["nik", "nama", "departemen", "program", "periode", "porsi_karyawan", "porsi_perusahaan", "keterangan"], rows, request,
+                                       sheet="Potongan BPJS", money_cols=("porsi_karyawan", "porsi_perusahaan"))
     totals = qs.aggregate(emp=Sum("employee_amount"), er=Sum("employer_amount"), n=Count("id"))
     by_scheme = {r["scheme"]: r for r in qs.values("scheme").annotate(emp=Sum("employee_amount"), er=Sum("employer_amount"), n=Count("id"))}
+    by_dept = list(qs.order_by().values("employee__department__name").annotate(emp=Sum("employee_amount"), er=Sum("employer_amount"), n=Count("id")).order_by("employee__department__name"))
     missing = _missing_qs(f) if f["anomaly"] == "belum" and _period_ok(f["period"]) else None
     page = paginate(request, qs)
-    return render(request, "hrd/bpjs_deductions.html", {"page": page, "f": f, "totals": totals, "by_scheme": by_scheme, "missing": missing and missing[:200], "missing_n": len(missing) if missing else 0,
-                                                       "departments": Department.objects.order_by("name"), "qs": _qs(request, "q", "period", "scheme", "department", "anomaly")})
+    from urllib.parse import urlencode
+    return render(request, "hrd/bpjs_deductions.html", {"page": page, "f": f, "totals": totals, "by_scheme": by_scheme, "by_dept": by_dept, "missing": missing and missing[:200], "missing_n": len(missing) if missing else 0,
+                                                       "departments": Department.objects.order_by("name"), "qs": urlencode({k: v for k, v in f.items() if v})})
 
 
 @hrd_only

@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% load money %}{% block title %}Potongan BPJS{% endblock %}{% block content %}
 <p><a href="/hrd/bpjs/">‹ Status BPJS</a> · <a href="/hrd/">Operasional HRD</a></p>
-<h2>Potongan BPJS — rekap per periode</h2>
+<h2>Potongan BPJS{% if f.scheme == "kes" %} — Kesehatan (K){% elif f.scheme == "tk" %} — Ketenagakerjaan (TK){% endif %} — rekap per periode</h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
 <input name="period" value="{{ f.period }}" placeholder="YYYY-MM" size="8" pattern="\d{4}-\d{2}" title="YYYY-MM">
 <select name="scheme"><option value="">Semua program</option><option value="kes"{% if f.scheme == "kes" %} selected{% endif %}>K (Kesehatan)</option><option value="tk"{% if f.scheme == "tk" %} selected{% endif %}>TK (Ketenagakerjaan)</option></select>
@@ -13,6 +13,12 @@
 <div class="card"><b>{{ totals.er|rupiah }}</b><span>Porsi perusahaan</span></div>
 {% for code, r in by_scheme.items %}<div class="card"><b>{{ r.emp|rupiah }}</b><span>{% if code == "kes" %}K{% else %}TK{% endif %}: karyawan · perusahaan {{ r.er|rupiah }}</span></div>{% endfor %}
 </div>
+{% if by_dept and missing is None %}
+<h3>Ringkasan per departemen — periode {{ f.period }}</h3>
+<div class="wrap"><table id="by-dept"><thead><tr><th>Departemen</th><th>Baris</th><th>Porsi karyawan</th><th>Porsi perusahaan</th></tr></thead><tbody>
+{% for r in by_dept %}<tr><td>{{ r.employee__department__name }}</td><td>{{ r.n }}</td><td>{{ r.emp|rupiah }}</td><td>{{ r.er|rupiah }}</td></tr>{% endfor %}
+<tr><th>Total</th><th>{{ totals.n }}</th><th>{{ totals.emp|rupiah }}</th><th>{{ totals.er|rupiah }}</th></tr></tbody></table></div>
+{% endif %}
 {% if missing is not None %}
 <h3>Aktif tetapi belum ada potongan periode {{ f.period }} ({{ missing_n }})</h3>
 <div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Program</th></tr></thead><tbody>

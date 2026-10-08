@@ -7,7 +7,9 @@ Impor  : `read_table(bytes, nama_file, wajib)` → list dict berkunci header hur
 """
 import csv, io
 from datetime import date, datetime, time
+from decimal import Decimal
 from django.http import HttpResponse
+from .money import XLSX_RUPIAH_FORMAT
 
 MAX_BYTES, MAX_ROWS = 5 * 1024 * 1024, 5000
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -32,19 +34,38 @@ def _is_number(v):
     except ValueError: return False
 
 
-def to_bytes(header, rows, kind="csv", sheet="Data"):
-    rows = [[_cell(c) for c in r] for r in rows]
+def _num(v):
+    """Angka rupiah \u2192 int bila bulat (tanpa ',00'; selaras A43), selain itu float. Dipakai untuk kolom uang."""
+    d = Decimal(v)
+    return int(d) if d == d.to_integral_value() else float(d)
+
+
+def _is_money(v): return isinstance(v, (int, Decimal)) and not isinstance(v, bool)
+
+
+def to_bytes(header, rows, kind="csv", sheet="Data", money_cols=()):
+    """`money_cols`: nama kolom (dari `header`) atau indeks yang berisi rupiah. Di XLSX sel itu menjadi ANGKA ber-format rupiah
+    (bisa dijumlah/diurutkan di Excel, bukan teks); di CSV ditulis sebagai angka polos tanpa ',00'."""
+    mc = {header.index(c) if isinstance(c, str) else c for c in money_cols}
     if kind == "xlsx":
         from openpyxl import Workbook
+        from openpyxl.cell import WriteOnlyCell
         wb = Workbook(write_only=True); ws = wb.create_sheet(sheet[:31]); ws.append(list(header))
-        for r in rows: ws.append(r)
+        for r in rows:
+            line = []
+            for i, c in enumerate(r):
+                if i in mc and _is_money(c):
+                    cell = WriteOnlyCell(ws, value=_num(c)); cell.number_format = XLSX_RUPIAH_FORMAT; line.append(cell)
+                else: line.append(_cell(c))
+            ws.append(line)
         out = io.BytesIO(); wb.save(out); return out.getvalue(), XLSX
-    out = io.StringIO(); w = csv.writer(out); w.writerow(header); w.writerows(rows)
+    out = io.StringIO(); w = csv.writer(out); w.writerow(header)
+    w.writerows([[str(_num(c)) if i in mc and _is_money(c) else _cell(c) for i, c in enumerate(r)] for r in rows])
     return ("\ufeff" + out.getvalue()).encode("utf-8"), "text/csv; charset=utf-8-sig"
 
 
-def export_response(name, header, rows, request, sheet="Data"):
-    kind = fmt(request); body, ctype = to_bytes(header, rows, kind, sheet)
+def export_response(name, header, rows, request, sheet="Data", money_cols=()):
+    kind = fmt(request); body, ctype = to_bytes(header, rows, kind, sheet, money_cols)
     r = HttpResponse(body, content_type=ctype); r["Content-Disposition"] = f'attachment; filename="{name}.{kind}"'; return r
 
 

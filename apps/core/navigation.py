@@ -11,18 +11,23 @@ def _req(all_label, status):
     if status: items.append(("Perubahan Status", "/requests/g/status/", "clipboard", True))
     return items + [("Shift & Tukar Jadwal", "/requests/g/jadwal/", "clipboard", True)]
 
+def _bpjs():
+    """Butir BPJS + submenu Kesehatan / Ketenagakerjaan / Status (putaran 23, P4). Hanya HRD & Superadmin (halaman /hrd/ lain tetap lewat Operasional HRD)."""
+    return [("BPJS", "/hrd/bpjs/", "shield"), ("Kesehatan (K)", "/hrd/bpjs/deductions/kes/", "shield", True),
+            ("Ketenagakerjaan (TK)", "/hrd/bpjs/deductions/tk/", "shield", True), ("Semua Potongan", "/hrd/bpjs/deductions/", "shield", True)]
+
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 
 def _groups(role):
     if role == Role.SUPERADMIN:
         return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"),
-                           ("Operasional HRD", "/hrd/", "briefcase")]),
+                           ("Operasional HRD", "/hrd/", "briefcase"), *_bpjs()]),
                 ("Poliklinik", _poli(True)),
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
         return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"),
-                        ("Operasional HRD", "/hrd/", "briefcase"), ("Master Data", "/master/department/", "sliders")]), _INFO]
+                        ("Operasional HRD", "/hrd/", "briefcase"), *_bpjs(), ("Master Data", "/master/department/", "sliders")]), _INFO]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
                                       *_req("Pengajuan & Monitoring", False)]), _INFO]

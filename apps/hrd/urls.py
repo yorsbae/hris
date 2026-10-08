@@ -9,6 +9,8 @@ urlpatterns = [
     path("", v.hub, name="hrd_hub"),
     path("bpjs/", v.bpjs_list, name="hrd_bpjs"),
     path("bpjs/deductions/", v.bpjs_deductions, name="hrd_bpjs_deductions"),
+    path("bpjs/deductions/kes/", v.bpjs_deductions, {"scheme": "kes"}, name="hrd_bpjs_deductions_kes"),  # submenu sidebar BPJS → Kesehatan
+    path("bpjs/deductions/tk/", v.bpjs_deductions, {"scheme": "tk"}, name="hrd_bpjs_deductions_tk"),  # submenu sidebar BPJS → Ketenagakerjaan
     path("bpjs/deductions/new/", v.bpjs_deduction_new, name="hrd_bpjs_deduction_new"),
     path("bpjs/deductions/import/", bulk_import_view(BPJS_DEDUCTION, require_roles(Role.HRD)), name="hrd_bpjs_deduction_import"),
     path("bpjs/deductions/import/template.csv", bulk_template_view(BPJS_DEDUCTION, require_roles(Role.HRD))),
