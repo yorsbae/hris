@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import lookup
@@ -28,6 +28,7 @@ urlpatterns = [
     path("employees/<int:pk>/edit/", ev.employee_edit, name="employee_edit"),
     path("employees/<int:pk>/delete/", ev.employee_delete, name="employee_delete"),
     path("employees/<int:pk>/contracts/new/", ev.contract_new, name="contract_new"),
+    path("schedule/", sv.schedule_week, name="schedule_week"),
     path("leave/", lv.leave_list, name="leave_list"),
     path("leave/<int:pk>/", lv.leave_detail, name="leave_detail"),
     path("master/<str:kind>/", ev.master_list, name="master_list"),

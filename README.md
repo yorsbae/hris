@@ -25,14 +25,14 @@ Mengacu pada `docs/ui-reference/dashboard-hrd.png` (hanya gaya; fitur mengikuti 
 
 ## Belum dibuat (ringkas; rincian & urutan di `docs/PROGRESS.md`)
 reset sandi mandiri/2FA, ekspor & retensi audit, keputusan enkripsi kolom medis, batalkan resep, register kehamilan, lot/kedaluwarsa obat,
-hari libur nasional, halaman HRD tabel rotasi/jadwal per departemen, konfirmasi rekan tukar, batalkan pelaksanaan, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
+hari libur nasional, halaman HRD untuk edit tabel rotasi, konfirmasi rekan tukar, batalkan pelaksanaan, export/laporan, Nginx/systemd, modul Absensi → Lembur → Payroll.
 
 ## Status tahap (acuan: `docs/VISION.md`)
-- Tahap 1 Fondasi ✅ (+ `/users/`, `/audit/`, `/password/change/`: Superadmin) · Tahap 3 Workflow ✅ UI `/requests/` + penerapan tukar shift/libur (`ShiftAssignment`, master shift tidak berubah) + saldo cuti `/leave/` (HRD) + batalkan pengajuan · Tahap 4 Informasi ✅ `/notifications/`, `/announcements/`
+- Tahap 1 Fondasi ✅ (+ `/users/`, `/audit/`, `/password/change/`: Superadmin) · Tahap 3 Workflow ✅ (+ `/schedule/` jadwal mingguan) UI `/requests/` + penerapan tukar shift/libur (`ShiftAssignment`, master shift tidak berubah) + saldo cuti `/leave/` (HRD) + batalkan pengajuan · Tahap 4 Informasi ✅ `/notifications/`, `/announcements/`
 - Tahap 2 HR Core: ✅ CRUD karyawan, master, kontrak, riwayat, dokumen, impor CSV, filter (`/employees/`, `/master/`)
 - Tahap 5 Poli ✅ `/poli/` (khusus Poli/Superadmin; HRD & Admin Dept → 403): rekam medis + resep (stok berkurang atomik), kecelakaan kerja, kehamilan, catatan tambahan, kartu stok obat (stok masuk/penyesuaian), master diagnosa, rujukan + surat rujukan PDF, surat izin pulang PDF
 - Tahap 2b Operasional HRD ✅ `/hrd/` (khusus HRD/Superadmin): bantuan, cuti hamil, kerja harian proyek, katering (tepak besar/kecil), status BPJS K/TK
 - Tahap 6–7: belum (tabel absensi sudah disiapkan)
-- Tes: `python manage.py test` (444 tes; lulus di SQLite dan PostgreSQL 16 (putaran 17b); tes konkurensi berthread hanya jalan di PostgreSQL). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
+- Tes: `python manage.py test` (450 tes; lulus di SQLite dan PostgreSQL 16 (putaran 17b); tes konkurensi berthread hanya jalan di PostgreSQL). `media/` (dokumen karyawan, lampiran) ikut `scripts/backup.sh`; salin juga ke lokasi lain dan uji restore.
 
 Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.

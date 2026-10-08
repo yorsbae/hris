@@ -284,6 +284,49 @@ class PartnerSwapTests(RotBase):
             ShiftAssignment.objects.create(employee=self.e3, date=mon, kind="off", request=ChangeRequest.objects.first())
 
 
+# ------------------------------------------------------------------ jadwal mingguan + notifikasi pelaksanaan
+class WeekPageAndNotifyTests(RotBase):
+    def test_grid_matches_effective_schedule_with_constant_queries(self):
+        mon = next_weekday(0); self.do_exec(self.duo_shift_req(mon)); start = mon
+        emps = list(Employee.objects.filter(pk__in=[self.e1.pk, self.e3.pk, self.e4.pk, self.e6.pk]).select_related("shift", "shift_group"))
+        with self.assertNumQueries(2):
+            grid = schedule.schedule_grid(emps, start, 7)
+        for e, cells in grid:
+            for c in cells:
+                x = schedule.effective_schedule(e, c["date"]); self.assertEqual((c["off"], c["shift"], c["source"]), (x["off"], x["shift"], x["source"]), (e.nik, c["date"]))
+
+    def test_page_access_and_scope(self):
+        self.client.logout(); self.assertEqual(self.client.get("/schedule/").status_code, 302)
+        self.login("poli"); self.assertEqual(self.client.get("/schedule/").status_code, 403)
+        self.login("hrd"); r = self.client.get("/schedule/"); self.assertContains(r, "Emp 003"); self.assertContains(r, "Emp 005")
+        self.login("adm2"); r = self.client.get("/schedule/?department=%d" % self.d1.pk)  # filter departemen diabaikan untuk Admin Dept
+        self.assertContains(r, "Emp 005"); self.assertNotContains(r, "Emp 003")
+
+    def test_page_shows_swap_marker_filters_and_bad_input(self):
+        mon = next_weekday(0); req = self.do_exec(self.duo_shift_req(mon)); self.login("hrd")
+        r = self.client.get(f"/schedule/?start={mon.isoformat()}"); self.assertContains(r, f"Hasil tukar #{req.pk}"); self.assertContains(r, "SIANG")
+        self.assertNotContains(self.client.get(f"/schedule/?start={mon}&group={self.gB.pk}"), "Emp 003")
+        for bad in ("start=bukan-tanggal", "start=0001-01-01", "group=abc", "department=99999999999999", "q=%00"):
+            self.assertEqual(self.client.get("/schedule/?" + bad).status_code in (200, 400), True, bad)
+
+    def test_nav_has_schedule_for_hrd_and_dept_admin_not_poli(self):
+        for u, want in (("hrd", True), ("adm1", True), ("poli", False)):
+            self.login(u); self.assertEqual("/schedule/" in self.client.get("/").content.decode(), want, u)
+
+    def test_notify_requester_and_partner_dept_admin_on_execute(self):
+        req = self.do_exec(self.duo_shift_req(next_weekday(0), a=self.e3, b=self.e5))  # rekan di departemen lain
+        from apps.core.models import Notification
+        self.assertTrue(Notification.objects.filter(user=self.adm1, link=f"/requests/{req.pk}", title__contains="dilaksanakan").exists())
+        n = Notification.objects.get(user=self.adm2); self.assertEqual(n.link, f"/employees/{self.e5.pk}/")
+        self.login("adm2"); self.assertEqual(self.client.get(n.link).status_code, 200)  # tautan bisa dibuka (masih dalam scope)
+
+    def test_no_partner_notice_for_solo_and_no_duplicate_for_requester(self):
+        from apps.core.models import Notification
+        self.do_exec(self.swap_shift_req(next_weekday(1))); self.assertEqual(Notification.objects.filter(user=self.adm2).count(), 0)
+        req = self.do_exec(self.duo_shift_req(next_weekday(0))); self.assertEqual(Notification.objects.filter(user=self.adm1, link=f"/requests/{req.pk}", title__contains="dilaksanakan").count(), 1)
+        self.assertFalse(Notification.objects.filter(user=self.adm1, link__startswith="/employees/").exists())  # adm1 = pemohon, tidak ditulis dobel
+
+
 # ------------------------------------------------------------------ konkurensi (hanya jalan di PostgreSQL: butuh select_for_update)
 class PartnerConcurrencyTests(TransactionTestCase):
     """Pelaksanaan tukar 2 orang bersamaan: rekan yang sama tidak boleh tertulis ganda, dan penguncian dua karyawan tidak boleh saling deadlock."""

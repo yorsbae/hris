@@ -10,16 +10,16 @@ _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 def _groups(role):
     if role == Role.SUPERADMIN:
         return [("Utama", [_DASH, _EMP, ("Pengajuan", "/requests/", "clipboard"), ("Cuti & Libur", "/leave/", "calendar"),
-                           ("Operasional HRD", "/hrd/", "briefcase")]),
+                           ("Jadwal Shift", "/schedule/", "clock"), ("Operasional HRD", "/hrd/", "briefcase")]),
                 ("Poliklinik", _poli(True)),
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
         return [("HRD", [_DASH, _EMP, ("Mutasi & Pengajuan", "/requests/", "clipboard"), ("Cuti & Libur", "/leave/", "calendar"),
-                        ("Operasional HRD", "/hrd/", "briefcase"), ("Master Data", "/master/department/", "sliders")]), _INFO]
+                        ("Jadwal Shift", "/schedule/", "clock"), ("Operasional HRD", "/hrd/", "briefcase"), ("Master Data", "/master/department/", "sliders")]), _INFO]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
-                                      ("Pengajuan & Monitoring", "/requests/", "clipboard")]), _INFO]
+                                      ("Pengajuan & Monitoring", "/requests/", "clipboard"), ("Jadwal Shift", "/schedule/", "clock")]), _INFO]
     if role == Role.POLI:
         return [("Poli", [_DASH, ("Data Pasien/Karyawan", "/employees/", "users")] + _poli(True)), _INFO]
     return []

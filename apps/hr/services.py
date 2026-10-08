@@ -29,9 +29,19 @@ def transition(req: ChangeRequest, to: str, user, note: str = ""):
                                           for u in User.objects.filter(role=Role.HRD)])
     elif to in ("approved", "rejected"):
         Notification.objects.create(user=req.requested_by, kind="approval", title=f"Pengajuan {req.type} {to}", link=f"/requests/{req.pk}")
+    elif to == "executed" and req.type in schedule.SWAP_TYPES: _notify_swap(req)
     elif to == "cancelled" and req.requested_by_id != user.id:  # dibatalkan HRD: beri tahu pemohon
         Notification.objects.create(user=req.requested_by, kind="approval", title=f"Pengajuan {req.type} dibatalkan HRD", link=f"/requests/{req.pk}")
     return req
+
+def _notify_swap(req):
+    """Tukar jadwal dilaksanakan: beri tahu pemohon, dan Admin Departemen rekan (jadwal rekan berubah; tautan ke detail rekan yang masuk scope-nya)."""
+    Notification.objects.create(user=req.requested_by, kind="approval", title=f"Tukar jadwal {req.employee.name} sudah dilaksanakan", link=f"/requests/{req.pk}")
+    p = schedule.partner_of(req)
+    if p:
+        for u in User.objects.filter(role=Role.DEPT_ADMIN, department_id=p.department_id, is_active=True).exclude(pk=req.requested_by_id):
+            Notification.objects.create(user=u, kind="approval", title=f"Jadwal {p.name} berubah: tukar dengan {req.employee.name}", link=f"/employees/{p.pk}/")
+
 
 MODELS = {"department": ("department", Department), "position": ("position", Position), "shift": ("shift", Shift)}
 def _execute(req, user):

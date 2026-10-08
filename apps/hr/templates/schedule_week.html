@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Jadwal shift{% endblock %}{% block content %}
+<h2>Jadwal shift mingguan</h2>
+<form class="filters" method="get"><input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}"><input name="q" value="{{ f.q }}" placeholder="NIK / nama">
+{% if departments %}<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+<select name="group"><option value="">Semua kelompok</option>{% for g in groups %}<option value="{{ g.pk }}"{% if f.group == g.pk|stringformat:"s" %} selected{% endif %}>{{ g.code }}</option>{% endfor %}</select><button>Terapkan</button></form>
+<div class="bar"><a class="btn ghost" style="margin-left:0" href="?start={{ prev }}{% if fq %}&{{ fq }}{% endif %}">‹ Minggu lalu</a><b>{{ days.0|date:"d M" }} – {{ days.6|date:"d M Y" }}</b><a class="btn ghost" href="?start={{ next }}{% if fq %}&{{ fq }}{% endif %}">Minggu depan ›</a></div>
+<div class="wrap"><table><thead><tr><th>Karyawan</th><th>Kelompok</th>{% for d in days %}<th>{{ d|date:"D d" }}</th>{% endfor %}</tr></thead><tbody>
+{% for e, cells in rows %}<tr><td><a href="/employees/{{ e.pk }}/">{{ e.nik }} · {{ e.name }}</a><br><small style="color:var(--mu)">{{ e.department.name }}</small></td><td>{{ e.shift_group.code|default:"—" }}</td>
+{% for c in cells %}<td>{% if c.off %}<span class="pill">Libur</span>{% elif c.shift %}{{ c.shift.code|default:c.shift.name }}{% else %}—{% endif %}{% if c.source == "override" %} <a href="{% url 'request_detail' c.request_id %}" title="Hasil tukar #{{ c.request_id }}">⇄</a>{% endif %}</td>{% endfor %}</tr>
+{% empty %}<tr><td class="empty" colspan="9">Tidak ada karyawan.</td></tr>{% endfor %}</tbody></table></div>
+{% include "_pager.html" %}{% endblock %}

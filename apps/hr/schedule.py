@@ -71,6 +71,14 @@ def schedule_range(employee: Employee, start: date, days: int) -> list:
     return out
 
 
+def schedule_grid(employees, start: date, days: int = 7):
+    """[(karyawan, [sel harian])] untuk banyak karyawan dengan jumlah query tetap (rotasi + penyesuaian), bukan per karyawan."""
+    emps = list(employees); rot = {}
+    for r in ShiftRotation.objects.select_related("shift").filter(group_id__in={e.shift_group_id for e in emps if e.shift_group_id}): rot.setdefault(r.group_id, {})[r.weekday] = r
+    ov = {(a.employee_id, a.date): a for a in ShiftAssignment.objects.select_related("shift").filter(employee__in=emps, date__gte=start, date__lt=start + timedelta(days=days))}
+    return [(e, [{"date": d, **_with_override(e, d, ov.get((e.pk, d)), _base(e, d, rot.get(e.shift_group_id, {})))} for d in (start + timedelta(days=i) for i in range(days))]) for e in emps]
+
+
 def dates_of(type_, payload):
     keys = ("date", "date_to") if type_ == "tukar_libur" else ("date",)
     return [payload[k] for k in keys if payload.get(k)]
