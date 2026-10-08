@@ -1,4 +1,5 @@
 from decimal import Decimal
+import csv
 from django import forms
 from django.forms import formset_factory
 from .models import Diagnosis, MedicalRecord, Medicine
@@ -8,7 +9,8 @@ TA = lambda rows=3: forms.Textarea(attrs={"rows": rows})
 
 
 class RecordForm(forms.Form):
-    nik = forms.CharField(label="NIK karyawan", max_length=20, help_text="Hanya karyawan aktif.")
+    nik = forms.CharField(label="NIK karyawan", max_length=20, help_text="Ketik NIK atau nama; pilih dari saran. Hanya karyawan aktif.",
+                          widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
     kind = forms.ChoiceField(label="Jenis kunjungan", choices=MedicalRecord.KINDS)
     complaint = forms.CharField(label="Keluhan", required=False, widget=TA(), max_length=4000)
     # tanda vital (opsional; rentang dibatasi agar salah ketik tertangkap)
@@ -25,7 +27,8 @@ class RecordForm(forms.Form):
     preg_hpl = forms.DateField(label="HPL — kehamilan", required=False, widget=forms.DateInput(attrs={"type": "date"}))
     preg_tfu = forms.DecimalField(label="TFU (cm) — kehamilan", required=False, min_value=Decimal("0"), max_value=Decimal("60"), max_digits=4, decimal_places=1)
     preg_djj = forms.IntegerField(label="DJJ (x/menit) — kehamilan", required=False, min_value=60, max_value=220)
-    diagnosis_code = forms.CharField(label="Kode diagnosa", required=False, max_length=10, help_text="Ketik kode (mis. A09); daftar di Master diagnosa.")
+    diagnosis_code = forms.CharField(label="Kode diagnosa", required=False, max_length=10, help_text="Ketik kode atau nama (mis. A09); obat yang ditautkan di Master diagnosa terisi otomatis di resep.",
+                                     widget=forms.TextInput(attrs={"data-lookup": "diagnosis", "placeholder": "Ketik kode atau nama diagnosa…"}))
     treatment = forms.CharField(label="Tindakan / anjuran", required=False, widget=TA(), max_length=4000)
 
     def clean_nik(self):
@@ -65,13 +68,20 @@ class RecordForm(forms.Form):
 
 
 class PrescriptionLineForm(forms.Form):
-    medicine = forms.ModelChoiceField(queryset=Medicine.objects.none(), required=False, label="Obat")
+    medicine = forms.ModelChoiceField(queryset=Medicine.objects.none(), required=False, label="Obat", widget=forms.HiddenInput())  # diisi widget pencarian, bukan dropdown semua obat
     qty = forms.IntegerField(required=False, min_value=1, max_value=10000, label="Jumlah")
     dosage = forms.CharField(required=False, max_length=100, label="Aturan pakai")
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k); self.fields["medicine"].queryset = Medicine.objects.order_by("name")
         self.fields["medicine"].label_from_instance = lambda m: f"{m.name} (stok {m.stock} {m.unit})"
+
+    @property
+    def medicine_label(self):
+        """Teks yang tampil di kotak pencarian saat formulir dirender ulang (mis. setelah galat) — satu query hanya bila ada isinya."""
+        v = self["medicine"].value()
+        m = Medicine.objects.filter(pk=v).first() if str(v or "").isdigit() else None
+        return m.name if m else ""
 
     def clean(self):
         d = super().clean()
@@ -89,6 +99,28 @@ class BasePrescriptionFormSet(forms.BaseFormSet):
 
 
 PrescriptionFormSet = formset_factory(PrescriptionLineForm, formset=BasePrescriptionFormSet, extra=5, max_num=services.MAX_LINES, validate_max=True)
+
+
+class MedicinePickMixin(forms.Form):
+    """Obat dipilih lewat pencarian (kotak teks + ID tersembunyi); ID divalidasi ulang di server."""
+    medicine = forms.ModelChoiceField(queryset=Medicine.objects.all(), label="Obat", widget=forms.HiddenInput(),
+                                      error_messages={"required": "Pilih obat dari saran pencarian.", "invalid_choice": "Obat tidak ditemukan."})
+
+
+class AddPrescriptionForm(MedicinePickMixin):
+    qty = forms.IntegerField(label="Jumlah", min_value=1, max_value=10000)
+    dosage = forms.CharField(label="Aturan pakai", required=False, max_length=100)
+
+
+class ReturnPrescriptionForm(forms.Form):
+    prescription = forms.IntegerField(widget=forms.HiddenInput())
+    qty = forms.IntegerField(label="Jumlah dikurangi", min_value=1, max_value=10000)
+    reason = forms.CharField(label="Alasan (wajib)", max_length=300)
+
+
+class DiagnosisMedicineForm(MedicinePickMixin):
+    qty = forms.IntegerField(label="Jumlah bawaan", min_value=1, max_value=10000, initial=1)
+    dosage = forms.CharField(label="Aturan pakai bawaan", required=False, max_length=100)
 
 
 class MedicineForm(forms.ModelForm):

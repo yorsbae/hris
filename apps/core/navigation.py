@@ -26,7 +26,7 @@ def _groups(role):
 
 def _poli(with_hub):
     items = [("Poliklinik", "/poli/", "plus")] if with_hub else []
-    return items + [("Pemeriksaan & Rekam Medis", "/poli/records/", "activity"), ("Obat & Stok", "/poli/medicines/", "pill"),
+    return items + [("Pemeriksaan & Rekam Medis", "/poli/records/", "activity"), ("Obat & Stok", "/poli/medicines/", "pill"), ("Rekap Stok Obat", "/poli/reports/stock/", "file"),
                     ("Rujukan", "/poli/referrals/", "repeat"), ("Master Diagnosa", "/poli/diagnoses/", "file")]
 
 def build(user, path):

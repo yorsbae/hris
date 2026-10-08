@@ -2,14 +2,55 @@
 <p><a href="/poli/records/">‹ Rekam medis</a></p>
 <h2>Kunjungan baru</h2>
 <p style="color:var(--mu)">Rekam medis tidak dapat diubah atau dihapus setelah disimpan; koreksi dilakukan lewat catatan tambahan. Obat pada resep langsung mengurangi stok.</p>
+<div class="rm-grid">
 <form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
 {% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
-<h3>Resep obat</h3>{{ fs.management_form }}{{ fs.non_form_errors }}
-{% for lf in fs %}<div class="bar" style="margin-bottom:6px">{{ lf.medicine }}{{ lf.qty }}{{ lf.dosage }}</div>{{ lf.non_field_errors }}{{ lf.medicine.errors }}{{ lf.qty.errors }}{% endfor %}
+<h3>Resep obat</h3><p id="rx-note" style="color:var(--mu);font-size:13px;margin:0 0 6px" hidden></p>
+{{ fs.management_form }}{{ fs.non_form_errors }}
+<div id="rx-rows">{% for lf in fs %}<div class="rx-row" style="margin-bottom:6px"><div class="bar">{{ lf.medicine }}<input type="text" class="rx-name" data-lookup="medicine" data-target="#{{ lf.medicine.id_for_label }}" data-q-available="1" placeholder="Ketik nama/kode obat…" value="{{ lf.medicine_label }}" aria-label="Obat baris {{ forloop.counter }}" autocomplete="off">{{ lf.qty }}{{ lf.dosage }}</div>{{ lf.non_field_errors }}{{ lf.medicine.errors }}{{ lf.qty.errors }}</div>{% endfor %}</div>
+<p><button type="button" class="ghost" id="rx-more">+ Baris obat</button></p>
 <p><button>Simpan rekam medis</button></p></form>
-<style>.form{max-width:680px}.bar select,.bar input{flex:1;min-width:110px}</style>
+<aside class="card" id="pt" aria-live="polite" hidden><h3 style="margin-top:0">Rekam medis pasien</h3><div id="pt-body"></div></aside>
+</div>
+<template id="rx-empty"><div class="rx-row" style="margin-bottom:6px"><div class="bar">{{ fs.empty_form.medicine }}<input type="text" class="rx-name" data-lookup="medicine" data-target="#id_rx-__prefix__-medicine" data-q-available="1" placeholder="Ketik nama/kode obat…" aria-label="Obat" autocomplete="off">{{ fs.empty_form.qty }}{{ fs.empty_form.dosage }}</div></div></template>
+<style>.form{max-width:680px}.bar select,.bar input{flex:1;min-width:110px}.rx-name{flex:2!important;min-width:180px!important}.rx-row .lk-box{flex:2;min-width:180px}.rx-row .lk-box .rx-name{width:100%}
+.rm-grid{display:grid;grid-template-columns:minmax(0,680px) minmax(260px,1fr);gap:16px;align-items:start}@media(max-width:1100px){.rm-grid{grid-template-columns:1fr}}
+#pt table{box-shadow:none}#pt .sub{color:var(--mu);font-size:13px}</style>
 <script>
-document.querySelectorAll('input[name="qty"],input[id$="-qty"]').forEach(i=>{i.placeholder="Jumlah"});
-document.querySelectorAll('input[id$="-dosage"]').forEach(i=>{i.placeholder="Aturan pakai (3x1 sesudah makan)"});
+(function(){
+var $=function(s,r){return(r||document).querySelector(s)},rows=$("#rx-rows"),total=$("#id_rx-TOTAL_FORMS"),max=parseInt($("#id_rx-MAX_NUM_FORMS").value,10)||20,note=$("#rx-note");
+document.querySelectorAll('input[id$="-qty"]').forEach(function(i){i.placeholder="Jumlah"});document.querySelectorAll('input[id$="-dosage"]').forEach(function(i){i.placeholder="Aturan pakai (3x1 sesudah makan)"});
+function addRow(){var n=parseInt(total.value,10);if(n>=max)return null;var h=$("#rx-empty").innerHTML.replace(/__prefix__/g,n),d=document.createElement("div");d.innerHTML=h;var r=d.firstElementChild;
+ r.querySelector('input[id$="-qty"]').placeholder="Jumlah";r.querySelector('input[id$="-dosage"]').placeholder="Aturan pakai (3x1 sesudah makan)";rows.appendChild(r);total.value=n+1;lookupEnhance(r);return r}
+$("#rx-more").onclick=function(){var r=addRow();if(r)r.querySelector(".rx-name").focus()};
+function medOf(r){return r.querySelector('input[id$="-medicine"]')}
+function emptyRow(){return[].filter.call(rows.children,function(r){return !medOf(r).value&&!r.querySelector(".rx-name").value.trim()})[0]||addRow()}
+/* Diagnosa → obat lazim: hanya baris yang diisi otomatis dari diagnosa sebelumnya diganti; isian manual petugas tidak disentuh */
+var diagInp=$('input[name="diagnosis_code"]');
+diagInp.addEventListener("lookup:clear",function(){clearAuto();note.hidden=true});
+function clearAuto(){[].forEach.call(rows.querySelectorAll('.rx-row[data-auto="1"]'),function(r){var q=r.querySelector('input[id$="-qty"]'),dz=r.querySelector('input[id$="-dosage"]');
+ if(r.dataset.touched!=="1"){medOf(r).value="";var nm=r.querySelector(".rx-name");nm.value="";if(nm.lookupReset)nm.lookupReset();q.value="";dz.value=""}delete r.dataset.auto})}
+diagInp.addEventListener("lookup:select",function(e){var d=e.detail;clearAuto();var meds=d.medicines||[],used={},skipped=[],added=0;
+ [].forEach.call(rows.children,function(r){if(medOf(r).value)used[medOf(r).value]=1});
+ meds.forEach(function(m){if(used[m.id])return;if(m.stock<=0){skipped.push(m.name);return}var r=emptyRow();if(!r){skipped.push(m.name);return}
+  var nm=r.querySelector(".rx-name");nm.value=m.name;medOf(r).value=m.id;if(nm.lookupPick)nm.lookupPick({id:m.id,name:m.name,code:m.code,unit:m.unit,stock:m.stock});
+  var q=r.querySelector('input[id$="-qty"]'),dz=r.querySelector('input[id$="-dosage"]');q.value=m.qty;dz.value=m.dosage||"";r.dataset.auto="1";added++;
+  [q,dz,nm].forEach(function(x){x.addEventListener("input",function(){r.dataset.touched="1"},{once:true})})});
+ var t=[];if(added)t.push(added+" obat disarankan untuk diagnosa "+d.code+" — ubah/hapus sesuai kebutuhan.");if(skipped.length)t.push("Tidak diisi (stok habis/tidak muat): "+skipped.join(", ")+".");
+ if(!meds.length)t.push("Belum ada obat yang ditautkan ke diagnosa "+d.code+" (atur di Master diagnosa).");note.textContent=t.join(" ");note.hidden=false});
+/* NIK → rekam medis pasien; jenis kunjungan 'kehamilan' → pencarian NIK hanya perempuan */
+var nik=$('input[name="nik"]'),kind=$('select[name="kind"]'),pt=$("#pt"),body=$("#pt-body"),seq=0;
+function syncGender(){if(kind.value==="kehamilan")nik.dataset.qGender="P";else delete nik.dataset.qGender}kind.addEventListener("change",syncGender);syncGender();
+function el(t,txt,c){var e=document.createElement(t);if(txt!=null)e.textContent=txt;if(c)e.className=c;return e}
+nik.addEventListener("lookup:clear",function(){pt.hidden=true;body.textContent=""});
+nik.addEventListener("lookup:select",function(e){var my=++seq;body.textContent="Memuat…";pt.hidden=false;
+ fetch("/poli/api/patient/?nik="+encodeURIComponent(e.detail.nik),{credentials:"same-origin",headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(my!==seq)return;body.textContent="";
+  body.appendChild(el("div",j.nik+" — "+j.name));body.appendChild(el("div",j.gender+" · "+j.department+" · "+j.total+" kunjungan tercatat","sub"));
+  if(!j.visits.length){body.appendChild(el("p","Belum ada riwayat kunjungan.","sub"));return}
+  var tb=el("table"),tbody=el("tbody");j.visits.forEach(function(v){var tr=el("tr"),td=el("td"),a=el("a",v.date);a.href=v.url;a.target="_blank";a.rel="noopener";td.appendChild(a);td.appendChild(el("div",v.kind,"sub"));tr.appendChild(td);
+   var t2=el("td",v.diagnosis||"—");if(v.complaint)t2.appendChild(el("div",v.complaint,"sub"));tr.appendChild(t2);tbody.appendChild(tr)});tb.appendChild(tbody);body.appendChild(tb);
+  var all=el("a","Semua riwayat ›");all.href=j.history_url;all.style.display="inline-block";all.style.marginTop="8px";body.appendChild(all)})
+ .catch(function(){if(my===seq)body.textContent="Gagal memuat riwayat pasien."})});
+})();
 </script>
 {% endblock %}

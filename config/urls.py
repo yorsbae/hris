@@ -4,6 +4,7 @@ from django.contrib.auth import views as auth
 from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
+from apps.core import lookup
 from apps.core.dashboard import dashboard, home
 from apps.core.dashboard_panels import panels as dashboard_panels
 admin.site.site_header = admin.site.site_title = "HRIS & Poliklinik — Administrasi data"
@@ -55,6 +56,9 @@ urlpatterns = [
     path("requests/<int:pk>/<str:action>/", rq.request_action),
     path("hrd/", include("apps.hrd.urls")),
     path("poli/", include("apps.poli.urls")),
+    path("api/lookup/employees/", lookup.employees),
+    path("api/lookup/medicines/", lookup.medicines),
+    path("api/lookup/diagnoses/", lookup.diagnoses),
     path("api/dashboard/", dashboard),
     path("api/dashboard/panels/", dashboard_panels),
     path("api/poli/records/", poli.record_create),

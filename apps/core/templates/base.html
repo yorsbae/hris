@@ -96,4 +96,4 @@ if(s&&s.classList.contains("danger")&&!window.confirm("Yakin melanjutkan tindaka
 if(f.dataset.locked){e.preventDefault();return}f.dataset.locked="1";if(s){s.classList.add("busy");setTimeout(function(){s.disabled=true},0)}});
 window.addEventListener("pageshow",function(e){if(e.persisted)document.querySelectorAll("form[data-locked]").forEach(function(f){delete f.dataset.locked;f.querySelectorAll("button.busy").forEach(function(b){b.classList.remove("busy");b.disabled=false})})});
 })();
-</script></body></html>
+</script>{% if user.is_authenticated %}{% include "_lookup.html" %}{% endif %}</body></html>

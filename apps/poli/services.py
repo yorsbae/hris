@@ -4,7 +4,7 @@ from django.db.models import F
 from django.utils import timezone
 from apps.core.models import Notification, Role, User
 from apps.hr.models import Employee
-from .models import (LetterCounter, MedicalRecord, Medicine, Prescription, RecordAddendum, Referral, StockMovement, dispense)
+from .models import (Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, Prescription, PrescriptionReturn, RecordAddendum, Referral, StockMovement, dispense)
 
 MAX_LINES = 20
 
@@ -98,3 +98,51 @@ def referral_transition(pk, to, user, outcome=""):
         if outcome: ref.outcome = outcome
         ref.save(update_fields=["status", "outcome"])
     return ref, before
+
+
+# ---------------------------------------------------------------- Tambah / kurangi obat pada rekam medis (rekam medis tetap tidak diubah)
+def add_prescription(user, record, medicine_id, qty, dosage=""):
+    """Obat TAMBAHAN pada rekam medis yang sudah ada: baris resep baru (added_at terisi) + stok keluar, satu transaksi.
+    Rekam medis dikunci dulu agar dua petugas tidak menambah bersamaan melewati batas baris."""
+    if not isinstance(qty, int) or isinstance(qty, bool) or qty <= 0: raise ValueError("Jumlah obat harus bilangan bulat positif")
+    with transaction.atomic():
+        MedicalRecord.objects.select_for_update().get(pk=record.pk)
+        if Prescription.objects.filter(record=record).count() >= MAX_LINES: raise ValueError(f"Maksimal {MAX_LINES} baris obat per rekam medis")
+        m = dispense(medicine_id, qty, user, ref=f"MR{record.pk}")
+        p = Prescription.objects.create(record=record, medicine=m, qty=qty, dosage=(dosage or "")[:100], added_at=timezone.now(), added_by=user)
+        if m.stock <= m.min_stock: _notify_low_stock([m])
+    return p, m
+
+
+def return_prescription(user, prescription_id, qty, reason):
+    """Kurangi obat (retur): jumlah ≤ sisa pada baris itu, alasan wajib; stok kembali lewat kartu stok (reason=return). Append-only."""
+    if not isinstance(qty, int) or isinstance(qty, bool) or qty <= 0: raise ValueError("Jumlah retur harus bilangan bulat positif")
+    reason = (reason or "").strip()
+    if not reason: raise ValueError("Alasan pengurangan obat wajib diisi")
+    with transaction.atomic():
+        try: p = Prescription.objects.select_for_update().select_related("medicine").get(pk=prescription_id)
+        except Prescription.DoesNotExist: raise ValueError("Baris resep tidak ditemukan")
+        done = sum(r.qty for r in p.returns.all())
+        left = p.qty - done
+        if qty > left: raise ValueError(f"Retur {qty} melebihi sisa {left} {p.medicine.unit} pada baris resep ini")
+        m, _ = _move(p.medicine_id, qty, user, "return", ref=f"MR{p.record_id}", note=reason[:300])
+        ret = PrescriptionReturn.objects.create(prescription=p, qty=qty, reason=reason[:300], created_by=user)
+    return ret, m
+
+
+# ---------------------------------------------------------------- Master: obat lazim per diagnosa
+def link_medicine(diagnosis, medicine_id, qty=1, dosage=""):
+    if not isinstance(qty, int) or isinstance(qty, bool) or qty <= 0: raise ValueError("Jumlah bawaan harus bilangan bulat positif")
+    with transaction.atomic():
+        d = Diagnosis.objects.select_for_update().get(pk=diagnosis.pk)  # serialisasi per diagnosa (batas jumlah + duplikat)
+        try: m = Medicine.objects.get(pk=medicine_id)
+        except Medicine.DoesNotExist: raise ValueError("Obat tidak ditemukan")
+        n = d.medicine_links.count()
+        if n >= 10: raise ValueError("Maksimal 10 obat per diagnosa")
+        if d.medicine_links.filter(medicine=m).exists(): raise ValueError(f"{m.name} sudah ditautkan ke diagnosa ini")
+        return DiagnosisMedicine.objects.create(diagnosis=d, medicine=m, qty=qty, dosage=(dosage or "")[:100], position=n)
+
+
+def unlink_medicine(diagnosis, link_id):
+    n, _ = DiagnosisMedicine.objects.filter(diagnosis=diagnosis, pk=link_id).delete()
+    if not n: raise ValueError("Tautan tidak ditemukan")

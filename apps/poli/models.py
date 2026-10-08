@@ -13,11 +13,22 @@ class Medicine(models.Model):
         constraints = [models.CheckConstraint(condition=models.Q(stock__gte=0), name="medicine_stock_gte_0"),
                        models.CheckConstraint(condition=models.Q(min_stock__gte=0), name="medicine_min_stock_gte_0")]
     def __str__(self): return f"{self.code} {self.name}"
+class DiagnosisMedicine(models.Model):
+    """Master: obat yang LAZIM untuk sebuah diagnosa. Hanya saran: form kunjungan mengisi resep otomatis, petugas tetap boleh mengubah/menghapus."""
+    diagnosis = models.ForeignKey(Diagnosis, on_delete=models.CASCADE, related_name="medicine_links")
+    medicine = models.ForeignKey("Medicine", on_delete=models.CASCADE, related_name="diagnosis_links")
+    qty = models.PositiveIntegerField("Jumlah bawaan", default=1)
+    dosage = models.CharField("Aturan pakai bawaan", max_length=100, blank=True)
+    position = models.PositiveSmallIntegerField("Urutan", default=0)
+    class Meta:
+        ordering = ["position", "id"]
+        constraints = [models.UniqueConstraint(fields=["diagnosis", "medicine"], name="uniq_diagnosis_medicine"),
+                       models.CheckConstraint(name="diagnosis_medicine_qty_gt_0", condition=models.Q(qty__gt=0))]
 class StockMovement(models.Model):  # kartu stok: stok = hasil agregasi, setiap perubahan tercatat
     medicine = models.ForeignKey(Medicine, on_delete=models.PROTECT, related_name="movements")
     qty = models.IntegerField()  # + masuk, - keluar
     balance_after = models.IntegerField()
-    reason = models.CharField(max_length=30)  # purchase, prescription, adjustment
+    reason = models.CharField(max_length=30)  # purchase, prescription, return (retur resep), adjustment
     ref = models.CharField(max_length=40, blank=True)
     note = models.CharField(max_length=300, blank=True)  # wajib untuk penyesuaian (alasan)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
@@ -50,8 +61,24 @@ class RecordAddendum(models.Model):
     def delete(self, *a, **k): raise PermissionError("Catatan tambahan tidak boleh dihapus")
 
 class Prescription(models.Model):
+    """Baris resep. Tidak diubah: obat TAMBAHAN = baris baru (added_at terisi); obat DIKURANGI = PrescriptionReturn (retur, stok kembali)."""
     record = models.ForeignKey(MedicalRecord, on_delete=models.CASCADE, related_name="prescriptions")
     medicine = models.ForeignKey(Medicine, on_delete=models.PROTECT); qty = models.PositiveIntegerField(); dosage = models.CharField(max_length=100, blank=True)
+    added_at = models.DateTimeField(null=True, blank=True)  # terisi bila baris ditambahkan SESUDAH rekam medis dibuat
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+class PrescriptionReturn(models.Model):
+    """Pengurangan obat pada resep (pasien tidak jadi memakai/salah beri). Append-only; stok kembali lewat kartu stok (reason=return)."""
+    prescription = models.ForeignKey(Prescription, on_delete=models.PROTECT, related_name="returns")
+    qty = models.PositiveIntegerField(); reason = models.CharField(max_length=300)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+"); created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [models.CheckConstraint(name="prescription_return_qty_gt_0", condition=models.Q(qty__gt=0))]
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Retur resep tidak boleh diubah")
+        super().save(*a, **k)
+    def delete(self, *a, **k): raise PermissionError("Retur resep tidak boleh dihapus")
 
 class Referral(models.Model):
     number = models.CharField(max_length=30, unique=True)

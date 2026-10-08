@@ -2,7 +2,7 @@
 <p><a href="/poli/">‹ Poliklinik</a></p>
 <h2>Master diagnosa <a class="btn" href="{% url 'poli_diagnosis_new' %}">+ Diagnosa baru</a></h2>
 <form method="get" class="bar"><input name="q" value="{{ q }}" placeholder="Cari kode / nama"><button>Cari</button></form>
-<div class="wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th>Kategori</th><th></th></tr></thead><tbody>
-{% for d in page %}<tr><td>{{ d.code }}</td><td>{{ d.name }}</td><td>{{ d.category|default:"-" }}</td><td><a href="{% url 'poli_diagnosis_edit' d.pk %}">Ubah</a></td></tr>{% empty %}<tr><td class="empty" colspan="4">Belum ada diagnosa.</td></tr>{% endfor %}</tbody></table></div>
+<div class="wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th>Kategori</th><th>Obat lazim</th><th></th></tr></thead><tbody>
+{% for d in page %}<tr><td>{{ d.code }}</td><td>{{ d.name }}</td><td>{{ d.category|default:"-" }}</td><td><a href="{% url 'poli_diagnosis_medicines' d.pk %}">{{ d.n_meds }} obat ›</a></td><td><a href="{% url 'poli_diagnosis_edit' d.pk %}">Ubah</a></td></tr>{% empty %}<tr><td class="empty" colspan="5">Belum ada diagnosa.</td></tr>{% endfor %}</tbody></table></div>
 {% include "poli/_pager.html" %}
 {% endblock %}

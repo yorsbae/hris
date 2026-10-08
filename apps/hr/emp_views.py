@@ -13,7 +13,7 @@ from django.utils import timezone
 from . import leave
 from .models import ChangeRequest, Contract, Employee, EmployeeHistory, ShiftAssignment
 
-TRACKED = ("department", "position", "status", "shift")  # perubahan field ini selalu masuk EmployeeHistory
+TRACKED = ("department", "position", "status", "shift", "shift_group")  # perubahan field ini selalu masuk EmployeeHistory
 ACTIVE_REQ = ("submitted", "pending", "approved")
 HRD_ROLES = (Role.HRD,)  # Superadmin otomatis lolos di require_roles
 
@@ -39,7 +39,7 @@ def _rows(user, e):
     rows = [("NIK", e.nik), ("Nama", e.name), ("Jenis kelamin", e.get_gender_display()),
             ("Departemen", e.department.name), ("Jabatan", e.position.name if e.position else "-")]
     if user.role == Role.POLI: return rows  # identitas minimum
-    rows += [("Status", e.status), ("Tanggal masuk", e.join_date), ("Shift", e.shift.name if e.shift else "-"),
+    rows += [("Status", e.status), ("Tanggal masuk", e.join_date), ("Shift", e.shift.name if e.shift else "-"), ("Kelompok shift", e.shift_group.code if e.shift_group_id else "-"),
              ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
     if user.role == Role.DEPT_ADMIN: return rows  # tanpa data sensitif
     return rows + [("Status pernikahan", e.marital_status or "-"), ("Pendidikan", e.education or "-"), ("Alamat", e.address or "-"),
@@ -50,7 +50,7 @@ def _rows(user, e):
 @login_required
 @require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
 def employee_detail_page(request, pk):
-    e = get_scoped_or_404(request.user, Employee.objects.select_related("department", "position", "shift", "supervisor"), pk)
+    e = get_scoped_or_404(request.user, Employee.objects.select_related("department", "position", "shift", "shift_group", "supervisor"), pk)
     full = request.user.role in (Role.HRD, Role.SUPERADMIN)
     if full: log(request, "hr", "view_sensitive", e)
     ctx = {"e": e, "rows": _rows(request.user, e), "full": full}
@@ -83,7 +83,7 @@ def employee_new(request):
 @login_required
 @require_roles(*HRD_ROLES)
 def employee_edit(request, pk):
-    e = get_scoped_or_404(request.user, Employee.objects.select_related("department", "position", "shift", "supervisor"), pk)
+    e = get_scoped_or_404(request.user, Employee.objects.select_related("department", "position", "shift", "shift_group", "supervisor"), pk)
     before = _snap(e)  # ambil SEBELUM form dibuat: ModelForm mengubah instance saat validasi
     form = EmployeeForm(request.POST or None, instance=e)
     if request.method == "POST" and form.is_valid():

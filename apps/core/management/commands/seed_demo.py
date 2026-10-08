@@ -197,6 +197,13 @@ class Command(BaseCommand):
         for code, name, unit, stock, mn in MEDS:
             m = pl.Medicine.objects.create(code=code, name=name, unit=unit, stock=0, min_stock=mn); ps._move(m.pk, stock, self.poli_u, "purchase", note="Stok awal (demo)"); meds.append(m)
         ps._move(meds[7].pk, -(meds[7].stock - 6), self.poli_u, "adjustment", note="Penyesuaian demo: stok menipis")  # satu obat di bawah minimum → muncul peringatan
+        by_med = {m.code: m for m in meds}  # master diagnosa ↔ obat lazim (form kunjungan mengisi resep otomatis dari sini)
+        for dcode, links in {"J00": [("OB004", 10, "3 x 1"), ("OB001", 10, "3 x 1 bila demam"), ("OB007", 10, "1 x 1")], "J06.9": [("OB002", 15, "3 x 1 sesudah makan"), ("OB012", 10, "3 x 1")],
+                             "A09": [("OB006", 6, "diminum tiap diare"), ("OB003", 10, "3 x 1 sebelum makan")], "K29.7": [("OB003", 15, "3 x 1 sebelum makan")], "R51": [("OB001", 10, "3 x 1")],
+                             "M54.5": [("OB005", 10, "3 x 1 sesudah makan")], "I10": [("OB010", 30, "1 x 1 pagi")], "L30.9": [("OB011", 1, "dioles 2 x sehari")],
+                             "S61.9": [("OB008", 1, "pembersih luka"), ("OB009", 2, "pembalut")]}.items():
+            dd = next(x for x in dg if x.code == dcode)
+            for i, (mc, q, dose) in enumerate(links): pl.DiagnosisMedicine.objects.create(diagnosis=dd, medicine=by_med[mc], qty=q, dosage=dose, position=i)
         pool = [e for e in self.active if e.department.code != "POL"]; recs = []
         for back in range(180):  # 6 bulan; kunjungan harian meningkat menuju hari ini
             d = today - timedelta(days=back)

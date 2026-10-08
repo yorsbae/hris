@@ -6,8 +6,9 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import F, Q
-from django.http import Http404, HttpResponse
+from django.db.models import Count, F, Q
+import csv
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -16,8 +17,10 @@ from apps.core.models import Role
 from apps.core.scope import require_roles
 from apps.hr.models import Employee
 from . import services
-from .forms import (AddendumForm, DiagnosisForm, MedicineForm, PrescriptionFormSet, RecordForm, ReferralForm, StockAdjustForm, StockInForm)
-from .models import Diagnosis, MedicalRecord, Medicine, Referral, SickLeaveLetter, StockMovement
+from . import reports
+from .forms import (AddendumForm, AddPrescriptionForm, DiagnosisForm, DiagnosisMedicineForm, MedicineForm, PrescriptionFormSet, RecordForm, ReferralForm,
+                    ReturnPrescriptionForm, StockAdjustForm, StockInForm)
+from .models import Diagnosis, DiagnosisMedicine, MedicalRecord, Medicine, Prescription, Referral, SickLeaveLetter, StockMovement
 from .pdf import referral_pdf
 
 PER_PAGE = 50
@@ -86,6 +89,7 @@ def hub(request):
         ("Kecelakaan kerja", "/poli/records/?kind=kecelakaan_kerja", MedicalRecord.objects.filter(kind="kecelakaan_kerja", **_day_range(today.replace(day=1), today)).count(), "bulan ini"),
         ("Rujukan", "/poli/referrals/", Referral.objects.filter(status__in=("diajukan", "dirujuk")).count(), "rujukan berjalan"),
         ("Obat & kartu stok", "/poli/medicines/", Medicine.objects.filter(stock__lte=F("min_stock")).count(), "obat stok minimum"),
+        ("Rekap stok obat", "/poli/reports/stock/", Medicine.objects.count(), "obat — rekap harian & bulanan"),
         ("Master diagnosa", "/poli/diagnoses/", Diagnosis.objects.count(), "diagnosa terdaftar"),
     ]
     return render(request, "poli/hub.html", {"cards": cards})
@@ -126,8 +130,10 @@ def record_detail(request, pk):
     r = get_object_or_404(MedicalRecord.objects.select_related("employee", "employee__department", "employee__position", "diagnosis", "created_by"), pk=pk)
     log(request, "poli", "view_record", r)  # akses data medis tercatat
     letter = SickLeaveLetter.objects.filter(record=r).first()
+    rx = list(r.prescriptions.select_related("medicine", "added_by").prefetch_related("returns").order_by("id"))
+    for p in rx: p.returned = sum(x.qty for x in p.returns.all()); p.net = p.qty - p.returned  # jumlah bersih = diberikan − retur
     return render(request, "poli/record_detail.html", {
-        "r": r, "idn": identity_rows(r.employee), "rx": r.prescriptions.select_related("medicine"), "addenda": r.addenda.select_related("created_by"),
+        "r": r, "idn": identity_rows(r.employee), "rx": rx, "add_form": AddPrescriptionForm(), "ret_form": ReturnPrescriptionForm(), "addenda": r.addenda.select_related("created_by"),
         "referrals": r.referral_set.order_by("-id"), "letter": letter, "addendum_form": AddendumForm(),
         "exam_rows": exam_rows(r.exam)})
 
@@ -205,7 +211,7 @@ def medicine_stock(request, pk, action):
 @poli_only
 def diagnosis_list(request):
     q = request.GET.get("q", "").strip()
-    qs = Diagnosis.objects.all()
+    qs = Diagnosis.objects.annotate(n_meds=Count("medicine_links"))
     if q: qs = qs.filter(Q(code__istartswith=q) | Q(name__icontains=q))
     return render(request, "poli/diagnosis_list.html", {"page": paginate(request, qs.order_by("code")), "q": q, "qs": _qs(request, "q")})
 
@@ -275,3 +281,111 @@ def referral_letter(request, pk):
     resp = HttpResponse(referral_pdf(ref), content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="{ref.number.replace("/", "-")}.pdf"'
     return resp
+
+
+# ================================================================ Tambah / kurangi obat pada rekam medis
+@poli_only
+@require_POST
+def record_rx_add(request, pk):
+    r = get_object_or_404(MedicalRecord, pk=pk)
+    form = AddPrescriptionForm(request.POST)
+    if not form.is_valid(): messages.error(request, _errors(form)); return redirect("poli_record_detail", pk=pk)
+    d = form.cleaned_data
+    try: p, m = services.add_prescription(request.user, r, d["medicine"].pk, d["qty"], d["dosage"])
+    except ValueError as ex: messages.error(request, str(ex)); return redirect("poli_record_detail", pk=pk)
+    log(request, "poli", "rx_add", r, None, {"medicine": m.code, "qty": p.qty, "stock_after": m.stock})
+    messages.success(request, f"Obat ditambahkan: {m.name} × {p.qty}. Stok sekarang {m.stock} {m.unit}." + (" Stok minimum!" if m.stock <= m.min_stock else ""))
+    return redirect("poli_record_detail", pk=pk)
+
+
+@poli_only
+@require_POST
+def record_rx_return(request, pk):
+    r = get_object_or_404(MedicalRecord, pk=pk)
+    form = ReturnPrescriptionForm(request.POST)
+    if not form.is_valid(): messages.error(request, _errors(form)); return redirect("poli_record_detail", pk=pk)
+    d = form.cleaned_data
+    if not Prescription.objects.filter(pk=d["prescription"], record=r).exists():  # baris resep harus milik rekam medis ini (ID di formulir bisa dipalsukan)
+        raise Http404
+    try: ret, m = services.return_prescription(request.user, d["prescription"], d["qty"], d["reason"])
+    except ValueError as ex: messages.error(request, str(ex)); return redirect("poli_record_detail", pk=pk)
+    log(request, "poli", "rx_return", r, None, {"medicine": m.code, "qty": ret.qty, "stock_after": m.stock})  # alasan tidak masuk audit (dapat memuat isi medis)
+    messages.success(request, f"Obat dikurangi: {m.name} × {ret.qty}. Stok kembali menjadi {m.stock} {m.unit}.")
+    return redirect("poli_record_detail", pk=pk)
+
+
+# ================================================================ Ringkasan pasien (setelah NIK dipilih di form kunjungan)
+@poli_only
+def patient_summary(request):
+    """JSON: identitas minimum + 8 kunjungan terakhir. Hanya karyawan aktif. Pembukaan riwayat tercatat di audit (sama seperti halaman riwayat)."""
+    e = services.active_employee(nik=request.GET.get("nik", "").strip()[:20])
+    if not e: return JsonResponse({"found": False}, status=404)
+    log(request, "poli", "view_history", e)
+    qs = e.medical_records.select_related("diagnosis").order_by("-visit_at", "-id")
+    last = [{"id": r.pk, "date": timezone.localtime(r.visit_at).strftime("%d-%m-%Y"), "kind": r.get_kind_display(), "url": f"/poli/records/{r.pk}/",
+             "diagnosis": f"{r.diagnosis.code} {r.diagnosis.name}" if r.diagnosis_id else "", "complaint": (r.complaint or "")[:90]} for r in qs[:8]]
+    return JsonResponse({"found": True, "nik": e.nik, "name": e.name, "gender": e.get_gender_display(), "department": e.department.name,
+                         "total": qs.count(), "history_url": f"/poli/employees/{e.pk}/", "visits": last})
+
+
+# ================================================================ Master diagnosa ↔ obat
+@poli_only
+def diagnosis_medicines(request, pk):
+    d = get_object_or_404(Diagnosis, pk=pk)
+    form = DiagnosisMedicineForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        c = form.cleaned_data
+        try: l = services.link_medicine(d, c["medicine"].pk, c["qty"], c["dosage"])
+        except ValueError as ex: form.add_error(None, str(ex))
+        else:
+            log(request, "poli", "diagnosis_link_medicine", d, None, {"diagnosis": d.code, "medicine": l.medicine.code, "qty": l.qty})
+            messages.success(request, f"{l.medicine.name} ditautkan ke diagnosa {d.code}."); return redirect("poli_diagnosis_medicines", pk=pk)
+    return render(request, "poli/diagnosis_medicines.html", {"d": d, "links": d.medicine_links.select_related("medicine"), "form": form})
+
+
+@poli_only
+@require_POST
+def diagnosis_medicine_unlink(request, pk, link_id):
+    d = get_object_or_404(Diagnosis, pk=pk)
+    l = DiagnosisMedicine.objects.filter(diagnosis=d, pk=link_id).select_related("medicine").first()
+    if not l: raise Http404
+    code = l.medicine.code
+    services.unlink_medicine(d, link_id)
+    log(request, "poli", "diagnosis_unlink_medicine", d, {"diagnosis": d.code, "medicine": code}, None)
+    messages.success(request, "Tautan obat dihapus."); return redirect("poli_diagnosis_medicines", pk=pk)
+
+
+# ================================================================ Rekap stok obat
+def _csv_safe(v):
+    """Sel berawalan = + - @ diberi apostrof agar tidak dibaca sebagai rumus oleh spreadsheet."""
+    v = "" if v is None else str(v)
+    return "'" + v if v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
+
+@poli_only
+def stock_report(request):
+    f = {k: request.GET.get(k, "").strip() for k in ("period", "date", "month", "q")}
+    period = "month" if f["period"] == "month" else "day"
+    today = timezone.localdate()
+    if period == "month":
+        try: y, m = f["month"].split("-"); d = date(int(y), int(m), 1)
+        except (ValueError, AttributeError): d = today.replace(day=1)
+    else: d = _date(f["date"]) or today
+    if not (2000 <= d.year <= 2100): d = today  # tanggal ekstrem → bawaan (hindari OverflowError)
+    data = reports.stock_report(period, d, q=f["q"], show_all=request.GET.get("all") == "1")
+    if request.GET.get("format") == "csv":
+        log(request, "poli", "stock_report_export", None, None, {"period": period, "from": data["start"].isoformat(), "to": data["end"].isoformat()})
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = f'attachment; filename="rekap-stok-{period}-{data["start"]:%Y%m%d}.csv"'
+        w = csv.writer(resp); w.writerow(["Kode", "Obat", "Satuan", "Stok awal", "Masuk", "Retur resep", "Keluar", "Penyesuaian", "Stok akhir"])
+        for r in data["rows"]: w.writerow([_csv_safe(r["code"]), _csv_safe(r["name"]), _csv_safe(r["unit"]), r["opening"], r["masuk"], r["retur"], r["keluar"], r["adj"], r["closing"]])
+        t = data["total"]; w.writerow(["", "TOTAL", "", t["opening"], t["masuk"], t["retur"], t["keluar"], t["adj"], t["closing"]])
+        return resp
+    prev, nxt = ((d - timedelta(days=1), d + timedelta(days=1)) if period == "day"
+                 else ((d - timedelta(days=1)).replace(day=1), (d + timedelta(days=32)).replace(day=1)))
+    key = lambda x: x.strftime("%Y-%m") if period == "month" else x.isoformat()
+    paramname = "month" if period == "month" else "date"
+    base = urlencode({"period": period, "q": f["q"], **({"all": "1"} if request.GET.get("all") == "1" else {})})
+    return render(request, "poli/stock_report.html", {
+        "data": data, "period": period, "f": f, "cur": key(d), "prev_url": f"?{base}&{paramname}={key(prev)}", "next_url": f"?{base}&{paramname}={key(nxt)}",
+        "csv_url": f"?{base}&{paramname}={key(d)}&format=csv", "show_all": request.GET.get("all") == "1"})

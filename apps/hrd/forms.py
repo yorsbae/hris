@@ -45,7 +45,7 @@ class BpjsStatusForm(forms.Form):
 
 # ---------------------------------------------------------------- Bantuan
 class AidForm(EmployeeByNik):
-    nik = forms.CharField(label="NIK karyawan", max_length=20)
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
     kind = forms.ChoiceField(label="Jenis bantuan", choices=Aid.KINDS)
     event_date = forms.DateField(label="Tanggal kejadian", widget=D())
     amount = forms.IntegerField(label="Nominal (Rp)", min_value=1, max_value=2_000_000_000)
@@ -71,7 +71,7 @@ class AidForm(EmployeeByNik):
 # ---------------------------------------------------------------- Cuti hamil
 class MaternityForm(EmployeeByNik):
     gender = "P"
-    nik = forms.CharField(label="NIK karyawan", max_length=20)
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…", "data-q-gender": "P"}))
     due_date = forms.DateField(label="Perkiraan lahir (HPL)", widget=D())
     start_date = forms.DateField(label="Mulai cuti", required=False, widget=D(), help_text="Kosongkan = otomatis dari HPL.")
     end_date = forms.DateField(label="Selesai cuti", required=False, widget=D(), help_text="Kosongkan = otomatis dari HPL.")

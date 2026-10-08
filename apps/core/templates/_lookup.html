@@ -1,0 +1,66 @@
+<style>
+.lk-box{position:relative;display:block}.lk-box>input{width:100%}
+.lk-list{position:absolute;z-index:40;left:0;right:0;top:100%;margin:2px 0 0;padding:4px;list-style:none;background:var(--card);border:1px solid var(--bd2);border-radius:8px;box-shadow:0 6px 18px rgba(16,24,40,.18);max-height:280px;overflow:auto}
+.lk-list li{padding:7px 9px;border-radius:6px;cursor:pointer;line-height:1.3}.lk-list li b{font-size:inherit;display:inline;font-weight:600}.lk-list li small{display:block;color:var(--mu);font-size:12px}
+.lk-list li[aria-selected=true],.lk-list li:hover{background:var(--hov)}.lk-list li.lk-info{cursor:default;color:var(--mu);font-size:13px}.lk-list li.lk-off{opacity:.55}
+.lk-chip{display:block;margin-top:4px;font-size:13px;color:var(--ok)}.lk-chip.bad{color:var(--er)}
+</style>
+<script>
+/* Rekomendasi pilihan (autocomplete). Input dengan atribut data-lookup="employee|medicine|diagnosis".
+   Mengirim ≥2 karakter ke /api/lookup/…, menerima maks 10 hasil (tidak pernah seluruh tabel). Parameter tambahan: atribut data-q-<nama>
+   (mis. data-q-gender="P" dapat diubah skrip lain kapan saja). data-target="#id" = input tersembunyi yang diisi ID pilihan (obat).
+   Memicu event "lookup:select" (detail = item) dan "lookup:clear" agar bagian lain halaman ikut terhubung. Semua teks lewat textContent. */
+(function(){
+var URLS={employee:"/api/lookup/employees/",medicine:"/api/lookup/medicines/",diagnosis:"/api/lookup/diagnoses/"};
+function label(kind,it){
+ if(kind==="employee")return[it.nik+" — "+it.name,[it.department,it.position,it.shift&&("Shift "+it.shift),it.group&&("Kelompok "+it.group)].filter(Boolean).join(" · ")];
+ if(kind==="medicine")return[it.name,it.code+" · stok "+it.stock+" "+it.unit+(it.stock<=0?" (HABIS)":it.low?" (menipis)":"")];
+ return[it.code+" — "+it.name,(it.category||"")+(it.medicines&&it.medicines.length?(it.category?" · ":"")+"obat saran: "+it.medicines.map(function(m){return m.name}).join(", "):"")];}
+function plain(kind,it){return kind==="employee"?it.nik:kind==="medicine"?it.name:it.code}
+function enhance(inp){
+ if(inp.dataset.lkReady)return;inp.dataset.lkReady="1";
+ var kind=inp.dataset.lookup,url=URLS[kind];if(!url)return;
+ var box=document.createElement("span");box.className="lk-box";inp.parentNode.insertBefore(box,inp);box.appendChild(inp);
+ var list=document.createElement("ul");list.className="lk-list";list.id="lk"+Math.random().toString(36).slice(2,8);list.setAttribute("role","listbox");list.hidden=true;box.appendChild(list);
+ var chip=null;if(kind==="employee"){chip=document.createElement("small");chip.className="lk-chip";chip.hidden=true;chip.setAttribute("aria-live","polite");box.appendChild(chip)}
+ var target=inp.dataset.target?document.querySelector(inp.dataset.target):null;
+ inp.setAttribute("role","combobox");inp.setAttribute("aria-autocomplete","list");inp.setAttribute("aria-expanded","false");inp.setAttribute("aria-controls",list.id);inp.autocomplete="off";
+ var items=[],act=-1,timer=null,ctl=null,chosen=null,cache={};
+ function params(q){var p=new URLSearchParams({q:q});for(var k in inp.dataset){if(k.indexOf("q")===0&&k.length>1&&k[1]===k[1].toUpperCase()){p.set(k.slice(1).toLowerCase(),inp.dataset[k])}}return p.toString()}
+ function close(){list.hidden=true;inp.setAttribute("aria-expanded","false");act=-1}
+ function info(t){list.textContent="";var li=document.createElement("li");li.className="lk-info";li.textContent=t;list.appendChild(li);list.hidden=false;inp.setAttribute("aria-expanded","true")}
+ function show(chipOk,msg){if(!chip)return;chip.hidden=!msg;chip.textContent=msg||"";chip.classList.toggle("bad",!chipOk)}
+ function pick(it,silent){chosen=it;inp.value=plain(kind,it);if(target)target.value=it.id;
+  if(chip){show(true,it.name+" · "+[it.department,it.position,it.shift&&("Shift "+it.shift),it.group&&("Kelompok "+it.group)].filter(Boolean).join(" · "))}
+  close();inp.dispatchEvent(new CustomEvent("lookup:select",{bubbles:true,detail:it}));}
+ function render(){list.textContent="";items.forEach(function(it,i){var l=label(kind,it),li=document.createElement("li"),b=document.createElement("b"),s=document.createElement("small");
+  li.setAttribute("role","option");li.id=list.id+"o"+i;b.textContent=l[0];s.textContent=l[1];li.appendChild(b);if(l[1])li.appendChild(s);if(kind==="medicine"&&it.stock<=0)li.className="lk-off";
+  li.addEventListener("mousedown",function(e){e.preventDefault();pick(it)});list.appendChild(li)});list.hidden=false;inp.setAttribute("aria-expanded","true");mark(-1)}
+ function mark(i){act=i;[].forEach.call(list.children,function(li,j){li.setAttribute("aria-selected",j===i?"true":"false")});if(i>=0)inp.setAttribute("aria-activedescendant",list.id+"o"+i);else inp.removeAttribute("aria-activedescendant")}
+ function search(q,exactCb){var key=q+"|"+params(q);
+  function done(rs){if(exactCb)return exactCb(rs);items=rs;if(!rs.length)info("Tidak ada yang cocok");else render()}
+  if(cache[key])return done(cache[key]);
+  if(ctl)ctl.abort();ctl=new AbortController();
+  fetch(url+"?"+params(q),{credentials:"same-origin",signal:ctl.signal,headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){cache[key]=j.results||[];done(cache[key])})
+  .catch(function(e){if(e&&e.name==="AbortError")return;if(!exactCb)info("Gagal memuat saran — ketik manual")});}
+ inp.addEventListener("input",function(){
+  if(chosen){chosen=null;if(target)target.value="";show(true,"");inp.dispatchEvent(new CustomEvent("lookup:clear",{bubbles:true}))}
+  else if(target)target.value="";
+  var q=inp.value.trim();clearTimeout(timer);if(q.length<2){close();return}timer=setTimeout(function(){search(q)},180)});
+ inp.addEventListener("keydown",function(e){
+  if(list.hidden){if(e.key==="ArrowDown"&&inp.value.trim().length>=2){search(inp.value.trim());e.preventDefault()}return}
+  var n=list.querySelectorAll("li[role=option]").length;
+  if(e.key==="ArrowDown"){mark((act+1)%n);e.preventDefault()}else if(e.key==="ArrowUp"){mark((act-1+n)%n);e.preventDefault()}
+  else if(e.key==="Enter"){if(act>=0){pick(items[act]);}e.preventDefault()}else if(e.key==="Escape"){close();e.stopPropagation()}else if(e.key==="Tab"&&act>=0){pick(items[act])}});
+ inp.addEventListener("blur",function(){setTimeout(close,120);
+  /* NIK diketik penuh tanpa memilih: cocokkan persis agar info & fitur terhubung tetap jalan */
+  var v=inp.value.trim();if(!chosen&&v.length>=2&&kind==="employee")search(v,function(rs){var hit=rs.filter(function(x){return x.nik===v})[0];if(hit)pick(hit,true);else show(false,"NIK ini tidak ditemukan / bukan karyawan aktif dalam cakupan Anda")})});
+ inp.addEventListener("focus",function(){if(!chosen&&inp.value.trim().length>=2&&items.length)render()});
+ if(kind==="employee"&&inp.value.trim().length>=2)search(inp.value.trim(),function(rs){var hit=rs.filter(function(x){return x.nik===inp.value.trim()})[0];if(hit)pick(hit,true)});
+ inp.lookupReset=function(){chosen=null;if(target)target.value="";show(true,"")};
+ inp.lookupPick=function(it){pick(it,true)};
+}
+window.lookupEnhance=function(root){(root||document).querySelectorAll("input[data-lookup]").forEach(enhance)};
+document.addEventListener("DOMContentLoaded",function(){lookupEnhance()});
+})();
+</script>

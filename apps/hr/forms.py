@@ -33,7 +33,7 @@ def allowed_types(user):
 
 class RequestForm(forms.Form):
     type = forms.ChoiceField(label="Jenis pengajuan")
-    nik = forms.CharField(label="NIK karyawan", max_length=20)
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
     start_date = forms.DateField(label="Tanggal mulai", required=False, widget=forms.DateInput(attrs={"type": "date"}))
     end_date = forms.DateField(label="Tanggal selesai", required=False, widget=forms.DateInput(attrs={"type": "date"}))
     date = forms.DateField(label="Tanggal", required=False, widget=forms.DateInput(attrs={"type": "date"}))

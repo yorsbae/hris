@@ -14,7 +14,37 @@ class Position(models.Model):
 class Shift(models.Model):  # master shift; penyesuaian per tanggal ada di ShiftAssignment
     name = models.CharField(max_length=50); start = models.TimeField(); end = models.TimeField()
     crosses_midnight = models.BooleanField(default=False)
+    # Aturan Pengaturan Jadwal Shift 2026: kode (PAGI/SIANG/MALAM/GS-12/GS-14/GS-16), GS = general shift (tidak ikut rotasi kelompok), nonaktif = tidak ditawarkan lagi
+    code = models.CharField("Kode", max_length=10, blank=True, default="")
+    is_gs = models.BooleanField("General shift (GS)", default=False)
+    active = models.BooleanField("Aktif", default=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["code"], condition=~models.Q(code=""), name="uniq_shift_code_when_set")]
     def __str__(self): return self.name
+
+
+class ShiftGroup(models.Model):
+    """Kelompok rotasi. Pola 2 shift memakai A–G; pola 3 shift/PACK memakai A_pack–G_pack (BUKAN kelompok yang sama; aturan §2)."""
+    P2, P3 = "2_SHIFT", "3_SHIFT"
+    PATTERNS = [(P2, "2 shift (Pagi–Siang)"), (P3, "3 shift / PACK (Pagi–Siang–Malam)")]
+    code = models.CharField("Kode kelompok", max_length=12, unique=True)
+    pattern = models.CharField("Pola", max_length=8, choices=PATTERNS)
+    class Meta:
+        ordering = ["pattern", "code"]
+        constraints = [models.CheckConstraint(name="shift_group_pack_suffix_matches_pattern",
+                                              condition=(models.Q(pattern="3_SHIFT", code__endswith="_pack") | (models.Q(pattern="2_SHIFT") & ~models.Q(code__endswith="_pack"))))]
+    def __str__(self): return self.code
+
+
+class ShiftRotation(models.Model):
+    """Satu sel tabel rotasi: kelompok X pada hari ke-N (0=Senin) → shift tertentu, atau libur (shift kosong). Satu baris per kelompok per hari."""
+    group = models.ForeignKey(ShiftGroup, on_delete=models.CASCADE, related_name="rotation")
+    weekday = models.PositiveSmallIntegerField()  # 0=Senin … 6=Minggu
+    shift = models.ForeignKey(Shift, null=True, blank=True, on_delete=models.PROTECT, related_name="+")  # null = libur
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["group", "weekday"], name="uniq_rotation_group_weekday"),
+                       models.CheckConstraint(name="rotation_weekday_0_6", condition=models.Q(weekday__gte=0, weekday__lte=6))]
+        ordering = ["group__pattern", "weekday", "group__code"]
 
 class EmployeeManager(models.Manager):
     """Default: hanya karyawan yang belum dihapus (soft delete). Gunakan Employee.all_objects untuk semuanya."""
@@ -34,6 +64,7 @@ class Employee(models.Model):
     join_date = models.DateField()
     supervisor = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL)
     shift = models.ForeignKey(Shift, null=True, blank=True, on_delete=models.SET_NULL)
+    shift_group = models.ForeignKey("ShiftGroup", null=True, blank=True, on_delete=models.SET_NULL, related_name="members", verbose_name="Kelompok shift")
     bpjs_kes = EncryptedTextField(max_length=20, blank=True); bpjs_tk = EncryptedTextField(max_length=20, blank=True)  # SENSITIF
     npwp = EncryptedTextField(max_length=25, blank=True)  # SENSITIF
     bank_name = models.CharField(max_length=50, blank=True); bank_account = EncryptedTextField(max_length=30, blank=True)  # SENSITIF
