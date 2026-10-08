@@ -10,7 +10,7 @@ FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")  # enkripsi kolom
 DEBUG = env.bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 INSTALLED_APPS = [
-    "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
+    "apps.core.admin_config.HrisAdminConfig", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "apps.core", "apps.hr.apps.HrConfig", "apps.poli.apps.PoliConfig", "apps.hrd",
 ]
@@ -28,7 +28,7 @@ MIDDLEWARE = [
     "apps.core.middleware.RejectNulMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
-TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "APP_DIRS": True,
+TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "templates"], "APP_DIRS": True,  # DIRS dulu: templates/admin/* menimpa tema bawaan Django admin
   "OPTIONS": {"context_processors": ["django.template.context_processors.request",
   "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages", "apps.core.context.unread"]}}]
 DATABASES = {"default": env.db("DATABASE_URL")}  # ORM = proteksi SQL injection

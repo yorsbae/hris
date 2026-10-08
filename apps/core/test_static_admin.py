@@ -32,9 +32,48 @@ class AdminStaticTests(TestCase):
     def test_admin_branding_and_app_names(self):
         self.client.force_login(self.root)
         h = self.client.get("/admin/").content.decode()
-        for needle in ("HRIS &amp; Poliklinik", "HR Core", "Operasional HRD", "Poliklinik"):
+        for needle in ("HRIS &amp; POLIKLINIK", "HR Core", "Operasional HRD", "Administrasi data"):
             self.assertIn(needle, h)
 
     def test_non_superadmin_still_cannot_open_admin(self):
         self.client.force_login(self.hrd)
         self.assertEqual(self.client.get("/admin/").status_code, 302)  # diarahkan ke login admin, bukan masuk
+
+
+class AdminThemeTests(TestCase):
+    """Putaran 16: /admin/ bertema sama dengan aplikasi (sidebar navy, bilah atas, KPI) tanpa mengubah izin."""
+    @classmethod
+    def setUpTestData(cls):
+        cls.root = User.objects.create_user("root2", password="x-Pass-12345", role="superadmin", is_staff=True, is_superuser=True)
+
+    def setUp(self): self.client.force_login(self.root)
+
+    def test_index_has_sidebar_kpi_and_apps(self):
+        h = self.client.get("/admin/").content.decode()
+        for needle in ('id="hb-side"', "Total Karyawan", "Karyawan Aktif", "Pengajuan Menunggu Persetujuan", "Tindakan terbaru", "Dashboard aplikasi", "HR Core", "Operasional HRD"):
+            self.assertIn(needle, h)
+
+    def test_sidebar_marks_current_model(self):
+        h = self.client.get("/admin/hr/department/").content.decode()
+        self.assertIn('id="hb-side"', h); self.assertIn('aria-current="page"', h)
+
+    def test_logout_form_present_and_login_page_has_no_sidebar(self):
+        self.assertIn('id="logout-form"', self.client.get("/admin/").content.decode())
+        self.client.logout()
+        h = self.client.get("/admin/login/").content.decode()
+        self.assertNotIn('id="hb-side"', h)
+
+    def test_kpi_counts_reflect_data(self):
+        from apps.hr.models import Employee
+        h = self.client.get("/admin/").context["kpi"]
+        self.assertEqual(h["total"], Employee.objects.count())
+
+    def test_indonesian_labels_and_poli_master_only(self):
+        h = self.client.get("/admin/").content.decode()
+        for needle in ("Karyawan", "Departemen", "Pengajuan", "Kartu stok obat", "Diagnosa"): self.assertIn(needle, h)
+        self.assertNotIn("/admin/poli/medicalrecord/", h); self.assertNotIn("/admin/poli/referral/", h)
+        self.assertEqual(self.client.get("/admin/poli/medicalrecord/").status_code, 404)
+
+    def test_stock_card_is_read_only(self):
+        self.assertEqual(self.client.get("/admin/poli/stockmovement/add/").status_code, 403)
+        self.assertEqual(self.client.get("/admin/poli/medicine/add/").status_code, 403)

@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}{% load log %}
+{% block bodyclass %}{{ block.super }} dashboard{% endblock %}
+{% block coltype %}colMS{% endblock %}
+{% block nav-breadcrumbs %}{% endblock %}
+{% block content_title %}{% endblock %}
+{% block content %}
+<div class="ph"><div><h1>Administrasi Data</h1><p>Selamat datang, <strong>{{ user.get_full_name|default:user.get_username }}</strong>. Ini data master &amp; tabel sistem (khusus Superadmin); pekerjaan harian lewat menu aplikasi.</p></div>
+<div class="clock"><span><svg class="ic" style="width:17px;height:17px" aria-hidden="true"><use href="#i-calendar"/></svg><span id="hb-date"></span></span><span><svg class="ic" style="width:17px;height:17px" aria-hidden="true"><use href="#i-clock"/></svg><span id="hb-time"></span></span></div></div>
+<div class="kpis">
+<a class="kpi" href="/employees/"><span class="ci"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg></span><span><small>Total Karyawan</small><b>{{ kpi.total }}</b></span></a>
+<a class="kpi g" href="/employees/"><span class="ci"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg></span><span><small>Karyawan Aktif</small><b>{{ kpi.aktif }}</b></span></a>
+<a class="kpi w" href="/requests/"><span class="ci"><svg class="ic" aria-hidden="true"><use href="#i-clipboard"/></svg></span><span><small>Pengajuan Menunggu Persetujuan</small><b>{{ kpi.pending }}</b></span></a>
+<a class="kpi" href="/users/"><span class="ci"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg></span><span><small>Pengguna Aktif</small><b>{{ kpi.users }}</b></span></a></div>
+<div class="hb-grid"><div class="hb-apps">{% for app in hb_apps %}
+<section class="module" aria-label="{{ app.name }}"><h2><a href="{{ app.app_url }}">{{ app.name }}</a></h2><table>
+{% for m in app.models %}<tr class="model-{{ m.object_name|lower }}">{% if m.admin_url %}<th scope="row"><a href="{{ m.admin_url }}" style="display:flex;align-items:center;gap:8px"><svg class="ic" style="width:17px;height:17px;color:var(--hb-mu)" aria-hidden="true"><use href="#i-{{ m.icon }}"/></svg>{{ m.name }}</a></th>{% else %}<th scope="row">{{ m.name }}</th>{% endif %}
+<td>{% if m.add_url %}<a href="{{ m.add_url }}" class="addlink">+ Tambah</a>{% endif %}{% if m.admin_url %}{% if m.view_only %}<a href="{{ m.admin_url }}" class="viewlink">Lihat</a>{% else %}<a href="{{ m.admin_url }}" class="changelink">Ubah</a>{% endif %}{% endif %}</td></tr>{% endfor %}</table></section>
+{% empty %}<p class="module" style="padding:20px">Anda tidak punya izin melihat atau mengubah apa pun di sini.</p>{% endfor %}</div>
+<aside class="module hb-recent" aria-label="Tindakan terbaru"><h2>Tindakan terbaru</h2>{% get_admin_log 8 as admin_log for_user user %}
+{% if not admin_log %}<div class="e">Belum ada tindakan.</div>{% else %}<ul>{% for e in admin_log %}<li>{% if e.is_deletion or not e.get_admin_url %}{{ e.object_repr }}{% else %}<a href="{{ e.get_admin_url }}">{{ e.object_repr }}</a>{% endif %}<br><small>{% if e.content_type %}{% filter capfirst %}{{ e.content_type.name }}{% endfilter %}{% else %}Konten lain{% endif %} · {{ e.action_time|date:"d M Y H:i" }}</small></li>{% endfor %}</ul>{% endif %}</aside></div>
+<script>(function(){var d=document.getElementById("hb-date"),t=document.getElementById("hb-time");function u(){var n=new Date();d.textContent=n.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});t.textContent=n.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}).replace(".",":")}u();setInterval(u,30000)})()</script>
+{% endblock %}

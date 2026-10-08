@@ -42,3 +42,13 @@ class UiShellTests(TestCase):
             self.client.force_login(u)
             for path in ("/", "/employees/", "/notifications/", "/announcements/"):
                 self.assertEqual(self.client.get(path).status_code, 200, (u.role, path))
+
+
+class LoginEyeTests(TestCase):
+    """Putaran 16: tombol 'Lihat' diganti ikon mata; sandi tampil hanya selama tombol ditekan-tahan."""
+    def test_eye_icon_press_and_hold(self):
+        h = self.client.get("/login/").content.decode()
+        self.assertNotIn(">Lihat<", h); self.assertNotIn("Sembunyi", h)
+        self.assertIn('aria-label="Tahan untuk melihat password"', h)
+        self.assertIn("pointerdown", h); self.assertIn("pointerup", h); self.assertIn("pointerleave", h)
+        self.assertNotIn("b.onclick", h)  # tidak ada mode toggle-klik

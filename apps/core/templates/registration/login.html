@@ -4,6 +4,16 @@
 <form method="post">{% csrf_token %}{% if form.errors %}<p class="msg error" role="alert"><span>Username atau password salah.</span></p>{% endif %}
 <div class="fld"><label for="u">Username</label><input id="u" name="username" autocomplete="username" autofocus required autocapitalize="none" spellcheck="false"></div>
 <div class="fld"><label for="p">Password</label><div style="display:flex;gap:6px"><input id="p" name="password" type="password" autocomplete="current-password" required style="flex:1">
-<button type="button" class="ghost" id="sp" aria-pressed="false" aria-label="Tampilkan password">Lihat</button></div></div>
+<button type="button" class="ghost eye" id="sp" aria-pressed="false" aria-label="Tahan untuk melihat password" title="Tahan untuk melihat password"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
 <button style="width:100%;margin-top:6px">Masuk</button></form></div>
-<script>document.getElementById("sp").onclick=function(){var p=document.getElementById("p"),s=p.type==="password";p.type=s?"text":"password";this.textContent=s?"Sembunyi":"Lihat";this.setAttribute("aria-pressed",s)}</script>{% endblock %}
+<style>.eye{min-width:44px;padding:0 10px;display:grid;place-items:center;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.eye .ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.eye.on{background:var(--hov)}</style>
+<script>(function(){var b=document.getElementById("sp"),p=document.getElementById("p");
+function show(){p.type="text";b.classList.add("on");b.setAttribute("aria-pressed","true")}
+function hide(){p.type="password";b.classList.remove("on");b.setAttribute("aria-pressed","false")}
+b.addEventListener("pointerdown",function(e){e.preventDefault();show()});
+["pointerup","pointercancel","pointerleave"].forEach(function(t){b.addEventListener(t,hide)});
+b.addEventListener("keydown",function(e){if((e.key===" "||e.key==="Enter")&&!e.repeat){e.preventDefault();show()}});
+b.addEventListener("keyup",function(e){if(e.key===" "||e.key==="Enter")hide()});
+b.addEventListener("blur",hide);window.addEventListener("blur",hide);document.addEventListener("visibilitychange",hide);
+b.addEventListener("contextmenu",function(e){e.preventDefault()});b.addEventListener("click",function(e){e.preventDefault()});
+document.querySelector("form").addEventListener("submit",hide)})()</script>{% endblock %}
