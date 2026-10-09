@@ -65,6 +65,11 @@ penyalahgunaan per akun; lapisan data membatasi dampak bila ada yang lolos. Angk
 > **ekspor uang berupa angka ber-format (bisa dijumlah), bukan teks**; **catatan transaksi tidak diedit/dihapus** — koreksi lewat pembatalan beralasan; **tarif/master berlaku-sejak bersifat append-only dan disalin ke transaksi**;
 > **data historis disalin saat dicatat** (mis. jenis kelamin) agar laporan lama tidak bergeser. Status rinci & sisa: `docs/PROGRESS.md` → putaran 23.
 
+> **Pembaruan 9 Oktober 2026 (putaran 24).** **Tagihan Mitra** (Poli) kini ada: master mitra, tagihan beridentitas karyawan dengan **keluhan terenkripsi** dan diagnosa dari master, alur
+> diterima → diverifikasi → disetujui → dibayar / ditolak (alasan wajib) dengan **jejak append-only**, rekap per mitra/departemen/diagnosa/karyawan/status, impor, dan **dua ekspor** — ringkasan tanpa data medis dan lengkap (medis).
+> Prinsip yang ditegaskan untuk modul data-medis berikutnya (MCU, register kehamilan): **kolom medis baru dienkripsi sejak awal**; isi medis **tidak pernah** masuk audit (hanya penanda) — uji dengan kata kunci unik di seluruh `AuditLog`;
+> **membuka** data medis beridentitas tercatat; ekspor dipisah "ringkasan" vs "medis". Status rinci & sisa: `docs/PROGRESS.md` → putaran 24.
+
 ### Status & prinsip tambahan (putaran 21)
 - **Satu pintu kontrol untuk semua jalur masuk**: kunci akun, rate limit IP, dan audit berlaku sama di `/login/` dan `/admin/login/`; jalur baru apa pun (API token, SSO kelak) wajib melewati `authenticate()` yang sama.
 - **Pesan seragam**: login gagal, akun terkunci, dan username tak dikenal tampil identik (tidak membocorkan keberadaan akun). Kunci akun **selalu sementara** dan dapat dibuka Superadmin; tiap penguncian tercatat di audit.
@@ -150,7 +155,7 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 3. **Workflow**: mutasi, promosi/demosi, izin, cuti, tukar shift/libur (**1 orang atau 2 orang**), **administrasi**, approval
 4. **Informasi**: notifikasi, pengumuman, peraturan, read/unread. **[BARU]** reminder (cuti, SP, kontrak, stok menipis, obat mendekati kedaluwarsa, sinkronisasi absensi)
 5. **Poli**: rekam medis (form menyesuaikan jenis kunjungan), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat izin (pulang / libur / hamil), riwayat poli di detail karyawan untuk user Poli
-5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis, **tagihan mitra (rekap tagihan, identitas karyawan, total)**
+5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis, **tagihan mitra (rekap tagihan, identitas karyawan, total)** — **✅ putaran 24**
 6. **Absensi**: integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran, **validasi kehadiran HRD → Admin Departemen** (kerangka alurnya boleh dikerjakan lebih dulu, tanpa mesin)
 7. **Payroll** — *tetap dalam visi, dikerjakan paling akhir (belum diproses sekarang)*: komponen gaji, tunjangan, potongan, BPJS, periode, slip gaji. Data payroll tetap di tabel terpisah dari karyawan.
 8. **[BARU] Laporan & Ekspor**: laporan HR, Poli, Meal; ekspor Excel/PDF/cetak; pencarian global
@@ -216,6 +221,8 @@ Status: *Diminta → Dijawab Admin → Diverifikasi HRD* (atau *Dikembalikan*); 
 Aturan: karyawan harus dalam scope departemen Admin penjawab (di luar itu → 404); permintaan HRD ke karyawan yang tidak punya Admin Departemen aktif ditolak dengan pesan jelas; tanggal masa depan ditolak; "Alfa" yang bertabrakan dengan izin/cuti *Executed* ditandai konflik; satu karyawan-tanggal satu catatan aktif (permintaan ganda ditolak); Admin Departemen hanya melihat status "Sakit", **bukan diagnosa**; semua langkah diaudit. Dashboard: HRD melihat permintaan yang belum dijawab/terlambat, Admin Departemen melihat tugas jawabannya. Ekspor XLSX rekap validasi. Hasil terverifikasi menjadi sumber Absensi/Payroll (alfa → Potongan).
 
 ## [BARU] Tagihan Mitra (akun Poli)
+> **Status (putaran 24): ✅ ada** di `/poli/billing/` (mitra, tagihan + rincian opsional, alur, rekap, impor tanpa rincian, ekspor ringkasan/medis, keluhan terenkripsi, audit tanpa isi medis). **Belum**: lampiran, jatuh tempo/termin & status "lewat jatuh tempo", nomor perjanjian/alamat mitra, teks diagnosa tambahan, **agregat biaya untuk HRD/Payroll (keputusan terbuka)**, pemisahan tugas pembuat ≠ penyetuju (A60). Penyimpangan yang disadari: periode rekap = bulan tanggal pelayanan (A61); ditolak bersifat final, koreksi = catat ulang (A62).
+
 **Mitra** = pihak luar yang melayani karyawan dan menagih perusahaan (rumah sakit/klinik rujukan, laboratorium, apotek, optik, dst.). Hanya **Poli (dan Superadmin)**; HRD dan Admin Departemen → 403.
 Karena tagihan memuat **keluhan dan diagnosa**, seluruh modul ini diperlakukan sebagai **data medis** (aturan sama dengan rekam medis).
 - **Master mitra**: nama, jenis, alamat/kontak, nomor perjanjian, termin bayar (hari), aktif/nonaktif, catatan.
