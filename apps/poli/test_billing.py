@@ -261,6 +261,12 @@ class ImportTests(Base):
         self.assertTrue(all(x.events.count() == 1 for x in PartnerBill.objects.all())); self.assertEqual(PartnerBill.objects.get(bill_number="INV-9").complaint, "batuk")
         self.assertTrue(AuditLog.objects.filter(action="tagihan-mitra_import").exists()); self.assertNotIn("batuk", str(list(AuditLog.objects.values_list("before", "after"))))
 
+    def test_import_records_creator_and_first_event_user(self):
+        # Putaran 26: core/bulk meneruskan pengguna → created_by & jejak status awal terisi.
+        self.upload(HDR + self.row()); b = PartnerBill.objects.get(bill_number="INV-9")
+        self.assertIsNotNone(b.created_by)
+        self.assertEqual(b.events.first().user_id, b.created_by_id)
+
     def test_reimport_rejected_and_all_or_nothing(self):
         self.upload(HDR + self.row()); r = self.upload(HDR + self.row()); self.assertEqual(PartnerBill.objects.count(), 1); self.assertContains(r, "sudah tercatat")
         for body in (self.row(no="N1") + self.row(no="N2", nik="999"), self.row(mitra="RS Tak Dikenal"), self.row(kd="ZZZ"), self.row(tot="0"), self.row(kel="=1+1"),
