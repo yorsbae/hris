@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv, attendance_views as av7
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import lookup
@@ -22,6 +22,13 @@ urlpatterns = [
     path("api/employees/<int:pk>/", hr.employee_detail),
     path("api/requests/<int:pk>/<str:to>/", hr.request_transition),
     path("", home),
+    path("validasi/", av7.check_list, name="attcheck_list"),
+    path("validasi/new/", av7.check_new, name="attcheck_new"),
+    path("validasi/<int:pk>/", av7.check_detail, name="attcheck_detail"),
+    path("validasi/<int:pk>/answer/", av7.check_answer, name="attcheck_answer"),
+    path("validasi/<int:pk>/verify/", av7.check_verify, name="attcheck_verify"),
+    path("validasi/<int:pk>/cancel/", av7.check_cancel, name="attcheck_cancel"),
+    path("validasi/<int:pk>/correct/", av7.check_correct, name="attcheck_correct"),
     path("employees/", hr.employees_page),
     path("employees/import/", iv2.employee_import, name="employee_import"),
     path("employees/import/template.csv", iv2.import_template),

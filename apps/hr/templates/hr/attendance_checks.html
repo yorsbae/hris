@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Validasi Kehadiran{% endblock %}{% block content %}
+<h2>Validasi Kehadiran</h2>
+<p class="muted">{% if is_admin %}Permintaan HRD untuk karyawan departemen Anda. Jawab Hadir / Izin / Sakit / Cuti / Alfa; HRD yang memverifikasi.{% else %}Tanyakan kehadiran karyawan pada tanggal tertentu lewat Admin Departemen; verifikasi jawabannya.{% endif %}</p>
+<div class="tools">{% if not is_admin %}<a class="btn" style="margin-left:0" href="{% url 'attcheck_new' %}">+ Permintaan baru</a>{% endif %}
+<a class="chip" href="?status=todo">Belum dijawab ({{ counts.todo }})</a><a class="chip" href="?status=late">Terlambat ({{ counts.late }})</a>{% if not is_admin %}<a class="chip" href="?status=dijawab">Perlu verifikasi ({{ counts.answered }})</a>{% endif %}</div>
+<form method="get" class="bar"><select name="status" aria-label="Status"><option value="">Semua status</option><option value="todo"{% if f.status == 'todo' %} selected{% endif %}>Belum dijawab</option><option value="late"{% if f.status == 'late' %} selected{% endif %}>Terlambat</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+{% if not is_admin %}<select name="dept" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if f.dept == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+<input type="date" name="date" value="{{ f.date }}" aria-label="Tanggal"><input name="q" value="{{ f.q }}" placeholder="NIK / nama" maxlength="60"><button class="btn ghost">Cari</button></form>
+{% if not is_admin %}<p class="exports"><a class="chip" href="?{{ qs }}{% if qs %}&amp;{% endif %}export=xlsx">XLSX</a><a class="chip" href="?{{ qs }}{% if qs %}&amp;{% endif %}export=csv">CSV</a></p>{% endif %}
+{% if page %}<div class="wrap"><table><thead><tr><th>Tanggal</th><th>NIK</th><th>Nama</th><th>Departemen</th><th>Dugaan awal</th><th>Status</th><th>Batas</th><th></th></tr></thead><tbody>
+{% for a in page %}<tr><td>{{ a.date|date:"d M Y" }}</td><td>{{ a.employee.nik }}</td><td>{{ a.employee.name }}</td><td>{{ a.department.name }}</td><td>{{ a.hint|default:"—" }}</td>
+<td><span class="pill {{ a.pill }}">{{ a.get_status_display }}</span>{% if a.late %} <span class="pill rejected">Terlambat</span>{% endif %}{% if a.conflict %} <span class="pill rejected" title="{{ a.conflict }}">Konflik</span>{% endif %}</td><td>{{ a.due_date|date:"d M" }}</td><td><a href="{% url 'attcheck_detail' a.pk %}">Buka ›</a></td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}{% else %}<p class="empty">Tidak ada permintaan validasi{% if f.status or f.q or f.date or f.dept %} yang cocok dengan filter{% endif %}.</p>{% endif %}
+{% endblock %}

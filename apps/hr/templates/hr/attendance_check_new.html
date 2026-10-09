@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Permintaan Validasi Kehadiran{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'attcheck_list' %}">‹ Validasi Kehadiran</a></p><h2>Permintaan validasi baru</h2>
+<p class="muted">Pertanyaan diteruskan ke Admin Departemen karyawan. Tanggal masa depan ditolak; satu karyawan-tanggal hanya boleh punya satu permintaan aktif.</p>
+<form method="post" class="card" style="max-width:640px">{% csrf_token %}
+<p><label>NIK (satu per baris atau dipisah koma)<br><textarea name="niks" rows="4" style="width:100%">{{ v.niks }}</textarea></label></p>
+<p><label>…atau seluruh departemen<br><select name="department"><option value="">—</option>{% for d in depts %}<option value="{{ d.pk }}"{% if v.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label></p>
+<p><label>Tanggal mulai <input type="date" name="date_from" max="{{ today }}" value="{{ v.date_from }}" required></label> <label>sampai <input type="date" name="date_to" max="{{ today }}" value="{{ v.date_to }}"></label></p>
+<p><label>Catatan untuk Admin (opsional)<br><input name="question" maxlength="300" style="width:100%" value="{{ v.question }}"></label></p>
+<button class="btn" style="margin-left:0">Kirim permintaan</button></form>
+{% endblock %}

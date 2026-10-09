@@ -239,3 +239,58 @@ class AttendanceDaily(models.Model):  # hasil olah: rekap harian, terlambat, lem
     late_minutes = models.PositiveIntegerField(default=0); overtime_minutes = models.PositiveIntegerField(default=0)
     confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
     class Meta: unique_together = ("employee", "date")
+
+
+class AttendanceCheck(models.Model):
+    """P7 Validasi kehadiran (putaran 26): HRD menanyakan 'karyawan X pada tanggal X' lewat Admin Departemen → dijawab → diverifikasi HRD (terkunci).
+    Satu karyawan-tanggal = satu catatan aktif (indeks unik parsial; yang dibatalkan boleh ditanyakan ulang). Koreksi sesudah terkunci = AttendanceCheckEvent 'koreksi' (append-only)."""
+    ANSWERS = [("hadir", "Hadir"), ("izin", "Izin"), ("sakit", "Sakit"), ("cuti", "Cuti"), ("alfa", "Alfa")]
+    STATUSES = [("diminta", "Diminta"), ("dijawab", "Dijawab Admin"), ("dikembalikan", "Dikembalikan"), ("diverifikasi", "Diverifikasi HRD"), ("dibatalkan", "Dibatalkan")]
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="attendance_checks")
+    department = models.ForeignKey(Department, on_delete=models.PROTECT)  # snapshot untuk scope cepat (pola ChangeRequest)
+    date = models.DateField(db_index=True)
+    status = models.CharField(max_length=20, choices=STATUSES, default="diminta", db_index=True)
+    question = models.CharField(max_length=300, blank=True)   # catatan HRD kepada Admin
+    hint = models.CharField(max_length=200, blank=True)       # dugaan awal (pengajuan Executed / jadwal libur); bukan jawaban
+    due_date = models.DateField()                              # batas menjawab; lewat batas & belum dijawab = "terlambat" (dihitung, tidak disimpan)
+    answer = models.CharField(max_length=10, choices=ANSWERS, blank=True)
+    answer_note = models.CharField(max_length=300, blank=True)
+    answered_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"); answered_at = models.DateTimeField(null=True, blank=True)
+    final_answer = models.CharField(max_length=10, choices=ANSWERS, blank=True)  # hasil terverifikasi (bisa beda dari jawaban bila HRD mengubah, dengan catatan)
+    verify_note = models.CharField(max_length=300, blank=True)
+    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"); verified_at = models.DateTimeField(null=True, blank=True)
+    conflict = models.CharField(max_length=200, blank=True)    # mis. 'Alfa' bertabrakan dengan izin/cuti Executed
+    cancel_reason = models.CharField(max_length=300, blank=True)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True); updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["department", "status", "date"])]
+        constraints = [models.UniqueConstraint(fields=["employee", "date"], condition=~models.Q(status="dibatalkan"), name="uniq_attcheck_active")]
+
+    @property
+    def result(self):
+        """Hasil berlaku: koreksi terakhir bila ada, kalau tidak final_answer (hanya bermakna bila diverifikasi)."""
+        if self.status != "diverifikasi": return ""
+        c = self.events.filter(action="koreksi").order_by("-id").first()
+        return c.value if c else self.final_answer
+
+    def is_late(self, today=None):
+        from datetime import date as _d
+        return self.status in ("diminta", "dikembalikan") and self.due_date < (today or _d.today())
+
+
+class AttendanceCheckEvent(models.Model):
+    """Jejak append-only: minta/jawab/kembalikan/verifikasi/batal/koreksi. Tidak dapat diubah atau dihapus."""
+    att = models.ForeignKey(AttendanceCheck, on_delete=models.PROTECT, related_name="events")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
+    action = models.CharField(max_length=20)
+    from_status = models.CharField(max_length=20, blank=True); to_status = models.CharField(max_length=20, blank=True)
+    value = models.CharField(max_length=10, blank=True); note = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Jejak validasi kehadiran tidak dapat diubah.")
+        super().save(*a, **k)
+
+    def delete(self, *a, **k): raise PermissionError("Jejak validasi kehadiran tidak dapat dihapus.")
