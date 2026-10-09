@@ -9,7 +9,7 @@ from apps.core.dashboard import dashboard, home
 from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
 from apps.core.scope import require_roles
 from apps.core.models import Role
-from apps.hr import bulk_specs as hbs
+from apps.hr import bulk_specs as hbs, overtime as ot
 from apps.core.dashboard_panels import panels as dashboard_panels
 admin.site.site_header = admin.site.site_title = "HRIS & Poliklinik — Administrasi data"
 admin.site.index_title = "Administrasi data (khusus Superadmin; pekerjaan harian lewat menu aplikasi)"
@@ -74,6 +74,8 @@ urlpatterns = [
     path("announcements/<int:pk>/file/", iv.announcement_file),
     path("requests/", rq.request_list),
     path("requests/new/", rq.request_new),
+    path("requests/g/lembur/new/", ot.extra_work_new, name="extra_work_new"),
+    path("requests/batch/<str:batch>/<str:action>/", ot.batch_action, name="extra_work_batch"),
     path("requests/g/<slug:grp>/", rq.request_list, name="request_group"),
     path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
     path("requests/<int:pk>/<str:action>/", rq.request_action),

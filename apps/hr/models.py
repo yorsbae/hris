@@ -137,7 +137,8 @@ REMINDER_DAYS = (90, 60, 30, 14, 7)  # dipakai management command check_contract
 class ChangeRequest(models.Model):
     """Satu tabel untuk mutasi/jabatan/izin/cuti/tukar shift/dst. Payload JSON per tipe."""
     TYPES = ["mutasi_dept", "mutasi_jabatan", "promosi", "demosi", "rotasi", "status", "shift",
-             "izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus", "tukar_shift", "tukar_libur"]
+             "izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus", "tukar_shift", "tukar_libur",
+             "standby", "lembur"]  # standby = kerja saat waktu istirahat; lembur = kerja di luar jam shift (putaran 30)
     # Draft → Submitted → Pending Approval → Approved/Rejected → Executed
     # Perluasan atas VISION: "cancelled" (dibatalkan pemohon/HRD) agar draft tidak menggantung dan pengajuan yang tidak bisa
     # dilaksanakan (mis. tanggal tukar shift sudah lewat) tidak macet di "approved".

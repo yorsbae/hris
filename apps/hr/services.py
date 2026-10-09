@@ -4,9 +4,10 @@ from . import leave, schedule
 from .models import ChangeRequest, EmployeeHistory, Department, Position, Shift
 
 HRD_ONLY = {"approved", "rejected", "executed"}
+AUTO_EXEC = {"standby", "lembur"}  # tidak ada langkah "Laksanakan" terpisah: disetujui HRD = final & tercatat (tidak mengubah master)
 
 @transaction.atomic
-def transition(req: ChangeRequest, to: str, user, note: str = ""):
+def transition(req: ChangeRequest, to: str, user, note: str = "", notify: bool = True):
     req = ChangeRequest.objects.select_for_update().get(pk=req.pk)
     if to not in ChangeRequest.FLOW.get(req.status, set()):
         raise ValueError(f"Transisi {req.status}→{to} tidak valid")
@@ -24,7 +25,8 @@ def transition(req: ChangeRequest, to: str, user, note: str = ""):
     if note.strip(): req.note = (req.note + "\n" if req.note else "") + f"[{user.get_username()} → {to}] {note.strip()}"
     req.save()
     if to == "executed": _execute(req, user)
-    if to == "pending":
+    if not notify: pass  # pengiriman massal: pemanggil mengirim satu ringkasan sendiri
+    elif to == "pending":
         Notification.objects.bulk_create([Notification(user=u, kind="request", title=f"Pengajuan baru: {req.type}", link=f"/requests/{req.pk}")
                                           for u in User.objects.filter(role=Role.HRD)])
     elif to in ("approved", "rejected"):
@@ -32,6 +34,7 @@ def transition(req: ChangeRequest, to: str, user, note: str = ""):
     elif to == "executed" and req.type in schedule.SWAP_TYPES: _notify_swap(req)
     elif to == "cancelled" and req.requested_by_id != user.id:  # dibatalkan HRD: beri tahu pemohon
         Notification.objects.create(user=req.requested_by, kind="approval", title=f"Pengajuan {req.type} dibatalkan HRD", link=f"/requests/{req.pk}")
+    if to == "approved" and req.type in AUTO_EXEC: req = transition(req, "executed", user, notify=False)
     return req
 
 def _notify_swap(req):
@@ -64,7 +67,7 @@ def _execute(req, user):
 
 
 @transaction.atomic
-def submit(req: ChangeRequest, user):
+def submit(req: ChangeRequest, user, notify: bool = True):
     """Draft → Submitted → Pending Approval dalam satu transaksi (pemohon menekan satu tombol 'Ajukan')."""
-    req = transition(req, "submitted", user)
-    return transition(req, "pending", user)
+    req = transition(req, "submitted", user, notify=notify)
+    return transition(req, "pending", user, notify=notify)

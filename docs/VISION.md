@@ -19,12 +19,16 @@ Database tidak pernah di komputer client.
 > sudah menjadi komponen bersama — semua halaman/ekspor baru (BPJS, Seragam, Tagihan Mitra) wajib memakainya; (4) jalur login mana pun (termasuk `/admin/login/`) harus lewat kontrol yang sama
 > (celah `/admin/login/` tanpa rate limit ditutup). Rincian status: `docs/PROGRESS.md` → putaran 21.
 
+> **Pembaruan 10 Oktober 2026 (putaran 30).** (1) **Prinsip UI/UX berbasis fungsi** (bagian baru di bawah) — setiap halaman harus menjawab "apa langkah berikutnya?" dan tidak boleh meniru gaya generik/dekoratif;
+> halaman Seragam dan daftar Pengajuan dirapikan sebagai contoh. (2) **Pengajuan Stand By (kerja saat waktu istirahat) & Lembur** dari Admin Departemen (mis. Admin Produksi) ke HRD — bagian baru di bawah.
+> (3) **Tahap 11 (terakhir): Company Profile + Lamar Kerja** — perluasan scope yang dibuka sebagai situs publik terpisah dari aplikasi internal; keamanan, stabilitas, fleksibilitas, dan kemudahan bagi pelamar menjadi syarat. Status: `docs/PROGRESS.md` → putaran 30.
+
 ## Role
 | Role | Cakupan |
 |---|---|
 | Superadmin | Semua: user, role, permission, master, konfigurasi sistem, audit, backup, pengaturan perusahaan (nama, logo, alamat, kontak, tahun berjalan) |
 | HRD | Dashboard HRD, karyawan, struktur organisasi, departemen, jabatan, grade, status kepegawaian, shift, kontrak, mutasi/promosi, tukar shift, izin/cuti/libur, absensi, **surat peringatan**, BPJS (**submenu Ketenagakerjaan/Kesehatan + rekap potongan**), **seragam**, **validasi kehadiran**, **recruitment**, informasi, laporan, monitoring pengajuan, **halaman Operasional HRD** (bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS) |
-| Admin Departemen (±20) | Hanya departemennya: lihat karyawan, konfirmasi absensi (**atas permintaan HRD**, lihat "Validasi kehadiran"), **mengajukan** mutasi/izin/cuti/tukar shift/tukar libur/**administrasi**, memantau status & riwayat pengajuan, terima informasi HRD. Tanpa CRUD master, data sensitif, data medis, tanpa approve, tanpa mengubah BPJS bebas |
+| Admin Departemen (±20) | Hanya departemennya: lihat karyawan, konfirmasi absensi (**atas permintaan HRD**, lihat "Validasi kehadiran"), **mengajukan** mutasi/izin/cuti/tukar shift/tukar libur/**administrasi**/**stand by & lembur**, memantau status & riwayat pengajuan, terima informasi HRD. Tanpa CRUD master, data sensitif, data medis, tanpa approve, tanpa mengubah BPJS bebas |
 | Poli (Medis) | Identitas minimum karyawan + seluruh modul poliklinik (pemeriksaan, rekam medis, diagnosis, tindakan, obat, stok, MCU, laporan medis, **tagihan mitra**) |
 | Employee | **Bukan role/login.** Data dikelola HRD; pengajuan lewat Admin Departemen **[BARU, dikonfirmasi]** |
 
@@ -140,7 +144,7 @@ Harian + mingguan, retensi, **lokasi berbeda dari server utama**, termasuk file/
 Authentication · User & Permission · Employee · Organization · Contract · Shift · Mutation · Leave · Attendance ·
 Notification · Clinic · Medicine · Referral · Document · Reporting · Audit · Payroll (tetap dalam visi; pengerjaan belakangan) ·
 **Aid (bantuan) · Maternity (cuti hamil) · ProjectLog (kerja harian proyek) · Catering/Meal · BPJS Status** (semua di bawah Operasional HRD) ·
-**[BARU]** Warning (Surat Peringatan) · Recruitment (+ Career Portal) · MCU · Export · Company/System settings · Holiday/Calendar · **Uniform (Seragam)** · **BPJS Deduction (Potongan BPJS)** · **Attendance Confirmation (Validasi kehadiran)** · **Partner Billing (Tagihan Mitra)** · **Security/Throttling**.
+**[BARU]** Warning (Surat Peringatan) · Recruitment (+ Career Portal) · MCU · Export · Company/System settings · Holiday/Calendar · **Uniform (Seragam)** · **BPJS Deduction (Potongan BPJS)** · **Attendance Confirmation (Validasi kehadiran)** · **Partner Billing (Tagihan Mitra)** · **Security/Throttling** · **Extra Work (Stand By & Lembur)** · **Company Profile & Career Portal (Tahap 11)**.
 
 ## Rantai masa depan
 Karyawan → Jabatan → Status → Kontrak → Shift → Absensi → Lembur → Izin/Cuti → Tunjangan → Potongan → BPJS → Payroll → Slip Gaji
@@ -161,8 +165,73 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 6. **Absensi**: integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran, **validasi kehadiran HRD → Admin Departemen** (kerangka alurnya boleh dikerjakan lebih dulu, tanpa mesin)
 7. **Payroll** — *tetap dalam visi, dikerjakan paling akhir (belum diproses sekarang)*: komponen gaji, tunjangan, potongan, BPJS, periode, slip gaji. Data payroll tetap di tabel terpisah dari karyawan.
 8. **[BARU] Laporan & Ekspor**: laporan HR, Poli, Meal; ekspor Excel/PDF/cetak; pencarian global
-9. **[BARU] Recruitment**: lowongan, kandidat, lamaran, screening, interview, seleksi, laporan; Career Portal (profil perusahaan, daftar lowongan, apply)
+9. **[BARU] Recruitment**: lowongan, kandidat, lamaran, screening, interview, seleksi, laporan; Career Portal publik dikerjakan di **Tahap 11**
 10. **[BARU] Penguatan keamanan & skalabilitas** (lintas tahap): pertahanan berlapis dan strategi skalabilitas di bagian Keamanan/Performa; komponen baru (Redis, antrean, PgBouncer, 2FA, ClamAV, fail2ban) **disetujui pemilik produk (8 Okt 2026)** dan masuk bertahap menurut urutan prioritas.
+11. **[BARU] Company Profile + Lamar Kerja** (tahap terakhir; perluasan scope — bagian "Company Profile & Lamar Kerja" di bawah). Menggantikan butir Career Portal yang tadinya hanya satu baris di Tahap 9: Recruitment (internal HRD) tetap Tahap 9, sedangkan **situs publik** (profil perusahaan, lowongan, formulir lamaran, lacak status) dikerjakan di Tahap 11 setelah keamanan dan skalabilitas (Tahap 10) memadai.
+
+## [BARU] Prinsip UI/UX berbasis fungsi (bukan hiasan)
+> **Status (putaran 30):** diterapkan pada halaman **Seragam** dan **daftar Pengajuan** serta form Stand By/Lembur; halaman lain dirapikan bertahap memakai komponen yang sama.
+
+Tujuan: pengguna (Admin Departemen, HRD, Poli) yang tidak teknis dapat menyelesaikan tugas tanpa pelatihan. Fokus pada **fungsi dan kejelasan alur**, bukan efek visual. Aturan untuk setiap halaman baru/diubah:
+1. **Satu aksi utama per halaman**, tampil sebagai tombol berwarna; aksi sekunder (impor, ekspor, master, kartu stok) **dilipat** di menu "Lainnya". Tidak lebih dari 2 tombol penuh berdampingan.
+2. **Alur ditulis dengan kalimat biasa** di bagian atas halaman yang punya urutan kerja ("1 → 2 → 3"), memakai istilah pengguna (bukan istilah teknis/kode status).
+3. **Keadaan kosong memberi langkah berikutnya** ("Belum ada … Mulai dengan tombol …"), bukan hanya "tidak ada data". Filter yang tidak menemukan apa pun menawarkan "Reset filter".
+4. **Filter ringkas**: pencarian + periode tampil; filter lanjutan terlipat dan **terbuka otomatis** bila sedang dipakai. Tidak lebih dari ±3 kontrol di baris utama.
+5. **Form berlangkah bernomor** (1 Jenis → 2 Waktu → 3 Siapa → 4 Alasan) untuk tugas yang punya banyak isian; pilihan dari daftar (centang/cari) lebih diutamakan daripada mengetik kode (NIK) dari ingatan; ringkasan hasil (mis. durasi) tampil langsung.
+6. **Daftar menampilkan isi yang dicari pengguna** (tanggal, jam, durasi) tanpa harus membuka detail; label memakai nama jenis, bukan kode internal.
+7. **Tindakan massal bila pekerjaannya memang massal** (satu regu lembur = satu pengajuan, satu keputusan), dengan konfirmasi dan alasan wajib untuk penolakan.
+8. **Tanpa dekorasi yang tidak membantu**: tidak ada gradasi/animasi/ikon yang tidak menjelaskan fungsi, tidak ada kartu angka yang tidak bisa ditindaklanjuti (kartu bertanda perhatian hanya bila ada yang perlu dilakukan). Komponen bersama: `.hint`, `.note`, `.step`, `details.more`, `details.flt`, `.tools`, `.chip`.
+9. **Peringatan hanya bila berguna**: informasi (bukan pemblokiran) kecuali melanggar aturan data; pesan galat menyebut apa yang salah dan cara memperbaikinya.
+10. **Bisa diuji**: struktur penting (aksi utama, lipatan, keadaan kosong) dijaga oleh tes; pengecekan di peramban nyata/ponsel tetap dicatat sebagai utang sampai dilakukan.
+
+## [BARU] Stand By & Lembur (Admin Departemen → HRD)
+> **Status (putaran 30): ✅ ada** di `/requests/g/lembur/` (daftar, filter, ekspor) dan `/requests/g/lembur/new/` (form). Migrasi `hr/0010`. **Belum**: pembatalan setelah disetujui, tautan ke Absensi (Tahap 6) dan Payroll (Tahap 7), kebijakan upah lembur, laporan rekap bulanan, pengingat pengajuan yang belum diputuskan.
+
+Dua jenis pengajuan baru, diajukan **Admin Departemen** (terutama **Admin Produksi**) untuk karyawan departemennya dan diputuskan **HRD**:
+| Jenis | Arti | Batas awal (usulan, dapat disetel) |
+|---|---|---|
+| **Lembur** | Kerja di luar jam shift (setelah pulang / sebelum masuk / hari libur) | 240 menit per karyawan per hari |
+| **Stand By** | Tetap bekerja atau siaga saat waktu istirahat | 120 menit per karyawan per hari |
+Alur: Admin mengisi form 4 langkah (jenis, tanggal & jam, karyawan, alasan) → satu kiriman untuk banyak karyawan menjadi **satu pengajuan per karyawan** (jejak, scope, dan hak per orang tetap) yang berbagi `batch` → HRD menerima **satu notifikasi ringkasan** → HRD **setujui/tolak seluruh kiriman sekaligus** (penolakan wajib beralasan) atau memutuskan per orang → **disetujui = final dan tercatat** (tanpa langkah "Laksanakan"; tidak mengubah master karyawan). Pemohon menerima satu notifikasi hasil.
+Aturan: Admin Departemen hanya karyawan departemennya (di luar itu "tidak ditemukan"); HRD boleh lintas departemen; tanggal paling lama 7 hari ke belakang dan 14 hari ke depan; jam selesai ≤ jam mulai = melewati tengah malam; jam tidak boleh bertumpuk dengan pengajuan aktif lain karyawan itu; total per jenis per hari ≤ batas; tidak boleh pada tanggal izin/cuti/sakit; maksimal 100 karyawan per kiriman. Semua langkah diaudit (ringkasan, tanpa isi alasan). Angka batas dan jendela tanggal adalah **konfigurasi** (`LEMBUR_MAX_MENIT`, `STANDBY_MAX_MENIT`, `EXTRA_WORK_PAST_DAYS`, `EXTRA_WORK_FUTURE_DAYS`), bukan kode.
+Hasil disimpan di tabel pengajuan yang sama (tanpa upah) sehingga Absensi (Tahap 6) dapat mencocokkannya dengan jam nyata dan Payroll (Tahap 7) dapat membaca durasi disetujui sebagai dasar upah lembur tanpa mencampurnya ke tabel karyawan.
+
+## [BARU] Company Profile & Lamar Kerja (Tahap 11 — tahap terakhir)
+> **Status: ⏳ belum dikerjakan (perencanaan putaran 30).** Dikerjakan **setelah** sisa keamanan (Tahap 10: CSP nonce, 2FA, ClamAV, Redis, antrean) dan Recruitment internal (Tahap 9) siap. Tidak boleh membuka aplikasi internal LAN ke internet.
+
+Perluasan scope: perusahaan memiliki **situs publik** berisi **profil perusahaan** dan **lowongan + formulir lamar kerja**; lamaran mengalir ke modul Recruitment HRD. Prinsip dan syarat:
+
+**1. Arsitektur & keamanan (syarat mutlak)**
+- **Aplikasi terpisah dan host terpisah** (keputusan #8): situs publik tidak berbagi proses, sesi, cookie, maupun akses database langsung dengan aplikasi internal. Lamaran masuk lewat **antrean/impor satu arah** (situs publik menulis ke penyimpanan sendiri; HRIS menarik/menerima lewat saluran terautentikasi). Tidak ada URL internal yang dapat dijangkau dari situs publik. Akun pelamar **bukan** User internal dan tidak pernah punya peran HRIS.
+- **Mulai tanpa akun pelamar**: melamar cukup dengan email + tautan sekali pakai untuk melacak/mengubah lamaran (mengurangi permukaan serangan dan beban pelamar); akun penuh hanya bila terbukti perlu.
+- **Perlindungan penyalahgunaan**: CAPTCHA/uji manusia yang ramah aksesibilitas (bukan yang mengirim data ke pihak ketiga tanpa keputusan), rate limit per IP dan per email, honeypot, batas ukuran formulir, deteksi lamaran ganda, verifikasi email sebelum lamaran diproses.
+- **Unggahan (CV/ijazah/foto)**: ekstensi + magic bytes + ukuran + nama acak, **pemindaian antivirus (ClamAV) sebelum masuk ke HRD**, disimpan di penyimpanan privat (bukan folder publik), diunduh hanya lewat view berizin HRD, dan **tidak pernah dieksekusi/diindeks**; tampilan pratinjau tidak merender HTML pelamar.
+- **Data pribadi pelamar** (UU PDP): hanya data yang diperlukan; **persetujuan eksplisit** dan pemberitahuan tujuan/retensi saat melamar; **NIK KTP, tanggal lahir, kontak, dokumen dienkripsi** (kolom + berkas); retensi terdefinisi (mis. hapus/anonimkan setelah N bulan bila tidak diterima, kecuali pelamar memberi izin simpan di talent pool); **permintaan hapus/ekspor data oleh pelamar** dilayani dan tercatat; log akses data pelamar oleh HRD.
+- **Keamanan standar situs publik**: HTTPS wajib + HSTS, CSP ketat tanpa `unsafe-inline`, cookie `Secure/HttpOnly/SameSite`, proteksi CSRF, header keamanan, WAF/Nginx rate limit, tanpa informasi versi, validasi/escape semua keluaran (konten pelamar tidak pernah dirender sebagai HTML), tidak membocorkan ada/tidaknya lamaran milik orang lain, uji penetrasi dasar sebelum rilis.
+- **Konten yang dikelola, bukan dikodekan**: profil perusahaan, lowongan, dan halaman dikelola HRD/Superadmin lewat editor terbatas (teks terstruktur, bukan HTML bebas) dengan status draft → terbit; perubahan diaudit.
+
+**2. Stabilitas**
+- Situs publik **tidak boleh menjatuhkan HRIS** dan sebaliknya: proses, database, dan sumber daya terpisah; lonjakan pelamar (mis. lowongan viral) ditampung oleh cache halaman statis/CDN lokal, antrean, dan batas laju; gangguan salah satu sisi hanya menunda sinkronisasi (lamaran tidak hilang: **tulis-dulu ke antrean tahan lama, idempoten**).
+- Halaman profil/lowongan **di-cache** (statis bila memungkinkan) sehingga tetap tersaji walau backend lambat; formulir lamar tahan terhadap kirim ganda (kunci idempotensi) dan putus koneksi (simpan draf di peramban pelamar).
+- Pemantauan, backup terpisah, dan uji restore berlaku sama seperti aplikasi inti; batas ukuran/jumlah berkas dan kuota penyimpanan ditetapkan agar disk tidak penuh.
+
+**3. Fleksibilitas**
+- **Formulir lamaran dapat dikonfigurasi per lowongan** (pertanyaan wajib/opsional, jenis dokumen, pertanyaan penyaring) tanpa mengubah kode; **tahapan seleksi dapat disesuaikan** (screening → tes → interview → penawaran) dan tiap tahap mengirim pembaruan ke pelamar.
+- Konten profil perusahaan memakai blok yang dapat disusun ulang (tentang kami, visi/misi, budaya, lokasi, kontak, galeri); beberapa bahasa (Indonesia dulu, Inggris menyusul); tema mengikuti identitas perusahaan (logo, warna) dari konfigurasi sistem.
+- Integrasi bertahap dan opsional: pemberitahuan email, impor profil dari berkas, tautan ke Recruitment, ekspor kandidat. Desain data tidak mengunci: pelamar yang diterima dapat **dikonversi menjadi karyawan** (mengisi Data Karyawan tanpa mengetik ulang) dengan persetujuan HRD.
+
+**4. UI/UX — mudah dipahami pelamar maupun pengguna internal**
+- **Pelamar**: jalur singkat "lihat lowongan → baca ringkas → Lamar → selesai", **maksimal 5 langkah**, dengan indikator langkah, simpan draf otomatis, ramah ponsel (layar kecil, jaringan lambat), ukuran halaman kecil, kontras dan fokus papan ketik sesuai aksesibilitas, bahasa sederhana, pesan galat spesifik, **konfirmasi jelas setelah kirim** (nomor lamaran + email konfirmasi) dan **halaman lacak status** ("Diterima → Disaring → Wawancara → Keputusan") dengan kalimat yang menjelaskan apa yang terjadi berikutnya.
+- **Pelamar tidak diminta hal yang tidak perlu** (tidak ada akun wajib, tidak ada pengetikan ulang CV bila sudah diunggah, pilihan tanggal/lokasi dari daftar).
+- **HRD**: papan lamaran per lowongan (kolom tahap), tindakan massal terkendali (pindah tahap, tolak dengan templat pesan), pencarian/penyaringan, pembanding kandidat, templat pesan; hanya data yang relevan tampil sesuai peran; semua aksi diaudit. Mengikuti **Prinsip UI/UX berbasis fungsi** di atas.
+- **Profil perusahaan**: halaman ringkas yang menjawab "siapa kami, di mana, apa yang dikerjakan, bagaimana menghubungi", dapat dibaca tanpa JavaScript, cepat dimuat, dan SEO dasar (judul, deskripsi, struktur data lowongan).
+
+**5. Urutan pengerjaan (saat Tahap 11 dimulai)**
+1. Keputusan arsitektur & model ancaman (host/aplikasi terpisah, saluran sinkronisasi, retensi/PDP) — dokumen dan persetujuan pemilik produk.
+2. Kerangka situs publik: profil perusahaan statis/terkelola + daftar lowongan (baca saja), cache, header keamanan, tes.
+3. Formulir lamar: validasi, verifikasi email, unggahan berpemindaian, antrean, lacak status, anti-penyalahgunaan; uji beban dan uji keamanan.
+4. Papan Recruitment HRD (Tahap 9) menarik lamaran; templat pesan; retensi/hapus data; konversi kandidat → karyawan.
+5. Uji penetrasi, uji aksesibilitas/ponsel, dokumen operasional (runbook insiden, pemulihan), baru dibuka ke publik.
 
 ## Operasional HRD (halaman khusus akun HRD)
 Satu pintu `/hrd/` dengan lima halaman. **[BARU] Di sidebar, Operasional HRD adalah menu dengan submenu** (Bantuan, Cuti Hamil, Pekerja Harian Proyek, Katering, Surat Peringatan, Seragam) — **status: ✅ putaran 28**; induk membuka ringkasan `/hrd/`, anak membuka halamannya. **Aturan sidebar**: setiap menu yang punya submenu tampil sebagai **dropdown buka/tutup dengan ikon** (chevron); tertutup bawaan, otomatis terbuka bila halaman aktif ada di dalamnya, pilihan pengguna diingat. Selain itu ada **[BARU] Rekap Seragam** (bagian khusus di bawah). **[BARU]** BPJS kini juga menjadi menu sidebar tersendiri dengan submenu Ketenagakerjaan/Kesehatan (bagian khusus di bawah). **Hanya HRD (dan Superadmin)**; Admin Departemen dan Poli tidak punya akses (403).
@@ -333,6 +402,9 @@ Menyembunyikan menu hanya kenyamanan; izin tetap diperiksa di server.
 | 19 | Role Payroll & IT | **[BARU] Belum diputuskan** — mungkin diterapkan atau tidak; desain tidak boleh menghalangi |
 | 20 | Keamanan berlapis | **[BARU]** (komponen disetujui) Rate limit berlapis, kunci login per IP+username, 2FA bertahap, CSP/TLS, fail2ban, ClamAV, backup immutable, Redis untuk cache bersama |
 | 21 | Skalabilitas | **[BARU]** (komponen disetujui) Keyset pagination, partisi/arsip, rollup, PgBouncer, Redis, antrean untuk pekerjaan berat, uji beban |
+| 22 | Stand By & Lembur | **[BARU]** (putaran 30) Dua jenis pengajuan Admin Departemen → HRD; satu kiriman banyak karyawan; disetujui = final & tercatat; batas menit dan jendela tanggal berupa konfigurasi. *Asumsi A77–A80 menunggu konfirmasi* |
+| 23 | UI/UX | **[BARU]** (putaran 30) Berbasis fungsi: satu aksi utama, aksi sekunder dilipat, alur ditulis, keadaan kosong memberi langkah, tanpa dekorasi tak berfungsi |
+| 24 | Company Profile + Lamar Kerja | **[BARU]** (putaran 30) Tahap 11 (terakhir): situs publik terpisah dari aplikasi internal, melamar tanpa akun, perlindungan data pelamar (UU PDP), antivirus, antrean tahan lama, UI ≤ 5 langkah, lacak status; syarat keamanan/stabilitas/fleksibilitas di bagian khusus |
 
 ## [BARU] Kemungkinan / belum diputuskan (mungkin diterapkan, mungkin tidak)
 Butir di bawah **bukan komitmen**; dicatat agar desain sekarang tidak menutup kemungkinannya. Pemilik produk memutuskan; bila diterapkan, butir dipindah ke bagian terkait dan dicatat di "Keputusan penyelarasan".

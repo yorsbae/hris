@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}Ajukan Stand By / Lembur{% endblock %}{% block content %}
+<p class="back"><a href="/requests/g/lembur/">‹ Stand By & Lembur</a></p>
+<h2>Ajukan Stand By / Lembur</h2>
+<p class="hint">Isi empat langkah di bawah lalu kirim. Satu pengajuan boleh untuk banyak karyawan (satu regu); HRD menerima satu ringkasan dan memutuskan. Pengajuan baru bisa dibatalkan selama masih menunggu keputusan.</p>
+{% if request.user.role != 'dept_admin' %}<form method="get" class="bar"><label for="dsel">Tampilkan karyawan departemen:</label><select id="dsel" name="department" onchange="this.form.submit()"><option value="">— pilih —</option>{% for d in depts %}<option value="{{ d.pk }}"{% if dept and dept.pk == d.pk %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></form>{% endif %}
+<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+<div class="step"><h3><i>1</i>Jenis</h3>
+{% for r in form.kind %}<label style="display:block;margin:4px 0">{{ r.tag }} <b>{{ r.choice_label }}</b> — <span class="hint" data-k="{{ r.data.value }}">{% if r.data.value == 'lembur' %}{{ help.lembur }} Maks. {{ limits.lembur }} menit per hari.{% else %}{{ help.standby }} Maks. {{ limits.standby }} menit per hari.{% endif %}</span></label>{% endfor %}{{ form.kind.errors }}</div>
+<div class="step"><h3><i>2</i>Tanggal & jam</h3>
+<div class="bar"><div class="fld">{{ form.date.label_tag }}{{ form.date }}{{ form.date.errors }}</div><div class="fld">{{ form.start.label_tag }}{{ form.start }}{{ form.start.errors }}</div><div class="fld">{{ form.end.label_tag }}{{ form.end }}{{ form.end.errors }}</div></div>
+<p class="hint" id="dur">Boleh {{ past }} hari ke belakang dan {{ fut }} hari ke depan. Jam selesai lebih kecil dari jam mulai = melewati tengah malam.</p></div>
+<div class="step"><h3><i>3</i>Karyawan{% if dept %} — {{ dept.name }}{% endif %}</h3>
+{% if roster %}<div class="bar"><input id="rs" type="search" placeholder="Cari nama / NIK…" aria-label="Cari karyawan"><button type="button" class="ghost" id="all">Pilih yang tampil</button><button type="button" class="ghost" id="none">Kosongkan</button><span id="cnt" class="hint" style="margin:0">0 dipilih</span></div>
+<div class="roster" id="roster">{% for e in roster %}<label data-s="{{ e.nik }} {{ e.name|lower }}"><input type="checkbox" name="niks" value="{{ e.nik }}"{% if e.nik in picked %} checked{% endif %}> {{ e.name }} <small>{{ e.nik }}{% if e.position %} · {{ e.position.name }}{% endif %}</small></label>{% endfor %}</div>
+{% elif request.user.role != 'dept_admin' %}<p class="hint">Pilih departemen di atas untuk menampilkan daftar, atau tempel NIK langsung di bawah.</p>{% else %}<p class="hint">Belum ada karyawan aktif di departemen Anda.</p>{% endif %}
+<div class="fld" style="margin-top:8px">{{ form.extra_niks.label_tag }}{{ form.extra_niks }}{{ form.extra_niks.errors }}</div></div>
+<div class="step"><h3><i>4</i>Alasan</h3><div class="fld">{{ form.reason }}{{ form.reason.errors }}</div></div>
+<p><button>Kirim ke HRD</button> <a class="btn ghost" href="/requests/g/lembur/">Batal</a></p></form>
+<script>
+const rs=document.getElementById("rs"),ro=document.getElementById("roster"),cnt=document.getElementById("cnt");
+function count(){if(cnt)cnt.textContent=document.querySelectorAll('#roster input:checked').length+" dipilih"}
+if(ro){ro.addEventListener("change",count);count();
+rs.addEventListener("input",()=>{const q=rs.value.trim().toLowerCase();ro.querySelectorAll("label").forEach(l=>{l.hidden=q&&!l.dataset.s.includes(q)})});
+document.getElementById("all").onclick=()=>{ro.querySelectorAll("label:not([hidden]) input").forEach(i=>i.checked=true);count()};
+document.getElementById("none").onclick=()=>{ro.querySelectorAll("input").forEach(i=>i.checked=false);count()}}
+const st=document.getElementById("id_start"),en=document.getElementById("id_end"),dur=document.getElementById("dur");
+function mins(){if(!st.value||!en.value)return;const a=st.value.split(":"),b=en.value.split(":");let m=(+b[0]*60+ +b[1])-(+a[0]*60+ +a[1]);if(m<=0)m+=1440;dur.textContent="Durasi: "+Math.floor(m/60)+" jam "+m%60+" menit"}
+st.onchange=en.onchange=mins;mins();
+</script>{% endblock %}

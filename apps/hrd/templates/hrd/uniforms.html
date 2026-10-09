@@ -1,20 +1,22 @@
 {% extends "base.html" %}{% load money %}{% block title %}Rekap Seragam{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
-<h2>Rekap Seragam{% if f.period %} — {{ f.period }}{% else %} — semua periode{% endif %}</h2>
-<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
-<input name="period" value="{{ f.period }}" placeholder="YYYY-MM (kosong = semua)" size="12" pattern="(\d{4}-\d{2})?" title="YYYY-MM; kosongkan untuk semua periode">
-<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
-<select name="utype"><option value="">Semua jenis</option>{% for t in utypes %}<option value="{{ t.pk }}"{% if f.utype == t.pk|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
-<select name="size"><option value="">Semua ukuran</option>{% for z in sizes %}<option value="{{ z.pk }}"{% if f.size == z.pk|stringformat:"s" %} selected{% endif %}>{{ z.code }}</option>{% endfor %}</select>
-<select name="status"><option value="">Semua status potongan</option><option value="belum"{% if f.status == "belum" %} selected{% endif %}>Belum dipotong</option><option value="sudah"{% if f.status == "sudah" %} selected{% endif %}>Sudah dipotong</option></select>
-<label class="chk"><input type="checkbox" name="batal" value="1"{% if f.batal %} checked{% endif %}> Tampilkan yang dibatalkan</label>
-<button>Filter</button></form>
-<div class="tools"><a class="btn" href="{% url 'hrd_uniform_new' %}">+ Catat pembelian</a><a class="btn ghost" href="{% url 'hrd_uniform_stock_in' %}">+ Barang masuk</a><a class="chip" href="{% url 'hrd_uniform_stock' %}?{{ qs }}">Kartu stok</a><a class="chip" href="{% url 'hrd_uniform_import' %}">Impor CSV/XLSX</a><a class="chip" href="{% url 'hrd_uniform_master' %}">Master seragam</a></div>
-<div class="exports"><span>Ekspor rincian:</span><a href="?{{ qs }}&export=detail&format=xlsx">XLSX</a><a href="?{{ qs }}&export=detail">CSV</a><span class="sep">|</span><span>Ekspor rekap stok:</span><a href="?{{ qs }}&export=recap&format=xlsx">XLSX</a><a href="?{{ qs }}&export=recap">CSV</a></div>
+<h2>Seragam{% if f.period %} — {{ f.period }}{% else %} — semua periode{% endif %}</h2>
+<p class="hint">Alur: <b>1.</b> catat <b>barang masuk</b> dari vendor (stok bertambah) → <b>2.</b> catat <b>pembelian</b> karyawan (stok berkurang, potongan gaji terhitung otomatis) → <b>3.</b> tandai <b>sudah dipotong</b> di rincian, atau ekspor untuk Payroll.</p>
+<div class="tools"><a class="btn" href="{% url 'hrd_uniform_new' %}">+ Catat pembelian karyawan</a><a class="btn ghost" href="{% url 'hrd_uniform_stock_in' %}">+ Barang masuk dari vendor</a>
+<details class="more"><summary>Lainnya ▾</summary><div><small>Stok & master</small><a href="{% url 'hrd_uniform_stock' %}?{{ qs }}">Kartu stok</a><a href="{% url 'hrd_uniform_master' %}">Master seragam (jenis, ukuran, tarif)</a><small>Data massal</small><a href="{% url 'hrd_uniform_import' %}">Impor dari CSV/XLSX</a><small>Ekspor (sesuai filter)</small><a href="?{{ qs }}&export=detail&format=xlsx">Rincian pembelian · XLSX</a><a href="?{{ qs }}&export=detail">Rincian pembelian · CSV</a><a href="?{{ qs }}&export=recap&format=xlsx">Rekap stok untuk vendor · XLSX</a><a href="?{{ qs }}&export=recap">Rekap stok untuk vendor · CSV</a></div></details></div>
+<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama karyawan" aria-label="Cari NIK atau nama">
+<label class="chk">Periode <input type="month" name="period" value="{{ f.period }}" title="Kosongkan untuk semua periode"></label><button>Terapkan</button>{% if f.q or f.department or f.utype or f.size or f.status or f.batal %}<a class="chip" href="?">Reset filter</a>{% endif %}</form>
+<details class="flt"{% if f.department or f.utype or f.size or f.status or f.batal %} open{% endif %}><summary>Filter lainnya (departemen, jenis, ukuran, status potongan)</summary>
+<form method="get" class="bar"><input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="period" value="{{ f.period }}">
+<select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<select name="utype" aria-label="Jenis"><option value="">Semua jenis</option>{% for t in utypes %}<option value="{{ t.pk }}"{% if f.utype == t.pk|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
+<select name="size" aria-label="Ukuran"><option value="">Semua ukuran</option>{% for z in sizes %}<option value="{{ z.pk }}"{% if f.size == z.pk|stringformat:"s" %} selected{% endif %}>{{ z.code }}</option>{% endfor %}</select>
+<select name="status" aria-label="Status potongan"><option value="">Semua status potongan</option><option value="belum"{% if f.status == "belum" %} selected{% endif %}>Belum dipotong</option><option value="sudah"{% if f.status == "sudah" %} selected{% endif %}>Sudah dipotong</option></select>
+<label class="chk"><input type="checkbox" name="batal" value="1"{% if f.batal %} checked{% endif %}> Tampilkan yang dibatalkan</label><button>Terapkan</button></form></details>
 <div class="grid">
-<div class="card"><b>{{ totals.pcs|default:0 }}</b><span>Total pcs ({{ totals.n }} pembelian)</span></div>
-<div class="card"><b>{{ totals.total|rupiah }}</b><span>Total potongan</span></div>
-<div class="card"><b>{{ totals.belum|rupiah }}</b><span>Belum dipotong</span></div>
+<div class="card"><b>{{ totals.pcs|default:0 }}</b><span>seragam dibeli ({{ totals.n }} transaksi)</span></div>
+<div class="card"><b>{{ totals.total|rupiah }}</b><span>total potongan gaji</span></div>
+<div class="card{% if totals.belum %} warn{% endif %}"><b>{{ totals.belum|rupiah }}</b><span>belum dipotong — perlu ditindaklanjuti</span></div>
 </div>
 {% if low_n or minus_n %}<p>{% if minus_n %}<span class="pill rejected">{{ minus_n }} stok minus</span> {% endif %}{% if low_n %}<span class="pill pending">{{ low_n }} di bawah minimum</span> {% endif %}<a class="chip" href="{% url 'hrd_uniform_stock' %}">Lihat kartu stok</a></p>{% endif %}
 {% if stock %}<h3>Rekap stok seragam{% if f.period %} — {{ f.period }}{% endif %}</h3>
@@ -32,6 +34,6 @@
 {% for p in page %}<tr{% if p.is_void %} style="opacity:.55;text-decoration:line-through"{% endif %}><td>{{ p.purchase_date|date:"d-m-Y" }}</td><td>{{ p.employee.nik }}</td><td>{{ p.employee.name }}</td><td>{{ p.employee.department.name }}</td><td>{{ p.utype.name }}</td><td>{{ p.size.code }}</td><td>{{ p.gender }}</td><td>{{ p.quantity }}</td><td>{{ p.rate_amount|rupiah }}</td><td>{{ p.deduction_amount|rupiah }}</td>
 <td>{% if p.is_void %}<span class="pill rejected">batal</span>{% elif p.deduction_status == "sudah" %}<span class="pill approved">dipotong {{ p.deducted_period }}</span>{% else %}<span class="pill pending">belum dipotong</span>{% endif %}</td>
 <td><a href="{% url 'hrd_uniform_detail' p.pk %}">Kelola</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="12">Belum ada pembelian seragam untuk filter ini.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="12">{% if f.q or f.department or f.utype or f.size or f.status or f.batal %}Tidak ada pembelian yang cocok dengan filter. <a href="?period={{ f.period }}">Reset filter</a>{% else %}Belum ada pembelian seragam{% if f.period %} pada periode {{ f.period }}{% endif %}. Pastikan stok sudah dicatat lewat <b>+ Barang masuk dari vendor</b>, lalu klik <b>+ Catat pembelian karyawan</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

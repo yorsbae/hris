@@ -1,9 +1,10 @@
 """UI pengajuan (Tahap 3): daftar, buat, detail, dan aksi workflow. Semua akses lewat scope departemen."""
+import re
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
@@ -18,7 +19,7 @@ ROLES = (Role.HRD, Role.DEPT_ADMIN)  # Superadmin lolos otomatis di require_role
 FIELD_LABELS = {"start_date": "Tanggal mulai", "end_date": "Tanggal selesai", "date": "Tanggal", "date_to": "Diganti ke tanggal",
                 "time": "Jam", "effective_date": "Tanggal efektif", "department_name": "Departemen tujuan",
                 "position_name": "Jabatan tujuan", "shift_name": "Shift tujuan", "status": "Status baru", "reason": "Alasan",
-                "partner_nik": "NIK rekan tukar", "partner_name": "Rekan tukar"}
+                "partner_nik": "NIK rekan tukar", "partner_name": "Rekan tukar", "time_to": "Sampai jam", "minutes": "Durasi (menit)"}
 STATUS_LABELS = {"draft": "Draft", "submitted": "Diajukan", "pending": "Menunggu persetujuan", "approved": "Disetujui",
                  "rejected": "Ditolak", "executed": "Dilaksanakan", "cancelled": "Dibatalkan"}
 
@@ -32,20 +33,27 @@ def request_list(request, grp=None):
     if grp is not None:
         if not group_types: raise Http404  # mis. Admin Dept membuka Perubahan Status (hanya HRD)
         qs = qs.filter(type__in=group_types)
-    f = {k: request.GET.get(k, "").strip() for k in ("status", "type", "q")}
+    f = {k: request.GET.get(k, "").strip() for k in ("status", "type", "q", "batch")}
+    if f["batch"]:
+        if not re.fullmatch(r"[0-9a-f]{32}", f["batch"]): raise Http404
+        qs = qs.filter(payload__batch=f["batch"])
     if f["status"]: qs = qs.filter(status=f["status"])
     if f["type"]: qs = qs.filter(type=f["type"])
     if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
     if request.GET.get("export"):
         from apps.core import tabular
-        rows = [[r.pk, r.type, STATUS_LABELS.get(r.status, r.status), r.employee.nik, r.employee.name, r.department.name, r.requested_by.username, r.created_at.strftime("%Y-%m-%d %H:%M")]
+        rows = [[r.pk, r.type, STATUS_LABELS.get(r.status, r.status), r.employee.nik, r.employee.name, r.department.name, r.requested_by.username, r.created_at.strftime("%Y-%m-%d %H:%M"), summary(r)]
                 for r in qs.order_by("-created_at")[:20000]]
         log(request, "hr", "requests_export", None, None, {"rows": len(rows)})
-        return tabular.export_response("pengajuan", ["no", "jenis", "status", "nik", "nama", "departemen", "diajukan_oleh", "dibuat"], rows, request, sheet="Pengajuan")
+        return tabular.export_response("pengajuan", ["no", "jenis", "status", "nik", "nama", "departemen", "diajukan_oleh", "dibuat", "rincian"], rows, request, sheet="Pengajuan")
     page = Paginator(qs.order_by("-created_at"), 50).get_page(request.GET.get("page", 1))
-    for r in page: r.status_label = STATUS_LABELS.get(r.status, r.status)
+    for r in page: r.status_label, r.summary, r.type_label = STATUS_LABELS.get(r.status, r.status), summary(r), LABELS.get(r.type, r.type)
     types = {t: LABELS[t] for t in (group_types if grp else LABELS)}
-    return render(request, "requests_list.html", {"page": page, "f": f, "types": types, "statuses": STATUS_LABELS, "grp": grp,
+    batch = None
+    if f["batch"]:
+        c = {s: n for s, n in qs.order_by().values_list("status").annotate(n=Count("id"))}
+        batch = {"total": sum(c.values()), "pending": c.get("pending", 0), "counts": [(STATUS_LABELS.get(k, k), n) for k, n in c.items()]}
+    return render(request, "requests_list.html", {"page": page, "f": f, "types": types, "statuses": STATUS_LABELS, "grp": grp, "batch": batch,
                                                   "title": REQUEST_GROUPS[grp][0] if grp else "Semua pengajuan"})
 
 
@@ -70,6 +78,15 @@ def request_new(request):
         return redirect("request_detail", pk=req.pk)
     return render(request, "request_form.html", {"form": form, "fields_by_type": FIELDS_BY_TYPE, "grp": grp if grp in REQUEST_GROUPS else "",
                                                  "title": REQUEST_GROUPS[grp][0] if grp in REQUEST_GROUPS else "Buat pengajuan"})
+
+
+def summary(r):
+    """Ringkasan satu baris isi pengajuan untuk daftar (tanggal/jam/durasi), supaya daftar terbaca tanpa membuka detail."""
+    p = r.payload
+    if p.get("time_to"): return f"{p.get('date')} · {p.get('time')}–{p['time_to']} ({p.get('minutes')} mnt)"
+    if p.get("start_date"): return p["start_date"] + (f" s/d {p['end_date']}" if p.get("end_date") and p["end_date"] != p["start_date"] else "")
+    if p.get("date"): return p["date"] + (f" → {p['date_to']}" if p.get("date_to") else "") + (f" · {p['time']}" if p.get("time") else "")
+    return f"efektif {p['effective_date']}" if p.get("effective_date") else ""
 
 
 def _actions(user, req):

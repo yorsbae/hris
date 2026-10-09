@@ -14,13 +14,15 @@ GROUPS = {  # tipe → field payload yang dipakai
     "pos": (("mutasi_jabatan", "promosi", "demosi"), ("position", "effective_date", "reason")),
     "shift": (("shift",), ("shift", "effective_date", "reason")),
     "status": (("status",), ("status", "effective_date", "reason")),
+    "extra": (("standby", "lembur"), ("date", "time", "time_to", "reason")),  # form khusus: apps/hr/overtime.py
 }
+DEDICATED = {"standby", "lembur"}  # punya form sendiri (banyak karyawan sekaligus); tidak muncul di form pengajuan umum
 FIELDS_BY_TYPE = {t: f for types, f in GROUPS.values() for t in types}
 LABELS = {
     "mutasi_dept": "Mutasi departemen", "mutasi_jabatan": "Mutasi jabatan", "promosi": "Promosi", "demosi": "Demosi",
     "rotasi": "Rotasi", "status": "Perubahan status", "shift": "Perubahan shift", "izin": "Izin", "cuti": "Cuti",
     "sakit": "Sakit", "izin_terlambat": "Izin terlambat", "izin_pulang": "Izin pulang", "izin_khusus": "Izin khusus",
-    "tukar_shift": "Tukar shift", "tukar_libur": "Tukar libur",
+    "tukar_shift": "Tukar shift", "tukar_libur": "Tukar libur", "standby": "Stand By (kerja saat istirahat)", "lembur": "Lembur",
 }
 # Submenu Pengajuan (putaran 20): tiap grup = halaman daftar sendiri (/requests/g/<slug>/); semua jenis tetap satu model/alur.
 REQUEST_GROUPS = {
@@ -28,6 +30,7 @@ REQUEST_GROUPS = {
     "mutasi": ("Mutasi & Promosi", ("mutasi_dept", "mutasi_jabatan", "promosi", "demosi", "rotasi")),
     "status": ("Perubahan Status", ("status",)),
     "jadwal": ("Shift & Tukar Jadwal", ("shift", "tukar_shift", "tukar_libur")),
+    "lembur": ("Stand By & Lembur", ("standby", "lembur")),
 }
 OPTIONAL_FIELDS = {"partner_nik"}  # tidak wajib: kosong = tukar sendiri (1 orang), terisi = tukar dengan rekan (2 orang)
 HRD_ONLY_TYPES = {"status"}  # Admin Departemen tidak boleh mengajukan perubahan status karyawan
@@ -59,7 +62,7 @@ class RequestForm(forms.Form):
     def __init__(self, *a, user, group=None, **k):
         super().__init__(*a, **k)
         self.user, self.employee = user, None
-        types = allowed_types(user)
+        types = [t for t in allowed_types(user) if t not in DEDICATED]
         if group in REQUEST_GROUPS: types = [t for t in types if t in REQUEST_GROUPS[group][1]]  # buat dari submenu: hanya jenis grup itu
         self.fields["type"].choices = [(t, LABELS[t]) for t in types]
 

@@ -9,7 +9,7 @@ def _req(all_label, status):
     """Butir Pengajuan + submenu per fungsi (putaran 20). Admin Dept tidak melihat Perubahan Status (hanya HRD)."""
     items = [(all_label, "/requests/", "clipboard"), ("Izin & Cuti", "/requests/g/izin/", "clipboard", True), ("Mutasi & Promosi", "/requests/g/mutasi/", "clipboard", True)]
     if status: items.append(("Perubahan Status", "/requests/g/status/", "clipboard", True))
-    return items + [("Shift & Tukar Jadwal", "/requests/g/jadwal/", "clipboard", True)]
+    return items + [("Shift & Tukar Jadwal", "/requests/g/jadwal/", "clipboard", True), ("Stand By & Lembur", "/requests/g/lembur/", "clock", True)]
 
 def _bpjs():
     """Butir BPJS + submenu Kesehatan / Ketenagakerjaan / Status (putaran 23, P4). Hanya HRD & Superadmin (halaman /hrd/ lain tetap lewat Operasional HRD)."""
