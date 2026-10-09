@@ -60,6 +60,11 @@ penyalahgunaan per akun; lapisan data membatasi dampak bila ada yang lolos. Angk
 > ekspor **tanpa nomor identitas/BPJS** dan tercatat di audit, hal janggal **ditandai, bukan diblokir** bila ada alasan sah (mis. potongan gaji terakhir karyawan nonaktif); (3) Superadmin kini
 > **diberi tahu** saat akun terkunci. Status rinci & sisa: `docs/PROGRESS.md` → putaran 22.
 
+> **Pembaruan 9 Oktober 2026 (putaran 23).** (1) **Menu BPJS** kini lengkap sejauh tidak bergantung Payroll: sidebar BPJS dengan submenu Kesehatan/Ketenagakerjaan, ringkasan per departemen; (2) **Rekap Seragam** ada sebagai
+> halaman HRD (pembelian + ukuran, tarif L/P berlaku-sejak yang **disalin ke baris**, rekap per ukuran × jenis kelamin untuk pesanan vendor, impor/ekspor); (3) prinsip baru untuk semua paket berikutnya:
+> **ekspor uang berupa angka ber-format (bisa dijumlah), bukan teks**; **catatan transaksi tidak diedit/dihapus** — koreksi lewat pembatalan beralasan; **tarif/master berlaku-sejak bersifat append-only dan disalin ke transaksi**;
+> **data historis disalin saat dicatat** (mis. jenis kelamin) agar laporan lama tidak bergeser. Status rinci & sisa: `docs/PROGRESS.md` → putaran 23.
+
 ### Status & prinsip tambahan (putaran 21)
 - **Satu pintu kontrol untuk semua jalur masuk**: kunci akun, rate limit IP, dan audit berlaku sama di `/login/` dan `/admin/login/`; jalur baru apa pun (API token, SSO kelak) wajib melewati `authenticate()` yang sama.
 - **Pesan seragam**: login gagal, akun terkunci, dan username tak dikenal tampil identik (tidak membocorkan keberadaan akun). Kunci akun **selalu sementara** dan dapat dibuka Superadmin; tiap penguncian tercatat di audit.
@@ -140,8 +145,8 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 1. **Fondasi**: auth, user, role, permission, scope, audit, dashboard
 2. **HR Core**: karyawan, departemen, jabatan, shift, kontrak, histori. **[BARU]** juga grade, bagian, lokasi kerja, jenis karyawan, status karyawan, company, hari libur & kalender kerja, data keluarga, riwayat pendidikan/pekerjaan.
 2b. **Operasional HRD** (halaman khusus akun HRD, lihat bagian di bawah): bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS
-2c. **[BARU] HR Lanjutan**: Surat Peringatan (SP1–SP3), pengajuan administrasi, BPJS lanjutan (kelas, faskes, JKK/JHT/JKM/JP, iuran, laporan), **menu BPJS (submenu Ketenagakerjaan/Kesehatan) + rekap potongan karyawan + impor/ekspor XLSX**
-2d. **[BARU] Seragam**: rekap pembelian seragam + ukuran, tarif potongan L/P, ekspor XLSX (di bawah Operasional HRD)
+2c. **[BARU] HR Lanjutan**: Surat Peringatan (SP1–SP3), pengajuan administrasi, BPJS lanjutan (kelas, faskes, JKK/JHT/JKM/JP, iuran, laporan), **menu BPJS (submenu Ketenagakerjaan/Kesehatan) + rekap potongan karyawan + impor/ekspor XLSX** — **✅ putaran 22–23** (sisa: tarif otomatis, kelas/faskes, komponen JKK/JHT/JKM/JP)
+2d. **[BARU] Seragam**: rekap pembelian seragam + ukuran, tarif potongan L/P, ekspor XLSX (di bawah Operasional HRD) — **✅ putaran 23**
 3. **Workflow**: mutasi, promosi/demosi, izin, cuti, tukar shift/libur (**1 orang atau 2 orang**), **administrasi**, approval
 4. **Informasi**: notifikasi, pengumuman, peraturan, read/unread. **[BARU]** reminder (cuti, SP, kontrak, stok menipis, obat mendekati kedaluwarsa, sinkronisasi absensi)
 5. **Poli**: rekam medis (form menyesuaikan jenis kunjungan), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat izin (pulang / libur / hamil), riwayat poli di detail karyawan untuk user Poli
@@ -174,7 +179,7 @@ Semua perubahan tercatat di audit log; data tidak ditimpa diam-diam (ada histori
    **[BARU]** Kelengkapan yang dituju: kelas, faskes, cabang, tanggal kepesertaan, komponen JKK/JHT/JKM/JP, iuran, sinkronisasi, laporan. **[BARU]** Halaman ini menjadi tab "Status" di dalam menu BPJS (lihat "Menu BPJS"); URL lama diarahkan.
 
 ## [BARU] Menu BPJS (Ketenagakerjaan & Kesehatan)
-> **Status (putaran 22):** butir 2, 4, 5, 6 sudah ada sebagai halaman di bawah Operasional HRD (`/hrd/bpjs/deductions/`); **belum**: sidebar BPJS dengan submenu TK/K, butir 3 bagian "hitung dari master tarif", ringkasan per departemen, kelas/faskes/komponen JKK-JHT-JKM-JP.
+> **Status (putaran 23):** butir 2, 4, 5, 6 ada (`/hrd/bpjs/deductions/`, `/kes/`, `/tk/`), **sidebar BPJS + submenu** dan **ringkasan per departemen** sudah ada; **belum**: butir 3 bagian "hitung dari master tarif" (menunggu Payroll sebagai sumber upah), kelas/faskes/komponen JKK-JHT-JKM-JP, Status sebagai tab di dalam menu (kini halaman terpisah yang saling tertaut), jejak nilai lama per baris saat impor ulang.
 
 Menu sidebar tersendiri **BPJS** (HRD dan Superadmin; Admin Departemen dan Poli → 403) dengan dua submenu:
 
@@ -192,6 +197,8 @@ Isi tiap submenu:
 6. Potongan disimpan di **tabel sendiri** (tidak di tabel karyawan) dan menjadi sumber komponen Potongan → BPJS pada rantai Payroll. Tetap berlaku: BPJS **tanpa workflow pengajuan/approval**.
 
 ## [BARU] Rekap Seragam (HRD)
+> **Status (putaran 23): ✅ ada** di `/hrd/uniforms/` (rekap, rincian, master, impor, ekspor rincian & rekap vendor). Penyimpangan kecil yang disadari: pembatalan berupa penandaan baris (bukan baris pembalik terpisah, A56); potongan = tarif × jumlah pcs (A55, menunggu konfirmasi satuan); "sudah dipotong" ditandai manual HRD sampai Payroll ada (A57). **Belum**: tandai dipotong massal, PDF/cetak pesanan vendor, master vendor, stok seragam.
+
 Pencatatan pembelian **seragam** karyawan **beserta ukuran** (hanya seragam, bukan pakaian lain). Halaman di `/hrd/` — HRD dan Superadmin saja (Admin Departemen dan Poli → 403).
 - **Catatan pembelian**: karyawan (lewat NIK; harus aktif), tanggal, jenis seragam (master), **ukuran** (master), jumlah, tarif potongan, status potongan (belum/sudah dipotong), catatan. Pembelian ganda untuk karyawan + tanggal + jenis + ukuran yang sama ditolak.
 - **Tarif potongan menurut jenis kelamin** (dari data karyawan): **Laki-laki Rp 19.000 · Perempuan Rp 17.000** (nominal awal). Disimpan di **master tarif dengan tanggal berlaku**, bukan ditanam di kode; nilai tarif **disalin ke baris** saat dicatat sehingga perubahan tarif tidak mengubah transaksi lama. *Dikonfirmasi pemilik produk: "pot" = potongan gaji; nominal berlaku per satuan pembelian.*
