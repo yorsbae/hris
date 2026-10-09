@@ -1,0 +1,1 @@
+<a href="{{ n.url }}"{% if sub %} class="sub"{% endif %}{% if n.active %} aria-current="page"{% endif %}><svg class="ic" aria-hidden="true"><use href="#i-{{ n.icon }}"/></svg><span>{{ n.label }}</span>{% if n.url == "/announcements/" and unread_ann %}<span class="badge" aria-label="{{ unread_ann }} belum dibaca">{{ unread_ann }}</span>{% endif %}</a>

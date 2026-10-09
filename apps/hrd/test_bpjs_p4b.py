@@ -153,9 +153,42 @@ class SidebarTests(HrdBase):
 
     def test_active_item_follows_page(self):
         for path, label in (("/hrd/bpjs/deductions/kes/", "Kesehatan (K)"), ("/hrd/bpjs/deductions/tk/", "Ketenagakerjaan (TK)"), ("/hrd/bpjs/deductions/", "Semua Potongan"),
-                            ("/hrd/bpjs/", "BPJS"), ("/hrd/", "Operasional HRD"), ("/hrd/aids/", "Operasional HRD")):
+                            ("/hrd/bpjs/", "BPJS"), ("/hrd/", "Operasional HRD"), ("/hrd/aids/", "Bantuan (rekap)"), ("/hrd/catering/", "Katering (rekap)"), ("/hrd/uniforms/", "Seragam")):
             items, r = self.nav("hrd", path); act = [i["label"] for i in items if i["active"]]
             self.assertEqual(act, [label], path); self.assertEqual(r.context["crumb"], label)
 
     def test_status_detail_page_keeps_bpjs_active(self):
         items, _ = self.nav("hrd", f"/hrd/bpjs/{self.e1.pk}/"); self.assertEqual([i["label"] for i in items if i["active"]], ["BPJS"])
+
+
+class OperasionalMenuTests(HrdBase):
+    """Putaran 28: Operasional HRD = menu + submenu (Seragam, Katering, dst) dengan dropdown buka/tutup berikon."""
+    SUBS = ["Bantuan (rekap)", "Cuti Hamil", "Pekerja Harian Proyek", "Katering (rekap)", "Surat Peringatan", "Seragam"]
+
+    def tree(self, who, path):
+        self.login(who); r = self.client.get(path); self.assertEqual(r.status_code, 200)
+        return {n["label"]: n for g in r.context["nav_groups"] for n in g["tree"]}, r
+
+    def test_operasional_has_children_and_seragam_moved_inside(self):
+        for who in ("hrd", "su"):
+            t, _ = self.tree(who, "/hrd/")
+            self.assertEqual([c["label"] for c in t["Operasional HRD"]["children"]], self.SUBS)
+            self.assertNotIn("Seragam", t)  # tidak lagi menu tingkat atas
+            self.assertEqual(t["Operasional HRD"]["url"], "/hrd/")
+
+    def test_parents_with_submenu_are_all_dropdowns(self):
+        t, _ = self.tree("hrd", "/")
+        for parent in ("Operasional HRD", "BPJS", "Semua Pengajuan"): self.assertTrue(t[parent]["children"], parent)
+        self.assertFalse(t["Dashboard"]["children"])
+
+    def test_closed_by_default_open_when_page_inside(self):
+        t, r = self.tree("hrd", "/")
+        self.assertFalse(t["Operasional HRD"]["open"]); self.assertContains(r, 'aria-controls="sub-operasional-hrd"'); self.assertContains(r, 'aria-expanded="false"')
+        t, r = self.tree("hrd", "/hrd/catering/"); self.assertTrue(t["Operasional HRD"]["open"])
+        self.assertEqual([c["label"] for c in t["Operasional HRD"]["children"] if c["active"]], ["Katering (rekap)"]); self.assertFalse(t["BPJS"]["open"])
+        t, _ = self.tree("hrd", "/hrd/uniforms/stock/"); self.assertTrue(t["Operasional HRD"]["open"])  # halaman turunan tetap membuka induknya
+
+    def test_toggle_has_icon_and_label_and_other_roles_have_no_ops_menu(self):
+        _, r = self.tree("hrd", "/hrd/"); self.assertContains(r, 'class="ntog"'); self.assertContains(r, "Buka atau tutup submenu Operasional HRD"); self.assertContains(r, 'href="#i-chev"')
+        for who in ("adm", "poli"):
+            t, _ = self.tree(who, "/"); self.assertNotIn("Operasional HRD", t, who)

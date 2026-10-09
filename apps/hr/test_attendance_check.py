@@ -175,3 +175,30 @@ class ReminderDashboardTests(Base):
         d = self.client.get("/api/dashboard/").json(); self.assertEqual((d["attcheck_todo"], d["attcheck_late"]), (0, 0))  # departemen lain tidak bocor (dicek selagi masih terbuka)
         self.act("adm", "attcheck_answer", a.pk, answer="hadir"); self.login("hrd"); self.assertEqual(self.client.get("/api/dashboard/").json()["attcheck_to_verify"], 1)
         self.login("poli"); self.assertNotIn("attcheck_late", self.client.get("/api/dashboard/").json())
+
+
+class FormReferenceTests(Base):
+    """Putaran 28: form berreferensi NIK (autocomplete), banyak baris, dan ringkasan Admin Departemen per departemen."""
+    def test_form_uses_employee_lookup_and_explains_hadir_or_alfa(self):
+        self.login("hrd"); r = self.client.get(reverse("attcheck_new")); self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'data-lookup="employee"'); self.assertContains(r, 'name="nik"'); self.assertContains(r, "hadir atau alfa"); self.assertContains(r, "Tambah karyawan")
+
+    def test_multiple_nik_rows_and_paste_box_merge_without_duplicates(self):
+        self.login("hrd"); d = self.days(-1)
+        r = self.client.post(reverse("attcheck_new"), {"nik": ["001", "003", "001"], "niks": "003", "date_from": d.isoformat(), "date_to": "", "question": ""})
+        self.assertRedirects(r, reverse("attcheck_list")); self.assertEqual(sorted(AC.objects.values_list("employee__nik", flat=True)), ["001", "003"])
+
+    def test_rows_repopulated_after_error(self):
+        self.login("hrd"); r = self.client.post(reverse("attcheck_new"), {"nik": ["001", "999"], "date_from": self.days(1).isoformat()})
+        self.assertEqual(r.status_code, 200); self.assertContains(r, 'value="001"'); self.assertContains(r, 'value="999"'); self.assertEqual(AC.objects.count(), 0)
+
+    def test_each_department_shows_its_own_admin_and_missing_is_flagged(self):
+        self.login("hrd"); r = self.client.get(reverse("attcheck_new"))
+        rows = {x["dept"].name: x["admins"] for x in r.context["overview"]}
+        self.assertTrue(rows[self.d1.name]); self.assertEqual(rows[self.d2.name], [])  # Gudang belum punya admin
+        self.assertIn(self.d2.name, r.context["missing_admin"]); self.assertNotIn(self.d1.name, r.context["missing_admin"]); self.assertContains(r, "belum punya Admin Departemen aktif")
+
+    def test_request_reaches_only_that_departments_admin(self):
+        User.objects.create_user("adm2", password="kata-sandi-panjang-123", role="dept_admin", department=self.d2)
+        self.login("hrd"); self.client.post(reverse("attcheck_new"), {"nik": ["001"], "date_from": self.days(-1).isoformat()})
+        self.assertEqual({n.user for n in Notification.objects.filter(kind="absensi")}, {self.adm})  # admin Gudang tidak ikut menerima

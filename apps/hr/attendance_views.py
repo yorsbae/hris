@@ -57,16 +57,33 @@ def check_list(request):
                   "statuses": AC.STATUSES, "depts": Department.objects.order_by("name"), "counts": counts, "is_admin": is_admin, "answers": AC.ANSWERS})
 
 
+def _niks(p):
+    """NIK dari baris isian berreferensi (name="nik", boleh banyak) + kotak tempel massal (name="niks"); urutan terjaga, ganda dibuang."""
+    raw = [x for v in p.getlist("nik") + [p.get("niks", "")] for x in re.split(r"[\s,;]+", v.strip()) if x]
+    return list(dict.fromkeys(raw))
+
+
+def admin_overview():
+    """Per departemen: Admin Departemen aktif (tiap departemen wajib punya admin sendiri; tanpa admin permintaan ditolak)."""
+    from apps.core.models import User
+    adm = {}
+    for u in User.objects.filter(role=Role.DEPT_ADMIN, is_active=True, department__isnull=False).order_by("username"): adm.setdefault(u.department_id, []).append(u.get_full_name() or u.get_username())
+    rows = [{"dept": d, "admins": adm.get(d.pk, [])} for d in Department.objects.order_by("name")]
+    return rows, [r["dept"].name for r in rows if not r["admins"]]
+
+
 @hrd
 def check_new(request):
-    ctx = {"depts": Department.objects.order_by("name"), "today": date.today().isoformat(), "v": request.POST}
+    overview, missing = admin_overview()
+    ctx = {"depts": Department.objects.order_by("name"), "today": date.today().isoformat(), "v": request.POST, "nik_rows": _niks(request.POST) if request.method == "POST" else [],
+           "overview": overview, "missing_admin": missing}
     if request.method == "POST":
         p = request.POST
         d1 = _date(p.get("date_from")); d2 = _date(p.get("date_to"), d1)
         try:
             if not d1 or not d2 or d2 < d1: raise ValueError("Tanggal tidak valid (selesai tidak boleh sebelum mulai).")
             if (d2 - d1).days + 1 > svc.MAX_DAYS: raise ValueError(f"Rentang maksimal {svc.MAX_DAYS} hari.")
-            niks = [x for x in re.split(r"[\s,;]+", p.get("niks", "").strip()) if x]
+            niks = _niks(p)
             if niks:
                 emps = list(Employee.objects.select_related("department").filter(nik__in=niks)); miss = sorted(set(niks) - {e.nik for e in emps})
                 if miss: raise ValueError("NIK tidak ditemukan: " + ", ".join(miss[:10]))
