@@ -41,12 +41,18 @@ class SeedDemoTests(TestCase):
             self.assertEqual(p.deduction_amount, p.rate_amount * p.quantity); self.assertEqual(p.gender, p.employee.gender)
             self.assertEqual(p.rate_amount, Decimal(19000) if p.gender == "L" else Decimal(17000))
 
+    def test_partner_bills_seeded_consistently(self):
+        from apps.poli.models import PartnerBill
+        bs = list(PartnerBill.objects.select_related("employee")); self.assertEqual(len(bs), 6)
+        for b in bs: self.assertEqual(b.events.first().to_status, "diterima"); self.assertEqual(b.events.last().to_status, b.status); self.assertGreaterEqual(b.bill_date, b.service_date)
+        self.assertTrue({"dibayar", "ditolak", "diterima"} <= {b.status for b in bs})
+
     def test_second_run_refuses(self):
         with self.assertRaises(CommandError): call_command("seed_demo", "--employees", "20", stdout=StringIO())
 
     def test_pages_render_for_each_role(self):
         for uname, paths in (("superadmin", ["/", "/admin/", "/audit/"]), ("hrd", ["/", "/employees/", "/requests/", "/hrd/", "/hrd/uniforms/", "/hrd/uniforms/master/", "/hrd/bpjs/deductions/", "/hrd/bpjs/deductions/kes/"]),
-                             ("poli", ["/", "/poli/records/", "/poli/medicines/"]), ("admin_prd", ["/", "/employees/", "/requests/"])):
+                             ("poli", ["/", "/poli/records/", "/poli/medicines/", "/poli/billing/", "/poli/billing/partners/"]), ("admin_prd", ["/", "/employees/", "/requests/"])):
             self.client.force_login(User.objects.get(username=uname))
             for p in paths: self.assertLess(self.client.get(p).status_code, 500, (uname, p))
 

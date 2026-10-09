@@ -342,7 +342,16 @@ class Command(BaseCommand):
             if st in ("dirujuk", "selesai"): ps.referral_transition(ref.pk, "dirujuk", self.poli_u)
             if st == "selesai": ps.referral_transition(ref.pk, "selesai", self.poli_u, "Pasien sudah ditangani, kontrol 1 minggu (demo)")
             if st == "batal": ps.referral_transition(ref.pk, "batal", self.poli_u, "Pasien membaik, rujukan tidak diperlukan (demo)")
-        self.stat += f", {len(recs)} kunjungan poli, {len(meds)} obat"
+        # tagihan mitra (putaran 24, P6): dari kunjungan yang sama (keluhan/diagnosa ikut rekam medis) dengan status beragam
+        partners = [pl.Partner.objects.create(name=n, kind=k, contact="Data demo") for n, k in (("RSUD Kardinah Tegal", "rs"), ("Klinik Sehat Sentosa", "klinik"), ("Lab Medika Prima", "lab"))]
+        flows = [(), ("diverifikasi",), ("diverifikasi", "disetujui"), ("diverifikasi", "disetujui", "dibayar"), ("ditolak",), ()]
+        for i, rec in enumerate(r.sample(recs[:40], 6)):
+            bd = min(timezone.localdate(), rec.visit_at.date() + timedelta(days=1)); total = Decimal(r.choice([185_000, 320_000, 450_000, 1_250_000]))
+            b = ps.create_partner_bill(self.poli_u, partners[i % 3], f"DEMO-{2026}{i + 1:03d}", bd, rec.employee, rec.visit_at.date(), r.choice(["rawat_jalan", "lab", "obat"]), rec.complaint,
+                                       rec.diagnosis, r.choice(["perusahaan", "perusahaan", "bpjs"]), total, [("Pelayanan (demo)", 1, total)] if i % 2 == 0 else ())
+            for st in flows[i]:
+                ps.bill_transition(b.pk, st, self.poli_u, note="Data demo" if st == "ditolak" else "", paid_date=timezone.localdate() if st == "dibayar" else None, payment_ref="TRF-DEMO" if st == "dibayar" else "")
+        self.stat += f", {len(recs)} kunjungan poli, {len(meds)} obat, 6 tagihan mitra"
 
     # ---------- audit contoh
     def audit(self):

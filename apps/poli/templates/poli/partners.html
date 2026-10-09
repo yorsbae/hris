@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Mitra{% endblock %}{% block content %}
+<p><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
+<h2>Mitra rekanan</h2>
+<div class="wrap"><table id="partners"><thead><tr><th>Nama</th><th>Jenis</th><th>Kontak</th><th>Tagihan</th><th>Status</th><th></th></tr></thead><tbody>
+{% for p in partners %}<tr><td>{{ p.name }}</td><td>{{ p.get_kind_display }}</td><td>{{ p.contact }}</td><td>{{ p.n }}</td><td>{% if p.is_active %}<span class="pill approved">aktif</span>{% else %}<span class="pill rejected">nonaktif</span>{% endif %}</td>
+<td><form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ p.pk }}"><button class="secondary">{% if p.is_active %}Nonaktifkan{% else %}Aktifkan{% endif %}</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada mitra.</td></tr>{% endfor %}</tbody></table></div>
+<form method="post" class="card form">{% csrf_token %}<input type="hidden" name="action" value="add"><h3>Tambah mitra</h3>{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}<p><button>Tambah</button></p></form>
+{% endblock %}

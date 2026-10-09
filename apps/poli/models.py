@@ -128,3 +128,90 @@ def dispense(medicine_id, qty, user, ref=""):
         m.stock = F("stock") - qty; m.save(); m.refresh_from_db()
         StockMovement.objects.create(medicine=m, qty=-qty, balance_after=m.stock, reason="prescription", ref=ref, created_by=user)
         return m
+
+
+# ---------------------------------------------------------------- Tagihan Mitra (putaran 24, P6)
+# DATA MEDIS: tagihan memuat keluhan & diagnosa → hanya Poli/Superadmin (seperti seluruh /poli/). Keluhan TERENKRIPSI sejak awal (A42/A12);
+# keluhan/diagnosa tidak pernah masuk audit (hanya penanda). Nominal tidak dicampur ke tabel karyawan/medis lain.
+from apps.core.crypto import EncryptedTextField  # noqa: E402
+
+
+class Partner(models.Model):
+    """Mitra rekanan yang menagih perusahaan (RS, klinik, lab, apotek, optik). Dinonaktifkan, tidak dihapus."""
+    KINDS = [("rs", "Rumah sakit"), ("klinik", "Klinik"), ("lab", "Laboratorium"), ("apotek", "Apotek"), ("optik", "Optik"), ("lainnya", "Lainnya")]
+    name = models.CharField(max_length=150, unique=True)
+    kind = models.CharField(max_length=10, choices=KINDS, default="klinik")
+    contact = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta: ordering = ["name"]
+
+    def __str__(self): return self.name
+
+
+class PartnerBill(models.Model):
+    """Tagihan satu mitra untuk satu pelayanan karyawan. Alur: diterima → diverifikasi → disetujui → dibayar; ditolak dari diterima/diverifikasi/disetujui (alasan wajib).
+    Tidak ada ubah/hapus isi tagihan: salah catat = tolak (alasan) lalu catat ulang (nomor tagihan yang ditolak boleh dipakai lagi). Perpindahan status tercatat di `PartnerBillEvent`."""
+    SERVICES = [("rawat_jalan", "Rawat jalan"), ("rawat_inap", "Rawat inap"), ("lab", "Laboratorium"), ("obat", "Obat / apotek"), ("kacamata", "Kacamata / optik"), ("lainnya", "Lainnya")]
+    PAYERS = [("perusahaan", "Perusahaan"), ("bpjs", "BPJS"), ("karyawan", "Karyawan")]
+    STATUSES = [("diterima", "Diterima"), ("diverifikasi", "Diverifikasi"), ("disetujui", "Disetujui bayar"), ("dibayar", "Dibayar"), ("ditolak", "Ditolak")]
+    FLOW = {"diterima": {"diverifikasi", "ditolak"}, "diverifikasi": {"disetujui", "ditolak"}, "disetujui": {"dibayar", "ditolak"}}
+    partner = models.ForeignKey(Partner, on_delete=models.PROTECT, related_name="bills")
+    bill_number = models.CharField(max_length=40)
+    bill_date = models.DateField()
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="partner_bills")
+    service_date = models.DateField()
+    service_type = models.CharField(max_length=12, choices=SERVICES, default="rawat_jalan")
+    complaint = EncryptedTextField(blank=True)                                   # MEDIS, terenkripsi
+    diagnosis = models.ForeignKey(Diagnosis, null=True, blank=True, on_delete=models.PROTECT, related_name="+")  # MEDIS
+    payer = models.CharField(max_length=10, choices=PAYERS, default="perusahaan")
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2)          # sesuai tagihan mitra
+    lines_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)  # jumlah rincian (0 bila tanpa rincian)
+    status = models.CharField(max_length=12, choices=STATUSES, default="diterima", db_index=True)
+    status_note = models.CharField(max_length=300, blank=True)                   # alasan ditolak
+    paid_date = models.DateField(null=True, blank=True)
+    payment_ref = models.CharField(max_length=60, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["partner", "bill_number"], condition=~models.Q(status="ditolak"), name="uniq_partner_bill_number_live"),
+                       models.CheckConstraint(condition=models.Q(total_amount__gt=0, lines_total__gte=0), name="partner_bill_amounts")]
+        indexes = [models.Index(fields=["service_date"]), models.Index(fields=["partner", "status"])]
+        ordering = ["-service_date", "-id"]
+
+    @property
+    def mismatch(self): return bool(self.lines_total) and self.lines_total != self.total_amount
+
+    def delete(self, *a, **k): raise PermissionError("Tagihan tidak boleh dihapus; tolak dengan alasan.")
+
+
+class PartnerBillLine(models.Model):
+    """Rincian biaya (opsional). Dibuat bersama tagihan; tidak diubah/dihapus."""
+    bill = models.ForeignKey(PartnerBill, on_delete=models.PROTECT, related_name="lines")
+    description = models.CharField(max_length=200)
+    qty = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)               # = qty × unit_price (disalin)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [models.CheckConstraint(condition=models.Q(qty__gte=1, unit_price__gte=0, amount__gte=0), name="partner_bill_line_valid")]
+
+
+class PartnerBillEvent(models.Model):
+    """Jejak perpindahan status tagihan. Append-only."""
+    bill = models.ForeignKey(PartnerBill, on_delete=models.PROTECT, related_name="events")
+    from_status = models.CharField(max_length=12, blank=True)
+    to_status = models.CharField(max_length=12)
+    note = models.CharField(max_length=300, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta: ordering = ["id"]
+
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Jejak tagihan tidak boleh diubah")
+        super().save(*a, **k)
+
+    def delete(self, *a, **k): raise PermissionError("Jejak tagihan tidak boleh dihapus")

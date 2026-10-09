@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Catat tagihan mitra{% endblock %}{% block content %}
+<p><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
+<h2>Catat tagihan mitra</h2>
+<p style="color:var(--mu)">Tagihan tidak dapat diubah setelah dicatat. Bila keliru: tolak dengan alasan, lalu catat ulang. Keluhan disimpan terenkripsi.</p>
+<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
+<h3>Rincian biaya (opsional)</h3>{{ fs.management_form }}{{ fs.non_form_errors }}
+<div class="wrap"><table><thead><tr><th>Uraian</th><th>Jml</th><th>Harga satuan (Rp)</th></tr></thead><tbody>
+{% for lf in fs %}<tr><td>{{ lf.description }}{{ lf.non_field_errors }}{{ lf.description.errors }}</td><td>{{ lf.qty }}{{ lf.qty.errors }}</td><td>{{ lf.unit_price }}{{ lf.unit_price.errors }}</td></tr>{% endfor %}</tbody></table></div>
+<p style="color:var(--mu)">Bila diisi dan jumlahnya berbeda dari total tagihan, tagihan diberi penanda "selisih" (tidak ditolak).</p>
+<p><button>Simpan</button></p></form>
+{% endblock %}

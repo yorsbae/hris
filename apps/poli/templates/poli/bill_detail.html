@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% load money %}{% block title %}Tagihan {{ b.bill_number }}{% endblock %}{% block content %}
+<p><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
+<h2>Tagihan {{ b.bill_number }} <span class="pill {% if b.status == 'dibayar' %}approved{% elif b.status == 'ditolak' %}rejected{% else %}pending{% endif %}">{{ b.get_status_display }}</span></h2>
+<div class="card"><table>
+<tr><th>Mitra</th><td>{{ b.partner.name }} ({{ b.partner.get_kind_display }})</td></tr>
+<tr><th>Karyawan</th><td>{{ b.employee.nik }} — {{ b.employee.name }} ({{ b.employee.department.name }})</td></tr>
+<tr><th>Tanggal pelayanan / tagihan</th><td>{{ b.service_date|date:"d-m-Y" }} / {{ b.bill_date|date:"d-m-Y" }}</td></tr>
+<tr><th>Jenis layanan</th><td>{{ b.get_service_type_display }}</td></tr>
+<tr><th>Diagnosa</th><td>{% if b.diagnosis %}{{ b.diagnosis }}{% else %}—{% endif %}</td></tr>
+<tr><th>Keluhan</th><td>{{ b.complaint|linebreaksbr|default:"—" }}</td></tr>
+<tr><th>Penanggung</th><td>{{ b.get_payer_display }}</td></tr>
+<tr><th>Total tagihan</th><td><b>{{ b.total_amount|rupiah }}</b>{% if b.mismatch %} <span class="pill rejected">jumlah rincian {{ b.lines_total|rupiah }} ≠ total</span>{% endif %}</td></tr>
+{% if b.status == "ditolak" %}<tr><th>Alasan ditolak</th><td>{{ b.status_note }}</td></tr>{% endif %}
+{% if b.status == "dibayar" %}<tr><th>Dibayar</th><td>{{ b.paid_date|date:"d-m-Y" }} · bukti {{ b.payment_ref }}</td></tr>{% endif %}
+<tr><th>Dicatat</th><td>{{ b.created_at|date:"d-m-Y H:i" }}{% if b.created_by %} oleh {{ b.created_by.username }}{% endif %}</td></tr></table></div>
+{% if lines %}<h3>Rincian biaya</h3><div class="wrap"><table id="lines"><thead><tr><th>Uraian</th><th>Jml</th><th>Harga satuan</th><th>Jumlah</th></tr></thead><tbody>{% for l in lines %}<tr><td>{{ l.description }}</td><td>{{ l.qty }}</td><td>{{ l.unit_price|rupiah }}</td><td>{{ l.amount|rupiah }}</td></tr>{% endfor %}<tr><th colspan="3">Jumlah rincian</th><th>{{ b.lines_total|rupiah }}</th></tr></tbody></table></div>{% endif %}
+{% if next %}<h3>Tindakan</h3>
+{% if "diverifikasi" in next %}<form method="post" action="{% url 'poli_bill_action' b.pk 'verify' %}" class="bar">{% csrf_token %}<button>Tandai diverifikasi</button></form>{% endif %}
+{% if "disetujui" in next %}<form method="post" action="{% url 'poli_bill_action' b.pk 'approve' %}" class="bar">{% csrf_token %}<button>Setujui untuk dibayar</button></form>{% endif %}
+{% if "dibayar" in next %}<form method="post" action="{% url 'poli_bill_action' b.pk 'pay' %}" class="bar">{% csrf_token %}<input type="date" name="paid_date" value="{{ today|date:'Y-m-d' }}" required><input name="payment_ref" placeholder="Nomor bukti bayar (wajib)" maxlength="60" required><button>Catat dibayar</button></form>{% endif %}
+{% if "ditolak" in next %}<form method="post" action="{% url 'poli_bill_action' b.pk 'reject' %}" class="bar">{% csrf_token %}<input name="note" placeholder="Alasan penolakan (wajib)" maxlength="300" required style="min-width:280px"><button class="danger">Tolak tagihan</button></form>{% endif %}
+{% endif %}
+<h3>Jejak</h3><div class="wrap"><table id="events"><thead><tr><th>Waktu</th><th>Dari</th><th>Ke</th><th>Oleh</th><th>Catatan</th></tr></thead><tbody>{% for e in events %}<tr><td>{{ e.created_at|date:"d-m-Y H:i" }}</td><td>{{ e.from_status|default:"—" }}</td><td>{{ e.to_status }}</td><td>{{ e.user.username|default:"—" }}</td><td>{{ e.note }}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

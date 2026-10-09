@@ -146,3 +146,42 @@ def link_medicine(diagnosis, medicine_id, qty=1, dosage=""):
 def unlink_medicine(diagnosis, link_id):
     n, _ = DiagnosisMedicine.objects.filter(diagnosis=diagnosis, pk=link_id).delete()
     if not n: raise ValueError("Tautan tidak ditemukan")
+
+
+# ---------------------------------------------------------------- Tagihan Mitra (putaran 24, P6)
+def create_partner_bill(user, partner, bill_number, bill_date, employee, service_date, service_type, complaint, diagnosis, payer, total, lines=()):
+    """Catat tagihan + rincian (opsional) + jejak awal dalam satu transaksi. `lines` = [(deskripsi, qty, harga_satuan)]."""
+    from decimal import Decimal
+    from .models import PartnerBill, PartnerBillEvent, PartnerBillLine
+    with transaction.atomic():
+        lines_total = sum((Decimal(q) * Decimal(p) for _, q, p in lines), Decimal(0))
+        b = PartnerBill.objects.create(partner=partner, bill_number=bill_number.strip(), bill_date=bill_date, employee=employee, service_date=service_date, service_type=service_type,
+                                       complaint=(complaint or "").strip(), diagnosis=diagnosis, payer=payer, total_amount=total, lines_total=lines_total, created_by=user)
+        for desc, q, p in lines: PartnerBillLine.objects.create(bill=b, description=desc.strip(), qty=q, unit_price=p, amount=Decimal(q) * Decimal(p))
+        PartnerBillEvent.objects.create(bill=b, from_status="", to_status="diterima", user=user)
+        return b
+
+
+def bill_transition(pk, to, user, note="", paid_date=None, payment_ref=""):
+    """Perpindahan status di bawah kunci baris. Ditolak: alasan wajib. Dibayar: tanggal bayar (tidak di masa depan, tidak sebelum tanggal tagihan) + nomor bukti wajib.
+    Pemisahan tugas (pembuat ≠ penyetuju) belum diberlakukan (A60); jejak `PartnerBillEvent` mencatat siapa melakukan apa."""
+    from datetime import date as _d
+    from .models import PartnerBill, PartnerBillEvent
+    note = (note or "").strip()
+    with transaction.atomic():
+        b = PartnerBill.objects.select_for_update().get(pk=pk)
+        before = b.status
+        if to not in PartnerBill.FLOW.get(before, ()): raise ValueError(f"Tagihan berstatus {b.get_status_display()} tidak bisa diubah ke {dict(PartnerBill.STATUSES).get(to, to)}.")
+        if to == "ditolak":
+            if not note: raise ValueError("Alasan penolakan wajib diisi.")
+            b.status_note = note[:300]
+        if to == "dibayar":
+            payment_ref = (payment_ref or "").strip()
+            if not payment_ref: raise ValueError("Nomor bukti bayar wajib diisi.")
+            if not paid_date: raise ValueError("Tanggal bayar wajib diisi.")
+            if paid_date > _d.today(): raise ValueError("Tanggal bayar tidak boleh di masa depan.")
+            if paid_date < b.bill_date: raise ValueError("Tanggal bayar tidak boleh sebelum tanggal tagihan.")
+            b.paid_date, b.payment_ref = paid_date, payment_ref[:60]
+        b.status = to; b.save(update_fields=["status", "status_note", "paid_date", "payment_ref"])
+        PartnerBillEvent.objects.create(bill=b, from_status=before, to_status=to, note=(note or (f"bukti {b.payment_ref}" if to == "dibayar" else ""))[:300], user=user)
+        return b, before

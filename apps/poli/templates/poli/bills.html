@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% load money %}{% block title %}Tagihan Mitra{% endblock %}{% block content %}
+<p><a href="/poli/">‹ Poliklinik</a></p>
+<h2>Tagihan Mitra{% if f.period %} — layanan {{ f.period }}{% else %} — semua periode{% endif %}</h2>
+<p style="color:var(--mu)">Data medis (keluhan &amp; diagnosa): hanya Poli. Periode = bulan <b>tanggal pelayanan</b>.</p>
+<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="NIK / nama / no. tagihan">
+<input name="period" value="{{ f.period }}" placeholder="YYYY-MM (kosong = semua)" size="12" pattern="(\d{4}-\d{2})?">
+<select name="partner"><option value="">Semua mitra</option>{% for p in partners %}<option value="{{ p.pk }}"{% if f.partner == p.pk|stringformat:"s" %} selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+<select name="status"><option value="">Semua status</option>{% for k, l in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<select name="payer"><option value="">Semua penanggung</option>{% for k, l in payers %}<option value="{{ k }}"{% if f.payer == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<select name="service_type"><option value="">Semua layanan</option>{% for k, l in services %}<option value="{{ k }}"{% if f.service_type == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<input name="diagnosis" value="{{ f.diagnosis }}" placeholder="Kode diagnosa" size="10"><button>Filter</button></form>
+<p><a class="btn" href="{% url 'poli_bill_new' %}">+ Catat tagihan</a> <a href="{% url 'poli_bill_import' %}">Impor CSV/XLSX</a> · <a href="{% url 'poli_partners' %}">Mitra</a><br>
+Ekspor ringkasan (tanpa keluhan/diagnosa): <a href="?{{ qs }}&export=summary&format=xlsx">XLSX</a> / <a href="?{{ qs }}&export=summary">CSV</a> · Ekspor lengkap (medis): <a href="?{{ qs }}&export=detail&format=xlsx">XLSX</a> / <a href="?{{ qs }}&export=detail">CSV</a></p>
+<div class="grid">
+<div class="card"><b>{{ total_live|rupiah }}</b><span>Total tagihan (tidak termasuk ditolak)</span></div>
+<div class="card"><b>{{ outstanding|rupiah }}</b><span>Belum dibayar</span></div>
+{% for s in by_status %}<div class="card"><b>{{ s.n }}</b><span>{{ s.label }} · {{ s.total|rupiah }}</span></div>{% endfor %}
+</div>
+{% if by_partner %}<h3>Per mitra</h3><div class="wrap"><table id="by-partner"><thead><tr><th>Mitra</th><th>Tagihan</th><th>Total</th></tr></thead><tbody>{% for r in by_partner %}<tr><td>{{ r.partner__name }}</td><td>{{ r.n }}</td><td>{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if by_dept %}<h3>Per departemen</h3><div class="wrap"><table id="by-dept"><thead><tr><th>Departemen</th><th>Tagihan</th><th>Total</th></tr></thead><tbody>{% for r in by_dept %}<tr><td>{{ r.employee__department__name }}</td><td>{{ r.n }}</td><td>{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if by_diag %}<h3>Per diagnosa (50 teratas)</h3><div class="wrap"><table id="by-diag"><thead><tr><th>Diagnosa</th><th>Tagihan</th><th>Total</th></tr></thead><tbody>{% for r in by_diag %}<tr><td>{% if r.diagnosis__code %}{{ r.diagnosis__code }} {{ r.diagnosis__name }}{% else %}<i>tanpa diagnosa</i>{% endif %}</td><td>{{ r.n }}</td><td>{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if employees %}<h3>Per karyawan (teratas {{ employees|length }})</h3><div class="wrap"><table id="by-employee"><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Tagihan</th><th>Total</th></tr></thead><tbody>{% for r in employees %}<tr><td>{{ r.employee__nik }}</td><td>{{ r.employee__name }}</td><td>{{ r.employee__department__name }}</td><td>{{ r.n }}</td><td>{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<h3>Daftar tagihan</h3>
+<div class="wrap"><table id="detail"><thead><tr><th>Layanan</th><th>Mitra</th><th>No. tagihan</th><th>NIK</th><th>Nama</th><th>Departemen</th><th>Penanggung</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>
+{% for b in page %}<tr><td>{{ b.service_date|date:"d-m-Y" }}</td><td>{{ b.partner.name }}</td><td>{{ b.bill_number }}</td><td>{{ b.employee.nik }}</td><td>{{ b.employee.name }}</td><td>{{ b.employee.department.name }}</td><td>{{ b.get_payer_display }}</td><td>{{ b.total_amount|rupiah }}{% if b.mismatch %} <span class="pill rejected" title="Jumlah rincian berbeda">selisih</span>{% endif %}</td>
+<td><span class="pill {% if b.status == 'dibayar' %}approved{% elif b.status == 'ditolak' %}rejected{% else %}pending{% endif %}">{{ b.get_status_display }}</span></td><td><a href="{% url 'poli_bill_detail' b.pk %}">Buka</a></td></tr>
+{% empty %}<tr><td class="empty" colspan="10">Belum ada tagihan untuk filter ini.</td></tr>{% endfor %}</tbody></table></div>
+{% include "poli/_pager.html" %}
+{% endblock %}

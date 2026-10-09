@@ -3,7 +3,9 @@ from decimal import Decimal
 import csv
 from django import forms
 from django.forms import formset_factory
-from .models import Diagnosis, MedicalRecord, Medicine
+from apps.core.money import RupiahField
+from apps.hr.models import Employee
+from .models import Diagnosis, MedicalRecord, Medicine, Partner, PartnerBill
 from . import services
 
 TA = lambda rows=3: forms.Textarea(attrs={"rows": rows})
@@ -222,3 +224,79 @@ class LetterForm(forms.Form):
             if not d.get("purpose"): self.add_error("purpose", "Keperluan wajib dipilih.")
             if self.record is not None and self.record.kind != "kehamilan": self.add_error("kind", "Surat izin hamil hanya untuk kunjungan jenis kehamilan.")
         return d
+
+
+# ---------------------------------------------------------------- Tagihan Mitra (putaran 24, P6)
+class PartnerBillForm(forms.Form):
+    """Satu aturan untuk input manual DAN impor (impor tanpa rincian). Karyawan lewat NIK (aktif atau nonaktif — berobat bisa terjadi sebelum resign); data medis tidak tampil di audit."""
+    partner = forms.ModelChoiceField(label="Mitra", queryset=Partner.objects.none(), empty_label="— pilih —")
+    bill_number = forms.CharField(label="Nomor tagihan mitra", max_length=40)
+    bill_date = forms.DateField(label="Tanggal tagihan", initial=date.today, widget=forms.DateInput(attrs={"type": "date"}))
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+    service_date = forms.DateField(label="Tanggal pelayanan", widget=forms.DateInput(attrs={"type": "date"}))
+    service_type = forms.ChoiceField(label="Jenis layanan", choices=PartnerBill.SERVICES)
+    complaint = forms.CharField(label="Keluhan", required=False, widget=TA(), max_length=2000)
+    diagnosis_code = forms.CharField(label="Kode diagnosa", required=False, max_length=10, help_text="Kode dari Master Diagnosa (mis. A09). Kosong bila belum ada.")
+    payer = forms.ChoiceField(label="Penanggung", choices=PartnerBill.PAYERS)
+    total_amount = RupiahField(label="Total tagihan (Rp)", min_value=1, max_value=5_000_000_000)
+
+    def __init__(self, *a, instance=None, user=None, **k):
+        super().__init__(*a, **k); self.instance, self.user, self.employee, self.diagnosis = instance, user, None, None
+        self.fields["partner"].queryset = Partner.objects.filter(is_active=True)
+
+    def clean_bill_number(self): return " ".join(self.cleaned_data["bill_number"].split())
+
+    def clean(self):
+        d = super().clean()
+        nik = (d.get("nik") or "").strip()
+        self.employee = Employee.objects.filter(nik=nik).first() if nik else None
+        if nik and not self.employee: self.add_error("nik", "Karyawan dengan NIK ini tidak ditemukan.")
+        code = (d.get("diagnosis_code") or "").strip()
+        if code:
+            self.diagnosis = Diagnosis.objects.filter(code__iexact=code).first()
+            if not self.diagnosis: self.add_error("diagnosis_code", "Kode diagnosa tidak ada di Master Diagnosa.")
+        sd, bd = d.get("service_date"), d.get("bill_date")
+        if sd and bd and bd < sd: self.add_error("bill_date", "Tanggal tagihan tidak boleh sebelum tanggal pelayanan.")
+        if bd and bd > date.today(): self.add_error("bill_date", "Tanggal tagihan tidak boleh di masa depan.")   # bersama aturan di atas ⇒ tanggal pelayanan juga tidak di masa depan
+        if d.get("partner") and d.get("bill_number") and PartnerBill.objects.filter(partner=d["partner"], bill_number__iexact=d["bill_number"]).exclude(status="ditolak").exists():
+            self.add_error("bill_number", "Nomor tagihan ini dari mitra yang sama sudah tercatat (yang ditolak boleh dicatat ulang).")
+        return d
+
+    def save(self, lines=()):
+        d = self.cleaned_data
+        return services.create_partner_bill(self.user, d["partner"], d["bill_number"], d["bill_date"], self.employee, d["service_date"], d["service_type"], d.get("complaint", ""),
+                                            self.diagnosis, d["payer"], d["total_amount"], lines)
+
+
+class BillLineForm(forms.Form):
+    description = forms.CharField(label="Uraian", max_length=200, required=False)
+    qty = forms.IntegerField(label="Jml", min_value=1, max_value=10000, required=False, initial=1)
+    unit_price = RupiahField(label="Harga satuan (Rp)", min_value=0, max_value=5_000_000_000, required=False)
+
+    def clean(self):
+        d = super().clean()
+        desc, price = (d.get("description") or "").strip(), d.get("unit_price")
+        if not desc and price in (None, ""): return d                      # baris kosong (jumlah bawaan 1 tidak dihitung)
+        if not desc or price in (None, ""): raise forms.ValidationError("Baris rincian harus lengkap: uraian dan harga satuan.")
+        d["qty"] = d.get("qty") or 1
+        return d
+
+
+class BaseBillLineFormSet(forms.BaseFormSet):
+    def lines(self):
+        return [(f.cleaned_data["description"], f.cleaned_data["qty"], f.cleaned_data["unit_price"]) for f in self.forms
+                if (f.cleaned_data.get("description") or "").strip() and f.cleaned_data.get("unit_price") not in (None, "") and f.cleaned_data.get("qty")]
+
+
+BillLineFormSet = formset_factory(BillLineForm, formset=BaseBillLineFormSet, extra=6, max_num=40, validate_max=True)
+
+
+class PartnerForm(forms.Form):
+    name = forms.CharField(label="Nama mitra", max_length=150)
+    kind = forms.ChoiceField(label="Jenis", choices=Partner.KINDS)
+    contact = forms.CharField(label="Kontak", required=False, max_length=200)
+
+    def clean_name(self):
+        v = " ".join(self.cleaned_data["name"].split())
+        if Partner.objects.filter(name__iexact=v).exists(): raise forms.ValidationError("Mitra dengan nama ini sudah ada.")
+        return v

@@ -1,7 +1,7 @@
 from django.urls import path
 from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
-from . import pages as v
-from .bulk_specs import DIAGNOSIS, MEDICINE
+from . import billing_views as bv, pages as v
+from .bulk_specs import BILL, DIAGNOSIS, MEDICINE
 from .pages import poli_only
 
 urlpatterns = [
@@ -32,6 +32,13 @@ urlpatterns = [
     path("diagnoses/<int:pk>/edit/", v.diagnosis_form, name="poli_diagnosis_edit"),
     path("diagnoses/<int:pk>/medicines/", v.diagnosis_medicines, name="poli_diagnosis_medicines"),
     path("diagnoses/<int:pk>/medicines/<int:link_id>/unlink/", v.diagnosis_medicine_unlink, name="poli_diagnosis_unlink"),
+    path("billing/", bv.bills, name="poli_bills"),
+    path("billing/new/", bv.bill_new, name="poli_bill_new"),
+    path("billing/partners/", bv.partners, name="poli_partners"),
+    path("billing/import/", bulk_import_view(BILL, poli_only), name="poli_bill_import"),
+    path("billing/import/template.csv", bulk_template_view(BILL, poli_only)),
+    path("billing/<int:pk>/", bv.bill_detail, name="poli_bill_detail"),
+    path("billing/<int:pk>/<str:action>/", bv.bill_action, name="poli_bill_action"),
     path("referrals/", v.referral_list, name="poli_referrals"),
     path("referrals/<int:pk>/", v.referral_detail, name="poli_referral_detail"),
     path("referrals/<int:pk>/letter.pdf", v.referral_letter, name="poli_referral_letter"),

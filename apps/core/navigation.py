@@ -40,7 +40,7 @@ def _groups(role):
 def _poli(with_hub):
     items = [("Poliklinik", "/poli/", "plus")] if with_hub else []
     return items + [("Pemeriksaan & Rekam Medis", "/poli/records/", "activity"), ("Obat & Stok", "/poli/medicines/", "pill"), ("Rekap Stok Obat", "/poli/reports/stock/", "file"),
-                    ("Rujukan", "/poli/referrals/", "repeat"), ("Master Diagnosa", "/poli/diagnoses/", "file")]
+                    ("Rujukan", "/poli/referrals/", "repeat"), ("Tagihan Mitra", "/poli/billing/", "file"), ("Master Diagnosa", "/poli/diagnoses/", "file")]
 
 # Catatan: halaman jadwal mingguan (/schedule/) tidak punya menu sendiri (putaran 18); dibuka dari Data Karyawan dan membuat butir itu aktif.
 def build(user, path):
