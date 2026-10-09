@@ -129,6 +129,7 @@ def void_uniform_purchase(pk, reason, user):
         if p.voided_at: raise ValueError("Pembelian ini sudah dibatalkan.")
         if p.deduction_status == "sudah": raise ValueError("Pembelian yang sudah dipotong dari gaji tidak dapat dibatalkan.")
         p.voided_at, p.voided_by, p.void_reason = timezone.now(), user, reason[:300]; p.save(update_fields=["voided_at", "voided_by", "void_reason"])
+        stock_move(p.utype_id, p.size_id, "batal", p.quantity, timezone.localdate(), user, purchase=p, note=f"Pembelian #{p.pk} dibatalkan")   # stok kembali
         return p
 
 
@@ -144,3 +145,22 @@ def mark_uniform_deducted(pk, period, user):
         if period < p.purchase_date.strftime("%Y-%m"): raise ValueError("Periode potongan tidak boleh sebelum bulan pembelian.")
         p.deduction_status, p.deducted_period = "sudah", period; p.save(update_fields=["deduction_status", "deducted_period"])
         return p
+
+
+# ---------------------------------------------------------------- Stok seragam (putaran 25)
+STOCK_KINDS = {"masuk": 1, "batal": 1, "keluar": -1}   # tanda yang dipaksa; koreksi bebas (±, bukan 0)
+
+
+def stock_move(utype_id, size_id, kind, quantity, when, user, purchase=None, note=""):
+    """Satu-satunya pintu perubahan stok: kunci baris saldo, tulis baris kartu append-only dengan `balance_after`. `quantity` bertanda (keluar negatif).
+    Boleh membuat saldo negatif (A63). Idempoten per (pembelian, jenis gerak) lewat constraint unik."""
+    from .models import UniformStock, UniformStockMovement
+    if kind not in ("masuk", "keluar", "batal", "koreksi"): raise ValueError("Jenis gerak stok tidak dikenal.")
+    if not quantity: raise ValueError("Jumlah tidak boleh 0.")
+    if kind in STOCK_KINDS and (quantity > 0) != (STOCK_KINDS[kind] > 0): raise ValueError("Tanda jumlah tidak sesuai jenis gerak stok.")
+    with transaction.atomic():
+        UniformStock.objects.get_or_create(utype_id=utype_id, size_id=size_id)
+        st = UniformStock.objects.select_for_update().get(utype_id=utype_id, size_id=size_id)
+        st.balance += quantity; st.save(update_fields=["balance"])
+        return UniformStockMovement.objects.create(utype_id=utype_id, size_id=size_id, kind=kind, quantity=quantity, balance_after=st.balance,
+                                                   movement_date=when, purchase=purchase, note=(note or "").strip()[:300], created_by=user)

@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money %}{% block title %}Tagihan {{ b.bill_number }}{% endblock %}{% block content %}
-<p><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
+<p class="back"><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
 <h2>Tagihan {{ b.bill_number }} <span class="pill {% if b.status == 'dibayar' %}approved{% elif b.status == 'ditolak' %}rejected{% else %}pending{% endif %}">{{ b.get_status_display }}</span></h2>
 <div class="card"><table>
 <tr><th>Mitra</th><td>{{ b.partner.name }} ({{ b.partner.get_kind_display }})</td></tr>

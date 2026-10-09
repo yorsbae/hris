@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money %}{% block title %}{{ p.code }}{% endblock %}{% block content %}
-<p><a href="/hrd/projects/">‹ Daftar proyek</a></p>
+<p class="back"><a href="/hrd/projects/">‹ Daftar proyek</a></p>
 <h2>{{ p.code }} · {{ p.name }} <span class="pill">{{ p.get_status_display }}</span></h2>
 <div class="bar"><a class="btn" style="margin-left:0" href="{% url 'hrd_project_edit' p.pk %}">Ubah proyek</a>{% if p.status == "aktif" %}<a class="btn" href="{% url 'hrd_project_work_new' p.pk %}">+ Pekerja harian</a>{% endif %}</div>
 <div class="card"><table><tr><th>Lokasi</th><td>{{ p.location|default:"—" }}</td></tr><tr><th>Periode</th><td>{{ p.start_date|date:"d M Y" }} – {{ p.end_date|date:"d M Y"|default:"…" }}</td></tr><tr><th>Catatan</th><td>{{ p.note|default:"—" }}</td></tr></table></div>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}BPJS {{ e.nik }}{% endblock %}{% block content %}
-<p><a href="/hrd/bpjs/">‹ Daftar status BPJS</a> · <a href="{% url 'employee_detail_page' e.pk %}">Detail karyawan</a></p>
+<p class="back"><a href="/hrd/bpjs/">‹ Daftar status BPJS</a> · <a href="{% url 'employee_detail_page' e.pk %}">Detail karyawan</a></p>
 <h2>{{ e.nik }} · {{ e.name }} <span class="pill">{{ e.status }}</span></h2>
 <div class="card"><table><thead><tr><th>Program</th><th>Status</th><th>Efektif</th><th>Keterangan</th><th>Nomor di data karyawan</th></tr></thead><tbody>
 {% for label, m, has_no in current %}<tr><td>{{ label }}</td><td>{% if m %}<span class="pill {% if m.status == 'aktif' %}approved{% else %}rejected{% endif %}">{{ m.status }}</span>{% else %}<span class="pill">belum dicatat</span>{% endif %}</td>

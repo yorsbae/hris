@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money %}{% block title %}Master Seragam{% endblock %}{% block content %}
-<p><a href="/hrd/uniforms/">‹ Rekap Seragam</a></p>
+<p class="back"><a href="/hrd/uniforms/">‹ Rekap Seragam</a></p>
 <h2>Master Seragam</h2>
 <h3>Tarif potongan per satuan pembelian</h3>
 <p style="color:var(--mu)">Berlaku hari ini: {% for g, r in current.items %}{% if g == "L" %}Laki-laki{% else %}Perempuan{% endif %} {% if r %}<b>{{ r.amount|rupiah }}</b> (sejak {{ r.effective_from|date:"d-m-Y" }}){% else %}<b>belum ada tarif</b>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}.

@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Mitra{% endblock %}{% block content %}
-<p><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
+<p class="back"><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
 <h2>Mitra rekanan</h2>
 <div class="wrap"><table id="partners"><thead><tr><th>Nama</th><th>Jenis</th><th>Kontak</th><th>Tagihan</th><th>Status</th><th></th></tr></thead><tbody>
 {% for p in partners %}<tr><td>{{ p.name }}</td><td>{{ p.get_kind_display }}</td><td>{{ p.contact }}</td><td>{{ p.n }}</td><td>{% if p.is_active %}<span class="pill approved">aktif</span>{% else %}<span class="pill rejected">nonaktif</span>{% endif %}</td>

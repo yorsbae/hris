@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ ref.number }}{% endblock %}{% block content %}
-<p><a href="/poli/referrals/">‹ Rujukan</a></p>
+<p class="back"><a href="/poli/referrals/">‹ Rujukan</a></p>
 <h2>{{ ref.number }} · {{ ref.get_status_display }}</h2>
 <div class="card"><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}
 <tr><th>Rekam medis</th><td><a href="{% url 'poli_record_detail' ref.record.pk %}">#{{ ref.record.pk }}</a></td></tr>

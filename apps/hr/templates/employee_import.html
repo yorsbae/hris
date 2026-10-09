@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Impor karyawan{% endblock %}{% block content %}
-<p><a href="/employees/">‹ Daftar karyawan</a></p>
+<p class="back"><a href="/employees/">‹ Daftar karyawan</a></p>
 <h2>Impor karyawan (CSV / XLSX)</h2>
 <div class="card" style="margin-bottom:12px"><p>Kolom: <code>{{ columns|join:", " }}</code>. Wajib: <code>{{ required|join:", " }}</code>.
 Departemen dirujuk lewat <b>kode</b>; jabatan &amp; shift lewat <b>nama</b> (shift boleh juga lewat <b>kode</b>) dan harus sudah ada di Master. Tanggal <code>YYYY-MM-DD</code> atau <code>DD/MM/YYYY</code>. CSV: pemisah koma atau titik-koma, UTF-8. <code>shift_group</code>: kode kelompok (A7–G7 = 3 shift, A7_pack–G7_pack = 2 shift), isi salah satu antara <code>shift</code> atau <code>shift_group</code>. <code>gs_short</code>: 14 atau 12 (khusus GS, jam pulang sebelum libur GS).

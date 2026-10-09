@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Cuti hamil #{{ m.pk }}{% endblock %}{% block content %}
-<p><a href="/hrd/maternity/">‹ Daftar cuti hamil</a></p>
+<p class="back"><a href="/hrd/maternity/">‹ Daftar cuti hamil</a></p>
 <h2>Cuti hamil #{{ m.pk }} <span class="pill">{{ phase }}</span></h2>
 <div class="card"><table>
 <tr><th>Karyawan</th><td>{{ m.employee.nik }} · {{ m.employee.name }} ({{ m.employee.department.name }})</td></tr>

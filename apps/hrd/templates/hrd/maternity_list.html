@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Cuti hamil{% endblock %}{% block content %}
-<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Cuti hamil <a class="btn" href="{% url 'hrd_maternity_new' %}">+ Cuti hamil baru</a></h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
 <select name="state"><option value="">Semua status</option>{% for k, v in states %}<option value="{{ k }}"{% if f.state == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>

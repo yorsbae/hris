@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money %}{% block title %}Potongan BPJS{% endblock %}{% block content %}
-<p><a href="/hrd/bpjs/">‹ Status BPJS</a> · <a href="/hrd/">Operasional HRD</a></p>
+<p class="back"><a href="/hrd/bpjs/">‹ Status BPJS</a> · <a href="/hrd/">Operasional HRD</a></p>
 <h2>Potongan BPJS{% if f.scheme == "kes" %} — Kesehatan (K){% elif f.scheme == "tk" %} — Ketenagakerjaan (TK){% endif %} — rekap per periode</h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
 <input name="period" value="{{ f.period }}" placeholder="YYYY-MM" size="8" pattern="\d{4}-\d{2}" title="YYYY-MM">
@@ -7,7 +7,8 @@
 <select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
 <select name="anomaly"><option value="">Semua baris</option><option value="dipotong"{% if f.anomaly == "dipotong" %} selected{% endif %}>Anomali: dipotong padahal nonaktif</option><option value="belum"{% if f.anomaly == "belum" %} selected{% endif %}>Anomali: aktif tapi belum dipotong</option></select>
 <button>Filter</button></form>
-<p><a class="btn" href="{% url 'hrd_bpjs_deduction_new' %}">+ Potongan</a> <a href="{% url 'hrd_bpjs_deduction_import' %}">Impor CSV/XLSX</a> · Ekspor: <a href="?{{ qs }}&export=1&format=xlsx">XLSX</a> / <a href="?{{ qs }}&export=1">CSV</a></p>
+<div class="tools"><a class="btn" href="{% url 'hrd_bpjs_deduction_new' %}">+ Potongan</a><a class="chip" href="{% url 'hrd_bpjs_deduction_import' %}">Impor CSV/XLSX</a></div>
+<div class="exports"><span>Ekspor:</span><a href="?{{ qs }}&export=1&format=xlsx">XLSX</a><a href="?{{ qs }}&export=1">CSV</a></div>
 <div class="grid">
 <div class="card"><b>{{ totals.emp|rupiah }}</b><span>Porsi karyawan ({{ totals.n }} baris)</span></div>
 <div class="card"><b>{{ totals.er|rupiah }}</b><span>Porsi perusahaan</span></div>

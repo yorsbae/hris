@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ m.name }}{% endblock %}{% block content %}
-<p><a href="/poli/medicines/">‹ Obat</a></p>
+<p class="back"><a href="/poli/medicines/">‹ Obat</a></p>
 <h2>{{ m.code }} · {{ m.name }} <a class="btn" href="{% url 'poli_medicine_edit' m.pk %}">Ubah</a></h2>
 <div class="grid"><div class="card"><b>{{ m.stock }}</b><span>stok ({{ m.unit }}){% if low %} · <span class="pill rejected">di bawah/sama dengan minimum</span>{% endif %}</span></div><div class="card"><b>{{ m.min_stock }}</b><span>stok minimum</span></div></div>
 <div class="grid" style="margin-top:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">

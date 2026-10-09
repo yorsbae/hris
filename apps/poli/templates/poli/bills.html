@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money %}{% block title %}Tagihan Mitra{% endblock %}{% block content %}
-<p><a href="/poli/">‹ Poliklinik</a></p>
+<p class="back"><a href="/poli/">‹ Poliklinik</a></p>
 <h2>Tagihan Mitra{% if f.period %} — layanan {{ f.period }}{% else %} — semua periode{% endif %}</h2>
 <p style="color:var(--mu)">Data medis (keluhan &amp; diagnosa): hanya Poli. Periode = bulan <b>tanggal pelayanan</b>.</p>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="NIK / nama / no. tagihan">
@@ -10,8 +10,8 @@
 <select name="service_type"><option value="">Semua layanan</option>{% for k, l in services %}<option value="{{ k }}"{% if f.service_type == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
 <select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
 <input name="diagnosis" value="{{ f.diagnosis }}" placeholder="Kode diagnosa" size="10"><button>Filter</button></form>
-<p><a class="btn" href="{% url 'poli_bill_new' %}">+ Catat tagihan</a> <a href="{% url 'poli_bill_import' %}">Impor CSV/XLSX</a> · <a href="{% url 'poli_partners' %}">Mitra</a><br>
-Ekspor ringkasan (tanpa keluhan/diagnosa): <a href="?{{ qs }}&export=summary&format=xlsx">XLSX</a> / <a href="?{{ qs }}&export=summary">CSV</a> · Ekspor lengkap (medis): <a href="?{{ qs }}&export=detail&format=xlsx">XLSX</a> / <a href="?{{ qs }}&export=detail">CSV</a></p>
+<div class="tools"><a class="btn" href="{% url 'poli_bill_new' %}">+ Catat tagihan</a><a class="chip" href="{% url 'poli_bill_import' %}">Impor CSV/XLSX</a><a class="chip" href="{% url 'poli_partners' %}">Mitra</a></div>
+<div class="exports"><span>Ekspor ringkasan (tanpa keluhan/diagnosa):</span><a href="?{{ qs }}&export=summary&format=xlsx">XLSX</a><a href="?{{ qs }}&export=summary">CSV</a><span class="sep">|</span><span>Ekspor lengkap (medis):</span><a href="?{{ qs }}&export=detail&format=xlsx">XLSX</a><a href="?{{ qs }}&export=detail">CSV</a></div>
 <div class="grid">
 <div class="card"><b>{{ total_live|rupiah }}</b><span>Total tagihan (tidak termasuk ditolak)</span></div>
 <div class="card"><b>{{ outstanding|rupiah }}</b><span>Belum dibayar</span></div>

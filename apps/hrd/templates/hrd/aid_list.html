@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money %}{% block title %}Bantuan{% endblock %}{% block content %}
-<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Bantuan <small style="color:var(--mu);font-weight:400">(rekap)</small> <a class="btn" href="{% url 'hrd_aid_new' %}">+ Catat bantuan</a></h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
 <select name="kind"><option value="">Semua jenis</option>{% for k, v in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>

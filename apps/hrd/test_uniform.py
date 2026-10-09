@@ -31,7 +31,9 @@ class Base(HrdBase):
     def purchase(self, e=None, **kw):
         e = e or self.e1; rate = services.uniform_rate_for(e.gender, D0); qty = kw.pop("quantity", 1)
         d = dict(employee=e, purchase_date=D0, utype=self.type, size=self.L, gender=e.gender, quantity=qty, rate_amount=rate.amount, deduction_amount=rate.amount * qty, created_by=self.hrd); d.update(kw)
-        return UniformPurchase.objects.create(**d)
+        p = UniformPurchase.objects.create(**d)
+        services.stock_move(p.utype_id, p.size_id, "keluar", -p.quantity, p.purchase_date, self.hrd, purchase=p)   # sama seperti form (putaran 25)
+        return p
 
 
 class SeedTests(Base):
@@ -194,13 +196,13 @@ class RecapTests(Base):
         self.assertEqual(self.get().context["totals"]["belum"], Decimal(55000))
 
     def test_size_by_gender_matrix(self):
-        m = {(r["size"]): r for r in self.get().context["matrix"]}
-        self.assertEqual((m["L"]["L"], m["L"]["P"], m["L"]["total"]), (2, 1, 3)); self.assertEqual((m["M"]["L"], m["M"]["P"], m["M"]["total"]), (0, 3, 3))
-        self.assertEqual([r["size"] for r in self.get().context["matrix"]], ["M", "L"])        # urutan master (M=20, L=30), bukan abjad
+        m = {(r["size"]): r for r in self.get().context["stock"]}
+        self.assertEqual((m["L"]["L"], m["L"]["P"], m["L"]["keluar"]), (2, 1, 3)); self.assertEqual((m["M"]["L"], m["M"]["P"], m["M"]["keluar"]), (0, 3, 3))
+        self.assertEqual([r["size"] for r in self.get().context["stock"]], ["M", "L"])        # urutan master (M=20, L=30), bukan abjad
 
     def test_gender_is_the_copy_not_current_employee_gender(self):
         self.e1.gender = "P"; self.e1.save()      # data karyawan berubah setelah pembelian
-        m = {r["size"]: r for r in self.get().context["matrix"]}; self.assertEqual(m["L"]["L"], 2)
+        m = {r["size"]: r for r in self.get().context["stock"]}; self.assertEqual(m["L"]["L"], 2)
 
     def test_per_department_and_per_employee(self):
         d = {r["employee__department__name"]: r for r in self.get().context["by_dept"]}
@@ -247,7 +249,8 @@ class ExportTests(Base):
 
     def test_recap_export_matches_matrix(self):
         rows = [[c.value for c in r] for r in self.sheet("recap")]
-        self.assertEqual(rows[0], ["jenis", "ukuran", "laki_laki", "perempuan", "total"]); self.assertIn(["Seragam Kerja", "L", 2, 0, 2], rows); self.assertIn(["Seragam Kerja", "M", 0, 3, 3], rows)
+        self.assertEqual(rows[0], ["jenis", "ukuran", "stok_awal", "masuk", "keluar_laki_laki", "keluar_perempuan", "keluar_total", "koreksi_kembali", "stok_akhir"])
+        self.assertIn(["Seragam Kerja", "L", 0, 0, 2, 0, 2, 0, -2], rows); self.assertIn(["Seragam Kerja", "M", 0, 0, 0, 3, 3, 0, -3], rows)   # tanpa barang masuk → stok minus
 
     def test_export_has_no_bpjs_numbers_and_is_audited(self):
         for kind in ("detail", "recap"):

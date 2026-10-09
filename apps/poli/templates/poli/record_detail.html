@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Rekam medis #{{ r.pk }}{% endblock %}{% block content %}
-<p><a href="/poli/records/">‹ Rekam medis</a></p>
+<p class="back"><a href="/poli/records/">‹ Rekam medis</a></p>
 <h2>Rekam medis #{{ r.pk }} · {{ r.get_kind_display }}</h2>
 <div class="card"><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}<tr><th>Riwayat</th><td><a href="{% url 'poli_employee_history' r.employee.pk %}">Semua kunjungan karyawan ini ›</a></td></tr></table></div>
 <div class="card" style="margin-top:12px"><table>

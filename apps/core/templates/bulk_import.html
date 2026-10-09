@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Impor {{ spec.title }}{% endblock %}{% block content %}
-<p><a href="{{ spec.back }}">‹ Kembali</a></p>
+<p class="back"><a href="{{ spec.back }}">‹ Kembali</a></p>
 <h2>Impor {{ spec.title }} (CSV / XLSX)</h2>
 <div class="card" style="margin-bottom:12px"><p>Kolom: <code>{{ spec.columns|join:", " }}</code>. Wajib: <code>{{ spec.required|join:", " }}</code>. {{ spec.hint }}
 Data dengan kunci <code>{{ spec.key }}</code> yang sudah ada <b>diperbarui</b>, yang belum ada <b>ditambahkan</b>.

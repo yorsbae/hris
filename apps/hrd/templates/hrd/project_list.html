@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Proyek{% endblock %}{% block content %}
-<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Kerja harian proyek <a class="btn" href="{% url 'hrd_project_new' %}">+ Proyek baru</a></h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari kode / nama proyek">
 <select name="status"><option value="">Semua status</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>

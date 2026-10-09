@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Katering{% endblock %}{% block content %}
-<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Katering <small style="color:var(--mu);font-weight:400">(rekap)</small> <a class="btn" href="{% url 'hrd_catering_new' %}">+ Rekap baru</a></h2>
 <form method="get" class="bar">Dari <input type="date" name="from" value="{{ from }}"> sampai <input type="date" name="to" value="{{ to }}">
 <select name="meal"><option value="">Semua jam makan</option>{% for k, v in meals %}<option value="{{ k }}"{% if f.meal == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>

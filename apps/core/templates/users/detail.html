@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ u.username }}{% endblock %}{% block content %}
-<p><a href="/users/">‹ Pengguna</a></p>
+<p class="back"><a href="/users/">‹ Pengguna</a></p>
 <h2>{{ u.username }} {% if u.is_active %}<span class="pill approved">aktif</span>{% else %}<span class="pill rejected">nonaktif</span>{% endif %}{% if is_self %} <span class="pill">akun Anda</span>{% endif %}</h2>
 <div class="card" style="max-width:560px"><table>
 <tr><th>Nama</th><td>{{ u.get_full_name|default:"-" }}</td></tr><tr><th>Email</th><td>{{ u.email|default:"-" }}</td></tr>

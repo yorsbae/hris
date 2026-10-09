@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Surat Peringatan{% endblock %}{% block content %}
-<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Surat Peringatan <a class="btn" href="{% url 'hrd_warning_new' %}">+ Terbitkan SP</a></h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama / nomor">
 <select name="level"><option value="">Semua tingkat</option>{% for k, v in levels %}<option value="{{ k }}"{% if f.level == k|stringformat:"s" %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>

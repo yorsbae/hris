@@ -2,6 +2,7 @@
 import re
 from datetime import date
 from django import forms
+from django.db import transaction
 from apps.core.money import RupiahField
 from apps.hr.models import Employee
 from . import services
@@ -115,8 +116,11 @@ class UniformPurchaseForm(EmployeeByNik):
 
     def save(self):
         d = self.cleaned_data
-        return UniformPurchase.objects.create(employee=self.employee, purchase_date=d["purchase_date"], utype=d["utype"], size=d["size"], gender=self.employee.gender, quantity=d["quantity"],
-                                              rate_amount=self.rate.amount, deduction_amount=self.rate.amount * d["quantity"], note=d.get("note", "").strip(), created_by=self.user)
+        with transaction.atomic():   # pembelian + stok keluar selalu satu kesatuan (juga lewat impor)
+            p = UniformPurchase.objects.create(employee=self.employee, purchase_date=d["purchase_date"], utype=d["utype"], size=d["size"], gender=self.employee.gender, quantity=d["quantity"],
+                                               rate_amount=self.rate.amount, deduction_amount=self.rate.amount * d["quantity"], note=d.get("note", "").strip(), created_by=self.user)
+            services.stock_move(p.utype_id, p.size_id, "keluar", -p.quantity, p.purchase_date, self.user, purchase=p, note=f"Pembelian #{p.pk} — {self.employee.name}")
+        return p
 
 
 class UniformRateForm(forms.Form):
@@ -300,3 +304,29 @@ class WarningForm(EmployeeByNik):
             raise forms.ValidationError(f"Karyawan ini masih punya SP {top} yang berlaku pada tanggal tersebut. Terbitkan tingkat yang lebih tinggi, atau cabut SP lama terlebih dahulu.")
         self.skipped = d["level"] > top + 1  # lompat tingkat: hanya diperingatkan (kebijakan perusahaan)
         return d
+
+
+class UniformStockForm(forms.Form):
+    """Barang masuk (dari vendor) ATAU koreksi stok beralasan. `mode` menentukan aturan: masuk → jumlah ≥ 1; koreksi → ± bukan 0 + alasan wajib."""
+    utype = forms.ModelChoiceField(label="Jenis seragam", queryset=UniformType.objects.none(), empty_label="— pilih —")
+    size = forms.ModelChoiceField(label="Ukuran", queryset=UniformSize.objects.none(), empty_label="— pilih —")
+    quantity = forms.IntegerField(label="Jumlah (pcs)", min_value=-100000, max_value=100000)
+    movement_date = forms.DateField(label="Tanggal", initial=date.today, widget=D())
+    note = forms.CharField(label="Vendor / no. surat jalan", required=False, max_length=300)
+
+    def __init__(self, *a, mode="masuk", **k):
+        super().__init__(*a, **k); self.mode = mode
+        self.fields["utype"].queryset = UniformType.objects.filter(is_active=True); self.fields["size"].queryset = UniformSize.objects.filter(is_active=True)
+        if mode == "koreksi": self.fields["quantity"].label = "Selisih (pcs, + tambah / − kurang)"; self.fields["note"].label = "Alasan koreksi"; self.fields["note"].required = True
+        else: self.fields["quantity"].min_value = 1
+
+    def clean_movement_date(self):
+        v = self.cleaned_data["movement_date"]
+        if v > date.today(): raise forms.ValidationError("Tanggal tidak boleh di masa depan.")
+        return v
+
+    def clean_quantity(self):
+        v = self.cleaned_data["quantity"]
+        if v == 0: raise forms.ValidationError("Jumlah tidak boleh 0.")
+        if self.mode == "masuk" and v < 0: raise forms.ValidationError("Barang masuk harus lebih dari 0; gunakan Koreksi stok untuk mengurangi.")
+        return v

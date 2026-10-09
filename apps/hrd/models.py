@@ -155,6 +155,52 @@ class UniformPurchase(models.Model):
     def delete(self, *a, **k): raise PermissionError("Pembelian seragam tidak boleh dihapus; batalkan dengan alasan.")
 
 
+# ---------------------------------------------------------------- Stok seragam (putaran 25)
+class UniformStock(models.Model):
+    """Saldo berjalan per jenis × ukuran (satu baris per pasangan; dikunci select_for_update saat berubah). Boleh NEGATIF: pembelian dicatat sesudah barang diambil,
+    jadi saldo minus = peringatan 'stok belum dicatat masuk', bukan penolakan (A63). Hanya berubah lewat `services.stock_move` → selalu ada baris kartu."""
+    utype = models.ForeignKey(UniformType, on_delete=models.PROTECT, related_name="stocks")
+    size = models.ForeignKey(UniformSize, on_delete=models.PROTECT, related_name="stocks")
+    balance = models.IntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["utype", "size"], name="uniq_uniform_stock")]
+        ordering = ["utype__name", "size__sort", "size__code"]
+
+
+class UniformStockMovement(models.Model):
+    """Kartu stok seragam, APPEND-ONLY (seperti kartu stok obat). masuk (+, barang masuk dari vendor), keluar (−, otomatis dari pembelian),
+    batal (+, otomatis saat pembelian dibatalkan), koreksi (±, beralasan). `quantity` bertanda; `balance_after` = saldo sesudah baris ini."""
+    class Kind(models.TextChoices):
+        MASUK = "masuk", "Barang masuk"
+        KELUAR = "keluar", "Keluar (pembelian)"
+        BATAL = "batal", "Kembali (pembelian batal)"
+        KOREKSI = "koreksi", "Koreksi stok"
+
+    utype = models.ForeignKey(UniformType, on_delete=models.PROTECT, related_name="movements")
+    size = models.ForeignKey(UniformSize, on_delete=models.PROTECT, related_name="movements")
+    kind = models.CharField(max_length=8, choices=Kind.choices)
+    quantity = models.IntegerField()
+    balance_after = models.IntegerField()
+    movement_date = models.DateField()
+    purchase = models.ForeignKey(UniformPurchase, null=True, blank=True, on_delete=models.PROTECT, related_name="stock_movements")
+    note = models.CharField(max_length=300, blank=True, help_text="Vendor / no. surat jalan / alasan koreksi")
+    created_by = models.ForeignKey(USER, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=~models.Q(quantity=0), name="uniform_move_nonzero"),
+                       models.UniqueConstraint(fields=["purchase", "kind"], condition=models.Q(purchase__isnull=False), name="uniq_uniform_move_purchase_kind")]
+        indexes = [models.Index(fields=["utype", "size", "movement_date"])]
+        ordering = ["-movement_date", "-id"]
+
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Kartu stok seragam tidak boleh diubah; buat koreksi.")
+        super().save(*a, **k)
+
+    def delete(self, *a, **k): raise PermissionError("Kartu stok seragam tidak boleh dihapus.")
+
+
 # ---------------------------------------------------------------- Bantuan
 class Aid(models.Model):
     """Bantuan kepada karyawan — REKAPAN saja (putaran 20): tidak ada status/alur persetujuan; hanya dicatat siapa, jenis, tanggal, nominal."""

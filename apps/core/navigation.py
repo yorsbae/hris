@@ -42,7 +42,7 @@ def _poli(with_hub):
     return items + [("Pemeriksaan & Rekam Medis", "/poli/records/", "activity"), ("Obat & Stok", "/poli/medicines/", "pill"), ("Rekap Stok Obat", "/poli/reports/stock/", "file"),
                     ("Rujukan", "/poli/referrals/", "repeat"), ("Tagihan Mitra", "/poli/billing/", "file"), ("Master Diagnosa", "/poli/diagnoses/", "file")]
 
-# Catatan: halaman jadwal mingguan (/schedule/) tidak punya menu sendiri (putaran 18); dibuka dari Data Karyawan dan membuat butir itu aktif.
+# Catatan: halaman jadwal mingguan (/schedule/) tidak punya menu sendiri (putaran 18); dibuka dari Data Karyawan dan membuat butir itu aktif; sejak putaran 25 tombolnya dihapus dari Data Karyawan (URL tetap ada).
 def build(user, path):
     """Kembalikan (kelompok, breadcrumb). Satu butir aktif: yang awalan URL-nya paling panjang cocok ("/" hanya untuk beranda)."""
     groups = _groups(user.role)

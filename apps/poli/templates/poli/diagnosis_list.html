@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Master diagnosa{% endblock %}{% block content %}
-<p><a href="/poli/">‹ Poliklinik</a></p>
+<p class="back"><a href="/poli/">‹ Poliklinik</a></p>
 <h2>Master diagnosa <a class="btn" href="{% url 'poli_diagnosis_new' %}">+ Diagnosa baru</a> <a class="btn" href="{% url 'poli_diagnosis_import' %}">Impor CSV/XLSX</a> {% include "_export.html" %}</h2>
 <form method="get" class="bar"><input name="q" value="{{ q }}" placeholder="Cari kode / nama"><button>Cari</button></form>
 <div class="wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th>Kategori</th><th>Obat lazim</th><th></th></tr></thead><tbody>

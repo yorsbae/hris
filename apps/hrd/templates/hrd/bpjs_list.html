@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Status BPJS{% endblock %}{% block content %}
-<p><a href="/hrd/">‹ Operasional HRD</a></p>
+<p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Status BPJS (K / TK)</h2>
 <p><a href="/hrd/bpjs/deductions/">Rekap potongan BPJS ›</a></p>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
@@ -7,7 +7,7 @@
 <select name="emp"><option value="aktif"{% if f.emp == "aktif" %} selected{% endif %}>Karyawan aktif</option><option value="nonaktif"{% if f.emp == "nonaktif" %} selected{% endif %}>Karyawan nonaktif</option><option value="semua"{% if f.emp == "semua" %} selected{% endif %}>Semua karyawan</option></select>
 <select name="kes"><option value="">K: semua</option><option value="aktif"{% if f.kes == "aktif" %} selected{% endif %}>K aktif</option><option value="nonaktif"{% if f.kes == "nonaktif" %} selected{% endif %}>K nonaktif</option><option value="belum"{% if f.kes == "belum" %} selected{% endif %}>K belum dicatat</option></select>
 <select name="tk"><option value="">TK: semua</option><option value="aktif"{% if f.tk == "aktif" %} selected{% endif %}>TK aktif</option><option value="nonaktif"{% if f.tk == "nonaktif" %} selected{% endif %}>TK nonaktif</option><option value="belum"{% if f.tk == "belum" %} selected{% endif %}>TK belum dicatat</option></select>
-<label><input type="checkbox" name="anomaly" value="1"{% if f.anomaly %} checked{% endif %}> Anomali (nonaktif tapi BPJS aktif)</label>
+<label class="chk"><input type="checkbox" name="anomaly" value="1"{% if f.anomaly %} checked{% endif %}> Anomali (nonaktif tapi BPJS aktif)</label>
 <button>Filter</button></form>
 <div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Karyawan</th><th>K (Kesehatan)</th><th>TK (Ketenagakerjaan)</th><th></th></tr></thead><tbody>
 {% for e in page %}<tr><td>{{ e.nik }}</td><td>{{ e.name }}</td><td>{{ e.department.name }}</td><td>{{ e.status }}</td>

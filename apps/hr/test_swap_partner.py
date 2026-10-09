@@ -309,11 +309,13 @@ class WeekPageAndNotifyTests(RotBase):
         for bad in ("start=bukan-tanggal", "start=0001-01-01", "group=abc", "department=99999999999999", "q=%00"):
             self.assertEqual(self.client.get("/schedule/?" + bad).status_code in (200, 400), True, bad)
 
-    def test_schedule_not_in_sidebar_but_linked_from_employees_page(self):  # putaran 18: submenu Jadwal Shift dihapus
-        for u, want in (("hrd", True), ("adm1", True), ("poli", False)):
+    def test_schedule_not_linked_from_sidebar_or_employees_page(self):  # putaran 18: submenu dihapus; putaran 25: tombol di Data Karyawan juga dihapus (URL tetap hidup)
+        for u, ok in (("hrd", 200), ("adm1", 200), ("poli", 403)):
             self.login(u)
             self.assertNotIn('href="/schedule/"', self.client.get("/").content.decode(), u)
-            self.assertEqual('href="/schedule/"' in self.client.get("/employees/").content.decode(), want, u)
+            self.assertNotIn('href="/schedule/"', self.client.get("/employees/").content.decode(), u)
+            self.assertNotIn("Jadwal mingguan", self.client.get("/employees/").content.decode(), u)
+            if ok == 200: self.assertEqual(self.client.get("/schedule/").status_code, 200, u)
 
     def test_notify_requester_and_partner_dept_admin_on_execute(self):
         req = self.do_exec(self.duo_shift_req(next_weekday(0), a=self.e3, b=self.e5))  # rekan di departemen lain

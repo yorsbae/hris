@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block content %}
-<h2>Karyawan{% if user.role != "poli" %} <a class="btn" href="/schedule/">Jadwal mingguan</a>{% endif %}{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a> <a class="btn" href="/employees/import/">Impor CSV/XLSX</a>{% endif %}{% if user.role != "poli" %} <a class="btn" href="#" id="export-csv">Ekspor CSV</a> <a class="btn" href="#" id="export-xlsx">Ekspor XLSX</a>{% endif %}</h2>
+<h2>Karyawan{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a> <a class="btn" href="/employees/import/">Impor CSV/XLSX</a>{% endif %}{% if user.role != "poli" %} <a class="btn" href="#" id="export-csv">Ekspor CSV</a> <a class="btn" href="#" id="export-xlsx">Ekspor XLSX</a>{% endif %}</h2>
 <div class="filters" role="search"><input id="q" type="search" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama" autocomplete="off">
 <select id="st" aria-label="Status"><option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select>
 {% if departments %}<select id="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}

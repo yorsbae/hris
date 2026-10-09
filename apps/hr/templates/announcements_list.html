@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}Pengumuman{% endblock %}{% block content %}
 <h2>Pengumuman & Peraturan{% if can_create %} <a class="btn" href="/announcements/new/">+ Buat</a>{% endif %}</h2>
 <form method="get" class="bar"><select name="kind"><option value="">Semua jenis</option>{% for k, v in kinds.items %}<option value="{{ k }}"{% if kind == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
-<label><input type="checkbox" name="unread" value="1"{% if unread %} checked{% endif %}> belum dibaca</label><button>Filter</button></form>
+<label class="chk"><input type="checkbox" name="unread" value="1"{% if unread %} checked{% endif %}> belum dibaca</label><button>Filter</button></form>
 {% for a in page %}<div class="card" style="margin-bottom:10px"><a href="/announcements/{{ a.pk }}/">{% if not a.is_read %}<span class="badge">baru</span> {% endif %}<b style="display:inline;font-size:16px">{{ a.title }}</b></a>
 <br><span>{{ a.kind_label }} · {{ a.created_at|date:"d M Y H:i" }} · {{ a.created_by.get_username }}{% if a.attachment %} · 📎{% endif %}</span></div>
 {% empty %}<p class="empty">Tidak ada pengumuman.</p>{% endfor %}

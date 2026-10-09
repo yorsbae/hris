@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ title }}{% endblock %}{% block content %}
-<p><a href="{{ back }}">‹ Kembali</a></p>
+<p class="back"><a href="{{ back }}">‹ Kembali</a></p>
 <h2>{{ title }}</h2>
 {% if hint %}<p style="color:var(--mu)">{{ hint }}</p>{% endif %}
 <form method="post" class="card form" autocomplete="off">{% csrf_token %}{{ form.non_field_errors }}

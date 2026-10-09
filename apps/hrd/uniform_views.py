@@ -11,8 +11,8 @@ from apps.core import tabular
 from apps.core.audit import log
 from apps.hr.models import Department
 from . import services
-from .forms import UniformPurchaseForm, UniformRateForm
-from .models import UniformPurchase, UniformRate, UniformSize, UniformType
+from .forms import UniformPurchaseForm, UniformRateForm, UniformStockForm
+from .models import UniformPurchase, UniformRate, UniformSize, UniformStock, UniformStockMovement, UniformType
 from .views import _int, hrd_only, paginate
 
 EXPORT_MAX = 20000
@@ -45,13 +45,37 @@ def _base(f):
     return qs
 
 
-def _size_matrix(live):
-    """Jenis × ukuran → pcs Laki-laki / Perempuan / total (untuk pesanan ke vendor). Urut: jenis, lalu urutan ukuran master."""
+def _stock_recap(f, live):
+    """Rekap STOK jenis × ukuran untuk periode filter (menggantikan 'rekap ukuran' putaran 23): stok awal, masuk, keluar (L/P/total dari pembelian aktif),
+    koreksi/kembali (residual: koreksi + pembatalan), saldo akhir. Memakai kartu stok (UniformStockMovement), bukan hitung ulang pembelian. Hanya periode/jenis/ukuran
+    yang berlaku; filter karyawan/departemen/status tidak relevan untuk stok. Baris: semua jenis×ukuran yang punya gerak/pembelian atau saldo ≠ 0."""
+    rng = _month_range(f["period"]); mv = UniformStockMovement.objects.all()
+    if _int(f["utype"]): mv = mv.filter(utype_id=_int(f["utype"]))
+    if _int(f["size"]): mv = mv.filter(size_id=_int(f["size"]))
+    key = lambda r: (r["utype__name"], r["size__sort"], r["size__code"])
+    grp = lambda qs: qs.order_by().values("utype__name", "size__sort", "size__code")
     rows = OrderedDict()
-    for r in live.order_by().values("utype__name", "size__code", "size__sort", "gender").annotate(pcs=Sum("quantity")).order_by("utype__name", "size__sort", "size__code"):
-        k = (r["utype__name"], r["size__code"]); row = rows.setdefault(k, {"utype": r["utype__name"], "size": r["size__code"], "L": 0, "P": 0, "total": 0})
-        row[r["gender"]] += r["pcs"]; row["total"] += r["pcs"]
-    return list(rows.values())
+
+    def row(r):
+        return rows.setdefault(key(r), {"utype": r["utype__name"], "size": r["size__code"], "awal": 0, "masuk": 0, "L": 0, "P": 0, "keluar": 0, "adj": 0, "saldo": 0})
+    for r in grp(mv).annotate(n=Sum("quantity")): row(r)["saldo"] = r["n"]   # saldo akhir = semua gerak s/d akhir periode (di bawah dikoreksi)
+    if rng:
+        for r in grp(mv.filter(movement_date__gte=rng[1])).annotate(n=Sum("quantity")): row(r)["saldo"] -= r["n"]
+        for r in grp(mv.filter(movement_date__lt=rng[0])).annotate(n=Sum("quantity")): row(r)["awal"] = r["n"]
+        inr = mv.filter(movement_date__gte=rng[0], movement_date__lt=rng[1])
+    else: inr = mv
+    for r in grp(inr.filter(kind="masuk")).annotate(n=Sum("quantity")): row(r)["masuk"] = r["n"]
+    lv = live
+    if _int(f["utype"]): lv = lv.filter(utype_id=_int(f["utype"]))
+    if _int(f["size"]): lv = lv.filter(size_id=_int(f["size"]))
+    for r in lv.order_by().values("utype__name", "size__sort", "size__code", "gender").annotate(n=Sum("quantity")):
+        x = row(r); x[r["gender"]] += r["n"]; x["keluar"] += r["n"]
+    out = []
+    for k in sorted(rows):
+        x = rows[k]
+        if not (x["awal"] or x["masuk"] or x["keluar"] or x["saldo"]): continue
+        x["adj"] = x["saldo"] - x["awal"] - x["masuk"] + x["keluar"]; x["minus"] = x["saldo"] < 0; out.append(x)
+    return out
 
 
 def _detail_row(p):
@@ -70,9 +94,9 @@ def uniforms(request):
         which = "recap" if kind == "recap" else "detail"
         log(request, "hrd", "uniform_export", None, None, {"kind": which, "period": f["period"], "rows": shown.count() if which == "detail" else live.count()})
         if which == "recap":
-            rows = [(r["utype"], r["size"], r["L"], r["P"], r["total"]) for r in _size_matrix(live)]
-            return tabular.export_response(f"rekap-seragam-{f['period'] or 'semua'}", ["jenis", "ukuran", "laki_laki", "perempuan", "total"], rows, request, sheet="Rekap Seragam",
-                                           num_cols=("laki_laki", "perempuan", "total"))
+            rows = [(r["utype"], r["size"], r["awal"], r["masuk"], r["L"], r["P"], r["keluar"], r["adj"], r["saldo"]) for r in _stock_recap(f, live)]
+            return tabular.export_response(f"rekap-stok-seragam-{f['period'] or 'semua'}", ["jenis", "ukuran", "stok_awal", "masuk", "keluar_laki_laki", "keluar_perempuan", "keluar_total", "koreksi_kembali", "stok_akhir"],
+                                           rows, request, sheet="Rekap Stok Seragam", num_cols=("stok_awal", "masuk", "keluar_laki_laki", "keluar_perempuan", "keluar_total", "koreksi_kembali", "stok_akhir"))
         rows = [_detail_row(p) for p in shown.order_by("purchase_date", "employee__name", "id")[:EXPORT_MAX]]
         return tabular.export_response(f"seragam-{f['period'] or 'semua'}", DETAIL_HEADER, rows, request, sheet="Seragam",
                                        money_cols=("tarif_per_satuan", "total_potongan"), num_cols=("jumlah",))
@@ -80,7 +104,7 @@ def uniforms(request):
     by_dept = list(live.order_by().values("employee__department__name").annotate(n=Count("id"), pcs=Sum("quantity"), total=Sum("deduction_amount")).order_by("employee__department__name"))
     emp_qs = live.order_by().values("employee__nik", "employee__name", "employee__department__name").annotate(pcs=Sum("quantity"), total=Sum("deduction_amount")).order_by("-total", "employee__name")
     from urllib.parse import urlencode
-    ctx = {"page": paginate(request, shown.order_by("-purchase_date", "-id")), "f": f, "totals": totals, "by_dept": by_dept, "matrix": _size_matrix(live),
+    ctx = {"page": paginate(request, shown.order_by("-purchase_date", "-id")), "f": f, "totals": totals, "by_dept": by_dept, "stock": _stock_recap(f, live),
            "employees": list(emp_qs[:SHOW_EMPLOYEES]), "employees_n": live.order_by().values("employee_id").distinct().count(),
            "departments": Department.objects.order_by("name"), "utypes": UniformType.objects.order_by("name"), "sizes": UniformSize.objects.all(),
            "qs": urlencode({k: v for k, v in f.items() if v or k == "period"})}
@@ -178,3 +202,48 @@ def uniform_master(request):
     rates = list(UniformRate.objects.order_by("gender", "-effective_from"))
     current = {g: services.uniform_rate_for(g, today) for g, _ in UniformRate.GENDERS}
     return render(request, "hrd/uniform_master.html", {"types": UniformType.objects.order_by("name"), "sizes": UniformSize.objects.all(), "rates": rates, "current": current, "rate_form": rate_form})
+
+
+@hrd_only
+def uniform_stock_in(request): return _stock_form(request, "masuk")
+
+
+@hrd_only
+def uniform_stock_adjust(request): return _stock_form(request, "koreksi")
+
+
+def _stock_form(request, mode):
+    form = UniformStockForm(request.POST or None, mode=mode)
+    if request.method == "POST" and form.is_valid():
+        d = form.cleaned_data
+        with transaction.atomic():
+            m = services.stock_move(d["utype"].pk, d["size"].pk, mode, d["quantity"], d["movement_date"], request.user, note=d["note"])
+            log(request, "hrd", "uniform_stock_" + mode, m, None, {"type": d["utype"].name, "size": d["size"].code, "qty": m.quantity, "balance": m.balance_after, "note": m.note})
+        messages.success(request, f"Stok {d['utype'].name} {d['size'].code} dicatat ({m.quantity:+d}); saldo sekarang {m.balance_after} pcs.")
+        return redirect("hrd_uniform_stock")
+    masuk = mode == "masuk"
+    return render(request, "hrd/form.html", {"form": form, "title": "Barang masuk seragam" if masuk else "Koreksi stok seragam", "back": "/hrd/uniforms/stock/",
+                                             "hint": "Catat barang yang diterima dari vendor; stok bertambah. Catatan tidak dapat diubah." if masuk else
+                                                     "Untuk selisih hasil hitung fisik/rusak/hilang. Alasan wajib; catatan tidak dapat diubah (koreksi berikutnya = baris baru)."})
+
+
+@hrd_only
+def uniform_stock(request):
+    """Kartu stok: saldo per jenis × ukuran + riwayat gerak (masuk/keluar/kembali/koreksi), difilter jenis, ukuran, dan periode."""
+    f = _filters(request); mv = UniformStockMovement.objects.select_related("utype", "size", "purchase", "created_by")
+    rng = _month_range(f["period"])
+    if rng: mv = mv.filter(movement_date__gte=rng[0], movement_date__lt=rng[1])
+    if _int(f["utype"]): mv = mv.filter(utype_id=_int(f["utype"]))
+    if _int(f["size"]): mv = mv.filter(size_id=_int(f["size"]))
+    balances = UniformStock.objects.select_related("utype", "size")
+    if _int(f["utype"]): balances = balances.filter(utype_id=_int(f["utype"]))
+    if _int(f["size"]): balances = balances.filter(size_id=_int(f["size"]))
+    if request.GET.get("export"):
+        log(request, "hrd", "uniform_stock_export", None, None, {"period": f["period"]})
+        rows = [(m.movement_date, m.utype.name, m.size.code, m.get_kind_display(), m.quantity, m.balance_after, m.note) for m in mv.order_by("movement_date", "id")[:EXPORT_MAX]]
+        return tabular.export_response(f"kartu-stok-seragam-{f['period'] or 'semua'}", ["tanggal", "jenis", "ukuran", "gerak", "jumlah", "saldo_sesudah", "catatan"], rows, request, sheet="Kartu Stok",
+                                       num_cols=("jumlah", "saldo_sesudah"))
+    from urllib.parse import urlencode
+    return render(request, "hrd/uniform_stock.html", {"page": paginate(request, mv), "f": f, "balances": list(balances), "minus": any(b.balance < 0 for b in balances),
+                                                      "utypes": UniformType.objects.order_by("name"), "sizes": UniformSize.objects.all(),
+                                                      "qs": urlencode({k: v for k, v in f.items() if k in ("period", "utype", "size") and (v or k == "period")})})

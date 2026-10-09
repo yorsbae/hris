@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ e.nik }}{% endblock %}{% block content %}
-<p><a href="/employees/">‹ Daftar karyawan</a></p>
+<p class="back"><a href="/employees/">‹ Daftar karyawan</a></p>
 <h2>{{ e.name }} <span class="pill">{{ e.status }}</span></h2>
 {% if full %}<div class="bar"><a class="btn" href="{% url 'employee_edit' e.pk %}" style="margin-left:0">Ubah</a>
 <a class="btn" href="{% url 'contract_new' e.pk %}">Kontrak baru / perpanjang</a>

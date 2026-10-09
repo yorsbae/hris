@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Audit #{{ e.pk }}{% endblock %}{% block content %}
-<p><a href="/audit/">‹ Audit log</a></p>
+<p class="back"><a href="/audit/">‹ Audit log</a></p>
 <h2>Audit #{{ e.pk }}</h2>
 <div class="card" style="max-width:640px"><table>
 <tr><th>Waktu</th><td>{{ e.created_at|date:"d M Y H:i:s" }}</td></tr><tr><th>User</th><td>{{ e.user.username|default:"—" }}</td></tr><tr><th>IP</th><td>{{ e.ip|default:"-" }}</td></tr>

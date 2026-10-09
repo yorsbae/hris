@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ a.title }}{% endblock %}{% block content %}
-<p><a href="/announcements/">‹ Daftar pengumuman</a></p>
+<p class="back"><a href="/announcements/">‹ Daftar pengumuman</a></p>
 <h2>{{ a.title }}</h2><p style="color:var(--mu)">{{ kind_label }} · {{ a.created_at|date:"d M Y H:i" }} · {{ a.created_by.get_username }}</p>
 <div class="card">{{ a.body|linebreaksbr }}</div>
 {% if a.attachment %}<p><a class="btn" style="margin:0" href="/announcements/{{ a.pk }}/file/">📎 Unduh lampiran</a></p>{% endif %}

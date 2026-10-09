@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Kontrak baru{% endblock %}{% block content %}
-<p><a href="{% url 'employee_detail_page' e.pk %}">‹ {{ e.nik }} · {{ e.name }}</a></p>
+<p class="back"><a href="{% url 'employee_detail_page' e.pk %}">‹ {{ e.nik }} · {{ e.name }}</a></p>
 <h2>Kontrak baru / perpanjangan</h2>
 <form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
 {% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}

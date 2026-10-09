@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Obat diagnosa {{ d.code }}{% endblock %}{% block content %}
-<p><a href="{% url 'poli_diagnoses' %}">‹ Master diagnosa</a></p>
+<p class="back"><a href="{% url 'poli_diagnoses' %}">‹ Master diagnosa</a></p>
 <h2>Obat lazim — {{ d.code }} · {{ d.name }}</h2>
 <p style="color:var(--mu)">Saat diagnosa ini dipilih di kunjungan baru, obat berikut terisi otomatis di resep. Hanya saran: petugas tetap bisa mengubah jumlah atau menghapus baris sebelum menyimpan.</p>
 <div class="wrap"><table><thead><tr><th>Obat</th><th class="num">Jumlah bawaan</th><th>Aturan pakai</th><th class="num">Stok</th><th></th></tr></thead><tbody>

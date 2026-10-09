@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}Obat{% endblock %}{% block content %}
-<p><a href="/poli/">‹ Poliklinik</a></p>
+<p class="back"><a href="/poli/">‹ Poliklinik</a></p>
 <h2>Obat & kartu stok <a class="btn" href="{% url 'poli_medicine_new' %}">+ Obat baru</a> <a class="btn" href="{% url 'poli_medicine_import' %}">Impor CSV/XLSX</a> {% include "_export.html" %}</h2>
-<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari kode / nama"><label><input type="checkbox" name="low" value="1"{% if f.low %} checked{% endif %}> hanya stok minimum</label><button>Filter</button></form>
+<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari kode / nama"><label class="chk"><input type="checkbox" name="low" value="1"{% if f.low %} checked{% endif %}> hanya stok minimum</label><button>Filter</button></form>
 <div class="wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th>Stok</th><th>Minimum</th></tr></thead><tbody>
 {% for m in page %}<tr><td><a href="{% url 'poli_medicine_detail' m.pk %}">{{ m.code }}</a></td><td>{{ m.name }}</td><td>{{ m.stock }} {{ m.unit }}{% if m.stock <= m.min_stock %} <span class="pill rejected">minimum</span>{% endif %}</td><td>{{ m.min_stock }}</td></tr>
 {% empty %}<tr><td class="empty" colspan="4">Belum ada obat.</td></tr>{% endfor %}</tbody></table></div>

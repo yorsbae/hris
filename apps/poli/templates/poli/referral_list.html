@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Rujukan{% endblock %}{% block content %}
-<p><a href="/poli/">‹ Poliklinik</a></p>
+<p class="back"><a href="/poli/">‹ Poliklinik</a></p>
 <h2>Rujukan</h2>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama / nomor">
 <select name="status"><option value="">Semua status</option><option value="berjalan"{% if f.status == "berjalan" %} selected{% endif %}>Berjalan (diajukan + dirujuk)</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>

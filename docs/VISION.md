@@ -60,6 +60,8 @@ penyalahgunaan per akun; lapisan data membatasi dampak bila ada yang lolos. Angk
 > ekspor **tanpa nomor identitas/BPJS** dan tercatat di audit, hal janggal **ditandai, bukan diblokir** bila ada alasan sah (mis. potongan gaji terakhir karyawan nonaktif); (3) Superadmin kini
 > **diberi tahu** saat akun terkunci. Status rinci & sisa: `docs/PROGRESS.md` → putaran 22.
 
+> **Pembaruan 9 Oktober 2026 (putaran 25).** Seragam kini juga **stok**: barang masuk (vendor), keluar otomatis saat pembelian dicatat, kembali saat dibatalkan, koreksi beralasan, kartu stok append-only; rekap ukuran diganti rekap stok. Tautan antarmuka dirapikan lewat komponen bersama (`.back`, `.tools`, `.chip`, `.exports`) — halaman baru wajib memakainya. Tombol Jadwal mingguan dihapus dari Data Karyawan.
+
 > **Pembaruan 9 Oktober 2026 (putaran 23).** (1) **Menu BPJS** kini lengkap sejauh tidak bergantung Payroll: sidebar BPJS dengan submenu Kesehatan/Ketenagakerjaan, ringkasan per departemen; (2) **Rekap Seragam** ada sebagai
 > halaman HRD (pembelian + ukuran, tarif L/P berlaku-sejak yang **disalin ke baris**, rekap per ukuran × jenis kelamin untuk pesanan vendor, impor/ekspor); (3) prinsip baru untuk semua paket berikutnya:
 > **ekspor uang berupa angka ber-format (bisa dijumlah), bukan teks**; **catatan transaksi tidak diedit/dihapus** — koreksi lewat pembatalan beralasan; **tarif/master berlaku-sejak bersifat append-only dan disalin ke transaksi**;

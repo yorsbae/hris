@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ w.number }}{% endblock %}{% block content %}
-<p><a href="/hrd/warnings/">‹ Surat Peringatan</a></p>
+<p class="back"><a href="/hrd/warnings/">‹ Surat Peringatan</a></p>
 <h2>{{ w.get_level_display }} · {{ w.number }} <span class="pill {% if state == 'aktif' %}pending{% elif state == 'dicabut' %}rejected{% else %}nonaktif{% endif %}">{{ state }}</span></h2>
 <div class="bar">{% if not w.revoked_at %}<a class="btn" style="margin-left:0" href="{% url 'hrd_warning_pdf' w.pk %}" target="_blank">Cetak PDF</a>{% endif %}</div>
 <div class="card"><table>

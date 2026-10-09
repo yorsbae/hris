@@ -32,6 +32,12 @@ h2 .btn{margin-left:0}.btn.ghost,button.ghost{background:transparent;color:var(-
 .pill.approved,.pill.executed,.pill.selesai,.pill.disetujui,.pill.dibayar,.pill.aktif,.pill.diterima{background:var(--okb);color:var(--ok)}
 .pill.rejected,.pill.ditolak,.pill.batal,.pill.dibatalkan,.pill.cancelled,.pill.nonaktif{background:var(--erb);color:var(--er)}.pill.draft,.pill.cancelled{opacity:.85}
 button.lnk{background:none;color:var(--ac);padding:0;text-align:left;font:inherit;min-height:0}button.danger{background:var(--er)}button.danger:hover{filter:brightness(.92)}[hidden]{display:none!important}
+/* putaran 25: tautan rapi — .back (kembali), .tools (baris aksi), .chip (tautan sekunder), label.chk (checkbox sejajar) */
+p.back{margin:0 0 10px;font-size:14px}p.back a,a.chip{text-decoration:none}p.back a:hover,a.chip:hover{text-decoration:underline}
+.tools{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin:0 0 12px}.tools .btn{margin-left:0}.tools .sep{color:var(--mu);font-size:13px}
+a.chip{display:inline-block;padding:5px 11px;border:1px solid var(--bd2);border-radius:8px;font-size:14px;line-height:1.4;background:var(--card)}a.chip:hover{background:var(--hov)}
+.exports{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:0 0 14px;font-size:14px;color:var(--mu)}.exports a{text-decoration:none;font-weight:500}.exports a:hover{text-decoration:underline}
+label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}label.chk input{margin:0;width:auto}
 .pager{display:flex;gap:10px;align-items:center;justify-content:center;margin:14px 0;color:var(--mu);font-size:14px}.pager .btn{margin:0}
 .sk{background:linear-gradient(90deg,var(--bd),var(--hov),var(--bd));background-size:200% 100%;animation:sh 1.2s infinite;border-radius:6px;color:transparent!important}@keyframes sh{to{background-position:-200% 0}}
 .sec{color:var(--mu);font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin:22px 0 8px;font-weight:600}

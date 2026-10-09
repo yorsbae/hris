@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Saldo cuti {{ e.nik }}{% endblock %}{% block content %}
-<p><a href="/leave/?year={{ year }}">‹ Saldo cuti</a> · <a href="{% url 'employee_detail_page' e.pk %}">Detail karyawan</a></p>
+<p class="back"><a href="/leave/?year={{ year }}">‹ Saldo cuti</a> · <a href="{% url 'employee_detail_page' e.pk %}">Detail karyawan</a></p>
 <h2>{{ e.nik }} · {{ e.name }}</h2>
 <div class="wrap"><table><thead><tr><th>Tahun</th><th>Saldo</th><th>Dicadangkan (pengajuan berjalan)</th><th>Tersedia</th><th></th></tr></thead><tbody>
 {% for y, bal, res, av in summary %}<tr><td>{{ y }}</td><td>{{ bal }}</td><td>{{ res }}</td><td>{{ av }}</td><td><a href="?year={{ y }}">Lihat kartu</a></td></tr>{% endfor %}</tbody></table></div>

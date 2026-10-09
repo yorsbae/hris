@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money %}{% block title %}Pembelian seragam{% endblock %}{% block content %}
-<p><a href="/hrd/uniforms/?period={{ p.purchase_date|date:'Y-m' }}">‹ Rekap Seragam</a></p>
+<p class="back"><a href="/hrd/uniforms/?period={{ p.purchase_date|date:'Y-m' }}">‹ Rekap Seragam</a></p>
 <h2>Pembelian seragam #{{ p.pk }}{% if p.is_void %} <span class="pill rejected">dibatalkan</span>{% endif %}</h2>
 <div class="card"><table>
 <tr><th>Karyawan</th><td>{{ p.employee.nik }} — {{ p.employee.name }} ({{ p.employee.department.name }})</td></tr>
