@@ -1,7 +1,7 @@
 # PROGRESS — HRIS & Poliklinik
 
-Terakhir diperbarui: 9 Oktober 2026 (putaran 26 — **P7 Validasi kehadiran** ✅ + `core/bulk` meneruskan pengguna ✅; sebelumnya putaran 25 — UI/UX tautan rapi, **stok seragam terintegrasi** ✅, tombol Jadwal mingguan dihapus dari Data Karyawan; sebelumnya putaran 24 — P6 Tagihan Mitra ✅; sebelumnya putaran 23: sisa P4 BPJS ✅ + P5 Rekap Seragam ✅; putaran 22: P4 potongan BPJS ◐, notifikasi kunci akun ✅; putaran 21: P2 rupiah ✅, P3 tema ikon ✅, P1 keamanan dasar ◐) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
-Uji: `python manage.py test` (**717 tes** — putaran 26: lulus di SQLite dengan Django 5.2.18, 13 dilewati karena khusus PostgreSQL, suite penuh dijalankan ulang di akhir putaran; **migrasi hr/0009 dan indeks unik parsial `uniq_attcheck_active` belum diuji di PostgreSQL 16**, begitu juga hrd/0008–0010). Riwayat sebelumnya: putaran 25 ~692 tes; putaran 24: 672 tes; putaran 23: 631 tes — semua lulus di SQLite, **belum diuji di PostgreSQL 16 sejak putaran 17c**. Putaran 22 dan sebelumnya: lihat riwayat putaran terkait.
+Terakhir diperbarui: 9 Oktober 2026 (putaran 27 — **pengingat + kartu dashboard P7** ✅; sebelumnya putaran 26 — **P7 Validasi kehadiran** ✅ + `core/bulk` meneruskan pengguna ✅; sebelumnya putaran 25 — UI/UX tautan rapi, **stok seragam terintegrasi** ✅, tombol Jadwal mingguan dihapus dari Data Karyawan; sebelumnya putaran 24 — P6 Tagihan Mitra ✅; sebelumnya putaran 23: sisa P4 BPJS ✅ + P5 Rekap Seragam ✅; putaran 22: P4 potongan BPJS ◐, notifikasi kunci akun ✅; putaran 21: P2 rupiah ✅, P3 tema ikon ✅, P1 keamanan dasar ◐) · Acuan tahap, role, dan urutan prioritas: `docs/VISION.md`
+Uji: `python manage.py test` (**720 tes** — putaran 27 (+3; suite penuh dijalankan ulang di akhir putaran) dan putaran 26 (717): lulus di SQLite dengan Django 5.2.18, 13 dilewati karena khusus PostgreSQL, suite penuh dijalankan ulang di akhir putaran; **migrasi hr/0009 dan indeks unik parsial `uniq_attcheck_active` belum diuji di PostgreSQL 16**, begitu juga hrd/0008–0010). Riwayat sebelumnya: putaran 25 ~692 tes; putaran 24: 672 tes; putaran 23: 631 tes — semua lulus di SQLite, **belum diuji di PostgreSQL 16 sejak putaran 17c**. Putaran 22 dan sebelumnya: lihat riwayat putaran terkait.
 
 ## 1. Peta kemajuan terhadap VISION
 
@@ -163,7 +163,16 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 ### Putaran 13a — perbaikan /admin/ (dari riwayat git; dicatat belakangan)
 `/admin/` tampil tanpa CSS karena `DEBUG=False`: ditambah WhiteNoise untuk `/static/`, nama app & judul admin berbahasa Indonesia, dan tes regresi (`apps/core/test_static_admin.py`). Tes 332 → 337.
 
-### Putaran 26 — P7 Validasi kehadiran + perbaikan `core/bulk` ← terbaru
+### Putaran 27 — P7: pengingat otomatis + kartu tugas dashboard ← terbaru
+Permintaan: lanjutkan progres, kirim `.patch` sebelum token habis. Pengiriman: `putaran27.patch` (1 commit di atas putaran 26c; terapkan **sesudah** `putaran26.patch` dengan `git am putaran27.patch`). **Tanpa migrasi, tanpa dependensi baru.**
+- **Perintah terjadwal** `python manage.py remind_attendance_checks` (cron harian, seperti `check_contracts`): ke **Admin Departemen** bila ada permintaan yang jatuh tempo besok ("jatuh tempo besok") atau sudah lewat ("TERLAMBAT", menggantikan teks "besok"); ke **HRD pembuat permintaan** bila permintaannya terlambat dijawab. **Satu notifikasi belum-dibaca per penerima per teks** → dijalankan berulang tidak menumpuk. Yang sudah dijawab/diverifikasi/dibatalkan tidak diingatkan; departemen lain tidak ikut.
+- **Dashboard** (`/api/dashboard/`): Admin Dept melihat `attcheck_todo` (menunggu jawaban) dan `attcheck_late`; HRD/Superadmin melihat `attcheck_to_verify` (perlu verifikasi) dan `attcheck_late`. Hanya angka, **di-scope di backend** (Admin hanya departemennya — diuji dengan Admin departemen lain), Poli tidak mendapat kunci ini. Kartu tampil di bagian "Perlu perhatian", tertaut ke `/validasi/` dengan filter yang sesuai (kuning/merah).
+- **Tes**: +3 (`ReminderDashboardTests`). **Uji mutasi**: scope dashboard dimatikan dan "satu notifikasi belum-dibaca" dimatikan → keduanya tertangkap. Mutan pertama sempat **lolos** karena celah *tes* (permintaan sudah dijawab saat Admin lain diperiksa, jadi 0 memang benar); urutan tes diperbaiki lalu mutan tertangkap. Satu tes menu juga diperbaiki: string `/validasi/` ada di JS dashboard untuk semua peran, jadi tes kini memeriksa `href` sidebar.
+- **Pasang cron**: `0 7 * * * cd /path/hris && python manage.py remind_attendance_checks` (perlu dipasang manual; belum ada di `scripts/`).
+- **Belum**: eskalasi bertingkat, pengingat per jam, uji nyata cron; sisa P7 lain di putaran 26 tetap berlaku (lampiran, jawaban massal, pengalihan Admin cuti, Absensi/Payroll).
+- **Yang akan dilakukan (urut)**: (1) sisa P1 — CSP nonce, kunci per username+IP, 2FA TOTP Superadmin; (2) P8 skalabilitas; (3) uji PostgreSQL 16 (hrd/0008–0010, hr/0009) + peramban/Excel nyata; (4) utang lama (tabel rotasi UI, register kehamilan, hari libur nasional, A12) → Tahap 6 Absensi.
+
+### Putaran 26 — P7 Validasi kehadiran + perbaikan `core/bulk`
 Permintaan: lanjutkan (apa yang dilakukan dan akan dilakukan), perbarui progres & visi, kirim `.patch` sebelum token habis. Pengiriman: `putaran26.patch` (`git format-patch`, **2 commit** di atas `2b9f468` = putaran 25c; terapkan `git am putaran26.patch`; sudah diuji dapat diterapkan bersih di klon baru). Setelah itu: `python manage.py migrate` (**`hr/0009_attendance_check`**: 2 tabel baru, tanpa mengubah data lama). Tanpa dependensi baru. Baseline putaran 25c diperiksa hijau lebih dulu (692 tes); akhir putaran **717 tes lulus** (+25).
 
 **26a — `core/bulk` meneruskan pengguna ✅** (utang putaran 22–24). `run(..., user=request.user)`; `user` hanya diteruskan ke form yang `__init__`-nya menerimanya (`inspect.signature`), jadi form lain tak berubah. Akibat: `created_by` hasil impor potongan BPJS, seragam, dan tagihan mitra kini terisi, begitu juga `user` pada jejak status awal tagihan. 1 tes baru (`test_billing`).
@@ -595,7 +604,7 @@ Cakupan baru yang **belum dibuat**: Surat Peringatan (SP1–3) · Grade/Bagian/C
 ## 4. Rencana berikutnya (diurutkan menurut prioritas VISION: Security › Integritas data › Role › Scope › Approval › Histori › Audit › Backup › Performa)
 
 ### Rencana terbaru
-Lihat **putaran 26 → "Yang akan dilakukan"** (pengingat + dashboard P7, sisa P1, P8, uji PostgreSQL; P7 dan perbaikan `core/bulk` sudah selesai di putaran 26) untuk rencana yang berlaku sekarang; daftar di bawah adalah rencana lama dan tetap relevan untuk butir yang tidak disebut di putaran 20.
+Lihat **putaran 27 → "Yang akan dilakukan"** (sisa P1, P8, uji PostgreSQL; P7 dan perbaikan `core/bulk` sudah selesai di putaran 26) untuk rencana yang berlaku sekarang; daftar di bawah adalah rencana lama dan tetap relevan untuk butir yang tidak disebut di putaran 20.
 
 ### Rencana berikutnya (usulan setelah putaran 11; urut menurut prioritas VISION)
 1. **Operasi produksi** (Security/Backup): pasang Nginx + systemd, jalankan smoke test proxy nyata, uji `backup.sh`/`restore.sh` (pg_dump/pg_restore) dan salinan `media/` ke lokasi lain, cache bersama untuk rate limit bila multi-worker.

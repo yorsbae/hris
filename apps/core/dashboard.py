@@ -35,6 +35,13 @@ def dashboard(request):
              "accidents_month": MedicalRecord.objects.filter(kind="kecelakaan_kerja", visit_at__year=today.year, visit_at__month=today.month).count(),
              "open_referrals": Referral.objects.exclude(status__in=("selesai", "batal")).count(),
              "low_stock": Medicine.objects.filter(stock__lte=F("min_stock")).count()}
+    if u.role in (Role.SUPERADMIN, Role.HRD, Role.DEPT_ADMIN):  # putaran 27: tugas P7 Validasi kehadiran (hanya angka; scope departemen untuk Admin)
+        from apps.hr.models import AttendanceCheck as AC
+        from .scope import scope_by_department
+        q = scope_by_department(u, AC.objects.all()); open_ = q.filter(status__in=("diminta", "dikembalikan"))
+        if u.role == Role.DEPT_ADMIN: d["attcheck_todo"] = open_.count()
+        else: d["attcheck_to_verify"] = q.filter(status="dijawab").count()
+        d["attcheck_late"] = open_.filter(due_date__lt=today).count()
     return JsonResponse({"role": u.role, "unread_notifications": notif, **d})
 
 from django.contrib.auth.decorators import login_required

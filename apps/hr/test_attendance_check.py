@@ -76,7 +76,7 @@ class AccessTests(Base):
 
     def test_menu_entry_for_hrd_and_dept_admin_not_poli(self):
         for who, yes in (("hrd", True), ("adm", True), ("su", True), ("poli", False)):
-            self.login(who); self.assertEqual("/validasi/" in self.client.get("/").content.decode(), yes, who)
+            self.login(who); self.assertEqual('href="/validasi/"' in self.client.get("/").content.decode(), yes, who)
 
 
 class FlowTests(Base):
@@ -149,3 +149,29 @@ class IntegrityTests(Base):
     def test_garbage_filters_do_not_crash(self):
         self.make(); self.login("hrd"); self.assertEqual(self.client.get(reverse("attcheck_list"), {"status": "zzz", "dept": "x", "date": "bukan", "page": "abc"}).status_code, 200)
         self.assertEqual(self.client.post(reverse("attcheck_verify", args=[99999]), {}).status_code, 404)
+
+
+class ReminderDashboardTests(Base):
+    def test_reminder_due_tomorrow_late_and_no_pile_up(self):
+        from apps.hr.management.commands.remind_attendance_checks import run
+        from apps.core.models import Notification
+        a = self.make(); Notification.objects.all().delete()
+        AC.objects.filter(pk=a.pk).update(due_date=self.days(5)); self.assertEqual(run(), 0)  # masih lama
+        AC.objects.filter(pk=a.pk).update(due_date=self.days(1)); self.assertEqual(run(), 1); self.assertEqual(run(), 0)  # tidak menumpuk
+        n = Notification.objects.get(user=self.adm); self.assertIn("jatuh tempo besok", n.title)
+        AC.objects.filter(pk=a.pk).update(due_date=self.days(-1)); self.assertEqual(run(), 2)  # Admin (terlambat) + HRD pembuat
+        self.assertTrue(Notification.objects.filter(user=self.hrd, title__contains="belum dijawab Admin").exists())
+
+    def test_reminder_skips_answered_and_other_department(self):
+        from apps.hr.management.commands.remind_attendance_checks import run
+        a = self.make(); AC.objects.filter(pk=a.pk).update(due_date=self.days(-1)); self.act("adm", "attcheck_answer", a.pk, answer="hadir")
+        from apps.core.models import Notification; Notification.objects.all().delete(); self.assertEqual(run(), 0)
+
+    def test_dashboard_counts_by_role_and_scope(self):
+        a = self.make(); AC.objects.filter(pk=a.pk).update(due_date=self.days(-1))
+        self.login("adm"); d = self.client.get("/api/dashboard/").json(); self.assertEqual((d["attcheck_todo"], d["attcheck_late"]), (1, 1))
+        self.login("hrd"); d = self.client.get("/api/dashboard/").json(); self.assertEqual((d["attcheck_to_verify"], d["attcheck_late"]), (0, 1)); self.assertNotIn("attcheck_todo", d)
+        other = User.objects.create_user("adm2", password="kata-sandi-panjang-123", role="dept_admin", department=self.d2); self.client.force_login(other)
+        d = self.client.get("/api/dashboard/").json(); self.assertEqual((d["attcheck_todo"], d["attcheck_late"]), (0, 0))  # departemen lain tidak bocor (dicek selagi masih terbuka)
+        self.act("adm", "attcheck_answer", a.pk, answer="hadir"); self.login("hrd"); self.assertEqual(self.client.get("/api/dashboard/").json()["attcheck_to_verify"], 1)
+        self.login("poli"); self.assertNotIn("attcheck_late", self.client.get("/api/dashboard/").json())
