@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% block title %}Pengguna{% endblock %}{% block content %}
 <h2>Pengguna <a class="btn" href="/users/new/">+ User baru</a></h2>
+{% if no_admin %}<div class="msg error" role="alert"><span>Departemen berikut belum punya Admin Departemen aktif (HRD tidak bisa menanyakan kehadiran karyawannya): <b>{% for d in no_admin %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</b>. Buat user baru dengan role Admin Departemen untuk tiap departemen.</span></div>{% endif %}
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari username / nama">
 <select name="role"><option value="">Semua role</option>{% for v, l in roles %}<option value="{{ v }}"{% if f.role == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
 <select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>

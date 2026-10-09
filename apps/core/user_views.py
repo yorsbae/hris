@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 from apps.hr.models import Department
 from .audit import log
 from .models import AuditLog, Role, User
+from . import user_services
 from .scope import superadmin_only
 from .user_forms import DeactivateForm, ResetPasswordForm, SelfPasswordChangeForm, UserCreateForm, UserEditForm
 from .user_services import UserRuleError, guard
@@ -42,7 +43,7 @@ def user_list(request):
     from urllib.parse import urlencode
     qstr = urlencode({k: v for k, v in f.items() if v})
     return render(request, "users/list.html", {"page": page, "f": f, "roles": Role.choices, "qs": qstr,
-                                               "departments": Department.objects.order_by("name")})
+                                               "departments": Department.objects.order_by("name"), "no_admin": user_services.departments_without_admin()})
 
 
 @superadmin_only

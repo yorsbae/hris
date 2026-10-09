@@ -202,3 +202,23 @@ class FormReferenceTests(Base):
         User.objects.create_user("adm2", password="kata-sandi-panjang-123", role="dept_admin", department=self.d2)
         self.login("hrd"); self.client.post(reverse("attcheck_new"), {"nik": ["001"], "date_from": self.days(-1).isoformat()})
         self.assertEqual({n.user for n in Notification.objects.filter(kind="absensi")}, {self.adm})  # admin Gudang tidak ikut menerima
+
+
+class DeptAdminWarningTests(Base):
+    """Putaran 29: tiap departemen wajib punya admin sendiri — peringatan di Pengguna & Master Departemen."""
+    def test_users_page_warns_superadmin_about_department_without_admin(self):
+        self.login("su"); r = self.client.get("/users/")
+        self.assertEqual([d.name for d in r.context["no_admin"]], [self.d2.name]); self.assertContains(r, "belum punya Admin Departemen aktif")
+
+    def test_warning_disappears_when_department_gets_admin_and_ignores_inactive_admin(self):
+        a2 = User.objects.create_user("adm2", password="kata-sandi-panjang-123", role="dept_admin", department=self.d2, is_active=False)
+        self.login("su"); self.assertEqual(len(self.client.get("/users/").context["no_admin"]), 1)  # admin nonaktif tidak dihitung
+        a2.is_active = True; a2.save(); r = self.client.get("/users/"); self.assertEqual(r.context["no_admin"], []); self.assertNotContains(r, "belum punya Admin Departemen aktif")
+
+    def test_master_department_shows_admin_column_and_warning_for_hrd(self):
+        self.login("hrd"); r = self.client.get("/master/department/"); self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Admin Departemen"); self.assertContains(r, "Belum ada Admin Departemen aktif di"); self.assertEqual([d.name for d in r.context["no_admin"]], [self.d2.name])
+        rows = {d.name: d.admin_names for d in r.context["items"]}; self.assertTrue(rows[self.d1.name]); self.assertEqual(rows[self.d2.name], [])
+
+    def test_other_master_kinds_unaffected(self):
+        self.login("hrd"); r = self.client.get("/master/position/"); self.assertEqual(r.status_code, 200); self.assertNotIn("no_admin", r.context)

@@ -155,6 +155,11 @@ def master_list(request, kind):
     label, M, _ = _master(kind)
     ctx = {"kind": kind, "label": label, "items": M.objects.all().order_by("name" if kind != "shift" else "start"), "kinds": {k: v[0] for k, v in MASTERS.items()}}
     if kind == "shift": ctx.update(rotation_context())
+    if kind == "department":  # tiap departemen punya admin sendiri: tampilkan admin aktifnya, tandai yang kosong
+        from apps.core.user_services import dept_admin_map
+        m = dept_admin_map()
+        for d in ctx["items"]: d.admin_names = m.get(d.pk, [])
+        ctx["no_admin"] = [d for d in ctx["items"] if not d.admin_names]
     return render(request, "master_list.html", ctx)
 
 

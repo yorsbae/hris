@@ -65,9 +65,8 @@ def _niks(p):
 
 def admin_overview():
     """Per departemen: Admin Departemen aktif (tiap departemen wajib punya admin sendiri; tanpa admin permintaan ditolak)."""
-    from apps.core.models import User
-    adm = {}
-    for u in User.objects.filter(role=Role.DEPT_ADMIN, is_active=True, department__isnull=False).order_by("username"): adm.setdefault(u.department_id, []).append(u.get_full_name() or u.get_username())
+    from apps.core.user_services import dept_admin_map
+    adm = dept_admin_map()
     rows = [{"dept": d, "admins": adm.get(d.pk, [])} for d in Department.objects.order_by("name")]
     return rows, [r["dept"].name for r in rows if not r["admins"]]
 

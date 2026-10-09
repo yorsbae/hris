@@ -9,6 +9,21 @@ from django.core.exceptions import PermissionDenied
 from .models import Role, User
 
 
+def dept_admin_map():
+    """{department_id: [nama Admin Departemen aktif]}. Tiap departemen wajib punya admin sendiri (minimal satu aktif; A74) —
+    dipakai form Validasi Kehadiran, daftar Pengguna, dan Master Departemen."""
+    out = {}
+    for u in User.objects.filter(role=Role.DEPT_ADMIN, is_active=True, department__isnull=False).order_by("username"):
+        out.setdefault(u.department_id, []).append(u.get_full_name() or u.get_username())
+    return out
+
+
+def departments_without_admin():
+    from apps.hr.models import Department
+    m = dept_admin_map()
+    return [d for d in Department.objects.order_by("name") if d.pk not in m]
+
+
 class UserRuleError(Exception):
     """Pelanggaran aturan bisnis; pesan aman ditampilkan ke pengguna."""
 

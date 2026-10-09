@@ -1,13 +1,14 @@
 {% extends "base.html" %}{% block title %}Master {{ label }}{% endblock %}{% block content %}
 <h2>Master data</h2>
+{% if no_admin %}<div class="msg error" role="alert"><span>Belum ada Admin Departemen aktif di: <b>{% for d in no_admin %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</b>. Tanpa admin, permintaan Validasi Kehadiran untuk departemen itu ditolak.</span></div>{% endif %}
 <div class="bar">{% for k, l in kinds.items %}<a class="btn" href="{% url 'master_list' k %}" style="margin-left:0{% if k != kind %};opacity:.55{% endif %}">{{ l }}</a>{% endfor %}</div>
 <p><a class="btn" href="{% url 'master_new' kind %}" style="margin-left:0">+ {{ label }} baru</a>
 <a class="btn" href="/master/{{ kind }}/import/">Impor CSV/XLSX</a> <a class="btn" href="/master/{{ kind }}/export/?format=csv">Ekspor CSV</a> <a class="btn" href="/master/{{ kind }}/export/?format=xlsx">Ekspor XLSX</a>
 </p>
 <div class="wrap"><table><thead><tr>
-{% if kind == "department" %}<th>Kode</th><th>Nama</th><th>Induk</th>{% elif kind == "position" %}<th>Nama</th><th>Level</th>{% else %}<th>Kode</th><th>Nama</th><th>Masuk</th><th>Pulang</th><th>Lewat tengah malam</th><th>Jenis</th><th>Status</th>{% endif %}<th></th></tr></thead><tbody>
+{% if kind == "department" %}<th>Kode</th><th>Nama</th><th>Induk</th><th>Admin Departemen</th>{% elif kind == "position" %}<th>Nama</th><th>Level</th>{% else %}<th>Kode</th><th>Nama</th><th>Masuk</th><th>Pulang</th><th>Lewat tengah malam</th><th>Jenis</th><th>Status</th>{% endif %}<th></th></tr></thead><tbody>
 {% for i in items %}<tr>
-{% if kind == "department" %}<td>{{ i.code }}</td><td>{{ i.name }}</td><td>{{ i.parent.name|default:"—" }}</td>{% elif kind == "position" %}<td>{{ i.name }}</td><td>{{ i.level }}</td>{% else %}<td>{{ i.code|default:"—" }}</td><td>{{ i.name }}</td><td>{{ i.start|time:"H:i" }}</td><td>{{ i.end|time:"H:i" }}</td><td>{{ i.crosses_midnight|yesno:"ya,tidak" }}</td><td>{% if i.is_gs %}GS{% else %}Rotasi/tetap{% endif %}</td><td>{% if i.active %}<span class="pill aktif">aktif</span>{% else %}<span class="pill nonaktif">nonaktif</span>{% endif %}</td>{% endif %}
+{% if kind == "department" %}<td>{{ i.code }}</td><td>{{ i.name }}</td><td>{{ i.parent.name|default:"—" }}</td><td>{% if i.admin_names %}{{ i.admin_names|join:", " }}{% else %}<span class="pill rejected">Belum ada</span>{% endif %}</td>{% elif kind == "position" %}<td>{{ i.name }}</td><td>{{ i.level }}</td>{% else %}<td>{{ i.code|default:"—" }}</td><td>{{ i.name }}</td><td>{{ i.start|time:"H:i" }}</td><td>{{ i.end|time:"H:i" }}</td><td>{{ i.crosses_midnight|yesno:"ya,tidak" }}</td><td>{% if i.is_gs %}GS{% else %}Rotasi/tetap{% endif %}</td><td>{% if i.active %}<span class="pill aktif">aktif</span>{% else %}<span class="pill nonaktif">nonaktif</span>{% endif %}</td>{% endif %}
 <td><a href="{% url 'master_edit' kind i.pk %}">Ubah</a></td></tr>{% empty %}<tr><td class="empty" colspan="8">Belum ada data.</td></tr>{% endfor %}</tbody></table></div>
 {% if kind == "shift" %}
 <h3 style="margin-top:22px">Tabel rotasi kelompok <a class="btn" href="{% url 'rotation_edit' %}" style="margin-left:10px">Ubah tabel rotasi</a></h3>
