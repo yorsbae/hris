@@ -16,6 +16,7 @@
 <div class="card"><b>{{ totals.total|rupiah }}</b><span>Total potongan</span></div>
 <div class="card"><b>{{ totals.belum|rupiah }}</b><span>Belum dipotong</span></div>
 </div>
+{% if low_n or minus_n %}<p>{% if minus_n %}<span class="pill rejected">{{ minus_n }} stok minus</span> {% endif %}{% if low_n %}<span class="pill pending">{{ low_n }} di bawah minimum</span> {% endif %}<a class="chip" href="{% url 'hrd_uniform_stock' %}">Lihat kartu stok</a></p>{% endif %}
 {% if stock %}<h3>Rekap stok seragam{% if f.period %} — {{ f.period }}{% endif %}</h3>
 <div class="wrap"><table id="by-size"><thead><tr><th>Jenis</th><th>Ukuran</th><th>Stok awal</th><th>Masuk</th><th>Keluar L</th><th>Keluar P</th><th>Keluar total</th><th>Koreksi/kembali</th><th>Stok akhir</th></tr></thead><tbody>
 {% for r in stock %}<tr><td>{{ r.utype }}</td><td>{{ r.size }}</td><td>{{ r.awal }}</td><td>{{ r.masuk }}</td><td>{{ r.L }}</td><td>{{ r.P }}</td><td>{{ r.keluar }}</td><td>{{ r.adj }}</td><td>{% if r.minus %}<span class="pill rejected" title="Stok minus: barang keluar belum tercatat masuk">{{ r.saldo }}</span>{% else %}<b>{{ r.saldo }}</b>{% endif %}</td></tr>{% endfor %}</tbody></table></div>

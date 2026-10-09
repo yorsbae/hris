@@ -3,7 +3,7 @@
 <h2>Impor karyawan (CSV / XLSX)</h2>
 <div class="card" style="margin-bottom:12px"><p>Kolom: <code>{{ columns|join:", " }}</code>. Wajib: <code>{{ required|join:", " }}</code>.
 Departemen dirujuk lewat <b>kode</b>; jabatan &amp; shift lewat <b>nama</b> (shift boleh juga lewat <b>kode</b>) dan harus sudah ada di Master. Tanggal <code>YYYY-MM-DD</code> atau <code>DD/MM/YYYY</code>. CSV: pemisah koma atau titik-koma, UTF-8. <code>shift_group</code>: kode kelompok (A7–G7 = 3 shift, A7_pack–G7_pack = 2 shift), isi salah satu antara <code>shift</code> atau <code>shift_group</code>. <code>gs_short</code>: 14 atau 12 (khusus GS, jam pulang sebelum libur GS).
-Template: <a href="/employees/import/template.csv">CSV</a> · <a href="/employees/import/template.csv?format=xlsx">XLSX</a></p>
+Template: <a class="chip" href="/employees/import/template.csv">CSV</a> <a class="chip" href="/employees/import/template.csv?format=xlsx">XLSX</a></p>
 <p>Semua baris divalidasi lebih dulu; <b>satu baris salah = tidak ada yang tersimpan</b>. Gunakan "Periksa saja" dahulu.</p></div>
 {% if res %}<div class="msg{% if not res.ok %} error{% endif %}">
 {% if res.fatal %}{{ res.fatal }}{% elif res.ok and res.commit %}Berhasil: {{ res.created }} karyawan diimpor.{% elif res.ok %}Semua {{ res.total }} baris valid. Pilih "Impor" untuk menyimpan.{% else %}{{ res.errors|length }} baris bermasalah dari {{ res.total }}. Tidak ada yang disimpan.{% endif %}</div>

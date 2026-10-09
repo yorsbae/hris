@@ -79,3 +79,24 @@ class StockTests(Base):
             self.login(u)
             for n in ("hrd_uniform_stock", "hrd_uniform_stock_in", "hrd_uniform_stock_adjust"): self.assertEqual(self.client.get(reverse(n)).status_code, 403, (u, n))
             self.assertEqual(self.client.post(reverse("hrd_uniform_stock_in"), {}).status_code, 403)
+
+
+class MinStockTests(Base):
+    def setmin(self, n, size=None): return self.client.post(reverse("hrd_uniform_stock"), {"utype": self.type.pk, "size": (size or self.L).pk, "min_stock": n})
+
+    def test_set_min_audited_and_flags_low(self):
+        self.client.post(reverse("hrd_uniform_stock_in"), {"utype": self.type.pk, "size": self.L.pk, "quantity": 5, "movement_date": D0.isoformat(), "note": "v"})
+        self.assertEqual(self.setmin(8).status_code, 302); st = UniformStock.objects.get(utype=self.type, size=self.L)
+        self.assertEqual(st.min_stock, 8); self.assertTrue(st.low); self.assertEqual(AuditLog.objects.filter(action="uniform_stock_min").count(), 1)
+        r = self.client.get(reverse("hrd_uniform_stock")); self.assertEqual(r.context["low_n"], 1); self.assertContains(r, "menipis")
+        self.assertEqual(self.client.get(reverse("hrd_uniforms"), {"period": PER}).context["low_n"], 1)
+        self.assertEqual(UniformStockMovement.objects.count(), 1)       # minimum bukan gerak stok
+
+    def test_zero_min_not_monitored_and_minus_not_low(self):
+        self.purchase(self.e1, quantity=2); self.setmin(5); st = UniformStock.objects.get(utype=self.type, size=self.L)
+        self.assertFalse(st.low)                                           # minus ditangani sebagai 'minus', bukan 'menipis'
+        self.setmin(0); self.assertFalse(UniformStock.objects.get(pk=st.pk).low)
+
+    def test_invalid_min_rejected_and_hrd_only(self):
+        self.setmin(-1); self.setmin("abc"); self.assertFalse(UniformStock.objects.filter(min_stock__gt=0).exists())
+        self.login("adm"); self.assertEqual(self.setmin(3).status_code, 403)

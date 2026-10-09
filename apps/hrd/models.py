@@ -162,6 +162,10 @@ class UniformStock(models.Model):
     utype = models.ForeignKey(UniformType, on_delete=models.PROTECT, related_name="stocks")
     size = models.ForeignKey(UniformSize, on_delete=models.PROTECT, related_name="stocks")
     balance = models.IntegerField(default=0)
+    min_stock = models.PositiveIntegerField(default=0, help_text="Ambang minimum (0 = tidak dipantau); saldo di bawahnya ditandai 'menipis'")
+
+    @property
+    def low(self): return self.min_stock > 0 and 0 <= self.balance < self.min_stock
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["utype", "size"], name="uniq_uniform_stock")]

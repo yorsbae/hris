@@ -164,3 +164,13 @@ def stock_move(utype_id, size_id, kind, quantity, when, user, purchase=None, not
         st.balance += quantity; st.save(update_fields=["balance"])
         return UniformStockMovement.objects.create(utype_id=utype_id, size_id=size_id, kind=kind, quantity=quantity, balance_after=st.balance,
                                                    movement_date=when, purchase=purchase, note=(note or "").strip()[:300], created_by=user)
+
+
+def set_min_stock(utype_id, size_id, minimum):
+    """Atur ambang minimum stok (bukan gerak stok → tidak masuk kartu; perubahan dicatat di audit oleh pemanggil). Mengembalikan (stok, nilai_lama)."""
+    from .models import UniformStock
+    if not isinstance(minimum, int) or not 0 <= minimum <= 100000: raise ValueError("Minimum stok harus bilangan 0–100000.")
+    with transaction.atomic():
+        UniformStock.objects.get_or_create(utype_id=utype_id, size_id=size_id)
+        st = UniformStock.objects.select_for_update().get(utype_id=utype_id, size_id=size_id)
+        old, st.min_stock = st.min_stock, minimum; st.save(update_fields=["min_stock"]); return st, old

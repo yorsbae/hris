@@ -7,7 +7,7 @@
 <td><form method="post" action="/notifications/{{ n.pk }}/open/">{% csrf_token %}<button class="lnk"{% if not n.is_read %} style="font-weight:700"{% endif %}>{{ n.title }}</button></form></td>
 <td style="width:150px;color:var(--mu)">{{ n.created_at|date:"d M Y H:i" }}</td></tr>
 {% empty %}<tr><td class="empty">Tidak ada notifikasi.</td></tr>{% endfor %}</tbody></table></div>
-<p>{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}{% if only_unread %}&unread=1{% endif %}">‹</a>{% endif %}
+<nav class="pager" aria-label="Halaman">{% if page.has_previous %}<a class="btn ghost" href="?page={{ page.previous_page_number }}{% if only_unread %}&unread=1{% endif %}">‹ Sebelumnya</a>{% endif %}
 Halaman {{ page.number }} / {{ page.paginator.num_pages }}
-{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}{% if only_unread %}&unread=1{% endif %}">›</a>{% endif %}</p>
+{% if page.has_next %}<a class="btn ghost" href="?page={{ page.next_page_number }}{% if only_unread %}&unread=1{% endif %}">Berikutnya ›</a>{% endif %}</nav>
 {% endblock %}

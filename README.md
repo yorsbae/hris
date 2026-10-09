@@ -3,7 +3,7 @@
 ## Menjalankan
     python -m venv venv && . venv/bin/activate && pip install -r requirements.txt
     cp .env.example .env   # isi secret, DATABASE_URL, FIELD_ENCRYPTION_KEY (cara membuat: lihat .env.example)
-    python manage.py migrate   # putaran 25: hrd/0008–0009 (stok seragam + isi ulang dari pembelian lama); putaran 24: poli/0005 (tagihan mitra); putaran 23: hrd/0006–0007 (seragam + data awal ukuran/jenis/tarif L 19.000 / P 17.000); putaran 22: hrd/0005 (potongan BPJS); putaran 21: core/0004 (kunci akun); putaran 11: core/0003 (wajib-ganti-sandi); putaran 10: poli/0002; stok obat lama: catat selisih lewat "Stok masuk"/"Penyesuaian" (lihat PROGRESS putaran 10)
+    python manage.py migrate   # putaran 25: hrd/0008–0010 (stok seragam, isi ulang dari pembelian lama, stok minimum); putaran 24: poli/0005 (tagihan mitra); putaran 23: hrd/0006–0007 (seragam + data awal ukuran/jenis/tarif L 19.000 / P 17.000); putaran 22: hrd/0005 (potongan BPJS); putaran 21: core/0004 (kunci akun); putaran 11: core/0003 (wajib-ganti-sandi); putaran 10: poli/0002; stok obat lama: catat selisih lewat "Stok masuk"/"Penyesuaian" (lihat PROGRESS putaran 10)
     python manage.py encrypt_sensitive   # sekali, bila ada data lama (backup dulu; --dry-run untuk simulasi)
     python manage.py init_bpjs_status    # sekali, isi awal status BPJS dari nomor yang sudah ada (--dry-run untuk simulasi)
     python manage.py grant_annual_leave --dry-run   # jatah cuti tahunan; ulangi tanpa --dry-run. WAJIB sebelum Admin Dept mengajukan cuti (cuti butuh saldo)

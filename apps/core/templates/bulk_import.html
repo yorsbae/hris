@@ -3,7 +3,7 @@
 <h2>Impor {{ spec.title }} (CSV / XLSX)</h2>
 <div class="card" style="margin-bottom:12px"><p>Kolom: <code>{{ spec.columns|join:", " }}</code>. Wajib: <code>{{ spec.required|join:", " }}</code>. {{ spec.hint }}
 Data dengan kunci <code>{{ spec.key }}</code> yang sudah ada <b>diperbarui</b>, yang belum ada <b>ditambahkan</b>.
-Template: <a href="template.csv">CSV</a> · <a href="template.csv?format=xlsx">XLSX</a>. CSV: UTF-8, pemisah koma atau titik-koma.</p>
+Template: <a class="chip" href="template.csv">CSV</a> <a class="chip" href="template.csv?format=xlsx">XLSX</a>. CSV: UTF-8, pemisah koma atau titik-koma.</p>
 {% if spec.notes %}<ul>{% for n in spec.notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
 <p>Semua baris divalidasi lebih dulu; <b>satu baris salah = tidak ada yang tersimpan</b>. Gunakan "Periksa saja" dahulu.</p></div>
 {% if res %}<div class="msg{% if not res.ok %} error{% endif %}">

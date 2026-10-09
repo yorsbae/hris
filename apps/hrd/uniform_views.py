@@ -104,7 +104,7 @@ def uniforms(request):
     by_dept = list(live.order_by().values("employee__department__name").annotate(n=Count("id"), pcs=Sum("quantity"), total=Sum("deduction_amount")).order_by("employee__department__name"))
     emp_qs = live.order_by().values("employee__nik", "employee__name", "employee__department__name").annotate(pcs=Sum("quantity"), total=Sum("deduction_amount")).order_by("-total", "employee__name")
     from urllib.parse import urlencode
-    ctx = {"page": paginate(request, shown.order_by("-purchase_date", "-id")), "f": f, "totals": totals, "by_dept": by_dept, "stock": _stock_recap(f, live),
+    ctx = {"page": paginate(request, shown.order_by("-purchase_date", "-id")), "f": f, "totals": totals, "by_dept": by_dept, "stock": _stock_recap(f, live), "low_n": sum(1 for b in UniformStock.objects.filter(min_stock__gt=0) if b.low), "minus_n": UniformStock.objects.filter(balance__lt=0).count(),
            "employees": list(emp_qs[:SHOW_EMPLOYEES]), "employees_n": live.order_by().values("employee_id").distinct().count(),
            "departments": Department.objects.order_by("name"), "utypes": UniformType.objects.order_by("name"), "sizes": UniformSize.objects.all(),
            "qs": urlencode({k: v for k, v in f.items() if v or k == "period"})}
@@ -235,6 +235,16 @@ def uniform_stock(request):
     if rng: mv = mv.filter(movement_date__gte=rng[0], movement_date__lt=rng[1])
     if _int(f["utype"]): mv = mv.filter(utype_id=_int(f["utype"]))
     if _int(f["size"]): mv = mv.filter(size_id=_int(f["size"]))
+    if request.method == "POST":
+        t, z, n = UniformType.objects.filter(pk=_int(request.POST.get("utype"))).first(), UniformSize.objects.filter(pk=_int(request.POST.get("size"))).first(), _int(request.POST.get("min_stock"))
+        try:
+            if not (t and z): raise ValueError("Pilih jenis dan ukuran.")
+            with transaction.atomic():
+                st, old = services.set_min_stock(t.pk, z.pk, n)
+                log(request, "hrd", "uniform_stock_min", st, {"min": old}, {"type": t.name, "size": z.code, "min": st.min_stock})
+            messages.success(request, f"Minimum stok {t.name} {z.code} = {st.min_stock} pcs.")
+        except ValueError as e: messages.error(request, str(e))
+        return redirect(request.get_full_path())
     balances = UniformStock.objects.select_related("utype", "size")
     if _int(f["utype"]): balances = balances.filter(utype_id=_int(f["utype"]))
     if _int(f["size"]): balances = balances.filter(size_id=_int(f["size"]))
@@ -244,6 +254,6 @@ def uniform_stock(request):
         return tabular.export_response(f"kartu-stok-seragam-{f['period'] or 'semua'}", ["tanggal", "jenis", "ukuran", "gerak", "jumlah", "saldo_sesudah", "catatan"], rows, request, sheet="Kartu Stok",
                                        num_cols=("jumlah", "saldo_sesudah"))
     from urllib.parse import urlencode
-    return render(request, "hrd/uniform_stock.html", {"page": paginate(request, mv), "f": f, "balances": list(balances), "minus": any(b.balance < 0 for b in balances),
+    return render(request, "hrd/uniform_stock.html", {"page": paginate(request, mv), "f": f, "balances": list(balances), "minus": any(b.balance < 0 for b in balances), "low_n": sum(1 for b in balances if b.low),
                                                       "utypes": UniformType.objects.order_by("name"), "sizes": UniformSize.objects.all(),
                                                       "qs": urlencode({k: v for k, v in f.items() if k in ("period", "utype", "size") and (v or k == "period")})})
