@@ -248,6 +248,12 @@ def uniform_stock(request):
     balances = UniformStock.objects.select_related("utype", "size")
     if _int(f["utype"]): balances = balances.filter(utype_id=_int(f["utype"]))
     if _int(f["size"]): balances = balances.filter(size_id=_int(f["size"]))
+    if request.GET.get("export") == "order":
+        # Daftar pesanan ke vendor: semua jenis×ukuran di bawah minimum (termasuk minus), jumlah pesan = minimum − saldo. Tidak bergantung filter periode.
+        rows = [(b.utype.name, b.size.code, b.balance, b.min_stock, b.min_stock - b.balance) for b in UniformStock.objects.select_related("utype", "size").filter(min_stock__gt=0) if b.balance < b.min_stock]
+        log(request, "hrd", "uniform_stock_export", None, None, {"kind": "order", "rows": len(rows)})
+        return tabular.export_response("pesanan-seragam-vendor", ["jenis", "ukuran", "stok_sekarang", "minimum", "jumlah_dipesan"], rows, request, sheet="Pesanan Vendor",
+                                       num_cols=("stok_sekarang", "minimum", "jumlah_dipesan"))
     if request.GET.get("export"):
         log(request, "hrd", "uniform_stock_export", None, None, {"period": f["period"]})
         rows = [(m.movement_date, m.utype.name, m.size.code, m.get_kind_display(), m.quantity, m.balance_after, m.note) for m in mv.order_by("movement_date", "id")[:EXPORT_MAX]]

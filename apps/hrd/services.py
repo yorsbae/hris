@@ -161,7 +161,8 @@ def stock_move(utype_id, size_id, kind, quantity, when, user, purchase=None, not
     with transaction.atomic():
         UniformStock.objects.get_or_create(utype_id=utype_id, size_id=size_id)
         st = UniformStock.objects.select_for_update().get(utype_id=utype_id, size_id=size_id)
-        st.balance += quantity; st.save(update_fields=["balance"])
+        before = st.balance; st.balance += quantity; st.save(update_fields=["balance"])
+        _notify_low_stock(st, before)
         return UniformStockMovement.objects.create(utype_id=utype_id, size_id=size_id, kind=kind, quantity=quantity, balance_after=st.balance,
                                                    movement_date=when, purchase=purchase, note=(note or "").strip()[:300], created_by=user)
 
@@ -174,3 +175,13 @@ def set_min_stock(utype_id, size_id, minimum):
         UniformStock.objects.get_or_create(utype_id=utype_id, size_id=size_id)
         st = UniformStock.objects.select_for_update().get(utype_id=utype_id, size_id=size_id)
         old, st.min_stock = st.min_stock, minimum; st.save(update_fields=["min_stock"]); return st, old
+
+
+def _notify_low_stock(st, before):
+    """Notifikasi ke HRD saat saldo MENYEBERANG ke bawah minimum (sebelumnya ≥ minimum, sekarang < minimum; minimum 0 = tidak dipantau).
+    Satu notifikasi belum-dibaca per jenis×ukuran: tidak menumpuk bila terus turun. Dipanggil di dalam transaksi stok_move."""
+    from apps.core.models import Notification, Role, User
+    if not (st.min_stock > 0 and before >= st.min_stock > st.balance): return
+    title = f"Stok seragam menipis: {st.utype.name} {st.size.code} ({st.balance} pcs, minimum {st.min_stock})"
+    have = set(Notification.objects.filter(kind="stock", is_read=False, title__startswith=f"Stok seragam menipis: {st.utype.name} {st.size.code} (").values_list("user_id", flat=True))
+    Notification.objects.bulk_create([Notification(user=u, kind="stock", title=title, link="/hrd/uniforms/stock/") for u in User.objects.filter(role=Role.HRD, is_active=True) if u.pk not in have])

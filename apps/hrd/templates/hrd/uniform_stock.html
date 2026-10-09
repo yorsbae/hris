@@ -6,7 +6,7 @@
 <select name="size"><option value="">Semua ukuran</option>{% for z in sizes %}<option value="{{ z.pk }}"{% if f.size == z.pk|stringformat:"s" %} selected{% endif %}>{{ z.code }}</option>{% endfor %}</select>
 <button>Filter</button></form>
 <div class="tools"><a class="btn" href="{% url 'hrd_uniform_stock_in' %}">+ Barang masuk</a><a class="chip" href="{% url 'hrd_uniform_stock_adjust' %}">Koreksi stok</a></div>
-<div class="exports"><span>Ekspor kartu stok:</span><a href="?{{ qs }}&export=1&format=xlsx">XLSX</a><a href="?{{ qs }}&export=1">CSV</a></div>
+<div class="exports"><span>Ekspor kartu stok:</span><a href="?{{ qs }}&export=1&format=xlsx">XLSX</a><a href="?{{ qs }}&export=1">CSV</a><span class="sep">|</span><span>Daftar pesanan vendor (di bawah minimum):</span><a href="?export=order&format=xlsx">XLSX</a><a href="?export=order">CSV</a></div>
 {% if low_n %}<p class="pill pending" style="display:inline-block">{{ low_n }} jenis/ukuran di bawah stok minimum — pertimbangkan memesan ke vendor.</p> {% endif %}{% if minus %}<p class="pill rejected" style="display:inline-block">Ada stok minus — catat barang masuk yang belum tercatat atau lakukan koreksi.</p>{% endif %}
 <h3>Saldo saat ini</h3>
 <div class="wrap"><table id="balances"><thead><tr><th>Jenis</th><th>Ukuran</th><th>Saldo (pcs)</th><th>Minimum</th><th></th></tr></thead><tbody>
