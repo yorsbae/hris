@@ -42,20 +42,20 @@ class BpjsStatusUxTests(HrdBase):
     def test_hint_quick_chips_and_collapsed_filters(self):
         r = self.client.get("/hrd/bpjs/")
         self.assertContains(r, "aktif atau nonaktif"); self.assertContains(r, "Karyawan nonaktif, BPJS masih aktif"); self.assertContains(r, "K belum dicatat"); self.assertContains(r, "Kelola ›")
-        self.assertContains(r, '<details class="flt">'); self.assertNotContains(r, "Reset filter")
+        self.assertContains(r, 'data-fbar'); self.assertNotContains(r, "Reset filter")
         self.assertNotContains(r, "0001234567890")  # nomor BPJS tetap tidak tampil
 
     def test_default_active_employees_is_not_a_chosen_filter_but_others_are(self):
         self.assertNotContains(self.client.get("/hrd/bpjs/?emp=aktif"), "Reset filter")
         for q in ("?emp=semua", "?kes=belum", "?tk=aktif", "?q=bud", "?anomaly=1&emp=nonaktif"):
-            r = self.client.get("/hrd/bpjs/" + q); self.assertContains(r, "Reset filter", msg_prefix=q); self.assertContains(r, '<details class="flt" open>', msg_prefix=q)
+            r = self.client.get("/hrd/bpjs/" + q); self.assertContains(r, "Reset filter", msg_prefix=q); self.assertContains(r, 'data-fbar', msg_prefix=q)
 
     def test_empty_state_with_filter_offers_reset(self):
         r = self.client.get("/hrd/bpjs/?q=tidak-ada-orang"); self.assertContains(r, "Tidak ada karyawan yang cocok dengan filter")
 
     def test_search_form_keeps_selected_filters(self):
         r = self.client.get("/hrd/bpjs/?emp=semua&kes=belum&q=b")
-        self.assertContains(r, '<input type="hidden" name="emp" value="semua">'); self.assertContains(r, '<input type="hidden" name="kes" value="belum">')
+        self.assertContains(r, 'value="semua" selected'); self.assertContains(r, 'value="belum" selected'); self.assertContains(r, 'name="q" value="b"')
 
 
 class CateringUxTests(HrdBase):

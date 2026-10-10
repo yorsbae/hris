@@ -12,8 +12,8 @@
 <a{% if tali_belum_n %} class="warn"{% endif %} href="?year={{ f.year }}&amp;tali=belum"><b>{{ totals.tali_belum|rupiah }}</b> tali asih belum dibayar <small>({{ tali_belum_n }})</small></a>
 <a{% if pak_belum %} class="warn"{% endif %} href="?year={{ f.year }}&amp;paklaring=belum"><b>{{ pak_belum }}</b> paklaring belum terbit</a>
 </div>
-<form method="get" class="bar sepbar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama">
-<input type="number" name="year" value="{{ f.year }}" min="2000" max="2100" style="width:84px" title="Tahun (kosongkan untuk semua)" aria-label="Tahun">
+<form method="get" data-fbar class="bar sepbar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama">
+<input type="number" name="year" value="{{ f.year }}" min="2000" max="2100" title="Tahun (kosongkan untuk semua)" aria-label="Tahun">
 <select name="month" aria-label="Bulan"><option value="">Semua bulan</option>{% for n, m in months %}<option value="{{ n }}"{% if f.month == n|stringformat:"s" %} selected{% endif %}>{{ m }}</option>{% endfor %}</select>
 <select name="kind" aria-label="Jenis"><option value="">Semua jenis</option>{% for k, l in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
 <select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d }}"{% if f.department == d %} selected{% endif %}>{{ d }}</option>{% endfor %}</select>

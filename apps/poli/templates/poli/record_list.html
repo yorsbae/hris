@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}Rekam medis{% endblock %}{% block content %}
 <p class="back"><a href="/poli/">‹ Poliklinik</a></p>
 <h2>Rekam medis <a class="btn" href="{% url 'poli_record_new' %}">+ Kunjungan baru</a></h2>
-<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
+<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
 <select name="kind"><option value="">Semua jenis</option>{% for k, v in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
 <input type="date" name="date_from" value="{{ f.date_from }}" title="Dari tanggal"><input type="date" name="date_to" value="{{ f.date_to }}" title="Sampai tanggal"><button>Filter</button></form>
 <div class="wrap"><table><thead><tr><th>#</th><th>Waktu</th><th>Karyawan</th><th>Departemen</th><th>Jenis</th><th>Diagnosa</th></tr></thead><tbody>

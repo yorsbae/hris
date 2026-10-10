@@ -6,8 +6,8 @@
 <a class="chip" href="?period={{ f.period }}{% if f.scheme %}&amp;scheme={{ f.scheme }}{% endif %}&amp;anomaly=dipotong">Dipotong padahal nonaktif</a><a class="chip" href="?period={{ f.period }}{% if f.scheme %}&amp;scheme={{ f.scheme }}{% endif %}&amp;anomaly=belum">Aktif tapi belum dipotong</a>
 {% if act %}<a class="chip" href="?period={{ f.period }}">Reset filter</a>{% endif %}
 <details class="more"><summary>Lainnya ▾</summary><div><small>Masukkan banyak baris</small><a href="{% url 'hrd_bpjs_deduction_import' %}">Impor CSV / XLSX</a><small>Ekspor (sesuai filter)</small><a href="?{{ qs }}&export=1&format=xlsx">Rekap potongan · XLSX</a><a href="?{{ qs }}&export=1">Rekap potongan · CSV</a></div></details></div>
-<form method="get" class="bar sepbar">{% if f.anomaly %}<input type="hidden" name="anomaly" value="{{ f.anomaly }}">{% endif %}<input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="NIK atau nama">
-<input name="period" value="{{ f.period }}" placeholder="YYYY-MM" size="8" style="width:96px" pattern="\d{4}-\d{2}" title="Periode, format YYYY-MM" aria-label="Periode">
+<form method="get" data-fbar class="bar sepbar">{% if f.anomaly %}<input type="hidden" name="anomaly" value="{{ f.anomaly }}">{% endif %}<input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="NIK atau nama">
+<input name="period" value="{{ f.period }}" placeholder="YYYY-MM" pattern="\d{4}-\d{2}" title="Periode, format YYYY-MM" aria-label="Periode">
 <select name="scheme" aria-label="Program"><option value="">Semua program</option><option value="kes"{% if f.scheme == "kes" %} selected{% endif %}>K (Kesehatan)</option><option value="tk"{% if f.scheme == "tk" %} selected{% endif %}>TK (Ketenagakerjaan)</option></select>
 <select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
 <button class="btn ghost">Tampilkan</button></form>

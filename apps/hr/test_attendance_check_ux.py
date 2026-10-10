@@ -8,7 +8,7 @@ class ChecksListUxTests(Base):
         self.login("hrd"); r = self.client.get(reverse("attcheck_list"))
         self.assertContains(r, "Anda mengirim permintaan"); self.assertContains(r, "+ Permintaan baru")
         self.assertContains(r, "Lainnya ▾"); self.assertContains(r, "Daftar validasi · XLSX")
-        self.assertContains(r, '<details class="flt">'); self.assertNotContains(r, "Reset filter")
+        self.assertContains(r, 'data-fbar'); self.assertNotContains(r, "Reset filter")
         self.assertContains(r, "Belum ada permintaan validasi. Mulai dengan tombol")
 
     def test_admin_sees_own_flow_no_create_no_export(self):
@@ -18,7 +18,7 @@ class ChecksListUxTests(Base):
 
     def test_filter_opens_and_reset_appears_when_used(self):
         self.make(); r = self.client.get(reverse("attcheck_list") + "?status=todo")
-        self.assertContains(r, '<details class="flt" open>'); self.assertContains(r, "Reset filter")
+        self.assertContains(r, 'value="todo" selected'); self.assertContains(r, "Reset filter")
         self.assertContains(self.client.get(reverse("attcheck_list") + "?q=tidakada"), "Tidak ada permintaan yang cocok dengan filter")
 
     def test_row_action_label_matches_role_and_status(self):
@@ -27,7 +27,7 @@ class ChecksListUxTests(Base):
 
     def test_search_form_keeps_active_filters(self):
         self.make(); r = self.client.get(reverse("attcheck_list") + "?status=todo&q=00")
-        self.assertContains(r, '<input type="hidden" name="status" value="todo">')
+        self.assertContains(r, 'value="todo" selected'); self.assertContains(r, 'name="q" value="00"')
 
 
 class CheckDetailUxTests(Base):

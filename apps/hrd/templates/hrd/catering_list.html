@@ -5,7 +5,7 @@
 <div class="tools"><a class="btn" href="{% url 'hrd_catering_new' %}">+ Rekap baru</a>
 {% if pending %}<a class="chip" style="font-weight:700" href="?{% if from %}from={{ from }}&amp;{% endif %}to={{ to }}&amp;only=belum">Belum dicatat diterima ({{ pending }}) — perlu perhatian</a>{% else %}<span class="muted">Semua pesanan pada periode ini sudah dicatat diterima.</span>{% endif %}
 {% if act %}<a class="chip" href="{% url 'hrd_catering' %}">Reset filter</a>{% endif %}</div>
-<form method="get" class="bar">Dari <input type="date" name="from" value="{{ from }}" aria-label="Dari tanggal"> sampai <input type="date" name="to" value="{{ to }}" aria-label="Sampai tanggal">
+<form method="get" data-fbar class="bar"><label>Dari tanggal <input type="date" name="from" value="{{ from }}"></label><label>Sampai tanggal <input type="date" name="to" value="{{ to }}"></label>
 <select name="meal" aria-label="Jam makan"><option value="">Semua jam makan</option>{% for k, v in meals %}<option value="{{ k }}"{% if f.meal == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>{% if f.only %}<input type="hidden" name="only" value="{{ f.only }}">{% endif %}<button class="btn ghost">Terapkan</button></form>
 <div class="grid" style="margin-bottom:12px"><div class="card"><b>{{ t.ol }} / {{ t.rl }}</b><span>Tepak besar: dipesan / diterima</span></div><div class="card"><b>{{ t.os }} / {{ t.rs }}</b><span>Tepak kecil: dipesan / diterima</span></div></div>
 <div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Tanggal</th><th class="num">Dipesan (besar / kecil)</th><th class="num">Diterima (besar / kecil)</th><th>Catatan</th><th class="acts">Aksi</th></tr></thead><tbody>

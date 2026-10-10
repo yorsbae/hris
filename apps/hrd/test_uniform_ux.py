@@ -28,5 +28,5 @@ class UniformUxTests(TestCase):
 
     def test_advanced_filters_open_only_when_used_and_reset_offered(self):
         r = self.client.get("/hrd/uniforms/?tab=pembelian&period=2026-10&status=belum")
-        self.assertContains(r, '<details class="flt" open>'); self.assertContains(r, "Reset filter")
-        self.assertContains(self.client.get("/hrd/uniforms/?tab=pembelian&period=2026-10"), '<details class="flt">')
+        self.assertContains(r, 'value="belum" selected'); self.assertContains(r, "Reset filter")
+        self.assertNotContains(self.client.get("/hrd/uniforms/?tab=pembelian&period=2026-10"), 'value="belum" selected')
