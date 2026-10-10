@@ -230,7 +230,7 @@ class AccessAndNavTests(SepBase):
         self.assertContains(self.client.get("/hrd/separations/"), "Karyawan Keluar")
 
     def test_page_shows_flow_primary_action_empty_state_and_pages_render(self):
-        r = self.client.get(reverse("hrd_separations")); self.assertContains(r, 'class="hint flow"'); self.assertContains(r, "+ Catat karyawan keluar"); self.assertContains(r, "Belum ada karyawan keluar")
+        r = self.client.get(reverse("hrd_separations")); self.assertContains(r, 'class="sepkpi"'); self.assertContains(r, "+ Catat karyawan keluar"); self.assertNotContains(r, "Filter lainnya"); self.assertNotContains(r, "Tgl mengajukan"); self.assertContains(r, "Belum ada karyawan keluar")
         s = self.make(); self.assertContains(self.client.get(reverse("hrd_separation_detail", args=[s.pk])), "Cetak paklaring" if s.paklaring_number else "Terbitkan paklaring")
         self.assertContains(self.client.get(reverse("hrd_separation_new")), "Isi data keluar")
 
