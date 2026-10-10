@@ -189,6 +189,8 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 - **Potongan BPJS**: alur kerja terlipat; **satu baris filter** (cari · periode · program · departemen); kartu → strip KPI satu baris (K dan TK digabung); ringkasan per departemen terlipat → data langsung terlihat di bawah filter. Tes UX BPJS disesuaikan (departemen kini kontrol terlihat).
 - **Seragam**: strip KPI satu baris dengan label pendek.
 - **Global (base.html)**: breadcrumb dan tautan "‹ kembali" satu baris; jarak judul dirapatkan; `.sepkpi` rata penuh.
+- **Pengajuan** (`/requests/`): 7 → 6 kolom, tiap baris 2 baris rapi (Jenis + rincian · Karyawan + NIK · Diajukan + waktu); tinggi halaman 4909 → 3514 px untuk 50 baris. **Status BPJS**: keterangan alur terlipat.
+- Cara audit visual: `seed_demo --employees 120`, `runserver --noreload` (restart setelah ubah template — cache), Playwright Chromium 1366 px; skrip audit tidak disimpan di repo (utang kecil: jadikan `scripts/ui_audit.py`).
 **Yang akan dilakukan (lanjutan)**
 - Periksa halaman Bantuan, Surat Peringatan, Pekerja Harian Proyek, Cuti Hamil terhadap pola baris filter tunggal (audit otomatis: kontrol filter ≤ 5, tanpa blok alur besar di daftar berisi); cek visual di browser pada 1366 px dan ponsel.
 - Cek visual di browser pada lebar 1366 px dan ponsel (tes hanya menghitung kolom, bukan lebar piksel).

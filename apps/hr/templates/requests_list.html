@@ -9,10 +9,10 @@
 <select name="status"><option value="">Semua status</option>{% for k, v in statuses.items %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
 <select name="type"><option value="">{% if grp %}Semua jenis grup ini{% else %}Semua jenis{% endif %}</option>{% for k, v in types.items %}<option value="{{ k }}"{% if f.type == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
 <button>Filter</button></form>
-<div class="wrap"><table><thead><tr><th>#</th><th>Jenis</th><th>Karyawan</th><th>Rincian</th><th>Departemen</th><th>Status</th><th>Diajukan oleh</th></tr></thead><tbody>
-{% for r in page %}<tr><td><a href="/requests/{{ r.pk }}/">{{ r.pk }}</a></td><td>{{ r.type_label }}</td><td>{{ r.employee.nik }} · {{ r.employee.name }}{% if r.payload.partner_name %}<br><small style="color:var(--mu)">⇄ {{ r.payload.partner_nik }} · {{ r.payload.partner_name }}</small>{% endif %}</td><td>{{ r.summary }}</td><td>{{ r.department.name }}</td>
-<td><span class="pill {{ r.status }}">{{ r.status_label }}</span></td><td>{{ r.requested_by.get_username }}<br><small style="color:var(--mu)">{{ r.created_at|date:"d M Y H:i" }}</small></td></tr>
-{% empty %}<tr><td class="empty" colspan="7">Belum ada pengajuan{% if grp %} untuk grup ini{% endif %}.{% if grp == 'lembur' %} Mulai dengan tombol <b>+ Ajukan Stand By / Lembur</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<div class="wrap"><table class="sepfit"><thead><tr><th>#</th><th>Jenis &amp; rincian</th><th>Karyawan</th><th>Departemen</th><th>Status</th><th>Diajukan</th></tr></thead><tbody>
+{% for r in page %}<tr><td class="nw"><a href="/requests/{{ r.pk }}/">{{ r.pk }}</a></td><td>{{ r.type_label }}<small>{{ r.summary }}</small></td><td>{{ r.employee.name }}<small>{{ r.employee.nik }}{% if r.payload.partner_name %} · ⇄ {{ r.payload.partner_nik }} {{ r.payload.partner_name }}{% endif %}</small></td><td>{{ r.department.name }}</td>
+<td class="nw"><span class="pill {{ r.status }}">{{ r.status_label }}</span></td><td class="nw">{{ r.requested_by.get_username }}<small>{{ r.created_at|date:"d M Y H:i" }}</small></td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada pengajuan{% if grp %} untuk grup ini{% endif %}.{% if grp == 'lembur' %} Mulai dengan tombol <b>+ Ajukan Stand By / Lembur</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 <nav class="pager" aria-label="Halaman">{% if page.has_previous %}<a class="btn ghost" href="?page={{ page.previous_page_number }}&q={{ f.q|urlencode }}&status={{ f.status }}&type={{ f.type }}&batch={{ f.batch }}">‹ Sebelumnya</a>{% endif %}
 Halaman {{ page.number }} / {{ page.paginator.num_pages }} · {{ page.paginator.count }} data
 {% if page.has_next %}<a class="btn ghost" href="?page={{ page.next_page_number }}&q={{ f.q|urlencode }}&status={{ f.status }}&type={{ f.type }}&batch={{ f.batch }}">Berikutnya ›</a>{% endif %}</nav>
