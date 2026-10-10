@@ -30,9 +30,9 @@
 <div class="wrap"><table><thead><tr><th class="nw">NIK</th><th>Nama</th><th>Departemen</th><th>Program</th></tr></thead><tbody>
 {% for e, sc in missing %}<tr><td>{{ e.nik }}</td><td>{{ e.name }}</td><td>{{ e.department.name }}</td><td>{% if sc == "kes" %}K{% else %}TK{% endif %}</td></tr>{% empty %}<tr><td class="empty" colspan="4">Semua anggota aktif sudah punya potongan.</td></tr>{% endfor %}</tbody></table></div>
 {% else %}
-<div class="wrap"><table><thead><tr><th class="nw">NIK</th><th>Nama</th><th>Departemen</th><th>Program</th><th class="nw">Periode</th><th class="num">Porsi karyawan</th><th class="num">Porsi perusahaan</th><th>Catatan</th></tr></thead><tbody>
-{% for d in page %}<tr><td class="nw">{{ d.employee.nik }}</td><td>{{ d.employee.name }}</td><td>{{ d.employee.department.name }}</td><td>{% if d.scheme == "kes" %}K{% else %}TK{% endif %}</td><td class="nw">{{ d.period }}</td><td class="num nw">{{ d.employee_amount|rupiah }}</td><td class="num nw">{{ d.employer_amount|rupiah }}</td>
+<div class="wrap"><table class="sepfit"><thead><tr><th>Karyawan</th><th>Departemen</th><th>Program</th><th class="num">Porsi karyawan</th><th class="num">Porsi perusahaan</th><th>Catatan</th></tr></thead><tbody>
+{% for d in page %}<tr><td>{{ d.employee.name }}<small>{{ d.employee.nik }}</small></td><td>{{ d.employee.department.name }}</td><td class="nw">{% if d.scheme == "kes" %}K{% else %}TK{% endif %}<small>{{ d.period }}</small></td><td class="num nw">{{ d.employee_amount|rupiah }}</td><td class="num nw">{{ d.employer_amount|rupiah }}</td>
 <td>{% if d.employee.status == "nonaktif" %}<span class="pill rejected">karyawan nonaktif</span> {% elif not d.member_active %}<span class="pill rejected">status program tidak aktif</span> {% endif %}{{ d.note }}</td></tr>
-{% empty %}<tr><td class="empty" colspan="8">{% if act %}Tidak ada potongan yang cocok dengan filter. <a href="?period={{ f.period }}">Reset filter</a>.{% else %}Belum ada potongan untuk periode {{ f.period }}. Mulai dengan <b>+ Potongan</b>, atau pakai <b>Lainnya ▾ › Impor CSV / XLSX</b> untuk banyak baris.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">{% if act %}Tidak ada potongan yang cocok dengan filter. <a href="?period={{ f.period }}">Reset filter</a>.{% else %}Belum ada potongan untuk periode {{ f.period }}. Mulai dengan <b>+ Potongan</b>, atau pakai <b>Lainnya ▾ › Impor CSV / XLSX</b> untuk banyak baris.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}{% endif %}
 {% endblock %}
