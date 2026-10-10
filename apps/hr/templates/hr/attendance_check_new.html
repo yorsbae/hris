@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Permintaan Validasi Kehadiran{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'attcheck_list' %}">‹ Validasi Kehadiran</a></p><h2>Permintaan validasi baru</h2>
-<p class="hint">Pertanyaan Anda: <b>apakah karyawan ini hadir atau alfa pada tanggal itu?</b> Pertanyaan masuk ke <b>Admin Departemen</b> milik departemen karyawan; jawabannya kembali ke Anda untuk diverifikasi.</p>
+<p class="hint flow">Pertanyaan Anda: <b>apakah karyawan ini hadir atau alfa pada tanggal itu?</b> Pertanyaan masuk ke <b>Admin Departemen</b> milik departemen karyawan; jawabannya kembali ke Anda untuk diverifikasi.</p>
 {% if missing_admin %}<div class="msg error" role="alert"><span>Departemen berikut belum punya Admin Departemen aktif, jadi karyawannya belum bisa ditanyakan: <b>{{ missing_admin|join:", " }}</b>. Buat akun Admin Departemen di menu Pengguna (Superadmin).</span></div>{% endif %}
 <form method="post" class="card" style="max-width:720px">{% csrf_token %}
 <div class="step"><h3><i>1</i>Siapa yang ditanyakan?</h3>

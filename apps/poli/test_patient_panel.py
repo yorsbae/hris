@@ -118,3 +118,12 @@ class PatientInfoAndQuickConclusionTests(PoliBase):
 
     def test_error_hint_mentions_migrate(self):
         self.assertIn("python manage.py migrate", self.client.get("/poli/records/new/").content.decode())
+
+
+class FlowTextLayoutTests(PoliBase):
+    def test_hint_not_width_limited_and_flow_class_on_alur_pages(self):
+        from django.template.loader import get_template
+        self.assertNotIn("max-width:80ch", get_template("base.html").template.source)
+        self.login("hrd")
+        for url in ("/hrd/catering/", "/hrd/uniforms/", "/hrd/bpjs/deductions/"):
+            self.assertIn('class="hint flow"', self.client.get(url).content.decode(), url)

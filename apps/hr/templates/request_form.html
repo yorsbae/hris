@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}{{ title }}{% endblock %}{% block content %}
 <p class="back"><a href="{{ back }}">‹ {{ back_label }}</a></p>
 <h2>{{ title }}</h2>
-<p class="hint">Alur: <b>1. Pilih jenis</b> → <b>2. Isi NIK dan kolom yang muncul</b> (kolom lain disembunyikan sesuai jenis) → <b>3. Ajukan ke HRD</b>. <b>Simpan draft</b> hanya menyimpan; draft belum dikirim ke HRD dan dapat diajukan nanti dari halaman detailnya.</p>
+<p class="hint flow">Alur: <b>1. Pilih jenis</b> → <b>2. Isi NIK dan kolom yang muncul</b> (kolom lain disembunyikan sesuai jenis) → <b>3. Ajukan ke HRD</b>. <b>Simpan draft</b> hanya menyimpan; draft belum dikirim ke HRD dan dapat diajukan nanti dari halaman detailnya.</p>
 <form method="post" class="card form">{% csrf_token %}{% if grp %}<input type="hidden" name="grp" value="{{ grp }}">{% endif %}
 {{ form.non_field_errors }}
 {% for f in form %}<div class="fld" data-f="{{ f.name }}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}

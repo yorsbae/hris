@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% load money %}{% block title %}Rekap Seragam{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Seragam{% if f.period %} — {{ f.period }}{% else %} — semua periode{% endif %}</h2>
-<p class="hint">Alur: <b>1.</b> catat <b>barang masuk</b> dari vendor (stok bertambah) → <b>2.</b> catat <b>pembelian</b> karyawan (stok berkurang, potongan gaji terhitung otomatis) → <b>3.</b> tandai <b>sudah dipotong</b> di rincian, atau ekspor untuk Payroll.</p>
+<p class="hint flow">Alur: <b>1.</b> catat <b>barang masuk</b> dari vendor (stok bertambah) → <b>2.</b> catat <b>pembelian</b> karyawan (stok berkurang, potongan gaji terhitung otomatis) → <b>3.</b> tandai <b>sudah dipotong</b> di rincian, atau ekspor untuk Payroll.</p>
 <div class="tools"><a class="btn" href="{% url 'hrd_uniform_new' %}">+ Catat pembelian karyawan</a><a class="btn ghost" href="{% url 'hrd_uniform_stock_in' %}">+ Barang masuk dari vendor</a>
 <details class="more"><summary>Lainnya ▾</summary><div><small>Stok & master</small><a href="{% url 'hrd_uniform_stock' %}?{{ qs }}">Kartu stok</a><a href="{% url 'hrd_uniform_master' %}">Master seragam (jenis, ukuran, tarif)</a><small>Data massal</small><a href="{% url 'hrd_uniform_import' %}">Impor dari CSV/XLSX</a><small>Ekspor (sesuai filter)</small><a href="?{{ qs }}&export=detail&format=xlsx">Rincian pembelian · XLSX</a><a href="?{{ qs }}&export=detail">Rincian pembelian · CSV</a><a href="?{{ qs }}&export=recap&format=xlsx">Rekap stok untuk vendor · XLSX</a><a href="?{{ qs }}&export=recap">Rekap stok untuk vendor · CSV</a></div></details></div>
 <form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama karyawan" aria-label="Cari NIK atau nama">

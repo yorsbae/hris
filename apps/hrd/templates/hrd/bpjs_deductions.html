@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% load money %}{% block title %}Potongan BPJS{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/bpjs/">‹ Status BPJS</a> · <a href="/hrd/">Operasional HRD</a></p>
 <h2>Potongan BPJS{% if f.scheme == "kes" %} — Kesehatan (K){% elif f.scheme == "tk" %} — Ketenagakerjaan (TK){% endif %} — rekap per periode</h2>
-<p class="hint">Alur: <b>1. Pilih periode</b> (bawaan bulan ini) → <b>2. Catat potongan</b> satu per satu atau impor file → <b>3. Periksa anomali</b> (dipotong padahal nonaktif, atau aktif tapi belum dipotong) → <b>4. Ekspor</b> bila perlu. Angka di sini berasal dari input/impor, bukan dari Payroll.</p>
+<p class="hint flow">Alur: <b>1. Pilih periode</b> (bawaan bulan ini) → <b>2. Catat potongan</b> satu per satu atau impor file → <b>3. Periksa anomali</b> (dipotong padahal nonaktif, atau aktif tapi belum dipotong) → <b>4. Ekspor</b> bila perlu. Angka di sini berasal dari input/impor, bukan dari Payroll.</p>
 <div class="tools"><a class="btn" href="{% url 'hrd_bpjs_deduction_new' %}">+ Potongan</a>
 <a class="chip" href="?period={{ f.period }}{% if f.scheme %}&amp;scheme={{ f.scheme }}{% endif %}&amp;anomaly=dipotong">Dipotong padahal nonaktif</a><a class="chip" href="?period={{ f.period }}{% if f.scheme %}&amp;scheme={{ f.scheme }}{% endif %}&amp;anomaly=belum">Aktif tapi belum dipotong</a>
 {% if act %}<a class="chip" href="?period={{ f.period }}">Reset filter</a>{% endif %}
@@ -21,17 +21,17 @@
 </div>
 {% if by_dept and missing is None %}
 <h3>Ringkasan per departemen — periode {{ f.period }}</h3>
-<div class="wrap"><table id="by-dept"><thead><tr><th>Departemen</th><th>Baris</th><th>Porsi karyawan</th><th>Porsi perusahaan</th></tr></thead><tbody>
-{% for r in by_dept %}<tr><td>{{ r.employee__department__name }}</td><td>{{ r.n }}</td><td>{{ r.emp|rupiah }}</td><td>{{ r.er|rupiah }}</td></tr>{% endfor %}
-<tr><th>Total</th><th>{{ totals.n }}</th><th>{{ totals.emp|rupiah }}</th><th>{{ totals.er|rupiah }}</th></tr></tbody></table></div>
+<div class="wrap"><table id="by-dept"><thead><tr><th>Departemen</th><th class="num">Baris</th><th class="num">Porsi karyawan</th><th class="num">Porsi perusahaan</th></tr></thead><tbody>
+{% for r in by_dept %}<tr><td>{{ r.employee__department__name }}</td><td class="num">{{ r.n }}</td><td class="num nw">{{ r.emp|rupiah }}</td><td class="num nw">{{ r.er|rupiah }}</td></tr>{% endfor %}
+<tr><th>Total</th><th class="num">{{ totals.n }}</th><th class="num nw">{{ totals.emp|rupiah }}</th><th class="num nw">{{ totals.er|rupiah }}</th></tr></tbody></table></div>
 {% endif %}
 {% if missing is not None %}
 <h3>Aktif tetapi belum ada potongan periode {{ f.period }} ({{ missing_n }})</h3>
-<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Program</th></tr></thead><tbody>
+<div class="wrap"><table><thead><tr><th class="nw">NIK</th><th>Nama</th><th>Departemen</th><th>Program</th></tr></thead><tbody>
 {% for e, sc in missing %}<tr><td>{{ e.nik }}</td><td>{{ e.name }}</td><td>{{ e.department.name }}</td><td>{% if sc == "kes" %}K{% else %}TK{% endif %}</td></tr>{% empty %}<tr><td class="empty" colspan="4">Semua anggota aktif sudah punya potongan.</td></tr>{% endfor %}</tbody></table></div>
 {% else %}
-<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Program</th><th>Periode</th><th>Porsi karyawan</th><th>Porsi perusahaan</th><th>Catatan</th></tr></thead><tbody>
-{% for d in page %}<tr><td>{{ d.employee.nik }}</td><td>{{ d.employee.name }}</td><td>{{ d.employee.department.name }}</td><td>{% if d.scheme == "kes" %}K{% else %}TK{% endif %}</td><td>{{ d.period }}</td><td>{{ d.employee_amount|rupiah }}</td><td>{{ d.employer_amount|rupiah }}</td>
+<div class="wrap"><table><thead><tr><th class="nw">NIK</th><th>Nama</th><th>Departemen</th><th>Program</th><th class="nw">Periode</th><th class="num">Porsi karyawan</th><th class="num">Porsi perusahaan</th><th>Catatan</th></tr></thead><tbody>
+{% for d in page %}<tr><td class="nw">{{ d.employee.nik }}</td><td>{{ d.employee.name }}</td><td>{{ d.employee.department.name }}</td><td>{% if d.scheme == "kes" %}K{% else %}TK{% endif %}</td><td class="nw">{{ d.period }}</td><td class="num nw">{{ d.employee_amount|rupiah }}</td><td class="num nw">{{ d.employer_amount|rupiah }}</td>
 <td>{% if d.employee.status == "nonaktif" %}<span class="pill rejected">karyawan nonaktif</span> {% elif not d.member_active %}<span class="pill rejected">status program tidak aktif</span> {% endif %}{{ d.note }}</td></tr>
 {% empty %}<tr><td class="empty" colspan="8">{% if act %}Tidak ada potongan yang cocok dengan filter. <a href="?period={{ f.period }}">Reset filter</a>.{% else %}Belum ada potongan untuk periode {{ f.period }}. Mulai dengan <b>+ Potongan</b>, atau pakai <b>Lainnya ▾ › Impor CSV / XLSX</b> untuk banyak baris.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}{% endif %}

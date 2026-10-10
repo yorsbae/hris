@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}Ajukan Stand By / Lembur{% endblock %}{% block content %}
 <p class="back"><a href="/requests/g/lembur/">‹ Stand By & Lembur</a></p>
 <h2>Ajukan Stand By / Lembur</h2>
-<p class="hint">Isi empat langkah di bawah lalu kirim. Satu pengajuan boleh untuk banyak karyawan (satu regu); HRD menerima satu ringkasan dan memutuskan. Pengajuan baru bisa dibatalkan selama masih menunggu keputusan.</p>
+<p class="hint flow">Isi empat langkah di bawah lalu kirim. Satu pengajuan boleh untuk banyak karyawan (satu regu); HRD menerima satu ringkasan dan memutuskan. Pengajuan baru bisa dibatalkan selama masih menunggu keputusan.</p>
 {% if request.user.role != 'dept_admin' %}<form method="get" class="bar"><label for="dsel">Tampilkan karyawan departemen:</label><select id="dsel" name="department" onchange="this.form.submit()"><option value="">— pilih —</option>{% for d in depts %}<option value="{{ d.pk }}"{% if dept and dept.pk == d.pk %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></form>{% endif %}
 <form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
 <div class="step"><h3><i>1</i>Jenis</h3>
@@ -12,7 +12,7 @@
 <div class="step"><h3><i>3</i>Karyawan{% if dept %} — {{ dept.name }}{% endif %}</h3>
 {% if roster %}<div class="bar"><input id="rs" type="search" placeholder="Cari nama / NIK…" aria-label="Cari karyawan"><button type="button" class="ghost" id="all">Pilih yang tampil</button><button type="button" class="ghost" id="none">Kosongkan</button><span id="cnt" class="hint" style="margin:0">0 dipilih</span></div>
 <div class="roster" id="roster">{% for e in roster %}<label data-s="{{ e.nik }} {{ e.name|lower }}"><input type="checkbox" name="niks" value="{{ e.nik }}"{% if e.nik in picked %} checked{% endif %}> {{ e.name }} <small>{{ e.nik }}{% if e.position %} · {{ e.position.name }}{% endif %}</small></label>{% endfor %}</div>
-{% elif request.user.role != 'dept_admin' %}<p class="hint">Pilih departemen di atas untuk menampilkan daftar, atau tempel NIK langsung di bawah.</p>{% else %}<p class="hint">Belum ada karyawan aktif di departemen Anda.</p>{% endif %}
+{% elif request.user.role != 'dept_admin' %}<p class="hint flow">Pilih departemen di atas untuk menampilkan daftar, atau tempel NIK langsung di bawah.</p>{% else %}<p class="hint">Belum ada karyawan aktif di departemen Anda.</p>{% endif %}
 <div class="fld" style="margin-top:8px">{{ form.extra_niks.label_tag }}{{ form.extra_niks }}{{ form.extra_niks.errors }}</div></div>
 <div class="step"><h3><i>4</i>Alasan</h3><div class="fld">{{ form.reason }}{{ form.reason.errors }}</div></div>
 <p><button>Kirim ke HRD</button> <a class="btn ghost" href="/requests/g/lembur/">Batal</a></p></form>
