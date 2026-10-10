@@ -21,6 +21,11 @@ def dashboard(request):
         d.update(maternity_active=MaternityLeave.objects.filter(state="aktif", start_date__lte=today, end_date__gte=today).count(),
                  warnings_active=WarningLetter.objects.filter(revoked_at__isnull=True, issue_date__lte=today, valid_until__gte=today).count(),
                  bpjs_inactive=BpjsMembership.objects.filter(status="nonaktif", employee__status="aktif", employee__deleted_at__isnull=True).count())
+        from apps.hrd.models import Separation  # putaran 38d: tugas Karyawan Keluar (hanya angka; yang bisa ditindaklanjuti sekarang)
+        sep = Separation.objects.filter(voided_at__isnull=True)
+        d.update(sep_paklaring=sep.filter(applied_at__isnull=False, paklaring_number="").count(),                                  # sudah keluar, paklaring belum terbit
+                 sep_tali=sep.filter(tali_asih__gt=0, tali_asih_paid_on__isnull=True).count(),                                      # tali asih ditetapkan, belum dibayar
+                 sep_soon=sep.filter(applied_at__isnull=True, last_date__gte=today, last_date__lte=today + timedelta(days=7)).count())  # hari terakhir kerja dalam 7 hari
         if u.role == Role.SUPERADMIN:
             d.update(visits_today=MedicalRecord.objects.filter(visit_at__date=today).count(),  # agregat saja (tanpa nama pasien)
                      users=User.objects.filter(is_active=True).count(),

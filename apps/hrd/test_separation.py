@@ -274,3 +274,40 @@ class ContractReminderTests(SepBase):
         call_command("check_contracts")
         titles = list(Notification.objects.filter(kind="contract").values_list("title", flat=True))
         self.assertEqual(len(titles), 1); self.assertIn("Budi", titles[0]); self.assertNotIn("Sari", " ".join(titles))
+
+
+class DashboardTaskTests(SepBase):
+    """Putaran 38d: kartu tugas Karyawan Keluar di dashboard HRD/Superadmin (hanya angka; Admin Dept/Poli tidak menerimanya)."""
+    KEYS = ("sep_paklaring", "sep_tali", "sep_soon")
+
+    def dash(self, who="hrd"): self.login(who); return self.client.get("/api/dashboard/").json()
+
+    def test_zero_when_nothing_recorded(self):
+        d = self.dash()
+        for k in self.KEYS: self.assertEqual(d[k], 0, k)
+
+    def test_counts_actionable_items_only(self):
+        a = self.make(emp=self.e1, last=ago(5), tali_asih="1.000.000")                  # sudah keluar: paklaring belum terbit + tali asih belum dibayar
+        b = self.make(emp=self.e2, last=ago(6)); services.issue_paklaring(b.pk, date.today(), self.hrd)   # paklaring terbit, tanpa tali asih → tidak dihitung
+        c = self.make(emp=self.e3, last=ahead(3))                                       # terjadwal ≤ 7 hari: belum bisa paklaring
+        d = self.dash()
+        self.assertEqual((d["sep_paklaring"], d["sep_tali"], d["sep_soon"]), (1, 1, 1))
+        services.set_tali_asih(a.pk, 1_000_000, "", ago(1), self.hrd); services.issue_paklaring(a.pk, date.today(), self.hrd)
+        d = self.dash(); self.assertEqual((d["sep_paklaring"], d["sep_tali"], d["sep_soon"]), (0, 0, 1))
+        self.assertEqual(Separation.objects.get(pk=c.pk).applied_at, None)
+
+    def test_far_future_and_voided_not_counted(self):
+        self.make(emp=self.e1, last=ahead(30)); s = self.make(emp=self.e2, last=ahead(2)); services.void_separation(s.pk, "salah catat", self.hrd)
+        d = self.dash(); self.assertEqual(d["sep_soon"], 0)
+
+    def test_roles(self):
+        self.make(emp=self.e1, last=ago(5), tali_asih="500.000")
+        self.assertEqual(self.dash("su")["sep_tali"], 1)
+        for who in ("adm", "poli"):
+            d = self.dash(who)
+            for k in self.KEYS: self.assertNotIn(k, d, (who, k))
+
+    def test_home_page_knows_the_cards(self):
+        h = self.client.get("/").content.decode()
+        for k in self.KEYS: self.assertIn(k + ":", h)
+        self.assertIn("/hrd/separations/?year=&tali=belum", h)
