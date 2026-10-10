@@ -1,4 +1,4 @@
-"""Penjaga putaran 40: setiap form GET yang berisi kontrol filter (pilihan, tanggal, bulan, centang) wajib memakai
+"""Penjaga putaran 40 (popover overlay sejak 40c): setiap form GET yang berisi kontrol filter (pilihan, tanggal, bulan, centang) wajib memakai
 tombol Filter bersama (`data-fbar`, dipasang oleh JS di base.html). Tidak boleh ada filter terlipat kedua (`details.flt` berisi form GET)."""
 import re
 from pathlib import Path
@@ -36,4 +36,5 @@ class FilterButtonGuard(SimpleTestCase):
     def test_shared_component_is_in_base(self):
         s = (ROOT / "core" / "templates" / "base.html").read_text(encoding="utf-8")
         for k in (".fbtn", ".fpanel", "[data-fbar]", "aria-expanded", "aria-controls"): self.assertIn(k, s)
-        self.assertIn("flex:1 1 100%", s)  # panel di dalam alur (tidak melayang menutupi isi)
+        self.assertIn("position:absolute;z-index:60", s)  # popover overlay hemat ruang (putaran 40c)
+        self.assertIn(".fscrim", s)                       # ponsel: lembar bawah + latar

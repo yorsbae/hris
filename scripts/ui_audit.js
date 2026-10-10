@@ -1,6 +1,6 @@
 // Audit tampilan: node scripts/ui_audit.js [base_url] — butuh `npm i puppeteer-core @sparticuz/chromium` (atau Chrome lokal: CHROME=/path).
 // Untuk tiap halaman daftar & tiap lebar (1366/768/390): scroll samping halaman/tabel, lalu buka panel Filter dan periksa
-// (a) panel di dalam layar, (b) tidak menimpa elemen sesudahnya, (c) tombol/chip tidak keluar layar. Screenshot ke /tmp/ui/.
+// (a) popover di dalam layar, (b) panel overlay terlihat utuh (tidak tertutup/terpotong elemen lain), (c) tombol/chip tidak keluar layar. Screenshot ke /tmp/ui/.
 const puppeteer = require('puppeteer-core'); const fs = require('fs');
 const BASE = process.argv[2] || 'http://127.0.0.1:8000';
 const ALL = ['/employees/','/requests/','/leave/','/announcements/','/hrd/aids/','/hrd/maternity/','/hrd/projects/','/hrd/catering/','/hrd/warnings/','/hrd/bpjs/','/hrd/bpjs/deductions/','/hrd/separations/','/hrd/uniforms/','/hrd/uniforms/?tab=pembelian','/hrd/uniforms/?tab=riwayat','/poli/billing/','/poli/medicines/','/poli/records/','/poli/referrals/','/poli/reports/stock/','/users/','/audit/','/validasi/','/schedule/','/requests/g/lembur/rekap/'];
@@ -13,7 +13,7 @@ const PAGES = process.env.UI_PAGES ? ALL.filter(u => process.env.UI_PAGES.split(
   await pg.type('input[name=username]', process.env.UI_USER || 'hrd'); await pg.type('input[name=password]', process.env.UI_PASS || 'Demo#HRIS-2026');
   await Promise.all([pg.waitForNavigation(), pg.click('main form button:not(.eye)')]);
   const problems = [];
-  for (const w of [1366, 768, 390]) {
+  for (const w of (process.env.UI_WIDTHS || '1366,768,390').split(',').map(Number)) {
     await pg.setViewport({ width: w, height: 800 });
     for (const u of PAGES) {
       const r = await pg.goto(BASE + u, { waitUntil: 'networkidle0' }).catch(() => null); if (!r || r.status() >= 400) { problems.push(`${w} ${u}: HTTP ${r && r.status()}`); continue; }
@@ -23,7 +23,8 @@ const PAGES = process.env.UI_PAGES ? ALL.filter(u => process.env.UI_PAGES.split(
         const f = document.querySelector('[data-fbar]'); if (!f) return { o, nofilter: true };
         const btn = f.querySelector('.fbtn'); btn.click(); const p = f.querySelector('.fpanel'), pr = p.getBoundingClientRect();
         if (pr.left < -1 || pr.right > innerWidth + 1) o.push('panel keluar layar');
-        let n = f.nextElementSibling; if (n) { const nr = n.getBoundingClientRect(); if (nr.top < pr.bottom - 1 && nr.height > 0) o.push('panel menimpa elemen sesudahnya'); }
+        const cx = pr.left + pr.width / 2, cy = Math.min(pr.top + 30, innerHeight - 5); const hit = document.elementFromPoint(cx, cy); if (!hit || !p.contains(hit)) o.push('panel tertutup elemen lain (z-index/terpotong)');
+        if (pr.top < 0) o.push('panel terpotong di atas'); if (pr.width < 200) o.push('panel terlalu sempit');
         f.querySelectorAll('.fbtn,.fchip,.fsearch').forEach(e => { const r = e.getBoundingClientRect(); if (r.right > innerWidth + 1) o.push('kontrol keluar layar: ' + e.className); });
         return { o, chips: f.querySelectorAll('.fchip').length };
       });
