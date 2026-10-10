@@ -1,0 +1,12 @@
+# Contoh crontab untuk HRIS (salin ke `crontab -e` pengguna layanan; sesuaikan PATH dan virtualenv).
+# Semua perintah aman dijalankan berulang (notifikasi belum-dibaca tidak menumpuk).
+HRIS=/path/hris
+PY=/path/venv/bin/python
+# 07:00 — pengingat validasi kehadiran (Admin Dept saat batas besok/terlambat; HRD saat terlambat)
+0 7 * * * cd $HRIS && $PY manage.py remind_attendance_checks
+# 07:05 — pengingat pengajuan Stand By & Lembur yang belum diputuskan HRD (tanggal kerja besok/lewat)
+5 7 * * * cd $HRIS && $PY manage.py remind_extra_work
+# 07:10 — pengingat kontrak yang akan berakhir
+10 7 * * * cd $HRIS && $PY manage.py check_contracts
+# 1 Januari 00:30 — jatah cuti tahunan
+30 0 1 1 * cd $HRIS && $PY manage.py grant_annual_leave

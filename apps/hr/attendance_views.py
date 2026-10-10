@@ -54,7 +54,8 @@ def check_list(request):
               "answered": base.filter(status="dijawab").count()}
     qd = g.copy(); qd.pop("page", None)
     return render(request, "hr/attendance_checks.html", {"page": page, "qs": qd.urlencode(), "f": {"status": status, "q": g.get("q", ""), "date": g.get("date", ""), "dept": g.get("dept", "")},
-                  "statuses": AC.STATUSES, "depts": Department.objects.order_by("name"), "counts": counts, "is_admin": is_admin, "answers": AC.ANSWERS})
+                  "statuses": AC.STATUSES, "depts": Department.objects.order_by("name"), "counts": counts, "is_admin": is_admin, "answers": AC.ANSWERS,
+                  "act": any(g.get(k) for k in ("status", "q", "date", "dept")), "actf": any(g.get(k) for k in ("status", "date", "dept"))})  # filter yang DIPILIH pengguna (bukan bawaan Admin)
 
 
 def _niks(p):

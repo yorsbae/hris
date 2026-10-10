@@ -170,7 +170,7 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 11. **[BARU] Company Profile + Lamar Kerja** (tahap terakhir; perluasan scope — bagian "Company Profile & Lamar Kerja" di bawah). Menggantikan butir Career Portal yang tadinya hanya satu baris di Tahap 9: Recruitment (internal HRD) tetap Tahap 9, sedangkan **situs publik** (profil perusahaan, lowongan, formulir lamaran, lacak status) dikerjakan di Tahap 11 setelah keamanan dan skalabilitas (Tahap 10) memadai.
 
 ## [BARU] Prinsip UI/UX berbasis fungsi (bukan hiasan)
-> **Status (putaran 30):** diterapkan pada halaman **Seragam** dan **daftar Pengajuan** serta form Stand By/Lembur; halaman lain dirapikan bertahap memakai komponen yang sama.
+> **Status (putaran 33):** diterapkan pada halaman **Seragam**, **daftar Pengajuan**, form Stand By/Lembur, dan **daftar Validasi Kehadiran** (putaran 33); halaman lain dirapikan bertahap memakai komponen yang sama.
 
 Tujuan: pengguna (Admin Departemen, HRD, Poli) yang tidak teknis dapat menyelesaikan tugas tanpa pelatihan. Fokus pada **fungsi dan kejelasan alur**, bukan efek visual. Aturan untuk setiap halaman baru/diubah:
 1. **Satu aksi utama per halaman**, tampil sebagai tombol berwarna; aksi sekunder (impor, ekspor, master, kartu stok) **dilipat** di menu "Lainnya". Tidak lebih dari 2 tombol penuh berdampingan.
