@@ -179,8 +179,13 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 - **Potongan BPJS** 8 → 6, **Validasi Kehadiran** 8 → 7, **Katering** 8 → 5 kolom (Dipesan / Diterima "besar / kecil").
 - **Tes penjaga baru** `apps/core/test_table_width.py`: tabel mana pun di template > 8 kolom menggagalkan tes (pengecualian: `master_list.html`, utang — pecah per master).
 - Hasil uji: `apps.hrd apps.hr` 538 tes + `apps.core apps.poli` 345 tes lulus di SQLite (enam + tujuh dilewati khusus PostgreSQL) = 883 tes termasuk 1 tes baru.
+**39c — lanjutan** ✅
+- `master_list.html`: ternyata 14 itu jumlah semua cabang jenis master, bukan lebar tabel; kolom Shift 7 → 5 (Masuk+Pulang+Lewat tengah malam jadi satu kolom "Jam kerja"). Tes penjaga kini menghitung **cabang `{% if %}` terlebar**, pengecualian dihapus.
+- **Audit log**: baris filter utama 5 kontrol (dari, sampai, modul, aksi, user); objek/ID/IP terlipat (terbuka otomatis bila dipakai).
+- **Seragam**: empat kartu → strip KPI; blok "Alur kerja" terlipat.
+- Uji: 262 tes (core + seragam) + 288 tes (hr + penjaga) lulus; sebelumnya hrd/poli lulus.
 **Yang akan dilakukan (lanjutan)**
-- `master_list.html` (14 kolom, generik) dipecah per jenis master; periksa halaman Bantuan, Surat Peringatan, Pekerja Harian Proyek, Cuti Hamil terhadap pola baris filter tunggal (kolom sudah ≤ 8 tetapi filter/langkah alur belum diperiksa satu per satu).
+- Periksa halaman Bantuan, Surat Peringatan, Pekerja Harian Proyek, Cuti Hamil terhadap pola baris filter tunggal (audit otomatis: kontrol filter ≤ 5, tanpa blok alur besar di daftar berisi); cek visual di browser pada 1366 px dan ponsel.
 - Cek visual di browser pada lebar 1366 px dan ponsel (tes hanya menghitung kolom, bukan lebar piksel).
 - Sisa Karyawan Keluar: tindak lanjut otomatis akun/kontrak/BPJS (A96–A98), clearance serah terima, rumus tali asih.
 - Belum diuji di PostgreSQL 16: hrd/0008–0011, hr/0009–0010.
