@@ -160,7 +160,7 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 2d. **[BARU] Seragam**: rekap pembelian seragam + ukuran, tarif potongan L/P, ekspor XLSX (di bawah Operasional HRD) — **✅ putaran 23**
 3. **Workflow**: mutasi, promosi/demosi, izin, cuti, tukar shift/libur (**1 orang atau 2 orang**), **administrasi**, approval
 4. **Informasi**: notifikasi, pengumuman, peraturan, read/unread. **[BARU]** reminder (cuti, SP, kontrak, stok menipis, obat mendekati kedaluwarsa, sinkronisasi absensi)
-5. **Poli**: rekam medis (form menyesuaikan jenis kunjungan), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat izin (pulang / libur / hamil), riwayat poli di detail karyawan untuk user Poli
+5. **Poli**: rekam medis (form menyesuaikan jenis kunjungan; **pemeriksa = karyawan departemen Poli** dipilih lewat NIK, **dokter = bukan karyawan**, hanya nama — putaran 34), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat izin (pulang / libur / hamil), riwayat poli di detail karyawan untuk user Poli
 5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis, **tagihan mitra (rekap tagihan, identitas karyawan, total)** — **✅ putaran 24**
 6. **Absensi**: integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran, **validasi kehadiran HRD → Admin Departemen** (kerangka alurnya boleh dikerjakan lebih dulu, tanpa mesin)
 7. **Payroll** — *tetap dalam visi, dikerjakan paling akhir (belum diproses sekarang)*: komponen gaji, tunjangan, potongan, BPJS, periode, slip gaji. Data payroll tetap di tabel terpisah dari karyawan.
@@ -426,3 +426,7 @@ Jangan mengorbankan struktur database demi CRUD cepat. **[BARU]** Dan jangan men
 ## Pencetakan
 Dokumen cetak (mis. surat izin pulang, surat rujukan, **[BARU]** surat peringatan): **A4 portrait, isi hanya separuh atas halaman** (garis potong di tengah).
 Kop surat memakai nama dan logo perusahaan dari konfigurasi sistem.
+**[BARU] Status (putaran 34):** kop (nama perusahaan, alamat, nama poli) dan penanda tangan kini dibaca dari konfigurasi untuk **semua** surat Poli (izin pulang/libur/hamil, rujukan) seperti Surat Peringatan; **logo belum** (perlu penyimpanan berkas logo). Penanda tangan surat Poli: dokter yang diisi di rekam medis → dokter perusahaan (`POLI_DOCTOR_NAME`) → pemeriksa → pembuat rekam. Surat persetujuan cuti hamil (penanda tangan Personalia) masih menunggu format dari pemilik produk.
+
+## [BARU] Data demo (`seed_demo`)
+Prinsip (putaran 34): data demo **dibuat lewat servis/form yang sama dengan aplikasi** (bukan baris tulis tangan) supaya jejak, notifikasi, dan aturan ikut teruji, **mencakup setiap fitur yang sudah ada** (setiap fitur baru wajib menambah data demonya + satu tes konsistensi), dan **konsisten antar modul** (mis. HPL kunjungan kehamilan = HPL cuti hamil; stok = jumlah kartu). Mewakili setiap status dan keadaan khusus (terlambat, dikembalikan, dibatalkan, saldo minus, stok menipis, konflik) agar tampilan dapat dicek tanpa menyiapkan data. Hanya untuk uji coba — jangan dijalankan di produksi.
