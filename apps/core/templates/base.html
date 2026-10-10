@@ -128,6 +128,8 @@ table.sepfit{width:100%}table.sepfit small{display:block;color:var(--mu);font-si
 /* putaran 40: kolom tabel — kolom angka/aksi/tanggal selebar isinya, kolom teks mengisi sisa lebar (tanpa celah antarkolom yang melebar) */
 table th.num,table td.num,table th.nw,table td.nw,table th.acts,table td.acts{width:1%;white-space:nowrap}table td.acts{text-align:right}table th.fill,table td.fill{width:auto;white-space:normal;overflow-wrap:anywhere}
 table td small,table th small{display:block;color:var(--mu);font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;white-space:normal}
+@media(max-width:900px){table th,table th.nw,table td.nw,table td.acts{white-space:normal}table td.num{white-space:nowrap}table td.acts{display:table-cell}}
+.table-wrap{overflow-x:auto;max-width:100%;border-radius:var(--r)}
 .wrap table,.table-wrap table{table-layout:auto}main,.col{min-width:0}.wrap{max-width:100%}
 </style></head><body class="{% block bodyclass %}{% endblock %}"><a class="skip" href="#main">Lewati ke isi</a>
 {% include "_icons.html" %}
@@ -172,7 +174,8 @@ window.addEventListener("pageshow",function(e){if(e.persisted)document.querySele
 
 (function(){var IC='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>',CV='<svg class="cv" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 var uid=0;
-function lbl(el){var l=el.closest("label"),t="";if(l){l.childNodes.forEach(function(n){if(n.nodeType===3)t+=n.textContent});t=t.trim();if(t)return t}return el.getAttribute("aria-label")||el.dataset.label||el.title||el.placeholder||el.name||""}
+function selLbl(el){if(el.tagName!=="SELECT"||!el.options[0])return"";var t=el.options[0].text.trim().replace(/^semua\s+/i,"");return t&&/^semua\s/i.test(el.options[0].text.trim())?t.charAt(0).toUpperCase()+t.slice(1):""}
+function lbl(el){var l=el.closest("label"),t="";if(l){l.childNodes.forEach(function(n){if(n.nodeType===3)t+=n.textContent});t=t.trim();if(t)return t}return el.getAttribute("aria-label")||el.dataset.label||el.title||el.placeholder||selLbl(el)||el.name||""}
 function val(c){return(c.type==="checkbox"||c.type==="radio")?(c.checked?c.value:""):c.value}
 function act(c){var v=val(c);return v!==""&&v!==(c.dataset.default||"")}
 function txt(c){if(c.tagName==="SELECT"){var o=c.options[c.selectedIndex];return o?o.text:""}return c.value}
@@ -191,7 +194,7 @@ kill.forEach(function(b){b.remove()});
 if(search){search.classList.add("fsearch");if(!search.getAttribute("aria-label"))search.setAttribute("aria-label",search.placeholder||"Cari")}
 var ctr=[];
 move.forEach(function(el){var w;
-if(el.tagName==="LABEL"){el.classList.add("ff");if(el.querySelector("input[type=checkbox]"))el.classList.add("chk");w=el}
+if(el.tagName==="LABEL"){el.classList.add("ff");el.classList.remove("chk");if(el.querySelector("input[type=checkbox]"))el.classList.add("chk");w=el}
 else{var tx=lbl(el);w=document.createElement("label");w.className="ff";var s=document.createElement("span");s.textContent=tx;
 if(el.type==="checkbox"||el.type==="radio"){w.className="ff chk";w.append(el,s)}else w.append(s,el)}
 panel.appendChild(w);w.querySelectorAll("input,select,textarea").forEach(function(c){if(c.type==="hidden")return;c.dataset.fl=lbl(c)||c.dataset.fl||"";ctr.push(c)})});
