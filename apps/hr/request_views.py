@@ -77,7 +77,8 @@ def request_new(request):
             messages.success(request, "Draft tersimpan. Ajukan dari halaman detail bila sudah siap.")
         return redirect("request_detail", pk=req.pk)
     return render(request, "request_form.html", {"form": form, "fields_by_type": FIELDS_BY_TYPE, "grp": grp if grp in REQUEST_GROUPS else "",
-                                                 "title": REQUEST_GROUPS[grp][0] if grp in REQUEST_GROUPS else "Buat pengajuan"})
+                                                 "title": REQUEST_GROUPS[grp][0] if grp in REQUEST_GROUPS else "Buat pengajuan",
+                                                 "back": f"/requests/g/{grp}/" if grp in REQUEST_GROUPS else "/requests/", "back_label": REQUEST_GROUPS[grp][0] if grp in REQUEST_GROUPS else "Pengajuan"})
 
 
 def summary(r):

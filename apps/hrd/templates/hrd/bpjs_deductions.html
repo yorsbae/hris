@@ -1,14 +1,19 @@
 {% extends "base.html" %}{% load money %}{% block title %}Potongan BPJS{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/bpjs/">‹ Status BPJS</a> · <a href="/hrd/">Operasional HRD</a></p>
 <h2>Potongan BPJS{% if f.scheme == "kes" %} — Kesehatan (K){% elif f.scheme == "tk" %} — Ketenagakerjaan (TK){% endif %} — rekap per periode</h2>
-<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
-<input name="period" value="{{ f.period }}" placeholder="YYYY-MM" size="8" pattern="\d{4}-\d{2}" title="YYYY-MM">
-<select name="scheme"><option value="">Semua program</option><option value="kes"{% if f.scheme == "kes" %} selected{% endif %}>K (Kesehatan)</option><option value="tk"{% if f.scheme == "tk" %} selected{% endif %}>TK (Ketenagakerjaan)</option></select>
-<select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
-<select name="anomaly"><option value="">Semua baris</option><option value="dipotong"{% if f.anomaly == "dipotong" %} selected{% endif %}>Anomali: dipotong padahal nonaktif</option><option value="belum"{% if f.anomaly == "belum" %} selected{% endif %}>Anomali: aktif tapi belum dipotong</option></select>
-<button>Filter</button></form>
-<div class="tools"><a class="btn" href="{% url 'hrd_bpjs_deduction_new' %}">+ Potongan</a><a class="chip" href="{% url 'hrd_bpjs_deduction_import' %}">Impor CSV/XLSX</a></div>
-<div class="exports"><span>Ekspor:</span><a href="?{{ qs }}&export=1&format=xlsx">XLSX</a><a href="?{{ qs }}&export=1">CSV</a></div>
+<p class="hint">Alur: <b>1. Pilih periode</b> (bawaan bulan ini) → <b>2. Catat potongan</b> satu per satu atau impor file → <b>3. Periksa anomali</b> (dipotong padahal nonaktif, atau aktif tapi belum dipotong) → <b>4. Ekspor</b> bila perlu. Angka di sini berasal dari input/impor, bukan dari Payroll.</p>
+<div class="tools"><a class="btn" href="{% url 'hrd_bpjs_deduction_new' %}">+ Potongan</a>
+<a class="chip" href="?period={{ f.period }}{% if f.scheme %}&amp;scheme={{ f.scheme }}{% endif %}&amp;anomaly=dipotong">Dipotong padahal nonaktif</a><a class="chip" href="?period={{ f.period }}{% if f.scheme %}&amp;scheme={{ f.scheme }}{% endif %}&amp;anomaly=belum">Aktif tapi belum dipotong</a>
+{% if act %}<a class="chip" href="?period={{ f.period }}">Reset filter</a>{% endif %}
+<details class="more"><summary>Lainnya ▾</summary><div><small>Masukkan banyak baris</small><a href="{% url 'hrd_bpjs_deduction_import' %}">Impor CSV / XLSX</a><small>Ekspor (sesuai filter)</small><a href="?{{ qs }}&export=1&format=xlsx">Rekap potongan · XLSX</a><a href="?{{ qs }}&export=1">Rekap potongan · CSV</a></div></details></div>
+<form method="get" class="bar">{% if f.scheme %}<input type="hidden" name="scheme" value="{{ f.scheme }}">{% endif %}{% if f.department %}<input type="hidden" name="department" value="{{ f.department }}">{% endif %}{% if f.anomaly %}<input type="hidden" name="anomaly" value="{{ f.anomaly }}">{% endif %}<input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="NIK atau nama">
+<input name="period" value="{{ f.period }}" placeholder="YYYY-MM" size="8" pattern="\d{4}-\d{2}" title="Periode, format YYYY-MM" aria-label="Periode"><button class="btn ghost">Tampilkan</button></form>
+<details class="flt"{% if act %} open{% endif %}><summary>Filter lainnya (program, departemen, anomali)</summary>
+<form method="get" class="bar"><input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="period" value="{{ f.period }}">
+<select name="scheme" aria-label="Program"><option value="">Semua program</option><option value="kes"{% if f.scheme == "kes" %} selected{% endif %}>K (Kesehatan)</option><option value="tk"{% if f.scheme == "tk" %} selected{% endif %}>TK (Ketenagakerjaan)</option></select>
+<select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<select name="anomaly" aria-label="Anomali"><option value="">Semua baris</option><option value="dipotong"{% if f.anomaly == "dipotong" %} selected{% endif %}>Anomali: dipotong padahal nonaktif</option><option value="belum"{% if f.anomaly == "belum" %} selected{% endif %}>Anomali: aktif tapi belum dipotong</option></select>
+<button class="btn ghost">Terapkan</button></form></details>
 <div class="grid">
 <div class="card"><b>{{ totals.emp|rupiah }}</b><span>Porsi karyawan ({{ totals.n }} baris)</span></div>
 <div class="card"><b>{{ totals.er|rupiah }}</b><span>Porsi perusahaan</span></div>
@@ -28,6 +33,6 @@
 <div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Program</th><th>Periode</th><th>Porsi karyawan</th><th>Porsi perusahaan</th><th>Catatan</th></tr></thead><tbody>
 {% for d in page %}<tr><td>{{ d.employee.nik }}</td><td>{{ d.employee.name }}</td><td>{{ d.employee.department.name }}</td><td>{% if d.scheme == "kes" %}K{% else %}TK{% endif %}</td><td>{{ d.period }}</td><td>{{ d.employee_amount|rupiah }}</td><td>{{ d.employer_amount|rupiah }}</td>
 <td>{% if d.employee.status == "nonaktif" %}<span class="pill rejected">karyawan nonaktif</span> {% elif not d.member_active %}<span class="pill rejected">status program tidak aktif</span> {% endif %}{{ d.note }}</td></tr>
-{% empty %}<tr><td class="empty" colspan="8">Belum ada potongan untuk filter ini.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="8">{% if act %}Tidak ada potongan yang cocok dengan filter. <a href="?period={{ f.period }}">Reset filter</a>.{% else %}Belum ada potongan untuk periode {{ f.period }}. Mulai dengan <b>+ Potongan</b>, atau pakai <b>Lainnya ▾ › Impor CSV / XLSX</b> untuk banyak baris.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}{% endif %}
 {% endblock %}

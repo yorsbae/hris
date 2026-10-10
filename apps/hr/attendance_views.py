@@ -97,11 +97,40 @@ def check_new(request):
     return render(request, "hr/attendance_check_new.html", ctx)
 
 
+def flow_steps(status):
+    """Tiga langkah alur untuk penanda di halaman detail: (nomor, label, keadaan done/now/todo/off)."""
+    now = {"diminta": 2, "dikembalikan": 2, "dijawab": 3}.get(status, 0)
+    labels = ("Ditanyakan HRD", "Dijawab Admin Departemen", "Diverifikasi HRD")
+    out = []
+    for n, label in enumerate(labels, 1):
+        if status == "dibatalkan": state = "done" if n == 1 else "off"
+        elif status == "diverifikasi": state = "done"
+        else: state = "done" if n < now else ("now" if n == now else "todo")
+        out.append({"n": n, "label": label, "state": state})
+    return out
+
+
+def turn_text(a, is_admin):
+    """Satu kalimat 'giliran siapa' menurut peran dan status (None bila tidak perlu)."""
+    s, who, day = a.status, a.employee.name, f"{a.date:%d %b %Y}"
+    if s in ("diminta", "dikembalikan"):
+        if is_admin:
+            back = " HRD mengembalikannya — baca catatan di Jejak, lalu jawab ulang." if s == "dikembalikan" else ""
+            return ("now", f"Giliran Anda: jawab apakah {who} hadir pada {day}. Batas jawab {a.due_date:%d %b %Y}.{back}")
+        return ("wait", f"Menunggu jawaban Admin Departemen {a.department.name} (batas {a.due_date:%d %b %Y}).")
+    if s == "dijawab":
+        return ("wait", "Jawaban sudah terkirim. Menunggu verifikasi HRD.") if is_admin else ("now", "Giliran Anda: periksa jawaban Admin Departemen, lalu terima, kembalikan, atau ubah.")
+    if s == "diverifikasi": return ("done", "Selesai. Hasil sudah dikunci; koreksi hanya lewat HRD dan jawaban aslinya tetap tersimpan.")
+    if s == "dibatalkan": return ("done", "Permintaan ini dibatalkan.")
+    return None
+
+
 @both
 def check_detail(request, pk):
     a = _get(request, pk); log(request, "hr", "attendance_check_view", a)
+    is_admin = request.user.role == Role.DEPT_ADMIN
     return render(request, "hr/attendance_check_detail.html", {"a": a, "events": a.events.select_related("user"), "answers": AC.ANSWERS, "pill": STATUS_PILL[a.status], "late": a.is_late(),
-                  "is_admin": request.user.role == Role.DEPT_ADMIN, "result": a.result, "result_label": dict(AC.ANSWERS).get(a.result, "")})
+                  "is_admin": is_admin, "result": a.result, "result_label": dict(AC.ANSWERS).get(a.result, ""), "steps": flow_steps(a.status), "turn": turn_text(a, is_admin)})
 
 
 def _act(request, pk, fn, ok_msg, audit):

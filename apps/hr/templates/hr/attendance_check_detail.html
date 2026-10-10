@@ -1,19 +1,44 @@
 {% extends "base.html" %}{% block title %}Validasi {{ a.employee.nik }}{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'attcheck_list' %}">‹ Validasi Kehadiran</a></p>
-<h2>{{ a.employee.nik }} · {{ a.employee.name }} — {{ a.date|date:"d M Y" }} <span class="pill {{ pill }}">{{ a.get_status_display }}</span>{% if late %} <span class="pill rejected">Terlambat</span>{% endif %}</h2>
-<div class="card"><table>
-<tr><th>Departemen</th><td>{{ a.department.name }}</td></tr><tr><th>Diminta oleh</th><td>{{ a.requested_by.get_username }} · {{ a.created_at|date:"d M Y H:i" }} · batas {{ a.due_date|date:"d M Y" }}</td></tr>
+<h2>{{ a.employee.name }} — {{ a.date|date:"d M Y" }} <span class="pill {{ pill }}">{{ a.get_status_display }}</span>{% if late %} <span class="pill rejected">Terlambat</span>{% endif %}</h2>
+<p class="hint">{{ a.employee.nik }} · {{ a.department.name }}</p>
+<ol class="steps" aria-label="Tahap permintaan">{% for s in steps %}<li class="{{ s.state }}"{% if s.state == 'now' %} aria-current="step"{% endif %}><i>{% if s.state == 'done' %}✓{% else %}{{ s.n }}{% endif %}</i>{{ s.label }}</li>{% endfor %}</ol>
+{% if turn %}<div class="note {{ turn.0 }}">{{ turn.1 }}</div>{% endif %}
+
+{% if is_admin and a.status == 'diminta' or is_admin and a.status == 'dikembalikan' %}
+<form method="post" action="{% url 'attcheck_answer' a.pk %}" class="card" style="max-width:640px">{% csrf_token %}
+<label class="blk"><span><b>Jawaban Anda</b></span><select name="answer" required><option value="">Pilih…</option>{% for k, v in answers %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label class="blk"><span>Keterangan <small class="muted">(wajib untuk Izin dan Alfa)</small></span><input name="note" maxlength="300" style="width:100%"></label>
+<button class="btn" style="margin-left:0">Kirim jawaban ke HRD</button></form>
+{% endif %}
+
+{% if not is_admin and a.status == 'dijawab' %}
+<form method="post" action="{% url 'attcheck_verify' a.pk %}" class="card" style="max-width:640px">{% csrf_token %}
+<p style="margin:0 0 10px"><b>Jawaban Admin:</b> {{ a.get_answer_display }}{% if a.answer_note %} — {{ a.answer_note }}{% endif %}</p>
+<label class="blk"><span>Catatan <small class="muted">(wajib bila dikembalikan atau diubah)</small></span><input name="note" maxlength="300" style="width:100%"></label>
+<label class="blk"><span>Jawaban pengganti <small class="muted">(hanya dipakai bila memilih “Ubah jawaban”)</small></span><select name="final"><option value="">—</option>{% for k, v in answers %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<div class="decide"><button class="btn" name="action" value="terima">Terima jawaban</button><button class="btn ghost" name="action" value="kembalikan">Kembalikan ke Admin</button><button class="btn ghost" name="action" value="ubah">Ubah jawaban</button></div></form>
+{% endif %}
+
+<div class="card" style="max-width:640px;margin-top:12px"><table>
+<tr><th>Diminta oleh</th><td>{{ a.requested_by.get_username }} · {{ a.created_at|date:"d M Y H:i" }} · batas jawab {{ a.due_date|date:"d M Y" }}</td></tr>
 <tr><th>Catatan HRD</th><td>{{ a.question|default:"—" }}</td></tr><tr><th>Dugaan awal</th><td>{{ a.hint|default:"—" }}</td></tr>
-{% if a.answer %}<tr><th>Jawaban Admin</th><td>{{ a.get_answer_display }}{% if a.answer_note %} — {{ a.answer_note }}{% endif %} <small>({{ a.answered_by.get_username }}, {{ a.answered_at|date:"d M Y H:i" }})</small></td></tr>{% endif %}
+{% if a.answer and a.status != 'dijawab' or a.answer and is_admin %}<tr><th>Jawaban Admin</th><td>{{ a.get_answer_display }}{% if a.answer_note %} — {{ a.answer_note }}{% endif %} <small>({{ a.answered_by.get_username }}, {{ a.answered_at|date:"d M Y H:i" }})</small></td></tr>{% endif %}
 {% if a.conflict %}<tr><th>Konflik</th><td><span class="pill rejected">{{ a.conflict }}</span></td></tr>{% endif %}
 {% if a.status == 'diverifikasi' %}<tr><th>Hasil terverifikasi</th><td><b>{{ result_label }}</b>{% if a.verify_note %} — {{ a.verify_note }}{% endif %} <small>(dikunci oleh {{ a.verified_by.get_username }}, {{ a.verified_at|date:"d M Y H:i" }})</small></td></tr>{% endif %}
 {% if a.cancel_reason %}<tr><th>Alasan batal</th><td>{{ a.cancel_reason }}</td></tr>{% endif %}</table></div>
-{% if is_admin and a.status == 'diminta' or is_admin and a.status == 'dikembalikan' %}<form method="post" action="{% url 'attcheck_answer' a.pk %}" class="bar" style="margin-top:12px">{% csrf_token %}
-<select name="answer" required><option value="">Jawaban…</option>{% for k, v in answers %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><input name="note" placeholder="Keterangan (wajib untuk Izin & Alfa)" maxlength="300" style="min-width:280px"><button class="btn">Kirim jawaban</button></form>{% endif %}
-{% if not is_admin %}{% if a.status == 'dijawab' %}<form method="post" action="{% url 'attcheck_verify' a.pk %}" class="bar" style="margin-top:12px">{% csrf_token %}
-<select name="action"><option value="terima">Terima</option><option value="kembalikan">Kembalikan (catatan wajib)</option><option value="ubah">Ubah jawaban (catatan wajib)</option></select>
-<select name="final"><option value="">Jawaban pengganti…</option>{% for k, v in answers %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><input name="note" placeholder="Catatan" maxlength="300" style="min-width:240px"><button class="btn">Simpan verifikasi</button></form>{% endif %}
-{% if a.status == 'diverifikasi' %}<form method="post" action="{% url 'attcheck_correct' a.pk %}" class="bar" style="margin-top:12px">{% csrf_token %}<select name="answer" required><option value="">Koreksi menjadi…</option>{% for k, v in answers %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><input name="note" placeholder="Catatan koreksi (wajib)" maxlength="300" required style="min-width:280px"><button class="btn ghost">Catat koreksi</button></form>{% endif %}
-{% if a.status != 'diverifikasi' and a.status != 'dibatalkan' %}<form method="post" action="{% url 'attcheck_cancel' a.pk %}" class="bar" data-confirm="Batalkan permintaan ini?" style="margin-top:12px">{% csrf_token %}<input name="reason" placeholder="Alasan pembatalan (wajib)" maxlength="300" required style="min-width:280px"><button class="btn danger">Batalkan permintaan</button></form>{% endif %}{% endif %}
-<h3>Jejak</h3><div class="wrap"><table><thead><tr><th>Waktu</th><th>Oleh</th><th>Aksi</th><th>Nilai</th><th>Catatan</th></tr></thead><tbody>{% for e in events %}<tr><td>{{ e.created_at|date:"d M Y H:i" }}</td><td>{{ e.user.get_username|default:"—" }}</td><td>{{ e.action }}{% if e.to_status %} → {{ e.to_status }}{% endif %}</td><td>{{ e.value|default:"—" }}</td><td>{{ e.note|default:"—" }}</td></tr>{% endfor %}</tbody></table></div>
+
+{% if not is_admin and a.status != 'dibatalkan' %}
+<details class="flt" style="margin-top:12px"><summary>{% if a.status == 'diverifikasi' %}Koreksi hasil{% else %}Tindakan lain{% endif %}</summary>
+{% if a.status == 'diverifikasi' %}<form method="post" action="{% url 'attcheck_correct' a.pk %}" class="card" style="max-width:640px">{% csrf_token %}
+<p class="hint" style="margin:0 0 8px">Hasil yang sudah diverifikasi tidak ditimpa: koreksi dicatat sebagai baris baru dan jawaban aslinya tetap tersimpan.</p>
+<label class="blk"><span>Koreksi menjadi</span><select name="answer" required><option value="">Pilih…</option>{% for k, v in answers %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+<label class="blk"><span>Catatan koreksi <small class="muted">(wajib)</small></span><input name="note" maxlength="300" required style="width:100%"></label>
+<button class="btn ghost" style="margin-left:0">Catat koreksi</button></form>
+{% else %}<form method="post" action="{% url 'attcheck_cancel' a.pk %}" class="card" style="max-width:640px">{% csrf_token %}
+<label class="blk"><span>Batalkan permintaan ini <small class="muted">(alasan wajib; Admin Departemen akan melihatnya di Jejak)</small></span><input name="reason" maxlength="300" required style="width:100%"></label>
+<button class="btn danger" style="margin-left:0">Batalkan permintaan</button></form>{% endif %}</details>
+{% endif %}
+
+<h3>Jejak <small class="muted">({{ events|length }} catatan, tidak dapat diubah)</small></h3><div class="wrap"><table><thead><tr><th>Waktu</th><th>Oleh</th><th>Aksi</th><th>Nilai</th><th>Catatan</th></tr></thead><tbody>{% for e in events %}<tr><td>{{ e.created_at|date:"d M Y H:i" }}</td><td>{{ e.user.get_username|default:"—" }}</td><td>{{ e.action }}{% if e.to_status %} → {{ e.to_status }}{% endif %}</td><td>{{ e.value|default:"—" }}</td><td>{{ e.note|default:"—" }}</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

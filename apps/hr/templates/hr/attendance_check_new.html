@@ -1,21 +1,26 @@
 {% extends "base.html" %}{% block title %}Permintaan Validasi Kehadiran{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'attcheck_list' %}">‹ Validasi Kehadiran</a></p><h2>Permintaan validasi baru</h2>
-<p class="muted">HRD menanyakan: <b>apakah karyawan ini hadir atau alfa pada tanggal ini?</b> Pertanyaan masuk ke <b>Admin Departemen</b> milik departemen karyawan itu; jawabannya kembali ke HRD untuk diverifikasi. Tanggal masa depan ditolak; satu karyawan-tanggal hanya boleh punya satu permintaan aktif.</p>
+<p class="hint">Pertanyaan Anda: <b>apakah karyawan ini hadir atau alfa pada tanggal itu?</b> Pertanyaan masuk ke <b>Admin Departemen</b> milik departemen karyawan; jawabannya kembali ke Anda untuk diverifikasi.</p>
 {% if missing_admin %}<div class="msg error" role="alert"><span>Departemen berikut belum punya Admin Departemen aktif, jadi karyawannya belum bisa ditanyakan: <b>{{ missing_admin|join:", " }}</b>. Buat akun Admin Departemen di menu Pengguna (Superadmin).</span></div>{% endif %}
 <form method="post" class="card" style="max-width:720px">{% csrf_token %}
-<fieldset style="border:0;padding:0;margin:0"><legend><b>Karyawan</b> <span class="muted">(ketik NIK atau nama, lalu pilih dari saran)</span></legend>
-<div id="nikrows">{% for n in nik_rows|default:"" %}<p class="nikrow"><input name="nik" data-lookup="employee" maxlength="30" value="{{ n }}" placeholder="NIK / nama karyawan" aria-label="NIK karyawan" style="width:100%"></p>{% empty %}<p class="nikrow"><input name="nik" data-lookup="employee" maxlength="30" placeholder="NIK / nama karyawan" aria-label="NIK karyawan" style="width:100%"></p>{% endfor %}</div>
+<div class="step"><h3><i>1</i>Siapa yang ditanyakan?</h3>
+<div id="nikrows">{% for n in nik_rows|default:"" %}<p class="nikrow"><input name="nik" data-lookup="employee" maxlength="30" value="{{ n }}" placeholder="Ketik NIK atau nama, lalu pilih dari saran" aria-label="NIK karyawan" style="width:100%"></p>{% empty %}<p class="nikrow"><input name="nik" data-lookup="employee" maxlength="30" placeholder="Ketik NIK atau nama, lalu pilih dari saran" aria-label="NIK karyawan" style="width:100%"></p>{% endfor %}</div>
 <p><button type="button" class="btn ghost" id="addnik" style="margin-left:0">+ Tambah karyawan</button></p>
-<details style="margin-bottom:12px"><summary class="muted" style="cursor:pointer">Tempel banyak NIK sekaligus</summary><p><label>Satu per baris atau dipisah koma<br><textarea name="niks" rows="3" style="width:100%"></textarea></label></p></details></fieldset>
-<p><label>…atau seluruh karyawan aktif satu departemen<br><select name="department"><option value="">—</option>{% for d in depts %}<option value="{{ d.pk }}"{% if v.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label></p>
-<p><label>Tanggal mulai <input type="date" name="date_from" max="{{ today }}" value="{{ v.date_from }}" required></label> <label>sampai <input type="date" name="date_to" max="{{ today }}" value="{{ v.date_to }}"></label> <span class="muted">(kosongkan “sampai” untuk satu hari)</span></p>
-<p><label>Catatan untuk Admin (opsional)<br><input name="question" maxlength="300" style="width:100%" value="{{ v.question }}"></label></p>
+<details class="flt"{% if v.department %} open{% endif %}><summary>Atau tempel banyak NIK / pilih satu departemen penuh</summary>
+<label class="blk"><span>Tempel NIK <small class="muted">(satu per baris atau dipisah koma)</small></span><textarea name="niks" rows="3" style="width:100%"></textarea></label>
+<label class="blk"><span>Seluruh karyawan aktif satu departemen</span><select name="department"><option value="">—</option>{% for d in depts %}<option value="{{ d.pk }}"{% if v.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label></details></div>
+<div class="step"><h3><i>2</i>Tanggal berapa?</h3>
+<p><label>Dari <input type="date" name="date_from" max="{{ today }}" value="{{ v.date_from }}" required></label> <label>sampai <input type="date" name="date_to" max="{{ today }}" value="{{ v.date_to }}"></label></p>
+<p class="muted" style="margin:0">Kosongkan “sampai” untuk satu hari. Tanggal masa depan ditolak, dan satu karyawan-tanggal hanya boleh punya satu permintaan aktif.</p></div>
+<div class="step"><h3><i>3</i>Catatan untuk Admin <small class="muted">(opsional)</small></h3>
+<input name="question" maxlength="300" style="width:100%" value="{{ v.question }}" aria-label="Catatan untuk Admin" placeholder="Mis. mesin absen mati pagi itu"></div>
 <button class="btn" style="margin-left:0">Kirim permintaan</button></form>
-<div class="card" style="max-width:720px;margin-top:14px"><b>Admin Departemen per departemen</b><p class="muted" style="margin:4px 0 8px">Setiap departemen punya admin sendiri; permintaan hanya sampai ke admin departemen karyawan yang ditanyakan.</p>
-<div class="wrap"><table><thead><tr><th>Departemen</th><th>Admin Departemen</th></tr></thead><tbody>{% for r in overview %}<tr><td>{{ r.dept.name }}</td><td>{% if r.admins %}{{ r.admins|join:", " }}{% else %}<span class="pill rejected">Belum ada</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div>
+<details class="flt" style="max-width:720px;margin-top:14px"{% if missing_admin %} open{% endif %}><summary>Admin Departemen per departemen</summary>
+<p class="muted" style="margin:4px 0 8px">Setiap departemen punya admin sendiri; permintaan hanya sampai ke admin departemen karyawan yang ditanyakan.</p>
+<div class="wrap"><table><thead><tr><th>Departemen</th><th>Admin Departemen</th></tr></thead><tbody>{% for r in overview %}<tr><td>{{ r.dept.name }}</td><td>{% if r.admins %}{{ r.admins|join:", " }}{% else %}<span class="pill rejected">Belum ada</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></details>
 <script>
 (function(){var box=document.getElementById("nikrows"),btn=document.getElementById("addnik");if(!box||!btn)return;
-btn.addEventListener("click",function(){var p=document.createElement("p"),i=document.createElement("input");p.className="nikrow";i.name="nik";i.maxLength=30;i.placeholder="NIK / nama karyawan";i.style.width="100%";i.setAttribute("data-lookup","employee");i.setAttribute("aria-label","NIK karyawan");
+btn.addEventListener("click",function(){var p=document.createElement("p"),i=document.createElement("input");p.className="nikrow";i.name="nik";i.maxLength=30;i.placeholder="Ketik NIK atau nama, lalu pilih dari saran";i.style.width="100%";i.setAttribute("data-lookup","employee");i.setAttribute("aria-label","NIK karyawan");
 p.appendChild(i);box.appendChild(p);if(window.lookupEnhance)lookupEnhance(p);i.focus()})})();
 </script>
 {% endblock %}

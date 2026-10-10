@@ -47,3 +47,20 @@ class RequestGroupTests(TestCase):
         self.assertEqual([c[0] for c in r.context["form"].fields["type"].choices], ["izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus"])
         bad = self.client.post("/requests/new/", {"grp": "izin", "type": "status", "nik": "001", "effective_date": "2026-11-01", "reason": "x"})
         self.assertEqual(bad.status_code, 200); self.assertEqual(ChangeRequest.objects.filter(type="status").count(), 1)  # tetap hanya yang lama
+
+
+class RequestFormUxTests(TestCase):
+    """Putaran 34: form pengajuan umum — tautan kembali menurut grup, petunjuk alur, tombol utama menonjol tanpa mengubah tombol bawaan Enter."""
+
+    def setUp(self):
+        from apps.core.models import Role, User
+        self.client.force_login(User.objects.create_user("hrd34", password="x", role=Role.HRD))
+
+    def test_back_link_follows_group_and_hint_is_shown(self):
+        r = self.client.get("/requests/new/"); self.assertContains(r, '<a href="/requests/">‹ Pengajuan</a>'); self.assertContains(r, "Simpan draft</b> hanya menyimpan")
+        r = self.client.get("/requests/new/?grp=izin"); self.assertContains(r, '<a href="/requests/g/izin/">‹ Izin &amp; Cuti</a>')
+
+    def test_submit_is_visually_primary_but_draft_stays_first_in_dom_for_enter_key(self):
+        html = self.client.get("/requests/new/").content.decode()
+        self.assertLess(html.index('name="draft"'), html.index('name="submit"'))  # Enter di kolom teks memicu tombol pertama di DOM = draft (aman)
+        self.assertIn('class="btn" name="submit" value="1" style="order:1"', html); self.assertIn('class="btn ghost" name="draft" style="order:2"', html)

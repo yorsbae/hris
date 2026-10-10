@@ -87,7 +87,9 @@ def bpjs_list(request):
     page = paginate(request, qs.order_by("name", "nik"))
     for e in page:  # nomor TIDAK ditampilkan; hanya penanda terisi/kosong (maks 50 dekripsi per halaman)
         e.has_kes, e.has_tk = bool(e.bpjs_kes), bool(e.bpjs_tk)
-    return render(request, "hrd/bpjs_list.html", {"page": page, "f": f, "departments": Department.objects.order_by("name"),
+    g = request.GET  # "act": pengguna memilih filter sendiri (karyawan "aktif" adalah bawaan) → filter lanjutan terbuka + Reset muncul
+    act = bool(g.get("q") or g.get("department") or g.get("kes") or g.get("tk") or g.get("anomaly") or g.get("emp", "aktif") not in ("", "aktif"))
+    return render(request, "hrd/bpjs_list.html", {"page": page, "f": f, "act": act, "departments": Department.objects.order_by("name"),
                                                    "qs": _qs(request, "q", "kes", "tk", "emp", "department", "anomaly")})
 
 
@@ -157,7 +159,9 @@ def bpjs_deductions(request, scheme=None):
     missing = _missing_qs(f) if f["anomaly"] == "belum" and _period_ok(f["period"]) else None
     page = paginate(request, qs)
     from urllib.parse import urlencode
-    return render(request, "hrd/bpjs_deductions.html", {"page": page, "f": f, "totals": totals, "by_scheme": by_scheme, "by_dept": by_dept, "missing": missing and missing[:200], "missing_n": len(missing) if missing else 0,
+    g = request.GET  # "act": pengguna benar-benar memilih filter (periode & program bawaan dari URL tidak dihitung) → filter lanjutan terbuka + tombol Reset muncul
+    act = bool(g.get("q") or g.get("department") or g.get("anomaly") or ("scheme" in g and g.get("scheme", "") != (scheme or "")))
+    return render(request, "hrd/bpjs_deductions.html", {"page": page, "f": f, "act": act, "totals": totals, "by_scheme": by_scheme, "by_dept": by_dept, "missing": missing and missing[:200], "missing_n": len(missing) if missing else 0,
                                                        "departments": Department.objects.order_by("name"), "qs": urlencode({k: v for k, v in f.items() if v})})
 
 
@@ -379,13 +383,16 @@ def catering_list(request):
     today = date.today()
     d1 = _date(request.GET.get("from")) or today.replace(day=1)
     d2 = _date(request.GET.get("to")) or today
-    f = {"meal": request.GET.get("meal", "").strip()}
+    f = {"meal": request.GET.get("meal", "").strip(), "only": request.GET.get("only", "").strip()}
     qs = CateringOrder.objects.filter(date__gte=d1, date__lte=d2)
     if f["meal"]: qs = qs.filter(meal=f["meal"])
     t = qs.aggregate(ol=Sum("qty_large"), os=Sum("qty_small"), rl=Sum("received_large"), rs=Sum("received_small"))
-    pending = qs.filter(received_large__isnull=True).count()
-    return render(request, "hrd/catering_list.html", {"page": paginate(request, qs), "f": f, "from": d1.isoformat(), "to": d2.isoformat(), "meals": CateringOrder.MEALS,
-                                                       "t": {k: v or 0 for k, v in t.items()}, "pending": pending, "qs": _qs(request, "from", "to", "meal")})
+    pending = qs.filter(received_large__isnull=True).count()  # ikut menyempit oleh periode & jam makan; filter "only" tidak mengubahnya (hasilnya sama)
+    if f["only"] == "belum": qs = qs.filter(received_large__isnull=True)
+    g = request.GET  # "act": pengguna memilih periode/jam makan/filter sendiri → Reset filter muncul (tanpa parameter = bawaan bulan berjalan)
+    act = bool(g.get("from") or g.get("to") or g.get("meal") or f["only"] == "belum")
+    return render(request, "hrd/catering_list.html", {"page": paginate(request, qs), "f": f, "act": act, "from": d1.isoformat(), "to": d2.isoformat(), "meals": CateringOrder.MEALS,
+                                                       "t": {k: v or 0 for k, v in t.items()}, "pending": pending, "qs": _qs(request, "from", "to", "meal", "only")})
 
 
 @hrd_only
