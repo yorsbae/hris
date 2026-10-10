@@ -9,6 +9,7 @@ COMPANY_NAME = env("COMPANY_NAME", default="PT X")  # sementara; kelak dari konf
 COMPANY_ADDRESS = env("COMPANY_ADDRESS", default="")
 POLI_NAME = env("POLI_NAME", default="")  # kosong → "POLIKLINIK <COMPANY_NAME>"
 POLI_DOCTOR_NAME = env("POLI_DOCTOR_NAME", default="")  # dokter perusahaan; kosong → nama pengguna Poli yang membuat surat
+POLI_DEPARTMENT_CODE = env("POLI_DEPARTMENT_CODE", default="POL")  # kode departemen Poli: karyawan di sini yang ditawarkan sebagai "Pemeriksa" di rekam medis
 HRD_SIGNER_NAME = env("HRD_SIGNER_NAME", default="")  # penanda tangan HRD (mis. Manager HRD / Kabag Personalia)
 HRD_SIGNER_TITLE = env("HRD_SIGNER_TITLE", default="Manager HRD")
 PERSONALIA_SIGNER_NAME = env("PERSONALIA_SIGNER_NAME", default="")  # persetujuan cuti hamil

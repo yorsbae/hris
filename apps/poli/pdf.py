@@ -28,12 +28,20 @@ def _title(c, W, y0, title, number):
     c.setFont("Helvetica", 10); c.drawCentredString(W / 2, y0 - 13 * mm, f"No. {number}")
 
 
-def _signature(c, W, L, y, lh):
-    """Blok tanda tangan kanan, dimulai di baris `y` (di bawah akhir isi surat, jadi tidak pernah menimpa isi): 'Dokter Perusahaan' bila nama dokter
-    diatur di .env, selain itu 'Petugas Poliklinik' (pengguna Poli pembuat surat). Nama di bawah label dengan ruang 20 mm untuk tanda tangan."""
-    role = "Dokter Perusahaan," if settings.POLI_DOCTOR_NAME else "Petugas Poliklinik,"
+def _signer(rec, lh):
+    """(label, nama) penanda tangan surat. Urutan: dokter yang diisi di rekam medis (bukan karyawan) → dokter perusahaan dari .env →
+    pemeriksa (karyawan Poli) → pengguna Poli pembuat rekam medis."""
+    if rec.doctor_name: return "Dokter Pemeriksa,", rec.doctor_name
+    if settings.POLI_DOCTOR_NAME: return "Dokter Perusahaan,", lh["doctor"]
+    if rec.examiner_id: return "Petugas Poliklinik,", rec.examiner.name
+    return "Petugas Poliklinik,", lh["doctor"]
+
+
+def _signature(c, W, L, y, rec, lh):
+    """Blok tanda tangan kanan, dimulai di baris `y` (di bawah akhir isi surat, jadi tidak pernah menimpa isi); nama di bawah label dengan ruang 20 mm untuk tanda tangan."""
+    role, name = _signer(rec, lh)
     c.setFont("Helvetica", 10); c.drawString(W - L - 55 * mm, y, role)
-    c.drawString(W - L - 55 * mm, y - 20 * mm, f"( {lh['doctor'] or '........................'} )")
+    c.drawString(W - L - 55 * mm, y - 20 * mm, f"( {name or '........................'} )")
 
 
 def _cut_line(c, W, H):
@@ -76,7 +84,7 @@ def sick_leave_pdf(letter):
     for ln in lines:
         for part in simpleSplit(ln, "Helvetica", 10, W - 2 * L):
             c.drawString(L, y, part); y -= 5 * mm
-    _signature(c, W, L, min(y, y0 - 52 * mm) - 6 * mm, lh); _cut_line(c, W, H)  # mengikuti akhir isi → tidak bertabrakan dengan baris panjang
+    _signature(c, W, L, min(y, y0 - 52 * mm) - 6 * mm, rec, lh); _cut_line(c, W, H)  # mengikuti akhir isi → tidak bertabrakan dengan baris panjang
     c.showPage(); c.save()
     return buf.getvalue()
 
@@ -95,6 +103,6 @@ def referral_pdf(ref):
     for k, v in rows:
         c.drawString(L, y, k); c.drawString(L + 35 * mm, y, f": {v}"); y -= 6 * mm
     c.drawString(L, y - 2 * mm, "Mohon pemeriksaan dan penanganan lebih lanjut bagi karyawan tersebut.")
-    _signature(c, W, L, y - 12 * mm, lh); _cut_line(c, W, H)
+    _signature(c, W, L, y - 12 * mm, rec, lh); _cut_line(c, W, H)
     c.showPage(); c.save()
     return buf.getvalue()

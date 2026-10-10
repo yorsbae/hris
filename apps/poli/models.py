@@ -48,6 +48,9 @@ class MedicalRecord(models.Model):
     diagnosis = models.ForeignKey(Diagnosis, null=True, on_delete=models.PROTECT)
     treatment = models.TextField(blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    # Pemeriksa (putaran 34): karyawan departemen Poli (perawat/bidan/dst, dipilih lewat NIK) dan/atau dokter yang BUKAN karyawan (nama saja, tanpa NIK). Keduanya opsional.
+    examiner = models.ForeignKey(Employee, null=True, blank=True, on_delete=models.PROTECT, related_name="examined_records")
+    doctor_name = models.CharField("Dokter", max_length=100, blank=True)
 class RecordAddendum(models.Model):
     """Koreksi/tambahan atas rekam medis. Rekam medis tidak diubah/dihapus (histori); koreksi = catatan tambahan append-only."""
     record = models.ForeignKey(MedicalRecord, on_delete=models.PROTECT, related_name="addenda")

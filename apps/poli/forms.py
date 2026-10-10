@@ -18,6 +18,9 @@ class RecordForm(forms.Form):
     nik = forms.CharField(label="NIK karyawan", max_length=20, help_text="Ketik NIK atau nama; pilih dari saran. Hanya karyawan aktif.",
                           widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
     kind = forms.ChoiceField(label="Jenis kunjungan", choices=MedicalRecord.KINDS)
+    examiner_nik = forms.CharField(label="Pemeriksa (karyawan Poli)", required=False, max_length=20, help_text="Perawat/bidan/petugas departemen Poli: ketik NIK atau nama, pilih dari saran. Boleh kosong.",
+                                   widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama petugas Poli…", "autocomplete": "off"}))
+    doctor_name = forms.CharField(label="Dokter (bukan karyawan)", required=False, max_length=100, help_text="Nama dokter yang memeriksa/menandatangani; tidak perlu NIK. Boleh kosong.")
     complaint = forms.CharField(label="Keluhan", required=False, widget=TA(), max_length=4000)
     # tanda vital (opsional; rentang dibatasi agar salah ketik tertangkap)
     tensi = forms.RegexField(label="Tensi (mmHg)", required=False, regex=r"^\d{2,3}/\d{2,3}$", max_length=7, error_messages={"invalid": "Format 120/80"})
@@ -52,6 +55,24 @@ class RecordForm(forms.Form):
         self.employee = services.active_employee(nik=self.cleaned_data["nik"].strip())
         if not self.employee: raise forms.ValidationError("Karyawan tidak ditemukan atau tidak aktif.")
         return self.cleaned_data["nik"].strip()
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        dept = services.poli_department()
+        if dept: self.fields["examiner_nik"].widget.attrs["data-q-department"] = str(dept.pk)  # saran hanya dari departemen Poli
+        else: self.fields["examiner_nik"].help_text = "Departemen Poli belum ada (kode POLI_DEPARTMENT_CODE); pemeriksa belum bisa dipilih."
+        if not self.is_bound and not self.initial.get("doctor_name"):
+            from django.conf import settings
+            self.initial["doctor_name"] = settings.POLI_DOCTOR_NAME  # bawaan dari .env; bisa diganti per kunjungan
+
+    def clean_examiner_nik(self):
+        nik = self.cleaned_data.get("examiner_nik", "").strip(); self.examiner = None
+        if nik:
+            self.examiner = services.poli_staff(nik)
+            if not self.examiner: raise forms.ValidationError("Pemeriksa harus karyawan aktif departemen Poli (NIK tidak ditemukan di departemen itu).")
+        return nik
+
+    def clean_doctor_name(self): return " ".join(self.cleaned_data.get("doctor_name", "").split())
 
     def clean_diagnosis_code(self):
         c = self.cleaned_data["diagnosis_code"].strip().upper(); self.diagnosis = None

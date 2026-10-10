@@ -5,6 +5,7 @@
 <div class="rm-grid">
 <form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
 {% include "poli/_fld.html" with f=form.nik %}{% include "poli/_fld.html" with f=form.kind %}
+<fieldset class="kf" id="examiner-box"><legend>Pemeriksa</legend>{% include "poli/_fld.html" with f=form.examiner_nik %}{% include "poli/_fld.html" with f=form.doctor_name %}</fieldset>
 <p id="kind-hint" style="color:var(--mu);font-size:13px;margin:0 0 10px"></p>
 {% include "poli/_fld.html" with f=form.complaint %}
 <fieldset class="kf" data-kinds="berobat kecelakaan_kerja kehamilan pemeriksaan"><legend>Tanda vital</legend>{% include "poli/_fld.html" with f=form.tensi %}{% include "poli/_fld.html" with f=form.suhu %}{% include "poli/_fld.html" with f=form.nadi %}{% include "poli/_fld.html" with f=form.bb %}{% include "poli/_fld.html" with f=form.tb %}</fieldset>

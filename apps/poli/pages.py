@@ -124,11 +124,11 @@ def record_new(request):
     if request.method == "POST" and form.is_valid() and fs.is_valid():
         try:
             r, low = services.create_record(request.user, form.employee, form.cleaned_data["kind"], form.cleaned_data["complaint"].strip(), form.exam(),
-                                            form.diagnosis, form.cleaned_data["treatment"].strip(), fs.lines())
+                                            form.diagnosis, form.cleaned_data["treatment"].strip(), fs.lines(), examiner=form.examiner, doctor_name=form.cleaned_data["doctor_name"])
         except ValueError as ex: form.add_error(None, str(ex))
         else:
             # audit TANPA isi medis (keluhan/tindakan/tanda vital): hanya penanda
-            log(request, "poli", "create_record", r, None, {"employee": form.employee.nik, "kind": r.kind, "diagnosis": form.diagnosis.code if form.diagnosis else None,
+            log(request, "poli", "create_record", r, None, {"employee": form.employee.nik, "kind": r.kind, "diagnosis": form.diagnosis.code if form.diagnosis else None, "examiner": form.examiner.nik if form.examiner else None, "doctor": bool(r.doctor_name),
                                                              "prescriptions": [(p.medicine.code, p.qty) for p in r.prescriptions.select_related("medicine")]})
             messages.success(request, "Rekam medis disimpan." + (f" Stok minimum: {', '.join(m.name for m in low)}." if low else ""))
             return redirect("poli_record_detail", pk=r.pk)
@@ -137,7 +137,7 @@ def record_new(request):
 
 @poli_only
 def record_detail(request, pk):
-    r = get_object_or_404(MedicalRecord.objects.select_related("employee", "employee__department", "employee__position", "diagnosis", "created_by"), pk=pk)
+    r = get_object_or_404(MedicalRecord.objects.select_related("employee", "employee__department", "employee__position", "diagnosis", "created_by", "examiner"), pk=pk)
     log(request, "poli", "view_record", r)  # akses data medis tercatat
     letters = list(SickLeaveLetter.objects.filter(record=r).order_by("id"))
     rx = list(r.prescriptions.select_related("medicine", "added_by").prefetch_related("returns").order_by("id"))

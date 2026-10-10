@@ -112,3 +112,78 @@ class SeedDemoTests(TestCase):
         for q in ChangeRequest.objects.filter(type__in=["tukar_shift", "tukar_libur"])[:6]: self.assertEqual(self.client.get(f"/requests/{q.pk}/").status_code, 200)
         e = Employee.objects.filter(shift_group__isnull=False).first(); self.assertContains(self.client.get(f"/employees/{e.pk}/"), "Jadwal 14 hari ke depan")
         self.assertEqual(self.client.get("/master/shift/").status_code, 200)
+
+
+class SeedDemoLatestFeaturesTests(TestCase):
+    """Putaran 34: data demo mencakup fitur putaran 23–33 + staf Poli/pemeriksa, dan konsisten dengan aturan masing-masing fitur."""
+    @classmethod
+    def setUpTestData(cls): call_command("seed_demo", "--employees", "60", stdout=StringIO())
+
+    def test_every_department_has_an_active_admin(self):
+        from apps.core.user_services import departments_without_admin
+        self.assertEqual(list(departments_without_admin()), [])
+
+    def test_poli_department_has_staff_and_examiners_are_only_poli_staff(self):
+        from apps.poli.models import MedicalRecord
+        staff = Employee.objects.filter(department__code="POL", status="aktif"); self.assertGreaterEqual(staff.count(), 3)
+        self.assertTrue(staff.filter(position__name="Bidan", gender="P").exists())
+        used = MedicalRecord.objects.exclude(examiner=None)
+        self.assertTrue(used.exists() and MedicalRecord.objects.exclude(doctor_name="").exists() and MedicalRecord.objects.filter(examiner=None).exists())
+        for rec in used: self.assertEqual(rec.examiner.department.code, "POL")
+        self.assertFalse(Employee.objects.filter(name__startswith="dr.").exists())  # dokter bukan karyawan
+        for rec in MedicalRecord.objects.filter(kind="kehamilan"): self.assertEqual(rec.examiner.position.name, "Bidan")
+        for rec in MedicalRecord.objects.exclude(employee__department__code="POL"): self.assertNotEqual(rec.employee.department.code, "POL")  # staf Poli bukan pasien demo
+
+    def test_all_general_request_types_are_represented(self):
+        have = set(ChangeRequest.objects.values_list("type", flat=True))
+        self.assertEqual(have, set(ChangeRequest.TYPES))  # 17 jenis, termasuk standby/lembur/promosi/demosi/rotasi/status/izin_khusus
+        from apps.hr.models import EmployeeHistory
+        self.assertTrue(EmployeeHistory.objects.filter(request__type="promosi").exists())
+
+    def test_extra_work_batches_follow_the_rules(self):
+        from apps.hr import overtime
+        rows = ChangeRequest.objects.filter(type__in=("standby", "lembur")); self.assertTrue(rows.exists())
+        self.assertTrue({"pending", "executed", "rejected", "cancelled"} <= set(rows.values_list("status", flat=True)))
+        self.assertTrue(all(q.requested_by.role == Role.DEPT_ADMIN and q.requested_by.department_id == q.department_id for q in rows))
+        for q in rows: self.assertLessEqual(int(q.payload["minutes"]), overtime.limit(q.type)); self.assertTrue(len(q.payload["batch"]) == 32)
+        cancelled = rows.filter(status="cancelled"); self.assertTrue(cancelled.exists())
+        for q in cancelled: self.assertIn("→ cancelled]", q.note); self.assertIn("sakit mendadak", q.note)  # jalur A80 (alasan wajib) benar-benar lewat services.transition
+
+    def test_attendance_checks_cover_every_status_with_trail(self):
+        from apps.hr.models import AttendanceCheck as AC
+        self.assertTrue({"diminta", "dijawab", "dikembalikan", "diverifikasi", "dibatalkan"} <= set(AC.objects.values_list("status", flat=True)))
+        self.assertTrue(any(a.is_late() for a in AC.objects.all()))
+        for a in AC.objects.all(): self.assertEqual(a.events.order_by("id").first().action, "minta"); self.assertEqual(a.events.order_by("id").last().to_status, a.status)
+        self.assertTrue(AC.objects.exclude(conflict="").exists())
+        self.assertTrue(any(e.action == "koreksi" for a in AC.objects.all() for e in a.events.all()))
+
+    def test_uniform_stock_ledger_is_consistent_and_shows_low_and_negative(self):
+        from apps.hrd.models import UniformStock, UniformStockMovement, UniformPurchase
+        for st in UniformStock.objects.all(): self.assertEqual(st.balance, sum(m.quantity for m in UniformStock.objects.get(pk=st.pk).utype.movements.filter(size=st.size)))
+        self.assertTrue(UniformStock.objects.filter(balance__lt=0).exists()); self.assertTrue(any(s.low for s in UniformStock.objects.all()))
+        self.assertTrue({"masuk", "keluar", "koreksi", "batal"} <= set(UniformStockMovement.objects.values_list("kind", flat=True)))
+        self.assertTrue(UniformPurchase.objects.filter(deduction_status="sudah").exists() and UniformPurchase.objects.exclude(voided_at=None).exists())
+
+    def test_maternity_pregnancy_and_letters_are_consistent(self):
+        from apps.hrd.models import MaternityLeave
+        from apps.poli.models import MedicalRecord, SickLeaveLetter
+        self.assertEqual(set(MaternityLeave.objects.values_list("state", flat=True)), {"aktif", "selesai", "batal"})
+        m = MaternityLeave.objects.get(state="aktif"); last = MedicalRecord.objects.filter(employee=m.employee, kind="kehamilan").order_by("-visit_at").first()
+        self.assertEqual(last.exam["kehamilan"]["hpl"], m.due_date.isoformat())  # HPL kunjungan = HPL cuti hamil
+        self.assertEqual(set(SickLeaveLetter.objects.values_list("kind", flat=True)), {"izin_pulang", "izin_libur", "izin_hamil"})
+        for l in SickLeaveLetter.objects.filter(kind="izin_hamil"): self.assertEqual(l.record.kind, "kehamilan")
+
+    def test_warning_revoked_bpjs_two_periods_and_all_pdfs_render(self):
+        from apps.hrd.models import BpjsDeduction, WarningLetter
+        self.assertTrue(WarningLetter.objects.exclude(revoked_at=None).exists()); self.assertEqual(BpjsDeduction.objects.values("period").distinct().count(), 2)
+        from apps.poli.models import SickLeaveLetter, Referral
+        from apps.poli.pdf import referral_pdf, sick_leave_pdf
+        for l in SickLeaveLetter.objects.all(): self.assertTrue(sick_leave_pdf(l).startswith(b"%PDF"))
+        for rf in Referral.objects.exclude(status="batal"): self.assertTrue(referral_pdf(rf).startswith(b"%PDF"))
+
+    def test_new_pages_render_for_each_role(self):
+        for uname, paths in (("hrd", ["/validasi/", "/requests/g/lembur/", "/requests/g/lembur/rekap/", "/hrd/uniforms/stock/", "/hrd/maternity/", "/hrd/warnings/", "/master/department/"]),
+                             ("admin_prd", ["/validasi/", "/requests/g/lembur/", "/requests/g/lembur/rekap/", "/requests/new/lembur/"]),
+                             ("poli", ["/poli/records/new/", "/poli/records/"]), ("superadmin", ["/users/"])):
+            self.client.force_login(User.objects.get(username=uname))
+            for p in paths: self.assertLess(self.client.get(p).status_code, 500, (uname, p))

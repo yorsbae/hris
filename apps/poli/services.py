@@ -1,4 +1,5 @@
 """Aturan bisnis Poliklinik. Semua perubahan atomik dan baris dikunci (select_for_update); view/API hanya memanggil fungsi di sini."""
+from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
@@ -16,6 +17,20 @@ def active_employee(pk=None, nik=None):
     except (Employee.DoesNotExist, ValueError, TypeError): return None
 
 
+def poli_department():
+    """Departemen Poli (kode `settings.POLI_DEPARTMENT_CODE`, bawaan POL) atau None bila belum dibuat."""
+    from apps.hr.models import Department
+    return Department.objects.filter(code=settings.POLI_DEPARTMENT_CODE).first()
+
+
+def poli_staff(nik=None):
+    """Karyawan AKTIF departemen Poli (calon 'Pemeriksa'); `nik` → satu orang atau None. Dokter yang bukan karyawan tidak lewat sini (hanya nama)."""
+    dept = poli_department()
+    qs = Employee.objects.select_related("department", "position").filter(status="aktif", department=dept) if dept else Employee.objects.none()
+    if nik is None: return qs
+    return qs.filter(nik=nik).first()
+
+
 def _notify_low_stock(meds):
     users = list(User.objects.filter(role=Role.POLI, is_active=True))
     for m in meds:
@@ -23,19 +38,22 @@ def _notify_low_stock(meds):
                                                        link=f"/poli/medicines/{m.pk}/") for u in users])
 
 
-def create_record(user, employee, kind, complaint="", exam=None, diagnosis=None, treatment="", prescriptions=()):
+def create_record(user, employee, kind, complaint="", exam=None, diagnosis=None, treatment="", prescriptions=(), examiner=None, doctor_name=""):
     """Rekam medis + resep dalam SATU transaksi: stok kurang di resep mana pun → seluruh rekam medis dibatalkan.
     prescriptions: iterable (medicine_id, qty:int, dosage). Mengembalikan (record, [obat yang stoknya ≤ minimum])."""
     if employee is None: raise ValueError("Karyawan tidak ditemukan atau tidak aktif")
     if kind not in dict(MedicalRecord.KINDS): raise ValueError("Jenis kunjungan tidak valid")
     if kind == "kehamilan" and employee.gender != "P": raise ValueError("Pemeriksaan kehamilan hanya untuk karyawan perempuan")
+    doctor_name = (doctor_name or "").strip()
+    if len(doctor_name) > 100: raise ValueError("Nama dokter maksimal 100 karakter")
+    if examiner is not None and (examiner.status != "aktif" or poli_staff(examiner.nik) is None): raise ValueError("Pemeriksa harus karyawan aktif departemen Poli")
     lines = list(prescriptions)
     if len(lines) > MAX_LINES: raise ValueError(f"Maksimal {MAX_LINES} obat per resep")
     ids = [l[0] for l in lines]
     if len(set(ids)) != len(ids): raise ValueError("Obat yang sama muncul lebih dari sekali dalam satu resep")
     with transaction.atomic():
         r = MedicalRecord.objects.create(employee=employee, kind=kind, visit_at=timezone.now(), complaint=complaint, exam=exam or {},
-                                         diagnosis=diagnosis, treatment=treatment, created_by=user)
+                                         diagnosis=diagnosis, treatment=treatment, created_by=user, examiner=examiner, doctor_name=doctor_name)
         low = []
         for mid, qty, dosage in lines:
             m = dispense(mid, qty, user, ref=f"MR{r.pk}")

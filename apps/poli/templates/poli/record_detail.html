@@ -3,7 +3,7 @@
 <h2>Rekam medis #{{ r.pk }} · {{ r.get_kind_display }}</h2>
 <div class="card"><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}<tr><th>Riwayat</th><td><a href="{% url 'poli_employee_history' r.employee.pk %}">Semua kunjungan karyawan ini ›</a></td></tr></table></div>
 <div class="card" style="margin-top:12px"><table>
-<tr><th>Waktu</th><td>{{ r.visit_at|date:"d M Y H:i" }}</td></tr><tr><th>Petugas</th><td>{{ r.created_by.get_full_name|default:r.created_by.username }}</td></tr>
+<tr><th>Waktu</th><td>{{ r.visit_at|date:"d M Y H:i" }}</td></tr><tr><th>Petugas</th><td>{{ r.created_by.get_full_name|default:r.created_by.username }}</td></tr>{% if r.examiner %}<tr><th>Pemeriksa</th><td>{{ r.examiner.name }} <small style="color:var(--mu)">· {{ r.examiner.nik }}{% if r.examiner.position %} · {{ r.examiner.position.name }}{% endif %}</small></td></tr>{% endif %}{% if r.doctor_name %}<tr><th>Dokter</th><td>{{ r.doctor_name }}</td></tr>{% endif %}
 <tr><th>Keluhan</th><td>{{ r.complaint|linebreaksbr|default:"-" }}</td></tr>
 {% for k, v in exam_rows %}<tr><th>{{ k }}</th><td>{{ v|linebreaksbr }}</td></tr>{% endfor %}
 <tr><th>Diagnosa</th><td>{% if r.diagnosis %}{{ r.diagnosis.code }} · {{ r.diagnosis.name }}{% else %}-{% endif %}</td></tr>
