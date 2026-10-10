@@ -331,3 +331,58 @@ class WarningLetter(models.Model):
         if self.revoked_at: return "dicabut"
         if today < self.issue_date: return "belum berlaku"
         return "aktif" if today <= self.valid_until else "kedaluwarsa"
+
+
+# ---------------------------------------------------------------- Karyawan keluar (putaran 38)
+class Separation(models.Model):
+    """Rekap karyawan keluar: mengundurkan diri, habis kontrak, PHK, pensiun, dst. Satu catatan aktif per karyawan.
+    Identitas (nama, departemen, jabatan, tanggal masuk) DISALIN saat dicatat, sehingga rekap tidak berubah bila data karyawan diubah kemudian.
+    Tali asih dan paklaring hanya terisi lewat aksi khusus (jejak di audit); catatan tidak dihapus — salah catat = dibatalkan dengan alasan."""
+    class Kind(models.TextChoices):
+        RESIGN = "resign", "Mengundurkan diri"
+        HABIS_KONTRAK = "habis_kontrak", "Habis kontrak"
+        PHK = "phk", "PHK / diberhentikan"
+        PENSIUN = "pensiun", "Pensiun"
+        MENINGGAL = "meninggal", "Meninggal dunia"
+        LAINNYA = "lainnya", "Lainnya"
+
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="separations")
+    kind = models.CharField(max_length=15, choices=Kind.choices, default=Kind.RESIGN, db_index=True)
+    request_date = models.DateField("Tanggal mengajukan / diberitahukan", null=True, blank=True)
+    last_date = models.DateField("Tanggal keluar (hari terakhir kerja)", db_index=True)
+    reason = models.CharField("Alasan / keterangan", max_length=300, blank=True)
+    # salinan identitas saat dicatat
+    emp_name = models.CharField(max_length=150); department_name = models.CharField(max_length=100); position_name = models.CharField(max_length=100, blank=True)
+    join_date = models.DateField()
+    # tali asih
+    tali_asih = models.PositiveBigIntegerField(default=0, help_text="Rupiah; 0 = tidak ada")
+    tali_asih_note = models.CharField(max_length=200, blank=True, help_text="Dasar hitung / keterangan")
+    tali_asih_paid_on = models.DateField(null=True, blank=True)
+    # paklaring
+    paklaring_number = models.CharField(max_length=40, blank=True)
+    paklaring_date = models.DateField(null=True, blank=True)
+    paklaring_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    # status karyawan: nonaktif saat hari keluar tiba (dicatat sekali)
+    applied_at = models.DateTimeField(null=True, blank=True)
+    status_changed = models.BooleanField(default=False, help_text="True bila sistem yang menonaktifkan karyawan (dipulihkan saat catatan dibatalkan)")
+    prev_status = models.CharField(max_length=20, blank=True)
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    void_reason = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey(USER, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-last_date", "-id"]
+        constraints = [models.UniqueConstraint(fields=["employee"], condition=models.Q(voided_at__isnull=True), name="uniq_separation_active"),
+                       models.UniqueConstraint(fields=["paklaring_number"], condition=~models.Q(paklaring_number=""), name="uniq_paklaring_number"),
+                       models.CheckConstraint(condition=models.Q(last_date__gte=models.F("join_date")), name="separation_last_after_join")]
+        indexes = [models.Index(fields=["last_date", "kind"])]
+
+    @property
+    def is_void(self): return self.voided_at is not None
+    @property
+    def paklaring_issued(self): return bool(self.paklaring_number)
+    @property
+    def tali_asih_paid(self): return self.tali_asih_paid_on is not None
+    def delete(self, *a, **k): raise PermissionError("Catatan karyawan keluar tidak boleh dihapus; batalkan dengan alasan.")

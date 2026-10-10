@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Karyawan Keluar{% endblock %}{% block content %}
+<p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
+<h2>Karyawan Keluar{% if f.year %} — {% if f.month %}{% for n, m in months %}{% if n|stringformat:"s" == f.month %}{{ m }} {% endif %}{% endfor %}{% endif %}{{ f.year }}{% else %} — semua tahun{% endif %}</h2>
+<p class="sub">Rekap mengundurkan diri, habis kontrak, PHK, dan pensiun: identitas, tanggal masuk &amp; keluar, tali asih, dan paklaring.</p>
+{% url 'hrd_separation_new' as new_url %}
+{% flow_steps "Catat keluar|Karyawan, jenis, tanggal; data masuk & jabatan terisi otomatis|"|add:new_url "Tetapkan tali asih|Isi nominal, tandai dibayar saat diserahkan|?tali=belum&year=" "Terbitkan & cetak paklaring|Setelah karyawan resmi keluar (nonaktif)|?paklaring=belum&year=" now=flow_now note="Karyawan otomatis dinonaktifkan setelah hari terakhir kerja lewat; riwayat statusnya tercatat." %}
+<div class="tools"><a class="btn" href="{{ new_url }}">+ Catat karyawan keluar</a>
+<details class="more"><summary>Lainnya ▾</summary><div><small>Data massal</small><a href="{% url 'hrd_separation_import' %}">Impor data lama dari CSV/XLSX</a>
+<small>Ekspor (sesuai filter)</small><div class="xrow"><span>Rekap karyawan keluar</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a></div></div></details></div>
+<div class="grid">
+<a class="card" href="?year={{ f.year }}"><b>{{ totals.n }}</b><span>karyawan keluar{% if terjadwal %} ({{ terjadwal }} terjadwal){% endif %}</span></a>
+<div class="card"><b>{{ totals.tali|rupiah }}</b><span>total tali asih</span></div>
+<a class="card{% if tali_belum_n %} warn{% endif %}" href="?year={{ f.year }}&amp;tali=belum"><b>{{ totals.tali_belum|rupiah }}</b><span>tali asih belum dibayar ({{ tali_belum_n }})</span></a>
+<a class="card{% if pak_belum %} warn{% endif %}" href="?year={{ f.year }}&amp;paklaring=belum"><b>{{ pak_belum }}</b><span>paklaring belum terbit</span></a>
+</div>
+<form method="get" class="bar" style="margin-top:14px"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama">
+<label class="chk">Tahun <input type="number" name="year" value="{{ f.year }}" min="2000" max="2100" style="width:90px" title="Kosongkan untuk semua tahun"></label>
+<select name="month" aria-label="Bulan"><option value="">Semua bulan</option>{% for n, m in months %}<option value="{{ n }}"{% if f.month == n|stringformat:"s" %} selected{% endif %}>{{ m }}</option>{% endfor %}</select>
+<select name="kind" aria-label="Jenis"><option value="">Semua jenis</option>{% for k, l in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<button>Terapkan</button>{% if f.q or f.month or f.kind or f.department or f.paklaring or f.tali or f.batal %}<a class="chip" href="?year={{ f.year }}">Reset filter</a>{% endif %}</form>
+<details class="flt"{% if f.department or f.paklaring or f.tali or f.batal %} open{% endif %}><summary>Filter lainnya (departemen, paklaring, tali asih)</summary>
+<form method="get" class="bar"><input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="year" value="{{ f.year }}"><input type="hidden" name="month" value="{{ f.month }}"><input type="hidden" name="kind" value="{{ f.kind }}">
+<select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d }}"{% if f.department == d %} selected{% endif %}>{{ d }}</option>{% endfor %}</select>
+<select name="paklaring" aria-label="Paklaring"><option value="">Semua status paklaring</option><option value="belum"{% if f.paklaring == "belum" %} selected{% endif %}>Belum terbit</option><option value="sudah"{% if f.paklaring == "sudah" %} selected{% endif %}>Sudah terbit</option></select>
+<select name="tali" aria-label="Tali asih"><option value="">Semua tali asih</option><option value="ada"{% if f.tali == "ada" %} selected{% endif %}>Ada tali asih</option><option value="belum"{% if f.tali == "belum" %} selected{% endif %}>Belum dibayar</option><option value="sudah"{% if f.tali == "sudah" %} selected{% endif %}>Sudah dibayar</option></select>
+<label class="chk"><input type="checkbox" name="batal" value="1"{% if f.batal %} checked{% endif %}> Tampilkan yang dibatalkan</label><button>Terapkan</button></form></details>
+{% if by_kind %}<details class="flt"><summary>Ringkasan per jenis dan per departemen</summary>
+<div class="wrap"><table id="by-kind"><thead><tr><th>Jenis</th><th class="num">Karyawan</th><th class="num">Tali asih</th></tr></thead><tbody>{% for l, n, t in by_kind %}<tr><td>{{ l }}</td><td class="num">{{ n }}</td><td class="num">{{ t|rupiah }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="wrap" style="margin-top:10px"><table id="by-dept"><thead><tr><th>Departemen</th><th class="num">Karyawan</th><th class="num">Tali asih</th></tr></thead><tbody>{% for r in by_dept %}<tr><td>{{ r.department_name }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.tali|rupiah }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
+<div class="wrap"><table id="separations"><thead><tr><th>Tgl keluar</th><th>NIK</th><th>Nama</th><th>Departemen / jabatan</th><th>Tgl masuk</th><th>Tgl mengajukan</th><th>Jenis</th><th class="num">Tali asih</th><th>Paklaring</th><th>Status</th><th></th></tr></thead><tbody>
+{% for s in page %}<tr{% if s.is_void %} style="opacity:.55;text-decoration:line-through"{% endif %}><td>{{ s.last_date|date:"d-m-Y" }}</td><td>{{ s.employee.nik }}</td><td>{{ s.emp_name }}</td><td>{{ s.department_name }}{% if s.position_name %}<small style="display:block;color:var(--mu)">{{ s.position_name }}</small>{% endif %}</td>
+<td>{{ s.join_date|date:"d-m-Y" }}</td><td>{{ s.request_date|date:"d-m-Y"|default:"—" }}</td><td>{{ s.get_kind_display }}</td>
+<td class="num">{% if s.tali_asih %}{{ s.tali_asih|rupiah }}<small>{% if s.tali_asih_paid_on %}dibayar {{ s.tali_asih_paid_on|date:"d-m-Y" }}{% else %}belum dibayar{% endif %}</small>{% else %}<span style="color:var(--mu)">—</span>{% endif %}</td>
+<td>{% if s.paklaring_number %}<a href="{% url 'hrd_separation_pdf' s.pk %}" target="_blank" rel="noopener">{{ s.paklaring_number }}</a>{% elif s.applied_at and not s.is_void %}<span class="pill pending">belum terbit</span>{% else %}<span style="color:var(--mu)">—</span>{% endif %}</td>
+<td>{% if s.is_void %}<span class="pill rejected">batal</span>{% elif s.applied_at %}<span class="pill approved">keluar</span>{% else %}<span class="pill pending">terjadwal</span>{% endif %}</td>
+<td class="acts"><a class="btn sm ghost" href="{% url 'hrd_separation_detail' s.pk %}">Kelola</a></td></tr>
+{% empty %}<tr><td class="empty" colspan="11">{% if f.q or f.month or f.kind or f.department or f.paklaring or f.tali or f.batal %}Tidak ada data yang cocok dengan filter. <a href="?year={{ f.year }}">Reset filter</a>{% else %}Belum ada karyawan keluar{% if f.year %} pada tahun {{ f.year }}{% endif %}. Klik <b>+ Catat karyawan keluar</b>, atau impor data lama lewat <b>Lainnya ▾</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% endblock %}

@@ -23,7 +23,8 @@ def _ophrd():
     BPJS tetap menu tersendiri (sudah bersubmenu sejak putaran 23). Hanya HRD & Superadmin."""
     return [("Operasional HRD", "/hrd/", "briefcase"), ("Bantuan (rekap)", "/hrd/aids/", "clipboard", True), ("Cuti Hamil", "/hrd/maternity/", "calendar", True),
             ("Pekerja Harian Proyek", "/hrd/projects/", "briefcase", True), ("Katering (rekap)", "/hrd/catering/", "clipboard", True),
-            ("Surat Peringatan", "/hrd/warnings/", "file", True), ("Seragam", "/hrd/uniforms/", "clipboard", True)]
+            ("Surat Peringatan", "/hrd/warnings/", "file", True), ("Seragam", "/hrd/uniforms/", "clipboard", True),
+            ("Karyawan Keluar", "/hrd/separations/", "users", True)]
 
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 

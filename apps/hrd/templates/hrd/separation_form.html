@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% load ui %}{% block title %}Catat karyawan keluar{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'hrd_separations' %}">‹ Karyawan Keluar</a></p>
+<h2>Catat karyawan keluar</h2>
+{% flow_steps "Isi data keluar|Karyawan, jenis, tanggal mengajukan & tanggal keluar" "Nonaktif otomatis|Status karyawan nonaktif setelah hari terakhir kerja lewat" "Tali asih & paklaring|Dilengkapi dari halaman detail" now=1 %}
+<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+<h3 style="margin-top:0">1. Siapa dan kapan</h3>
+{% for f in form %}{% if f.name == "reason" %}<h3>2. Keterangan</h3>{% elif f.name == "tali_asih" %}<h3>3. Tali asih (boleh dikosongkan, diisi nanti)</h3>{% endif %}
+<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small class="help">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
+<p class="help">Tanggal masuk, departemen, dan jabatan diambil otomatis dari data karyawan dan disalin ke catatan ini.</p>
+<p><button>Simpan</button> <a class="chip" href="{% url 'hrd_separations' %}">Batal</a></p></form>
+{% endblock %}

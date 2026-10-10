@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Karyawan keluar{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'hrd_separations' %}?year={{ s.last_date.year }}">‹ Karyawan Keluar</a></p>
+<h2>{{ s.emp_name }} <span class="pill {% if s.is_void %}rejected{% elif s.applied_at %}approved{% else %}pending{% endif %}">{% if s.is_void %}dibatalkan{% elif s.applied_at %}sudah keluar{% else %}terjadwal keluar{% endif %}</span></h2>
+{% if not s.is_void %}{% flow_steps "Dicatat|"|add:kind_label "Karyawan nonaktif|Setelah hari terakhir kerja" "Tali asih|Nominal & dibayar" "Paklaring|Terbit & cetak" now=step_now %}{% endif %}
+<div class="card"><table>
+<tr><th>NIK</th><td>{{ s.employee.nik }}</td></tr>
+<tr><th>Departemen / jabatan</th><td>{{ s.department_name }}{% if s.position_name %} / {{ s.position_name }}{% endif %}</td></tr>
+<tr><th>Tanggal masuk</th><td>{{ s.join_date|date:"d-m-Y" }}</td></tr>
+<tr><th>Tanggal mengajukan / diberitahukan</th><td>{{ s.request_date|date:"d-m-Y"|default:"—" }}</td></tr>
+<tr><th>Tanggal keluar (hari terakhir)</th><td>{{ s.last_date|date:"d-m-Y" }}</td></tr>
+<tr><th>Masa kerja</th><td>{{ service }}</td></tr>
+<tr><th>Jenis</th><td>{{ kind_label }}</td></tr>
+<tr><th>Alasan / keterangan</th><td>{{ s.reason|default:"—" }}</td></tr>
+<tr><th>Tali asih</th><td>{% if s.tali_asih %}<b>{{ s.tali_asih|rupiah }}</b>{% if s.tali_asih_note %} — {{ s.tali_asih_note }}{% endif %}{% if s.tali_asih_paid_on %} · dibayar {{ s.tali_asih_paid_on|date:"d-m-Y" }}{% else %} · belum dibayar{% endif %}{% else %}Tidak ada{% endif %}</td></tr>
+<tr><th>Paklaring</th><td>{% if s.paklaring_number %}{{ s.paklaring_number }} · terbit {{ s.paklaring_date|date:"d-m-Y" }}{% else %}Belum terbit{% endif %}</td></tr>
+<tr><th>Dicatat</th><td>{{ s.created_at|date:"d-m-Y H:i" }}{% if s.created_by %} oleh {{ s.created_by.username }}{% endif %}</td></tr>
+{% if s.is_void %}<tr><th>Dibatalkan</th><td>{{ s.voided_at|date:"d-m-Y H:i" }}{% if s.voided_by %} oleh {{ s.voided_by.username }}{% endif %} — {{ s.void_reason }}</td></tr>{% endif %}
+</table></div>
+{% if not s.is_void %}
+<div class="card form" style="margin-top:12px"><h3 style="margin-top:0">1. Status karyawan</h3>
+{% if s.applied_at %}<p>Sudah dinonaktifkan{% if s.status_changed %} (status sebelumnya: {{ s.prev_status }}){% endif %}. Riwayat status tercatat di data karyawan.</p>
+{% elif can_apply_now %}<p>Hari terakhir kerja {{ s.last_date|date:"d-m-Y" }} sudah tiba. Karyawan dinonaktifkan otomatis besok, atau sekarang:</p>
+<form method="post" action="{% url 'hrd_separation_action' s.pk 'apply' %}">{% csrf_token %}<button>Nonaktifkan sekarang</button></form>
+{% else %}<p>Karyawan masih aktif sampai {{ s.last_date|date:"d-m-Y" }}; dinonaktifkan otomatis setelah hari itu lewat.</p>{% endif %}</div>
+<form method="post" action="{% url 'hrd_separation_action' s.pk 'tali' %}" class="card form" style="margin-top:12px"><h3 style="margin-top:0">2. Tali asih</h3>{% csrf_token %}
+{% if s.tali_asih_paid_on %}<p>Sudah dibayar {{ s.tali_asih_paid_on|date:"d-m-Y" }}; nominal terkunci.</p>
+{% else %}{% for f in tali %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small class="help">{{ f.help_text }}</small>{% endif %}</div>{% endfor %}<p><button>Simpan tali asih</button></p>{% endif %}</form>
+<div class="card form" style="margin-top:12px"><h3 style="margin-top:0">3. Paklaring (surat keterangan kerja)</h3>
+{% if s.paklaring_number %}<p>Nomor <b>{{ s.paklaring_number }}</b>, terbit {{ s.paklaring_date|date:"d-m-Y" }}.</p><p><a class="btn" href="{% url 'hrd_separation_pdf' s.pk %}" target="_blank" rel="noopener">Cetak paklaring (PDF)</a></p>
+{% elif s.applied_at %}<form method="post" action="{% url 'hrd_separation_action' s.pk 'paklaring' %}">{% csrf_token %}<div class="fld"><label for="issue_date">Tanggal terbit</label><input id="issue_date" type="date" name="issue_date" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}"></div><p><button>Terbitkan paklaring</button></p></form>
+{% else %}<p style="color:var(--mu)">Dapat diterbitkan setelah karyawan dinonaktifkan (hari terakhir kerja lewat).</p>{% endif %}</div>
+{% if not s.paklaring_number and not s.tali_asih_paid_on %}<form method="post" action="{% url 'hrd_separation_action' s.pk 'void' %}" class="card form" style="margin-top:12px"><h3 style="margin-top:0">Salah catat? Batalkan</h3>{% csrf_token %}
+<div class="fld"><label for="reason">Alasan (wajib)</label><input id="reason" name="reason" maxlength="300" required></div><p><button class="danger">Batalkan catatan</button></p>
+{% if s.status_changed %}<p class="help">Status karyawan dipulihkan ke “{{ s.prev_status }}”.</p>{% endif %}</form>{% else %}<p class="help" style="margin-top:12px">Catatan tidak dapat dibatalkan karena paklaring sudah terbit atau tali asih sudah dibayar.</p>{% endif %}
+{% endif %}
+{% endblock %}

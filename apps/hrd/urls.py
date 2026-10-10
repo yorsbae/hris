@@ -3,8 +3,8 @@ from apps.core.bulk import import_view as bulk_import_view, template_view as bul
 from apps.core.models import Role
 from apps.core.scope import require_roles
 from . import views as v
-from .bulk_specs import BPJS_DEDUCTION, UNIFORM_PURCHASE
-from . import uniform_views as uv
+from .bulk_specs import BPJS_DEDUCTION, SEPARATION, UNIFORM_PURCHASE
+from . import uniform_views as uv, separation_views as sv
 
 urlpatterns = [
     path("", v.hub, name="hrd_hub"),
@@ -27,6 +27,13 @@ urlpatterns = [
     path("uniforms/<int:pk>/", uv.uniform_detail, name="hrd_uniform_detail"),
     path("uniforms/<int:pk>/void/", uv.uniform_void, name="hrd_uniform_void"),
     path("uniforms/<int:pk>/mark/", uv.uniform_mark, name="hrd_uniform_mark"),
+    path("separations/", sv.separations, name="hrd_separations"),
+    path("separations/new/", sv.separation_new, name="hrd_separation_new"),
+    path("separations/import/", bulk_import_view(SEPARATION, require_roles(Role.HRD)), name="hrd_separation_import"),
+    path("separations/import/template.csv", bulk_template_view(SEPARATION, require_roles(Role.HRD))),
+    path("separations/<int:pk>/", sv.separation_detail, name="hrd_separation_detail"),
+    path("separations/<int:pk>/paklaring.pdf", sv.separation_pdf, name="hrd_separation_pdf"),
+    path("separations/<int:pk>/<str:action>/", sv.separation_action, name="hrd_separation_action"),
     path("aids/", v.aid_list, name="hrd_aids"),
     path("aids/new/", v.aid_new, name="hrd_aid_new"),
     path("aids/<int:pk>/edit/", v.aid_edit, name="hrd_aid_edit"),

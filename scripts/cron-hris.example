@@ -8,5 +8,7 @@ PY=/path/venv/bin/python
 5 7 * * * cd $HRIS && $PY manage.py remind_extra_work
 # 07:10 — pengingat kontrak yang akan berakhir
 10 7 * * * cd $HRIS && $PY manage.py check_contracts
+# 00:20 — nonaktifkan karyawan yang hari terakhir kerjanya sudah lewat (Karyawan Keluar)
+20 0 * * * cd $HRIS && $PY manage.py apply_separations
 # 1 Januari 00:30 — jatah cuti tahunan
 30 0 1 1 * cd $HRIS && $PY manage.py grant_annual_leave

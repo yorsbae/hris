@@ -1,8 +1,8 @@
 """Spesifikasi impor massal potongan BPJS (putaran 22, P4). Memakai mesin core.bulk: semua-atau-tidak-sama-sekali, "periksa saja", form yang SAMA dengan input manual.
 Kunci gabungan nik|program|periode; baris dengan kunci sama di file → ditolak (dobel). Impor ulang periode yang sama MENGGANTI nilai lama."""
 from apps.core.bulk import Spec
-from .forms import BpjsDeductionForm, UniformPurchaseForm
-from .models import UniformSize, UniformType
+from .forms import BpjsDeductionForm, SeparationForm, UniformPurchaseForm
+from .models import Separation, UniformSize, UniformType
 
 _SCHEMES = {"k": "kes", "kes": "kes", "kesehatan": "kes", "bpjs kesehatan": "kes", "tk": "tk", "ketenagakerjaan": "tk", "jht": "tk", "bpjs tk": "tk"}
 
@@ -38,3 +38,23 @@ UNIFORM_PURCHASE = Spec("seragam", "hrd", "pembelian seragam", "/hrd/uniforms/",
                         key_fn=lambda r: f"{r.get('nik', '').strip()}|{r.get('tanggal', '').strip()}|{r.get('jenis', '').strip().lower()}|{r.get('ukuran', '').strip().lower()}",
                         hint="Hanya MENAMBAH pembelian (tidak menimpa). Tanggal YYYY-MM-DD, jenis & ukuran harus ada di Master Seragam, karyawan harus aktif. "
                              "Tarif potongan dihitung otomatis dari jenis kelamin karyawan pada tanggal pembelian. Pembelian ganda ditolak.")
+
+
+# ---------------------------------------------------------------- Karyawan keluar (putaran 38)
+_KINDS = {**{k: k for k, _ in Separation.Kind.choices}, **{v.lower(): k for k, v in Separation.Kind.choices},
+          "resign": "resign", "mengundurkan diri": "resign", "habis kontrak": "habis_kontrak", "kontrak habis": "habis_kontrak", "phk": "phk", "pensiun": "pensiun", "meninggal": "meninggal"}
+
+
+def _separation_to_data(r, ctx):
+    kind = _KINDS.get((r.get("jenis") or "resign").strip().lower())
+    if not kind: raise ValueError(f"Jenis '{r.get('jenis', '')}' tidak dikenal (resign, habis_kontrak, phk, pensiun, meninggal, lainnya).")
+    return {"nik": r.get("nik", ""), "kind": kind, "request_date": r.get("tgl_pengajuan", ""), "last_date": r.get("tgl_keluar", ""), "reason": r.get("alasan", ""),
+            "tali_asih": r.get("tali_asih", ""), "tali_asih_note": r.get("dasar_tali_asih", "")}
+
+
+SEPARATION = Spec("karyawan-keluar", "hrd", "karyawan keluar", "/hrd/separations/", None, "key", SeparationForm,
+                  ["nik", "jenis", "tgl_pengajuan", "tgl_keluar", "alasan", "tali_asih", "dasar_tali_asih"], ["nik", "tgl_keluar"],
+                  ["001", "resign", "2026-09-01", "2026-09-30", "Pindah kota", "1500000", "1 bulan gaji"], _separation_to_data,
+                  key_fn=lambda r: r.get("nik", "").strip(),
+                  hint="Hanya MENAMBAH catatan (tidak menimpa). Satu NIK satu catatan aktif. Jenis: resign, habis_kontrak, phk, pensiun, meninggal, lainnya. Tanggal YYYY-MM-DD. "
+                       "Karyawan yang sudah nonaktif boleh (mengarsipkan data lama); yang masih aktif dinonaktifkan setelah tanggal keluar lewat. Tali asih boleh kosong.")

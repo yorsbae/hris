@@ -1,12 +1,12 @@
 """Form Operasional HRD. Validasi di server adalah otoritas; field NIK diketik (bukan dropdown 3.000 baris)."""
 import re
-from datetime import date
+from datetime import date, timedelta
 from django import forms
 from django.db import transaction
 from apps.core.money import RupiahField
 from apps.hr.models import Employee
 from . import services
-from .models import Aid, BpjsDeduction, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectWork, UniformPurchase, UniformRate, UniformSize, UniformType, WarningLetter
+from .models import Aid, BpjsDeduction, Separation, BpjsMembership, BpjsScheme, BpjsState, CateringOrder, MaternityLeave, Project, ProjectWork, UniformPurchase, UniformRate, UniformSize, UniformType, WarningLetter
 
 D = lambda: forms.DateInput(attrs={"type": "date"})  # noqa: E731
 
@@ -330,3 +330,47 @@ class UniformStockForm(forms.Form):
         if v == 0: raise forms.ValidationError("Jumlah tidak boleh 0.")
         if self.mode == "masuk" and v < 0: raise forms.ValidationError("Barang masuk harus lebih dari 0; gunakan Koreksi stok untuk mengurangi.")
         return v
+
+
+# ---------------------------------------------------------------- Karyawan keluar (putaran 38)
+class SeparationForm(forms.Form):
+    """Satu aturan untuk input manual DAN impor. Karyawan = NIK yang belum dihapus; yang sudah nonaktif boleh (mengarsipkan data lama), tetapi satu catatan aktif per karyawan.
+    Tanggal keluar boleh sampai setahun ke depan (rencana); karyawan baru dinonaktifkan setelah hari itu lewat."""
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+    kind = forms.ChoiceField(label="Jenis keluar", choices=Separation.Kind.choices, initial=Separation.Kind.RESIGN)
+    request_date = forms.DateField(label="Tanggal mengajukan / diberitahukan", required=False, widget=D(), help_text="Tanggal surat pengunduran diri / pemberitahuan. Boleh kosong.")
+    last_date = forms.DateField(label="Tanggal keluar (hari terakhir kerja)", widget=D())
+    reason = forms.CharField(label="Alasan / keterangan", required=False, max_length=300)
+    tali_asih = RupiahField(label="Tali asih (Rp)", required=False, min_value=0, max_value=2_000_000_000, help_text="Boleh kosong dan diisi nanti dari halaman detail.")
+    tali_asih_note = forms.CharField(label="Dasar tali asih", required=False, max_length=200, help_text="Mis. 1 bulan gaji, kebijakan perusahaan.")
+
+    def __init__(self, *a, instance=None, user=None, **k):
+        super().__init__(*a, **k); self.instance, self.employee, self.user = instance, None, user
+
+    def clean_last_date(self):
+        v = self.cleaned_data["last_date"]
+        if v > date.today() + timedelta(days=366): raise forms.ValidationError("Tanggal keluar tidak boleh lebih dari setahun ke depan.")
+        return v
+
+    def clean(self):
+        d = super().clean()
+        nik = (d.get("nik") or "").strip()
+        self.employee = Employee.objects.select_related("department", "position").filter(nik=nik).first() if nik else None
+        if nik and not self.employee: self.add_error("nik", "Karyawan dengan NIK ini tidak ditemukan.")
+        if not self.employee: return d
+        if Separation.objects.filter(employee=self.employee, voided_at__isnull=True).exists():
+            self.add_error("nik", "Karyawan ini sudah tercatat keluar. Batalkan catatan lama bila keliru.")
+        if d.get("last_date") and d["last_date"] < self.employee.join_date: self.add_error("last_date", f"Sebelum tanggal masuk ({self.employee.join_date:%d-%m-%Y}).")
+        if d.get("request_date"):
+            if d["request_date"] < self.employee.join_date: self.add_error("request_date", "Sebelum tanggal masuk karyawan.")
+            elif d.get("last_date") and d["request_date"] > d["last_date"]: self.add_error("request_date", "Tidak boleh sesudah tanggal keluar.")
+        return d
+
+    def save(self):
+        return services.record_separation(self.employee, self.cleaned_data, self.user)
+
+
+class SeparationTaliForm(forms.Form):
+    tali_asih = RupiahField(label="Tali asih (Rp)", min_value=0, max_value=2_000_000_000)
+    tali_asih_note = forms.CharField(label="Dasar tali asih", required=False, max_length=200)
+    paid_on = forms.DateField(label="Tanggal dibayar", required=False, widget=D(), help_text="Isi bila sudah dibayarkan. Setelah ditandai dibayar, nominal terkunci.")
