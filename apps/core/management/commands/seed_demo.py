@@ -460,7 +460,7 @@ class Command(BaseCommand):
     # ---------- poliklinik
     def poli(self):
         r, today = self.r, self.today
-        dg = [pl.Diagnosis.objects.create(code=c, name=n, category="Umum") for c, n in DIAG]
+        dg = [pl.Diagnosis.objects.update_or_create(code=c, defaults={"name": n, "category": "Umum"})[0] for c, n in DIAG]
         meds = []
         for code, name, unit, stock, mn in MEDS:
             m = pl.Medicine.objects.create(code=code, name=name, unit=unit, stock=0, min_stock=mn); ps._move(m.pk, stock, self.poli_u, "purchase", note="Stok awal (demo)"); meds.append(m)

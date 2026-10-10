@@ -119,6 +119,7 @@ def record_list(request):
 
 @poli_only
 def record_new(request):
+    services.ensure_exam_diagnoses()  # Z00.0 / Z00.8 / Z02.7 untuk kesimpulan cepat jenis pemeriksaan
     form = RecordForm(request.POST or None, initial={"kind": request.GET.get("kind", "berobat"), "nik": request.GET.get("nik", "")})
     fs = PrescriptionFormSet(request.POST or None, prefix="rx")
     if request.method == "POST" and form.is_valid() and fs.is_valid():
@@ -365,14 +366,16 @@ def patient_summary(request):
     """JSON: identitas minimum + 8 kunjungan terakhir. Hanya karyawan aktif. Pembukaan riwayat tercatat di audit (sama seperti halaman riwayat)."""
     e = services.active_employee(nik=request.GET.get("nik", "").strip()[:20])
     if not e: return JsonResponse({"found": False}, status=404)
+    e = Employee.objects.select_related("department", "position", "shift", "shift_group").get(pk=e.pk)
     log(request, "poli", "view_history", e)
     qs = e.medical_records.select_related("diagnosis").order_by("-visit_at", "-id")
     last = [{"id": r.pk, "date": timezone.localtime(r.visit_at).strftime("%d-%m-%Y"), "kind": r.get_kind_display(), "url": f"/poli/records/{r.pk}/",
              "diagnosis": f"{r.diagnosis.code} {r.diagnosis.name}" if r.diagnosis_id else "", "complaint": (r.complaint or "")[:90]} for r in qs[:8]]
     ov = services.patient_overview(e)
     kl = dict(MedicalRecord.KINDS)
-    return JsonResponse({"found": True, "nik": e.nik, "name": e.name, "gender": e.get_gender_display(), "department": e.department.name,
-                         "position": e.position.name if e.position_id else "", "join_date": e.join_date.strftime("%d-%m-%Y"),
+    return JsonResponse({"found": True, "nik": e.nik, "name": e.name, "gender": {"L": "Laki-laki", "P": "Perempuan"}.get(e.gender, e.gender), "department": e.department.name,
+                         "position": e.position.name if e.position_id else "", "join_date": e.join_date.strftime("%d-%m-%Y"), "tenure": services.tenure_text(e.join_date),
+                         "shift": e.shift.name if e.shift_id else "", "group": e.shift_group.code if e.shift_group_id else "", "status": e.status,
                          "total": qs.count(), "history_url": f"/poli/employees/{e.pk}/", "visits": last,
                          "allergies": ov["allergies"], "bpjs": ov["bpjs"], "kinds": [{"label": kl.get(k, k), "n": n} for k, n in sorted(ov["kinds"].items())]})
 

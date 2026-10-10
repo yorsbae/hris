@@ -205,6 +205,14 @@ def bill_transition(pk, to, user, note="", paid_date=None, payment_ref=""):
         return b, before
 
 
+# Diagnosa cepat untuk jenis "pemeriksaan" (putaran 36): sehat / aman dengan catatan / tidak fit. Dibuat bila belum ada (tidak menimpa master yang sudah diubah Poli).
+EXAM_DIAGNOSES = (("Z00.0", "Pemeriksaan kesehatan umum — sehat"), ("Z00.8", "Pemeriksaan kesehatan — aman dengan catatan"), ("Z02.7", "Surat keterangan medis — tidak fit sementara"))
+
+
+def ensure_exam_diagnoses():
+    for code, name in EXAM_DIAGNOSES: Diagnosis.objects.get_or_create(code=code, defaults={"name": name, "category": "Pemeriksaan"})
+
+
 # ---------------------------------------------------------------- Alergi pasien (putaran 35)
 def add_allergy(user, employee, substance, reaction="", severity="sedang"):
     substance = " ".join((substance or "").split())
@@ -235,3 +243,9 @@ def patient_overview(e):
         bpjs[k] = {"label": label, "status": m.get_status_display() if m else "Belum dicatat", "active": bool(m and m.status == "aktif"), "number_on_file": has_no}
     kinds = {r["kind"]: r["n"] for r in e.medical_records.values("kind").annotate(n=Count("id"))}
     return {"allergies": allergies, "bpjs": bpjs, "kinds": kinds}
+
+
+def tenure_text(join_date, today=None):
+    today = today or timezone.localdate(); m = (today.year - join_date.year) * 12 + today.month - join_date.month - (today.day < join_date.day)
+    m = max(m, 0); y, mo = divmod(m, 12)
+    return " ".join(x for x in (f"{y} tahun" if y else "", f"{mo} bulan" if mo else "") if x) or "< 1 bulan"

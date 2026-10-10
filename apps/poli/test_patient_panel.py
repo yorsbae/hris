@@ -87,3 +87,34 @@ class PatientPanelTests(PoliBase):
         CateringOrder.objects.create(date=date(2026, 10, 9), meal="12:00", qty_large=5, qty_small=2)
         h = self.client.get("/hrd/catering/", {"from": "2026-10-01", "to": "2026-10-10"}).content.decode()
         self.assertIn('class="btn sm"', h); self.assertIn('class="sm danger"', h); self.assertNotIn("danger lnk", h)
+
+
+class PatientInfoAndQuickConclusionTests(PoliBase):
+    def setUp(self): self.login("poli")
+
+    def test_summary_has_identity_details(self):
+        j = self.client.get("/poli/api/patient/", {"nik": "001"}).json()
+        for k in ("gender", "department", "position", "join_date", "tenure", "shift", "group", "status"): self.assertIn(k, j)
+        self.assertIn(j["gender"], ("Laki-laki", "Perempuan")); self.assertTrue(j["tenure"])
+
+    def test_tenure_text(self):
+        from django.utils import timezone
+        t = date(2026, 10, 10)
+        self.assertEqual(services.tenure_text(date(2026, 10, 1), t), "< 1 bulan"); self.assertEqual(services.tenure_text(date(2024, 7, 20), t), "2 tahun 2 bulan")
+        self.assertEqual(services.tenure_text(date(2025, 10, 10), t), "1 tahun")
+
+    def test_exam_diagnoses_created_idempotently_and_not_overwritten(self):
+        from apps.poli.models import Diagnosis
+        Diagnosis.objects.create(code="Z00.0", name="Nama kustom Poli")
+        self.client.get("/poli/records/new/"); self.client.get("/poli/records/new/")
+        self.assertEqual(set(Diagnosis.objects.filter(code__startswith="Z0").values_list("code", flat=True)), {"Z00.0", "Z00.8", "Z02.7"})
+        self.assertEqual(Diagnosis.objects.get(code="Z00.0").name, "Nama kustom Poli")
+
+    def test_quick_conclusion_buttons_and_saving_a_healthy_exam(self):
+        h = self.client.get("/poli/records/new/").content.decode()
+        for k in ("fit", "fit_catatan", "tidak_fit"): self.assertIn(f'data-q="{k}"', h)
+        r = self.client.post("/poli/records/new/", {"nik": "001", "kind": "pemeriksaan", "diagnosis_code": "Z00.0", "exam_conclusion": "fit", "exam_result": "Sehat.", "rx-TOTAL_FORMS": "0", "rx-INITIAL_FORMS": "0", "rx-MIN_NUM_FORMS": "0", "rx-MAX_NUM_FORMS": "20"})
+        self.assertEqual(r.status_code, 302); rec = MedicalRecord.objects.get(); self.assertEqual((rec.kind, rec.diagnosis.code), ("pemeriksaan", "Z00.0"))
+
+    def test_error_hint_mentions_migrate(self):
+        self.assertIn("python manage.py migrate", self.client.get("/poli/records/new/").content.decode())
