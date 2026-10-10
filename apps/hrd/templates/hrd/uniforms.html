@@ -12,9 +12,9 @@
 <div class="xrow"><span>Kartu stok (riwayat)</span><a href="?{{ qs }}&amp;export=ledger&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=ledger">CSV</a></div>
 <div class="xrow"><span>Pesanan ke vendor</span><a href="?export=order&amp;format=xlsx">XLSX</a><a href="?export=order">CSV</a></div></div></details></div>
 <div class="sepkpi">
-<a class="{% if minus_n %} bad{% elif low_n %} warn{% endif %}" href="?{{ qs }}&amp;tab=stok"><b>{{ needs_n }}</b> jenis/ukuran perlu perhatian{% if minus_n %} ({{ minus_n }} minus){% endif %}</a>
-<a href="?{{ qs }}&amp;tab=pembelian"><b>{{ totals.pcs|default:0 }}</b> seragam dibeli ({{ totals.n }} transaksi)</a>
-<a href="?{{ qs }}&amp;tab=pembelian"><b>{{ totals.total|rupiah }}</b> total potongan gaji</a>
+<a class="{% if minus_n %} bad{% elif low_n %} warn{% endif %}" href="?{{ qs }}&amp;tab=stok"><b>{{ needs_n }}</b> perlu perhatian{% if minus_n %} ({{ minus_n }} minus){% endif %}</a>
+<a href="?{{ qs }}&amp;tab=pembelian"><b>{{ totals.pcs|default:0 }}</b> dibeli ({{ totals.n }} transaksi)</a>
+<a href="?{{ qs }}&amp;tab=pembelian"><b>{{ totals.total|rupiah }}</b> total potongan</a>
 <a class="{% if totals.belum %} warn{% endif %}" href="?period={{ f.period }}&amp;status=belum&amp;tab=pembelian"><b>{{ totals.belum|rupiah }}</b> belum dipotong ({{ belum_n }})</a>
 </div>
 <form method="get" class="bar" style="margin-top:14px"><input type="hidden" name="tab" value="{{ tab }}">

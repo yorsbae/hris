@@ -16,7 +16,7 @@ class BpjsDeductionsUxTests(HrdBase):
 
     def test_filter_opens_and_reset_only_when_chosen(self):
         r = self.client.get(reverse("hrd_bpjs_deductions") + "?period=2026-10&department=%d" % self.d1.pk)
-        self.assertContains(r, '<details class="flt" open>'); self.assertContains(r, "Reset filter")
+        self.assertContains(r, 'value="%d" selected' % self.d1.pk); self.assertContains(r, "Reset filter")
         self.assertContains(self.client.get(reverse("hrd_bpjs_deductions") + "?period=2026-10&q=zzz"), "Tidak ada potongan yang cocok dengan filter")
 
     def test_program_from_sidebar_path_is_not_a_chosen_filter(self):
@@ -33,7 +33,7 @@ class BpjsDeductionsUxTests(HrdBase):
 
     def test_search_form_keeps_active_filters(self):
         r = self.client.get(reverse("hrd_bpjs_deductions") + "?period=2026-10&anomaly=dipotong&department=%d" % self.d1.pk)
-        self.assertContains(r, '<input type="hidden" name="anomaly" value="dipotong">'); self.assertContains(r, '<input type="hidden" name="department" value="%d">' % self.d1.pk)
+        self.assertContains(r, '<input type="hidden" name="anomaly" value="dipotong">'); self.assertContains(r, 'value="%d" selected' % self.d1.pk)
 
 
 class BpjsStatusUxTests(HrdBase):

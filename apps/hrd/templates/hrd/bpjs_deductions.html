@@ -1,29 +1,22 @@
 {% extends "base.html" %}{% load money %}{% block title %}Potongan BPJS{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/bpjs/">‹ Status BPJS</a> · <a href="/hrd/">Operasional HRD</a></p>
 <h2>Potongan BPJS{% if f.scheme == "kes" %} — Kesehatan (K){% elif f.scheme == "tk" %} — Ketenagakerjaan (TK){% endif %} — rekap per periode</h2>
-<p class="hint flow">Alur: <b>1. Pilih periode</b> (bawaan bulan ini) → <b>2. Catat potongan</b> satu per satu atau impor file → <b>3. Periksa anomali</b> (dipotong padahal nonaktif, atau aktif tapi belum dipotong) → <b>4. Ekspor</b> bila perlu. Angka di sini berasal dari input/impor, bukan dari Payroll.</p>
+<details class="flt"><summary>Alur kerja</summary><p class="hint flow">Alur: <b>1. Pilih periode</b> (bawaan bulan ini) → <b>2. Catat potongan</b> satu per satu atau impor file → <b>3. Periksa anomali</b> (dipotong padahal nonaktif, atau aktif tapi belum dipotong) → <b>4. Ekspor</b> bila perlu. Angka di sini berasal dari input/impor, bukan dari Payroll.</p></details>
 <div class="tools"><a class="btn" href="{% url 'hrd_bpjs_deduction_new' %}">+ Potongan</a>
 <a class="chip" href="?period={{ f.period }}{% if f.scheme %}&amp;scheme={{ f.scheme }}{% endif %}&amp;anomaly=dipotong">Dipotong padahal nonaktif</a><a class="chip" href="?period={{ f.period }}{% if f.scheme %}&amp;scheme={{ f.scheme }}{% endif %}&amp;anomaly=belum">Aktif tapi belum dipotong</a>
 {% if act %}<a class="chip" href="?period={{ f.period }}">Reset filter</a>{% endif %}
 <details class="more"><summary>Lainnya ▾</summary><div><small>Masukkan banyak baris</small><a href="{% url 'hrd_bpjs_deduction_import' %}">Impor CSV / XLSX</a><small>Ekspor (sesuai filter)</small><a href="?{{ qs }}&export=1&format=xlsx">Rekap potongan · XLSX</a><a href="?{{ qs }}&export=1">Rekap potongan · CSV</a></div></details></div>
-<form method="get" class="bar">{% if f.scheme %}<input type="hidden" name="scheme" value="{{ f.scheme }}">{% endif %}{% if f.department %}<input type="hidden" name="department" value="{{ f.department }}">{% endif %}{% if f.anomaly %}<input type="hidden" name="anomaly" value="{{ f.anomaly }}">{% endif %}<input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="NIK atau nama">
-<input name="period" value="{{ f.period }}" placeholder="YYYY-MM" size="8" pattern="\d{4}-\d{2}" title="Periode, format YYYY-MM" aria-label="Periode"><button class="btn ghost">Tampilkan</button></form>
-<details class="flt"{% if act %} open{% endif %}><summary>Filter lainnya (program, departemen, anomali)</summary>
-<form method="get" class="bar"><input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="period" value="{{ f.period }}">
+<form method="get" class="bar sepbar">{% if f.anomaly %}<input type="hidden" name="anomaly" value="{{ f.anomaly }}">{% endif %}<input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="NIK atau nama">
+<input name="period" value="{{ f.period }}" placeholder="YYYY-MM" size="8" style="width:96px" pattern="\d{4}-\d{2}" title="Periode, format YYYY-MM" aria-label="Periode">
 <select name="scheme" aria-label="Program"><option value="">Semua program</option><option value="kes"{% if f.scheme == "kes" %} selected{% endif %}>K (Kesehatan)</option><option value="tk"{% if f.scheme == "tk" %} selected{% endif %}>TK (Ketenagakerjaan)</option></select>
 <select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
-<select name="anomaly" aria-label="Anomali"><option value="">Semua baris</option><option value="dipotong"{% if f.anomaly == "dipotong" %} selected{% endif %}>Anomali: dipotong padahal nonaktif</option><option value="belum"{% if f.anomaly == "belum" %} selected{% endif %}>Anomali: aktif tapi belum dipotong</option></select>
-<button class="btn ghost">Terapkan</button></form></details>
-<div class="grid">
-<div class="card"><b>{{ totals.emp|rupiah }}</b><span>Porsi karyawan ({{ totals.n }} baris)</span></div>
-<div class="card"><b>{{ totals.er|rupiah }}</b><span>Porsi perusahaan</span></div>
-{% for code, r in by_scheme.items %}<div class="card"><b>{{ r.emp|rupiah }}</b><span>{% if code == "kes" %}K{% else %}TK{% endif %}: karyawan · perusahaan {{ r.er|rupiah }}</span></div>{% endfor %}
-</div>
+<button class="btn ghost">Tampilkan</button></form>
+<div class="sepkpi"><span><b>{{ totals.emp|rupiah }}</b> porsi karyawan <small>({{ totals.n }} baris)</small></span><span><b>{{ totals.er|rupiah }}</b> porsi perusahaan</span><span>{% for code, r in by_scheme.items %}{% if not forloop.first %} · {% endif %}<b>{{ r.emp|rupiah }}</b> {% if code == "kes" %}K{% else %}TK{% endif %}{% endfor %} <small>karyawan per program</small></span></div>
 {% if by_dept and missing is None %}
-<h3>Ringkasan per departemen — periode {{ f.period }}</h3>
+<details class="flt"><summary>Ringkasan per departemen — periode {{ f.period }}</summary>
 <div class="wrap"><table id="by-dept"><thead><tr><th>Departemen</th><th class="num">Baris</th><th class="num">Porsi karyawan</th><th class="num">Porsi perusahaan</th></tr></thead><tbody>
 {% for r in by_dept %}<tr><td>{{ r.employee__department__name }}</td><td class="num">{{ r.n }}</td><td class="num nw">{{ r.emp|rupiah }}</td><td class="num nw">{{ r.er|rupiah }}</td></tr>{% endfor %}
-<tr><th>Total</th><th class="num">{{ totals.n }}</th><th class="num nw">{{ totals.emp|rupiah }}</th><th class="num nw">{{ totals.er|rupiah }}</th></tr></tbody></table></div>
+<tr><th>Total</th><th class="num">{{ totals.n }}</th><th class="num nw">{{ totals.emp|rupiah }}</th><th class="num nw">{{ totals.er|rupiah }}</th></tr></tbody></table></div></details>
 {% endif %}
 {% if missing is not None %}
 <h3>Aktif tetapi belum ada potongan periode {{ f.period }} ({{ missing_n }})</h3>

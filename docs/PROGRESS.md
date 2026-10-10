@@ -184,6 +184,11 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 - **Audit log**: baris filter utama 5 kontrol (dari, sampai, modul, aksi, user); objek/ID/IP terlipat (terbuka otomatis bila dipakai).
 - **Seragam**: empat kartu → strip KPI; blok "Alur kerja" terlipat.
 - Uji: 262 tes (core + seragam) + 288 tes (hr + penjaga) lulus; sebelumnya hrd/poli lulus.
+**39d — audit visual dengan browser nyata (Chromium/Playwright, 1366 px, data seed 120 karyawan)** ✅
+- Semua 33 halaman daftar diukur: **tidak ada scroll samping** (halaman maupun `.wrap`). Screenshot dilihat langsung; temuan: Potongan BPJS masih berat (blok alur besar, kartu nominal patah baris, ringkasan departemen mendorong data ke bawah), Seragam header bertumpuk.
+- **Potongan BPJS**: alur kerja terlipat; **satu baris filter** (cari · periode · program · departemen); kartu → strip KPI satu baris (K dan TK digabung); ringkasan per departemen terlipat → data langsung terlihat di bawah filter. Tes UX BPJS disesuaikan (departemen kini kontrol terlihat).
+- **Seragam**: strip KPI satu baris dengan label pendek.
+- **Global (base.html)**: breadcrumb dan tautan "‹ kembali" satu baris; jarak judul dirapatkan; `.sepkpi` rata penuh.
 **Yang akan dilakukan (lanjutan)**
 - Periksa halaman Bantuan, Surat Peringatan, Pekerja Harian Proyek, Cuti Hamil terhadap pola baris filter tunggal (audit otomatis: kontrol filter ≤ 5, tanpa blok alur besar di daftar berisi); cek visual di browser pada 1366 px dan ponsel.
 - Cek visual di browser pada lebar 1366 px dan ponsel (tes hanya menghitung kolom, bukan lebar piksel).
