@@ -218,3 +218,20 @@ class PartnerBillEvent(models.Model):
         super().save(*a, **k)
 
     def delete(self, *a, **k): raise PermissionError("Jejak tagihan tidak boleh dihapus")
+
+
+class PatientAllergy(models.Model):
+    """Alergi karyawan (putaran 35). Tampil di ringkasan pasien saat NIK dipilih di form kunjungan. Tidak dihapus: dinonaktifkan dengan jejak (seperti prinsip histori)."""
+    SEVERITY = [("ringan", "Ringan"), ("sedang", "Sedang"), ("berat", "Berat")]
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="allergies")
+    substance = models.CharField("Alergen", max_length=100)  # obat / makanan / lainnya
+    reaction = models.CharField("Reaksi", max_length=200, blank=True)
+    severity = models.CharField("Tingkat", max_length=10, choices=SEVERITY, default="sedang")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["employee", "voided_at"])]
+    def delete(self, *a, **k): raise PermissionError("Alergi tidak dihapus; nonaktifkan saja")

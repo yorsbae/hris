@@ -1,9 +1,22 @@
 {% extends "base.html" %}{% block title %}Riwayat medis{% endblock %}{% block content %}
 <p class="back"><a href="/poli/records/">‹ Rekam medis</a></p>
-<h2>Riwayat kunjungan · {{ e.nik }} {{ e.name }} <a class="btn" href="{% url 'poli_record_new' %}?nik={{ e.nik|urlencode }}">+ Kunjungan baru</a></h2>
-<div class="card"><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table></div>
-<div class="wrap" style="margin-top:12px"><table><thead><tr><th>#</th><th>Waktu</th><th>Jenis</th><th>Diagnosa</th></tr></thead><tbody>
+<div class="ph"><div><h1>Riwayat kunjungan</h1><p>{{ e.nik }} · {{ e.name }}</p></div><div class="tools"><a class="btn" href="{% url 'poli_record_new' %}?nik={{ e.nik|urlencode }}">+ Kunjungan baru</a></div></div>
+<div class="hist-grid">
+<div class="card"><h3 style="margin-top:0">Identitas</h3><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table>
+<h3>BPJS</h3><div class="chips">{% for k, b in bpjs.items %}<span class="pill {% if b.active %}aktif{% else %}nonaktif{% endif %}">{{ b.label }}: {{ b.status }}{% if not b.number_on_file %} · nomor kosong{% endif %}</span>{% endfor %}</div></div>
+<div class="card" id="allergies"><h3 style="margin-top:0">Alergi</h3>
+{% for a in allergies %}<div class="al-row{% if a.voided_at %} off{% endif %}"><div><b>{{ a.substance }}</b> <span class="pill {% if a.severity == 'berat' %}ditolak{% elif a.severity == 'sedang' %}pending{% endif %}">{{ a.get_severity_display }}</span>{% if a.reaction %}<div class="help">{{ a.reaction }}</div>{% endif %}<div class="help">Dicatat {{ a.created_at|date:"d M Y" }} oleh {{ a.created_by.get_full_name|default:a.created_by.username }}{% if a.voided_at %} · dinonaktifkan {{ a.voided_at|date:"d M Y" }}{% endif %}</div></div>
+{% if not a.voided_at %}<form method="post" action="{% url 'poli_allergy_void' e.pk a.pk %}">{% csrf_token %}<button class="sm danger" title="Nonaktifkan alergi ini">Nonaktifkan</button></form>{% endif %}</div>
+{% empty %}<p class="help">Belum ada alergi tercatat.</p>{% endfor %}
+<form method="post" action="{% url 'poli_allergy_add' e.pk %}" class="al-form">{% csrf_token %}<h4>Tambah alergi</h4>
+<div class="fgrid g3">{% include "poli/_fld.html" with f=allergy_form.substance %}{% include "poli/_fld.html" with f=allergy_form.reaction %}{% include "poli/_fld.html" with f=allergy_form.severity %}</div><button>Simpan alergi</button></form></div>
+</div>
+<h3>Kunjungan</h3>
+<div class="wrap"><table><thead><tr><th>#</th><th>Waktu</th><th>Jenis</th><th>Diagnosa</th></tr></thead><tbody>
 {% for r in page %}<tr><td><a href="{% url 'poli_record_detail' r.pk %}">{{ r.pk }}</a></td><td>{{ r.visit_at|date:"d M Y H:i" }}</td><td>{{ r.get_kind_display }}</td><td>{% if r.diagnosis %}{{ r.diagnosis.code }} · {{ r.diagnosis.name }}{% else %}-{% endif %}</td></tr>
 {% empty %}<tr><td class="empty" colspan="4">Belum ada kunjungan.</td></tr>{% endfor %}</tbody></table></div>
 {% include "poli/_pager.html" %}
+<style>.hist-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start;margin-bottom:8px}@media(max-width:900px){.hist-grid{grid-template-columns:1fr}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.al-row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--bd)}.al-row.off{opacity:.55}.al-form h4{margin:14px 0 6px}
+.fgrid{display:grid;gap:0 14px}.fgrid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}@media(max-width:700px){.fgrid.g3{grid-template-columns:1fr}}</style>
 {% endblock %}

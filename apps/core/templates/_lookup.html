@@ -30,7 +30,7 @@ function enhance(inp){
  function close(){list.hidden=true;inp.setAttribute("aria-expanded","false");act=-1}
  function info(t){list.textContent="";var li=document.createElement("li");li.className="lk-info";li.textContent=t;list.appendChild(li);list.hidden=false;inp.setAttribute("aria-expanded","true")}
  function show(chipOk,msg){if(!chip)return;chip.hidden=!msg;chip.textContent=msg||"";chip.classList.toggle("bad",!chipOk)}
- function pick(it,silent){chosen=it;inp.value=plain(kind,it);if(target)target.value=it.id;
+ function pick(it,silent){chosen=it;inp.value=(inp.dataset.lkFill==="name"&&it.name)?it.name:plain(kind,it);if(target)target.value=it[inp.dataset.targetField||"id"];
   if(chip){show(true,it.name+" · "+[it.department,it.position,it.shift&&("Shift "+it.shift),it.group&&("Kelompok "+it.group)].filter(Boolean).join(" · "))}
   close();inp.dispatchEvent(new CustomEvent("lookup:select",{bubbles:true,detail:it}));}
  function render(){list.textContent="";items.forEach(function(it,i){var l=label(kind,it),li=document.createElement("li"),b=document.createElement("b"),s=document.createElement("small");
@@ -38,7 +38,7 @@ function enhance(inp){
   li.addEventListener("mousedown",function(e){e.preventDefault();pick(it)});list.appendChild(li)});list.hidden=false;inp.setAttribute("aria-expanded","true");mark(-1)}
  function mark(i){act=i;[].forEach.call(list.children,function(li,j){li.setAttribute("aria-selected",j===i?"true":"false")});if(i>=0)inp.setAttribute("aria-activedescendant",list.id+"o"+i);else inp.removeAttribute("aria-activedescendant")}
  function search(q,exactCb){var key=q+"|"+params(q);
-  function done(rs){if(exactCb)return exactCb(rs);items=rs;if(!rs.length)info("Tidak ada yang cocok");else render()}
+  function done(rs){if(exactCb)return exactCb(rs);items=rs;if(!rs.length)info(inp.dataset.lkFree?"Tidak ada petugas Poli yang cocok — teks ini disimpan sebagai nama dokter/petugas":"Tidak ada yang cocok");else render()}
   if(cache[key])return done(cache[key]);
   if(ctl)ctl.abort();ctl=new AbortController();
   fetch(url+"?"+params(q),{credentials:"same-origin",signal:ctl.signal,headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){cache[key]=j.results||[];done(cache[key])})
@@ -54,7 +54,7 @@ function enhance(inp){
   else if(e.key==="Enter"){if(act>=0){pick(items[act]);}e.preventDefault()}else if(e.key==="Escape"){close();e.stopPropagation()}else if(e.key==="Tab"&&act>=0){pick(items[act])}});
  inp.addEventListener("blur",function(){setTimeout(close,120);
   /* NIK diketik penuh tanpa memilih: cocokkan persis agar info & fitur terhubung tetap jalan */
-  var v=inp.value.trim();if(!chosen&&v.length>=2&&kind==="employee")search(v,function(rs){var hit=rs.filter(function(x){return x.nik===v})[0];if(hit)pick(hit,true);else show(false,"NIK ini tidak ditemukan / bukan karyawan aktif dalam cakupan Anda")})});
+  var v=inp.value.trim();if(!chosen&&v.length>=2&&kind==="employee")search(v,function(rs){var hit=rs.filter(function(x){return x.nik===v})[0];if(hit)pick(hit,true);else if(!inp.dataset.lkFree)show(false,"NIK ini tidak ditemukan / bukan karyawan aktif dalam cakupan Anda")})});
  inp.addEventListener("focus",function(){if(!chosen&&inp.value.trim().length>=2&&items.length)render()});
  if(kind==="employee"&&inp.value.trim().length>=2)search(inp.value.trim(),function(rs){var hit=rs.filter(function(x){return x.nik===inp.value.trim()})[0];if(hit)pick(hit,true)});
  inp.lookupReset=function(){chosen=null;if(target)target.value="";show(true,"")};

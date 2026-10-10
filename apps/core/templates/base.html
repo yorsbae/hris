@@ -22,7 +22,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.empty{text-ali
 .btn{display:inline-block;padding:6px 12px;border-radius:8px;background:var(--ac);color:#fff!important;font-size:14px;text-decoration:none;margin-left:8px;font-weight:500;line-height:1.4}.btn:hover{background:var(--ac2)}
 h2 .btn{margin-left:0}.btn.ghost,button.ghost{background:transparent;color:var(--ac)!important;border:1px solid var(--bd2)}.btn.ghost:hover,button.ghost:hover{background:var(--hov)}
 .bar,.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}.filters input,.filters select{flex:0 1 200px}.filters input[type=search],.filters #q{flex:1 1 240px}
-.form{max-width:600px}.fld{margin-bottom:12px}.fld label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px;font-weight:500}
+.form{max-width:760px}.form.wide{max-width:none}.fld{margin-bottom:12px}.fld label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px;font-weight:500}
 .fld input,.fld select,.fld textarea,.form textarea{width:100%}.fld input:focus,.fld select:focus,.fld textarea:focus,.filters input:focus,.filters select:focus{border-color:var(--ac);outline:2px solid var(--infb)}
 .fld .helptext,.help{color:var(--mu);font-size:12px;margin-top:3px}.errorlist{color:var(--er);margin:4px 0;padding:0;list-style:none;font-size:13px}
 .msg{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:8px;margin-bottom:12px;background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--ac)}
@@ -31,7 +31,7 @@ h2 .btn{margin-left:0}.btn.ghost,button.ghost{background:transparent;color:var(-
 .pill.pending,.pill.submitted,.pill.diajukan,.pill.dipesan,.pill.dirujuk,.pill.draft{background:var(--wnb);color:var(--wn)}
 .pill.approved,.pill.executed,.pill.selesai,.pill.disetujui,.pill.dibayar,.pill.aktif,.pill.diterima{background:var(--okb);color:var(--ok)}
 .pill.rejected,.pill.ditolak,.pill.batal,.pill.dibatalkan,.pill.cancelled,.pill.nonaktif{background:var(--erb);color:var(--er)}.pill.draft,.pill.cancelled{opacity:.85}
-button.lnk{background:none;color:var(--ac);padding:0;text-align:left;font:inherit;min-height:0}button.danger{background:var(--er)}button.danger:hover{filter:brightness(.92)}[hidden]{display:none!important}
+button.lnk{background:none;color:var(--ac);padding:0;text-align:left;font:inherit;min-height:0}button.danger{background:var(--er)}button.danger:hover{filter:brightness(.92)}button.danger.lnk,button.lnk.danger{background:none;color:var(--er);padding:0;min-height:0}button.danger.lnk:hover{background:none;text-decoration:underline;filter:none}[hidden]{display:none!important}
 /* putaran 30: petunjuk alur (.hint), kotak informasi (.note), langkah bernomor (.step), form sebaris (.inline), aksi sekunder terlipat (details.more) */
 .hint{color:var(--mu);font-size:14px;margin:0 0 12px;max-width:80ch;line-height:1.5}.note{background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--ac);border-radius:var(--r);padding:10px 14px;margin:0 0 12px;font-size:14px}
 form.inline{display:inline-flex;gap:6px;margin:6px 8px 0 0;align-items:center}.step{margin:0 0 16px}.step>h3{font-size:15px;margin:0 0 8px}.step>h3 i{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:var(--ac);color:#fff;font-style:normal;font-size:13px;margin-right:8px}
@@ -43,6 +43,9 @@ ol.steps{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;padding:0;marg
 ol.steps li.done{color:var(--tx)}ol.steps li.done i{background:var(--ok);border-color:var(--ok);color:#fff}ol.steps li.now{color:var(--tx);font-weight:600}ol.steps li.now i{background:var(--ac);border-color:var(--ac);color:#fff}ol.steps li.off{text-decoration:line-through;opacity:.6}
 .note.now{border-left-color:var(--wn)}.note.wait{border-left-color:var(--bd2)}.note.done{border-left-color:var(--ok)}
 .decide{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}.decide .btn{margin-left:0}label.blk{display:block;margin:0 0 10px;font-size:14px}label.blk>span{display:block;margin-bottom:3px}
+/* putaran 35: aksi per baris rapi (.acts: tautan/tombol sejajar, tidak turun baris) + tombol kecil (.sm) */
+td.acts,th.acts{white-space:nowrap;text-align:right;width:1%}td.acts>*{vertical-align:middle}td.acts form{display:inline;margin:0}.acts .btn,.acts button,.acts a.chip{margin:0 0 0 6px}
+.btn.sm,button.sm{padding:4px 10px;min-height:30px;font-size:13px}button.sm.danger,.btn.sm.danger{background:transparent;color:var(--er)!important;border:1px solid var(--erb)}button.sm.danger:hover{background:var(--erb);filter:none}
 /* putaran 25: tautan rapi — .back (kembali), .tools (baris aksi), .chip (tautan sekunder), label.chk (checkbox sejajar) */
 p.back{margin:0 0 10px;font-size:14px}p.back a,a.chip{text-decoration:none}p.back a:hover,a.chip:hover{text-decoration:underline}
 .tools{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin:0 0 12px}.tools .btn{margin-left:0}.tools .sep{color:var(--mu);font-size:13px}
@@ -80,7 +83,7 @@ h2{font-size:24px}.errsum{margin-bottom:14px}.errsum ul{margin:4px 0 0;padding-l
 .av{width:34px;height:34px;border-radius:50%;background:var(--infb);color:var(--inf);display:grid;place-items:center;font-size:13px;font-weight:700}.um small{display:block;color:var(--mu);line-height:1.1;font-size:12px}.um .who{font-size:14px;font-weight:600;line-height:1.2}
 .um .menu{position:absolute;right:0;top:calc(100% + 6px);min-width:200px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:0 8px 24px rgba(16,24,40,.18);padding:6px}
 .um .menu a,.um .menu button{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:7px;background:none;color:var(--tx);font:inherit;border:0;cursor:pointer;text-decoration:none}.um .menu a:hover,.um .menu button:hover{background:var(--hov)}
-main{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:18px 24px 40px}
+main{flex:1;width:100%;max-width:none;margin:0;padding:18px 28px 40px}
 .crumb{display:flex;align-items:center;gap:8px;color:var(--mu);font-size:13px;margin-bottom:10px}.crumb a{color:var(--mu);display:inline-flex}.crumb a:hover{color:var(--ac)}.crumb .ic{width:16px;height:16px}.crumb i{font-style:normal;opacity:.5}.crumb b{color:var(--tx);font-weight:500}
 footer.foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 24px;border-top:1px solid var(--bd);color:var(--mu);font-size:12px;background:var(--card)}
 .scrim{display:none}

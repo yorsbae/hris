@@ -8,11 +8,11 @@
 <form method="get" class="bar">Dari <input type="date" name="from" value="{{ from }}" aria-label="Dari tanggal"> sampai <input type="date" name="to" value="{{ to }}" aria-label="Sampai tanggal">
 <select name="meal" aria-label="Jam makan"><option value="">Semua jam makan</option>{% for k, v in meals %}<option value="{{ k }}"{% if f.meal == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>{% if f.only %}<input type="hidden" name="only" value="{{ f.only }}">{% endif %}<button class="btn ghost">Terapkan</button></form>
 <div class="grid" style="margin-bottom:12px"><div class="card"><b>{{ t.ol }} / {{ t.rl }}</b><span>Tepak besar: dipesan / diterima</span></div><div class="card"><b>{{ t.os }} / {{ t.rs }}</b><span>Tepak kecil: dipesan / diterima</span></div></div>
-<div class="wrap"><table><thead><tr><th>Tanggal</th><th>Jam</th><th>Pesan besar</th><th>Pesan kecil</th><th>Terima besar</th><th>Terima kecil</th><th>Catatan</th><th></th></tr></thead><tbody>
+<div class="wrap"><table><thead><tr><th>Tanggal</th><th>Jam</th><th>Pesan besar</th><th>Pesan kecil</th><th>Terima besar</th><th>Terima kecil</th><th>Catatan</th><th class="acts">Aksi</th></tr></thead><tbody>
 {% for o in page %}<tr><td>{{ o.date|date:"D, d M Y" }}</td><td>{{ o.get_meal_display }}</td><td>{{ o.qty_large }}</td><td>{{ o.qty_small }}</td>
 <td>{% if o.received %}{{ o.received_large }}{% if o.received_large != o.qty_large %} <small style="color:var(--er)">(diterima≠dipesan)</small>{% endif %}{% else %}—{% endif %}</td><td>{% if o.received %}{{ o.received_small }}{% else %}—{% endif %}</td><td>{{ o.note|default:"" }}</td>
-<td style="white-space:nowrap"><a href="{% url 'hrd_catering_edit' o.pk %}">{% if o.received %}Ubah{% else %}Catat diterima ›{% endif %}</a>
-<form method="post" action="{% url 'hrd_catering_delete' o.pk %}" style="display:inline">{% csrf_token %}<button class="danger lnk" style="color:var(--er)">Hapus</button></form></td></tr>
+<td class="acts">{% if o.received %}<a class="chip" href="{% url 'hrd_catering_edit' o.pk %}">Ubah</a>{% else %}<a class="btn sm" href="{% url 'hrd_catering_edit' o.pk %}">Catat diterima</a>{% endif %}
+<form method="post" action="{% url 'hrd_catering_delete' o.pk %}">{% csrf_token %}<button class="sm danger" title="Hapus baris ini">Hapus</button></form></td></tr>
 {% empty %}<tr><td class="empty" colspan="8">{% if act %}Tidak ada rekap yang cocok dengan filter. <a href="{% url 'hrd_catering' %}">Reset filter</a>.{% else %}Belum ada rekap pada periode ini. Mulai dengan <b>+ Rekap baru</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

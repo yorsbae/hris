@@ -19,9 +19,9 @@ from apps.core.scope import require_roles
 from apps.hr.models import Employee
 from . import services
 from . import reports
-from .forms import (LetterForm, EXAM_CONCLUSIONS, INJURY_TYPES, AddendumForm, AddPrescriptionForm, DiagnosisForm, DiagnosisMedicineForm, MedicineForm, PrescriptionFormSet, RecordForm, ReferralForm,
+from .forms import (AllergyForm, LetterForm, EXAM_CONCLUSIONS, INJURY_TYPES, AddendumForm, AddPrescriptionForm, DiagnosisForm, DiagnosisMedicineForm, MedicineForm, PrescriptionFormSet, RecordForm, ReferralForm,
                     ReturnPrescriptionForm, StockAdjustForm, StockInForm)
-from .models import Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, PartnerBill, Prescription, Referral, SickLeaveLetter, StockMovement
+from .models import Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, PartnerBill, PatientAllergy, Prescription, Referral, SickLeaveLetter, StockMovement
 from .pdf import referral_pdf, sick_leave_pdf
 
 PER_PAGE = 50
@@ -166,7 +166,32 @@ def employee_history(request, pk):
     e = get_object_or_404(Employee.objects.select_related("department", "position"), pk=pk)
     log(request, "poli", "view_history", e)
     page = paginate(request, e.medical_records.select_related("diagnosis").order_by("-visit_at", "-id"))
-    return render(request, "poli/employee_history.html", {"e": e, "idn": identity_rows(e), "page": page, "qs": ""})
+    ov = services.patient_overview(e)
+    return render(request, "poli/employee_history.html", {"e": e, "idn": identity_rows(e), "page": page, "qs": "", "allergies": e.allergies.select_related("created_by").order_by("voided_at", "-created_at"), "bpjs": ov["bpjs"], "kinds": ov["kinds"], "allergy_form": AllergyForm()})
+
+
+@poli_only
+@require_POST
+def allergy_add(request, pk):
+    e = get_object_or_404(Employee, pk=pk, status="aktif")
+    f = AllergyForm(request.POST)
+    if not f.is_valid(): messages.error(request, _errors(f)); return redirect("poli_employee_history", pk=pk)
+    c = f.cleaned_data
+    try: a = services.add_allergy(request.user, e, c["substance"], c["reaction"], c["severity"])
+    except ValueError as ex: messages.error(request, str(ex)); return redirect("poli_employee_history", pk=pk)
+    log(request, "poli", "allergy_add", e, None, {"severity": a.severity})  # alergen/reaksi = isi medis, tidak masuk audit
+    messages.success(request, "Alergi dicatat."); return redirect("poli_employee_history", pk=pk)
+
+
+@poli_only
+@require_POST
+def allergy_void(request, pk, allergy_id):
+    e = get_object_or_404(Employee, pk=pk)
+    a = get_object_or_404(PatientAllergy, pk=allergy_id, employee=e)
+    try: services.void_allergy(request.user, a)
+    except ValueError as ex: messages.error(request, str(ex)); return redirect("poli_employee_history", pk=pk)
+    log(request, "poli", "allergy_void", e, None, {"allergy_id": a.pk})
+    messages.success(request, "Alergi dinonaktifkan (riwayat tetap tersimpan)."); return redirect("poli_employee_history", pk=pk)
 
 
 # ================================================================ Obat & kartu stok
@@ -344,8 +369,12 @@ def patient_summary(request):
     qs = e.medical_records.select_related("diagnosis").order_by("-visit_at", "-id")
     last = [{"id": r.pk, "date": timezone.localtime(r.visit_at).strftime("%d-%m-%Y"), "kind": r.get_kind_display(), "url": f"/poli/records/{r.pk}/",
              "diagnosis": f"{r.diagnosis.code} {r.diagnosis.name}" if r.diagnosis_id else "", "complaint": (r.complaint or "")[:90]} for r in qs[:8]]
+    ov = services.patient_overview(e)
+    kl = dict(MedicalRecord.KINDS)
     return JsonResponse({"found": True, "nik": e.nik, "name": e.name, "gender": e.get_gender_display(), "department": e.department.name,
-                         "total": qs.count(), "history_url": f"/poli/employees/{e.pk}/", "visits": last})
+                         "position": e.position.name if e.position_id else "", "join_date": e.join_date.strftime("%d-%m-%Y"),
+                         "total": qs.count(), "history_url": f"/poli/employees/{e.pk}/", "visits": last,
+                         "allergies": ov["allergies"], "bpjs": ov["bpjs"], "kinds": [{"label": kl.get(k, k), "n": n} for k, n in sorted(ov["kinds"].items())]})
 
 
 # ================================================================ Master diagnosa ↔ obat

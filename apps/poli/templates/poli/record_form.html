@@ -1,31 +1,35 @@
 {% extends "base.html" %}{% block title %}Kunjungan baru{% endblock %}{% block content %}
 <p class="back"><a href="/poli/records/">‹ Rekam medis</a></p>
-<h2>Kunjungan baru</h2>
-<p style="color:var(--mu)">Rekam medis tidak dapat diubah atau dihapus setelah disimpan; koreksi dilakukan lewat catatan tambahan. Obat pada resep langsung mengurangi stok.</p>
+<div class="ph"><div><h1>Kunjungan baru</h1><p>Rekam medis tidak dapat diubah atau dihapus setelah disimpan; koreksi dilakukan lewat catatan tambahan. Obat pada resep langsung mengurangi stok.</p></div></div>
 <div class="rm-grid">
-<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
-{% include "poli/_fld.html" with f=form.nik %}{% include "poli/_fld.html" with f=form.kind %}
-<fieldset class="kf" id="examiner-box"><legend>Pemeriksa</legend>{% include "poli/_fld.html" with f=form.examiner_nik %}{% include "poli/_fld.html" with f=form.doctor_name %}</fieldset>
-<p id="kind-hint" style="color:var(--mu);font-size:13px;margin:0 0 10px"></p>
+<form method="post" class="card form wide" id="rm-form">{% csrf_token %}{{ form.non_field_errors }}{{ form.examiner_nik }}
+<div class="fgrid g2">{% include "poli/_fld.html" with f=form.nik %}{% include "poli/_fld.html" with f=form.kind %}</div>
+<p id="kind-hint" class="note" hidden></p>
 {% include "poli/_fld.html" with f=form.complaint %}
-<fieldset class="kf" data-kinds="berobat kecelakaan_kerja kehamilan pemeriksaan"><legend>Tanda vital</legend>{% include "poli/_fld.html" with f=form.tensi %}{% include "poli/_fld.html" with f=form.suhu %}{% include "poli/_fld.html" with f=form.nadi %}{% include "poli/_fld.html" with f=form.bb %}{% include "poli/_fld.html" with f=form.tb %}</fieldset>
-<fieldset class="kf" data-kinds="kecelakaan_kerja"><legend>Kecelakaan kerja</legend>{% include "poli/_fld.html" with f=form.incident_place %}{% include "poli/_fld.html" with f=form.incident_story %}{% include "poli/_fld.html" with f=form.injury_part %}{% include "poli/_fld.html" with f=form.injury_type %}{% include "poli/_fld.html" with f=form.lost_days %}</fieldset>
-<fieldset class="kf" data-kinds="kehamilan"><legend>Pemeriksaan kehamilan</legend>{% include "poli/_fld.html" with f=form.preg_hpht %}{% include "poli/_fld.html" with f=form.preg_hpl %}{% include "poli/_fld.html" with f=form.preg_weeks %}
-<div class="bar">{% include "poli/_fld.html" with f=form.preg_g %}{% include "poli/_fld.html" with f=form.preg_p %}{% include "poli/_fld.html" with f=form.preg_a %}</div>{% include "poli/_fld.html" with f=form.preg_tfu %}{% include "poli/_fld.html" with f=form.preg_djj %}{% include "poli/_fld.html" with f=form.preg_letak %}</fieldset>
-<fieldset class="kf" data-kinds="pemeriksaan"><legend>Hasil pemeriksaan</legend>{% include "poli/_fld.html" with f=form.exam_conclusion %}{% include "poli/_fld.html" with f=form.exam_result %}</fieldset>
-{% include "poli/_fld.html" with f=form.diagnosis_code %}{% include "poli/_fld.html" with f=form.treatment %}
+<fieldset class="kf" data-kinds="berobat kecelakaan_kerja kehamilan pemeriksaan"><legend>Tanda vital</legend><div class="fgrid g5">{% include "poli/_fld.html" with f=form.tensi %}{% include "poli/_fld.html" with f=form.suhu %}{% include "poli/_fld.html" with f=form.nadi %}{% include "poli/_fld.html" with f=form.bb %}{% include "poli/_fld.html" with f=form.tb %}</div></fieldset>
+<fieldset class="kf" data-kinds="kecelakaan_kerja"><legend>Kecelakaan kerja</legend><div class="fgrid g2">{% include "poli/_fld.html" with f=form.incident_place %}{% include "poli/_fld.html" with f=form.injury_part %}</div>{% include "poli/_fld.html" with f=form.incident_story %}<div class="fgrid g2">{% include "poli/_fld.html" with f=form.injury_type %}{% include "poli/_fld.html" with f=form.lost_days %}</div></fieldset>
+<fieldset class="kf" data-kinds="kehamilan"><legend>Pemeriksaan kehamilan</legend><div class="fgrid g3">{% include "poli/_fld.html" with f=form.preg_hpht %}{% include "poli/_fld.html" with f=form.preg_hpl %}{% include "poli/_fld.html" with f=form.preg_weeks %}</div>
+<div class="fgrid g3">{% include "poli/_fld.html" with f=form.preg_g %}{% include "poli/_fld.html" with f=form.preg_p %}{% include "poli/_fld.html" with f=form.preg_a %}</div><div class="fgrid g3">{% include "poli/_fld.html" with f=form.preg_tfu %}{% include "poli/_fld.html" with f=form.preg_djj %}{% include "poli/_fld.html" with f=form.preg_letak %}</div></fieldset>
+<fieldset class="kf" data-kinds="pemeriksaan"><legend>Hasil pemeriksaan</legend><div class="fgrid g2">{% include "poli/_fld.html" with f=form.exam_conclusion %}{% include "poli/_fld.html" with f=form.exam_result %}</div></fieldset>
+<div class="fgrid g2">{% include "poli/_fld.html" with f=form.diagnosis_code %}{% include "poli/_fld.html" with f=form.treatment %}</div>
 <section class="kf" data-kinds="berobat kecelakaan_kerja kehamilan">
-<h3>Resep obat</h3><p id="rx-note" style="color:var(--mu);font-size:13px;margin:0 0 6px" hidden></p>
+<h3>Resep obat</h3><p id="rx-note" class="help" hidden></p>
 {{ fs.management_form }}{{ fs.non_form_errors }}
-<div id="rx-rows">{% for lf in fs %}<div class="rx-row" style="margin-bottom:6px"><div class="bar">{{ lf.medicine }}<input type="text" class="rx-name" data-lookup="medicine" data-target="#{{ lf.medicine.id_for_label }}" data-q-available="1" placeholder="Ketik nama/kode obat…" value="{{ lf.medicine_label }}" aria-label="Obat baris {{ forloop.counter }}" autocomplete="off">{{ lf.qty }}{{ lf.dosage }}<button type="button" class="ghost rx-del" aria-label="Hapus baris obat {{ forloop.counter }}">Hapus</button></div>{{ lf.non_field_errors }}{{ lf.medicine.errors }}{{ lf.qty.errors }}</div>{% endfor %}</div>
+<div id="rx-rows">{% for lf in fs %}<div class="rx-row"><div class="bar">{{ lf.medicine }}<input type="text" class="rx-name" data-lookup="medicine" data-target="#{{ lf.medicine.id_for_label }}" data-q-available="1" placeholder="Ketik nama/kode obat…" value="{{ lf.medicine_label }}" aria-label="Obat baris {{ forloop.counter }}" autocomplete="off">{{ lf.qty }}{{ lf.dosage }}<button type="button" class="ghost rx-del" aria-label="Hapus baris obat {{ forloop.counter }}">Hapus</button></div>{{ lf.non_field_errors }}{{ lf.medicine.errors }}{{ lf.qty.errors }}</div>{% endfor %}</div>
 <p><button type="button" class="ghost" id="rx-more">+ Tambah obat</button></p></section>
-<p><button>Simpan rekam medis</button></p></form>
-<aside class="card" id="pt" aria-live="polite" hidden><h3 style="margin-top:0">Rekam medis pasien</h3><div id="pt-body"></div></aside>
+<fieldset class="kf always" id="examiner-box"><legend>Pemeriksa</legend>{% include "poli/_fld.html" with f=form.doctor_name %}{{ form.examiner_nik.errors }}</fieldset>
+<div class="actions-bar"><button>Simpan rekam medis</button><a class="btn ghost" href="/poli/records/">Batal</a></div></form>
+<aside class="card" id="pt" aria-live="polite"><h3>Ringkasan pasien</h3><div id="pt-body"><p class="help">Pilih NIK karyawan untuk menampilkan riwayat medis, alergi, dan status BPJS (K/TK).</p></div></aside>
 </div>
 <template id="rx-empty"><div class="rx-row" style="margin-bottom:6px"><div class="bar">{{ fs.empty_form.medicine }}<input type="text" class="rx-name" data-lookup="medicine" data-target="#id_rx-__prefix__-medicine" data-q-available="1" placeholder="Ketik nama/kode obat…" aria-label="Obat" autocomplete="off">{{ fs.empty_form.qty }}{{ fs.empty_form.dosage }}<button type="button" class="ghost rx-del" aria-label="Hapus baris obat">Hapus</button></div></div></template>
-<style>fieldset.kf{border:1px solid var(--bd,#d0d7e2);border-radius:8px;margin:0 0 12px;padding:8px 12px}fieldset.kf legend{font-weight:600;padding:0 6px}fieldset.kf[hidden],section.kf[hidden]{display:none}.rx-del{flex:0 0 auto!important;min-width:0!important}.form{max-width:680px}.bar select,.bar input{flex:1;min-width:110px}.rx-name{flex:2!important;min-width:180px!important}.rx-row .lk-box{flex:2;min-width:180px}.rx-row .lk-box .rx-name{width:100%}
-.rm-grid{display:grid;grid-template-columns:minmax(0,680px) minmax(260px,1fr);gap:16px;align-items:start}@media(max-width:1100px){.rm-grid{grid-template-columns:1fr}}
-#pt table{box-shadow:none}#pt .sub{color:var(--mu);font-size:13px}</style>
+<style>fieldset.kf{border:1px solid var(--bd);border-radius:8px;margin:0 0 14px;padding:10px 14px}fieldset.kf legend{font-weight:600;padding:0 6px}fieldset.kf[hidden],section.kf[hidden]{display:none}
+.rx-del{flex:0 0 auto!important;min-width:0!important}.bar select,.bar input{flex:1;min-width:110px}.rx-name{flex:2!important;min-width:180px!important}.rx-row{margin-bottom:6px}.rx-row .lk-box{flex:2;min-width:180px}.rx-row .lk-box .rx-name{width:100%}
+.rm-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:16px;align-items:start}@media(max-width:1100px){.rm-grid{grid-template-columns:1fr}#pt{order:-1;position:static!important}}
+#pt{position:sticky;top:74px;max-height:calc(100vh - 92px);overflow:auto}#pt h3{margin:0 0 8px}#pt table{box-shadow:none}#pt .sub,#pt .help{color:var(--mu);font-size:13px}#pt .who b{font-size:16px;display:block}
+.al{border:1px solid var(--erb);background:var(--erb);color:var(--er);border-radius:8px;padding:8px 10px;margin:10px 0;font-size:14px}.al.none{border-color:var(--bd);background:transparent;color:var(--mu)}.al ul{margin:4px 0 0;padding-left:18px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}#pt h4{margin:12px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)}
+.fgrid{display:grid;gap:0 14px}.fgrid.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.fgrid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.fgrid.g5{grid-template-columns:repeat(5,minmax(0,1fr))}@media(max-width:700px){.fgrid.g2,.fgrid.g3,.fgrid.g5{grid-template-columns:1fr}}
+.actions-bar{display:flex;gap:10px;align-items:center;position:sticky;bottom:0;background:var(--card);padding:10px 0 2px;border-top:1px solid var(--bd);margin-top:8px}.actions-bar .btn{margin:0}</style>
 <script>
 (function(){
 var $=function(s,r){return(r||document).querySelector(s)},rows=$("#rx-rows"),total=$("#id_rx-TOTAL_FORMS"),max=parseInt($("#id_rx-MAX_NUM_FORMS").value,10)||20,note=$("#rx-note");
@@ -49,31 +53,41 @@ diagInp.addEventListener("lookup:select",function(e){var d=e.detail;clearAuto();
  var t=[];if(added)t.push(added+" obat disarankan untuk diagnosa "+d.code+" — ubah/hapus sesuai kebutuhan.");if(skipped.length)t.push("Tidak diisi (stok habis/tidak muat): "+skipped.join(", ")+".");
  if(!meds.length)t.push("Belum ada obat yang ditautkan ke diagnosa "+d.code+" (atur di Master diagnosa).");note.textContent=t.join(" ");note.hidden=false});
 
-/* NIK → rekam medis pasien; jenis kunjungan 'kehamilan' → pencarian NIK hanya perempuan */
-var nik=$('input[name="nik"]'),kind=$('select[name="kind"]'),pt=$("#pt"),body=$("#pt-body"),seq=0;
-function syncGender(){if(kind.value==="kehamilan")nik.dataset.qGender="P";else delete nik.dataset.qGender}kind.addEventListener("change",syncGender);syncGender();
-/* NIK → rekam medis pasien; jenis kunjungan 'kehamilan' → pencarian NIK hanya perempuan */
+/* NIK → ringkasan pasien; jenis kunjungan 'kehamilan' → pencarian NIK hanya perempuan */
 var nik=$('input[name="nik"]'),kind=$('select[name="kind"]'),pt=$("#pt"),body=$("#pt-body"),seq=0;
 function syncGender(){if(kind.value==="kehamilan")nik.dataset.qGender="P";else delete nik.dataset.qGender}kind.addEventListener("change",syncGender);syncGender();
 /* Form menyesuaikan jenis kunjungan: bagian yang tidak relevan disembunyikan DAN dinonaktifkan (tidak ikut terkirim) */
 var HINTS={berobat:"Berobat: keluhan wajib; diagnosa dan resep obat opsional.",kecelakaan_kerja:"Kecelakaan kerja: lokasi dan kronologi wajib; isi bagian tubuh, jenis cedera, dan perkiraan hari kehilangan kerja bila diketahui.",kehamilan:"Kehamilan (karyawan perempuan): isi HPHT atau usia kehamilan; HPL dihitung otomatis (HPHT + 280 hari) bila dikosongkan.",pemeriksaan:"Pemeriksaan / cek kesehatan: kesimpulan wajib; resep tidak digunakan."};
-var kf=document.querySelectorAll(".kf"),hint=$("#kind-hint"),cl=document.querySelector('label[for="id_complaint"]');
+var kf=document.querySelectorAll(".kf[data-kinds]"),hint=$("#kind-hint"),cl=document.querySelector('label[for="id_complaint"]');
 function syncKind(){var k=kind.value;kf.forEach(function(f){var on=f.dataset.kinds.split(" ").indexOf(k)>=0;f.hidden=!on;[].forEach.call(f.querySelectorAll("input,select,textarea,button"),function(x){if(x.id==="rx-more"||x.classList.contains("rx-del"))x.disabled=!on;else x.disabled=!on})});
- hint.textContent=HINTS[k]||"";if(cl)cl.textContent=(k==="berobat"?"Keluhan (wajib)":"Keluhan / catatan")}
+ hint.textContent=HINTS[k]||"";hint.hidden=!HINTS[k];if(cl)cl.textContent=(k==="berobat"?"Keluhan (wajib)":"Keluhan / catatan")}
 kind.addEventListener("change",syncKind);syncKind();
 /* Hapus baris obat: kosongkan lalu sembunyikan (baris kosong diabaikan server; stok tidak tersentuh) */
 rows.addEventListener("click",function(e){var b=e.target.closest(".rx-del");if(!b)return;var r=b.closest(".rx-row");
  [].forEach.call(r.querySelectorAll("input"),function(i){if(i.type!=="hidden"||i.id.indexOf("-medicine")>0)i.value=""});var nm=r.querySelector(".rx-name");if(nm&&nm.lookupReset)nm.lookupReset();delete r.dataset.auto;r.hidden=true;r.style.display="none"});
 function el(t,txt,c){var e=document.createElement(t);if(txt!=null)e.textContent=txt;if(c)e.className=c;return e}
-nik.addEventListener("lookup:clear",function(){pt.hidden=true;body.textContent=""});
-nik.addEventListener("lookup:select",function(e){var my=++seq;body.textContent="Memuat…";pt.hidden=false;
- fetch("/poli/api/patient/?nik="+encodeURIComponent(e.detail.nik),{credentials:"same-origin",headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(my!==seq)return;body.textContent="";
-  body.appendChild(el("div",j.nik+" — "+j.name));body.appendChild(el("div",j.gender+" · "+j.department+" · "+j.total+" kunjungan tercatat","sub"));
-  if(!j.visits.length){body.appendChild(el("p","Belum ada riwayat kunjungan.","sub"));return}
-  var tb=el("table"),tbody=el("tbody");j.visits.forEach(function(v){var tr=el("tr"),td=el("td"),a=el("a",v.date);a.href=v.url;a.target="_blank";a.rel="noopener";td.appendChild(a);td.appendChild(el("div",v.kind,"sub"));tr.appendChild(td);
-   var t2=el("td",v.diagnosis||"—");if(v.complaint)t2.appendChild(el("div",v.complaint,"sub"));tr.appendChild(t2);tbody.appendChild(tr)});tb.appendChild(tbody);body.appendChild(tb);
-  var all=el("a","Semua riwayat ›");all.href=j.history_url;all.style.display="inline-block";all.style.marginTop="8px";body.appendChild(all)})
- .catch(function(){if(my===seq)body.textContent="Gagal memuat riwayat pasien."})});
+var EMPTY="Pilih NIK karyawan untuk menampilkan riwayat medis, alergi, dan status BPJS (K/TK).";
+function reset(){seq++;body.textContent="";body.appendChild(el("p",EMPTY,"help"))}
+function render(j){body.textContent="";
+ var w=el("div",null,"who");w.appendChild(el("b",j.name));w.appendChild(el("span",j.nik+" · "+j.gender+" · "+j.department+(j.position?" · "+j.position:""),"sub"));body.appendChild(w);
+ var al=el("div",null,"al"+(j.allergies.length?"":" none"));
+ if(j.allergies.length){al.appendChild(el("b","⚠ Alergi ("+j.allergies.length+")"));var ul=el("ul");j.allergies.forEach(function(a){ul.appendChild(el("li",a.substance+(a.reaction?" — "+a.reaction:"")+" ["+a.severity_label+"]"))});al.appendChild(ul)}
+ else al.appendChild(el("span","Tidak ada alergi tercatat."));
+ body.appendChild(al);
+ body.appendChild(el("h4","BPJS"));var ch=el("div",null,"chips");["kes","tk"].forEach(function(k){var b=j.bpjs[k];ch.appendChild(el("span",b.label+": "+b.status+(b.number_on_file?"":" · nomor kosong"),"pill "+(b.active?"aktif":"nonaktif")))});body.appendChild(ch);
+ body.appendChild(el("h4","Riwayat medis · "+j.total+" kunjungan"));
+ if(j.kinds.length){var kc=el("div",null,"chips");j.kinds.forEach(function(k){kc.appendChild(el("span",k.label+" × "+k.n,"pill"))});body.appendChild(kc)}
+ if(!j.visits.length){body.appendChild(el("p","Belum ada riwayat kunjungan.","sub"))}
+ else{var tb=el("table"),tbody=el("tbody");j.visits.forEach(function(v){var tr=el("tr"),td=el("td"),a=el("a",v.date);a.href=v.url;a.target="_blank";a.rel="noopener";td.appendChild(a);td.appendChild(el("div",v.kind,"sub"));tr.appendChild(td);
+  var t2=el("td",v.diagnosis||"—");if(v.complaint)t2.appendChild(el("div",v.complaint,"sub"));tr.appendChild(t2);tbody.appendChild(tr)});tb.appendChild(tbody);body.appendChild(tb)}
+ var all=el("a","Semua riwayat & kelola alergi ›");all.href=j.history_url;all.style.display="inline-block";all.style.marginTop="8px";body.appendChild(all)}
+function load(n){var my=++seq;body.textContent="";body.appendChild(el("p","Memuat…","help"));
+ fetch("/poli/api/patient/?nik="+encodeURIComponent(n),{credentials:"same-origin",headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(my===seq)render(j)})
+ .catch(function(){if(my===seq){body.textContent="";body.appendChild(el("p","Gagal memuat ringkasan pasien.","help"))}})}
+nik.addEventListener("lookup:clear",reset);
+nik.addEventListener("lookup:select",function(e){load(e.detail.nik)});
+/* Cadangan: NIK terisi dari awal (mis. ?nik=) tapi pilihan belum terpicu */
+document.addEventListener("DOMContentLoaded",function(){setTimeout(function(){if(nik.value.trim().length>=2&&body.querySelector(".help")&&body.textContent===EMPTY)load(nik.value.trim())},600)});
 })();
 </script>
 {% endblock %}

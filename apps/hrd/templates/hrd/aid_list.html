@@ -6,10 +6,10 @@
 <input name="year" value="{{ f.year }}" placeholder="Tahun" inputmode="numeric" maxlength="4" style="width:90px"><button>Filter</button></form>
 <div class="grid" style="margin-bottom:12px"><div class="card"><b>{{ count }}</b><span>Catatan</span></div><div class="card"><b>{{ total|rupiah }}</b><span>Total nominal (hasil filter)</span></div>
 {% for r in by_kind %}<div class="card"><b>{{ r.t|rupiah }}</b><span>{{ r.label }} · {{ r.n }}×</span></div>{% endfor %}</div>
-<div class="wrap"><table><thead><tr><th>Karyawan</th><th>Jenis</th><th>Tanggal kejadian</th><th>Nominal</th><th>Keterangan</th><th></th></tr></thead><tbody>
+<div class="wrap"><table><thead><tr><th>Karyawan</th><th>Jenis</th><th>Tanggal kejadian</th><th>Nominal</th><th>Keterangan</th><th class="acts">Aksi</th></tr></thead><tbody>
 {% for a in page %}<tr><td>{{ a.employee.nik }} · {{ a.employee.name }}</td><td>{{ a.get_kind_display }}</td><td>{{ a.event_date|date:"d M Y" }}</td><td>{{ a.amount|rupiah }}</td><td>{{ a.description|truncatechars:60 }}</td>
-<td style="white-space:nowrap"><a href="{% url 'hrd_aid_edit' a.pk %}">Ubah</a>
-<form method="post" action="{% url 'hrd_aid_delete' a.pk %}" style="display:inline">{% csrf_token %}<button class="danger lnk" style="color:var(--er)">Hapus</button></form></td></tr>
+<td class="acts"><a class="chip" href="{% url 'hrd_aid_edit' a.pk %}">Ubah</a>
+<form method="post" action="{% url 'hrd_aid_delete' a.pk %}">{% csrf_token %}<button class="sm danger" title="Hapus baris ini">Hapus</button></form></td></tr>
 {% empty %}<tr><td class="empty" colspan="6">Belum ada catatan bantuan.</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

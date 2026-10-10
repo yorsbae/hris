@@ -477,6 +477,9 @@ class Command(BaseCommand):
         def who(kind):  # pemeriksa = karyawan Poli (bidan untuk kehamilan); dokter = bukan karyawan, hanya nama. Sebagian kunjungan hanya petugas (tanpa dokter) dan sebagian tanpa pemeriksa.
             ex = bidan if (kind == "kehamilan" and bidan) else r.choice(staff) if staff and r.random() < .85 else None
             return {"examiner": ex, "doctor_name": r.choice(DOCTORS) if (kind in ("kehamilan", "kecelakaan_kerja") or r.random() < .6) else ""}
+        for e in r.sample(pool, min(25, len(pool))):  # alergi demo (putaran 35): tampil di ringkasan pasien form kunjungan
+            sub, rx_, sev = r.choice([("Amoxicillin", "Ruam kulit", "sedang"), ("Penisilin", "Sesak napas", "berat"), ("Udang", "Gatal-gatal", "ringan"), ("Ibuprofen", "Nyeri lambung", "sedang"), ("Debu", "Bersin", "ringan")])
+            pl.PatientAllergy.objects.create(employee=e, substance=sub, reaction=rx_, severity=sev, created_by=self.poli_u)
         for back in range(180):  # 6 bulan; kunjungan harian meningkat menuju hari ini
             d = today - timedelta(days=back)
             if d.weekday() == 6: continue

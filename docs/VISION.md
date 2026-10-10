@@ -430,3 +430,10 @@ Kop surat memakai nama dan logo perusahaan dari konfigurasi sistem.
 
 ## [BARU] Data demo (`seed_demo`)
 Prinsip (putaran 34): data demo **dibuat lewat servis/form yang sama dengan aplikasi** (bukan baris tulis tangan) supaya jejak, notifikasi, dan aturan ikut teruji, **mencakup setiap fitur yang sudah ada** (setiap fitur baru wajib menambah data demonya + satu tes konsistensi), dan **konsisten antar modul** (mis. HPL kunjungan kehamilan = HPL cuti hamil; stok = jumlah kartu). Mewakili setiap status dan keadaan khusus (terlambat, dikembalikan, dibatalkan, saldo minus, stok menipis, konflik) agar tampilan dapat dicek tanpa menyiapkan data. Hanya untuk uji coba — jangan dijalankan di produksi.
+
+
+## Pembaruan putaran 35 — prinsip tampilan form & Poli
+- **Halaman kerja memakai lebar penuh**: konten mengisi sampai pinggir area utama; form panjang dibagi kolom (`.fgrid`) dan panel konteks (mis. ringkasan pasien) di sisi kanan, bukan satu kolom sempit.
+- **Aksi per baris selalu berlabel**: tombol aksi memakai teks yang menyebut tugasnya (Catat diterima, Ubah, Hapus), rata kanan di kolom Aksi; aksi berbahaya berbingkai merah dan meminta konfirmasi.
+- **Konteks pasien saat memeriksa**: memilih NIK di rekam medis langsung menampilkan alergi, status BPJS K/TK (tanpa nomor), dan riwayat kunjungan. Data sensitif tidak dikirim ke layar yang tidak perlu.
+- **Pemeriksa satu isian**: dokter (bukan karyawan, tanpa NIK) atau petugas departemen Poli (boleh via NIK) diisi di satu kolom terakhir sebelum Simpan.

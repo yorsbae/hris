@@ -18,6 +18,8 @@ urlpatterns = [
     path("api/patient/", v.patient_summary, name="poli_patient_summary"),
     path("reports/stock/", v.stock_report, name="poli_stock_report"),
     path("employees/<int:pk>/", v.employee_history, name="poli_employee_history"),
+    path("employees/<int:pk>/allergy/add/", v.allergy_add, name="poli_allergy_add"),
+    path("employees/<int:pk>/allergy/<int:allergy_id>/void/", v.allergy_void, name="poli_allergy_void"),
     path("medicines/", v.medicine_list, name="poli_medicines"),
     path("medicines/import/", bulk_import_view(MEDICINE, poli_only), name="poli_medicine_import"),
     path("medicines/import/template.csv", bulk_template_view(MEDICINE, poli_only)),

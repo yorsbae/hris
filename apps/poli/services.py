@@ -5,7 +5,7 @@ from django.db.models import F
 from django.utils import timezone
 from apps.core.models import Notification, Role, User
 from apps.hr.models import Employee
-from .models import (Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, Prescription, PrescriptionReturn, RecordAddendum, Referral, StockMovement, dispense)
+from .models import (Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, Prescription, PrescriptionReturn, PatientAllergy, RecordAddendum, Referral, StockMovement, dispense)
 
 MAX_LINES = 20
 
@@ -203,3 +203,35 @@ def bill_transition(pk, to, user, note="", paid_date=None, payment_ref=""):
         b.status = to; b.save(update_fields=["status", "status_note", "paid_date", "payment_ref"])
         PartnerBillEvent.objects.create(bill=b, from_status=before, to_status=to, note=(note or (f"bukti {b.payment_ref}" if to == "dibayar" else ""))[:300], user=user)
         return b, before
+
+
+# ---------------------------------------------------------------- Alergi pasien (putaran 35)
+def add_allergy(user, employee, substance, reaction="", severity="sedang"):
+    substance = " ".join((substance or "").split())
+    if not substance: raise ValueError("Alergen wajib diisi")
+    if len(substance) > 100: raise ValueError("Alergen maksimal 100 karakter")
+    if severity not in dict(PatientAllergy.SEVERITY): raise ValueError("Tingkat alergi tidak dikenal")
+    if PatientAllergy.objects.filter(employee=employee, voided_at__isnull=True, substance__iexact=substance).exists():
+        raise ValueError("Alergi ini sudah tercatat")
+    return PatientAllergy.objects.create(employee=employee, substance=substance, reaction=" ".join((reaction or "").split())[:200], severity=severity, created_by=user)
+
+
+def void_allergy(user, allergy):
+    if allergy.voided_at: raise ValueError("Alergi sudah dinonaktifkan")
+    allergy.voided_at = timezone.now(); allergy.voided_by = user; allergy.save(update_fields=["voided_at", "voided_by"])
+    return allergy
+
+
+def patient_overview(e):
+    """Ringkasan medis untuk Poli saat NIK dipilih: alergi aktif, status BPJS K/TK (hanya status, BUKAN nomor), kunjungan terakhir & hitungan per jenis."""
+    from django.db.models import Count
+    from apps.hrd.models import BpjsMembership
+    allergies = [{"id": a.pk, "substance": a.substance, "reaction": a.reaction, "severity": a.severity, "severity_label": a.get_severity_display()}
+                 for a in e.allergies.filter(voided_at__isnull=True).order_by("-created_at")]
+    ms = {m.scheme: m for m in BpjsMembership.objects.filter(employee=e)}
+    bpjs = {}
+    for k, label in (("kes", "BPJS Kesehatan (K)"), ("tk", "BPJS Ketenagakerjaan (TK)")):
+        m = ms.get(k); has_no = bool(e.bpjs_kes if k == "kes" else e.bpjs_tk)
+        bpjs[k] = {"label": label, "status": m.get_status_display() if m else "Belum dicatat", "active": bool(m and m.status == "aktif"), "number_on_file": has_no}
+    kinds = {r["kind"]: r["n"] for r in e.medical_records.values("kind").annotate(n=Count("id"))}
+    return {"allergies": allergies, "bpjs": bpjs, "kinds": kinds}
