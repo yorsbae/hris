@@ -35,7 +35,7 @@ class SeedDemoTests(TestCase):
         from decimal import Decimal
         from apps.hrd.models import BpjsDeduction, BpjsMembership, UniformPurchase
         self.assertTrue(BpjsDeduction.objects.exists()); self.assertTrue(UniformPurchase.objects.exists())
-        for d in BpjsDeduction.objects.select_related("employee"):                                    # hanya anggota aktif → tidak ada anomali "dipotong padahal nonaktif" di data demo
+        for d in BpjsDeduction.objects.select_related("employee"):                                    # setiap potongan berasal dari anggota BPJS aktif (karyawan yang keluar di putaran 38c sengaja tetap anggota aktif → muncul sebagai anomali)
             self.assertTrue(BpjsMembership.objects.filter(employee=d.employee, scheme=d.scheme, status="aktif").exists())
         for p in UniformPurchase.objects.select_related("employee"):
             self.assertEqual(p.deduction_amount, p.rate_amount * p.quantity); self.assertEqual(p.gender, p.employee.gender)
@@ -51,7 +51,7 @@ class SeedDemoTests(TestCase):
         with self.assertRaises(CommandError): call_command("seed_demo", "--employees", "20", stdout=StringIO())
 
     def test_pages_render_for_each_role(self):
-        for uname, paths in (("superadmin", ["/", "/admin/", "/audit/"]), ("hrd", ["/", "/employees/", "/requests/", "/hrd/", "/hrd/uniforms/", "/hrd/uniforms/master/", "/hrd/bpjs/deductions/", "/hrd/bpjs/deductions/kes/"]),
+        for uname, paths in (("superadmin", ["/", "/admin/", "/audit/"]), ("hrd", ["/", "/employees/", "/requests/", "/hrd/", "/hrd/uniforms/", "/hrd/uniforms/master/", "/hrd/bpjs/deductions/", "/hrd/bpjs/deductions/kes/", "/hrd/separations/"]),
                              ("poli", ["/", "/poli/records/", "/poli/medicines/", "/poli/billing/", "/poli/billing/partners/"]), ("admin_prd", ["/", "/employees/", "/requests/"])):
             self.client.force_login(User.objects.get(username=uname))
             for p in paths: self.assertLess(self.client.get(p).status_code, 500, (uname, p))
@@ -187,3 +187,30 @@ class SeedDemoLatestFeaturesTests(TestCase):
                              ("poli", ["/poli/records/new/", "/poli/records/"]), ("superadmin", ["/users/"])):
             self.client.force_login(User.objects.get(username=uname))
             for p in paths: self.assertLess(self.client.get(p).status_code, 500, (uname, p))
+
+
+class SeedDemoSeparationTests(TestCase):
+    """Putaran 38c: data demo Karyawan Keluar dibuat lewat form/servis yang sama dengan UI, konsisten dengan status & riwayat karyawan."""
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo", "--employees", "40", stdout=StringIO())
+
+    def test_every_kind_of_state_is_seeded_and_consistent(self):
+        from apps.hr.models import EmployeeHistory
+        from apps.hrd.models import Separation
+        live = list(Separation.objects.filter(voided_at__isnull=True).select_related("employee"))
+        self.assertGreaterEqual(len(live), 3)
+        past = [s for s in live if s.applied_at]; scheduled = [s for s in live if not s.applied_at]
+        self.assertTrue(past); self.assertTrue(scheduled)
+        for s in past:
+            self.assertEqual(s.employee.status, "nonaktif")
+            self.assertTrue(EmployeeHistory.objects.filter(employee=s.employee, field="status", new_value="nonaktif", effective_date=s.last_date).exists())
+        for s in scheduled: self.assertEqual(s.employee.status, "aktif"); self.assertGreater(s.last_date, __import__("datetime").date.today())
+        self.assertTrue(any(s.paklaring_number for s in past)); self.assertTrue(any(s.tali_asih_paid_on for s in past))
+        self.assertEqual(len({s.paklaring_number for s in live if s.paklaring_number}), len([s for s in live if s.paklaring_number]))   # nomor paklaring unik
+
+    def test_voided_example_restores_employee_and_staff_poli_untouched(self):
+        from apps.hrd.models import Separation
+        for s in Separation.objects.filter(voided_at__isnull=False).select_related("employee"): self.assertEqual(s.employee.status, "aktif"); self.assertTrue(s.void_reason)
+        self.assertFalse(Separation.objects.filter(employee__department__code="POL").exists())
+        self.assertFalse(Employee.objects.filter(department__code="POL", status="nonaktif").exists())

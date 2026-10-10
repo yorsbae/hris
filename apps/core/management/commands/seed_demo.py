@@ -62,7 +62,7 @@ class Command(BaseCommand):
         self.r, self.pw, self.today = random.Random(o["seed"]), o["password"], timezone.localdate()
         n = max(20, min(o["employees"], 1500))
         self.users(); self.master(); self.employees(n); self.requests(); self.history(); self.swaps(); self.leave(); self.info()
-        self.extra_work(); self.attendance(); self.hrd_ops(); self.poli(); self.audit()
+        self.extra_work(); self.attendance(); self.hrd_ops(); self.poli(); self.separations(); self.audit()
         s = self.stat
         self.stdout.write(self.style.SUCCESS(f"Data demo selesai: {s}"))
         self.stdout.write("Akun demo (sandi sama untuk semuanya): " + o["password"])
@@ -456,6 +456,33 @@ class Command(BaseCommand):
             fresh = next((p for p in reversed(bought) if p.deduction_status == "belum" and p.size.code != "3XL"), None)   # 3XL dipertahankan agar saldo minusnya tetap terlihat
             if fresh: hrd_services.void_uniform_purchase(fresh.pk, "Salah ukuran, akan dicatat ulang (demo)", self.hrd_u)   # batal beralasan → stok kembali (baris 'batal')
         self.stat += f", operasional HRD ({len(bought)} pembelian seragam)"
+
+    # ---------- karyawan keluar (putaran 38c): lewat SeparationForm + servis yang sama dengan UI (riwayat status, nomor paklaring, kunci tali asih ikut).
+    # Dijalankan SETELAH modul lain agar staf Poli tidak ikut nonaktif; karyawati hamil (cuti hamil/kunjungan kehamilan berjalan) dilewati.
+    # Karyawan yang keluar SENGAJA masih punya keanggotaan/potongan BPJS aktif: halaman BPJS menandainya sebagai anomali "nonaktif tetapi BPJS masih aktif" (tugas nyata bagi HRD; A98).
+    def separations(self):
+        r, today = self.r, self.today
+        pool = [e for e in self.active if e.department.code != "POL" and e.pk not in {x.pk for x, _ in self.pregnant} and e.join_date <= today - timedelta(days=120)]
+        r.shuffle(pool); made = 0
+
+        def keluar(kind, days, reason, tali=0, note="", paid=False, pak=False, void=""):
+            if not pool: return 0
+            e = pool.pop(); last = today + timedelta(days=days)
+            f = hrd_forms.SeparationForm({"nik": e.nik, "kind": kind, "request_date": (last - timedelta(days=30)).isoformat() if kind == "resign" else "", "last_date": last.isoformat(),
+                                          "reason": reason, "tali_asih": str(tali) if tali else "", "tali_asih_note": note}, user=self.hrd_u)
+            if not f.is_valid(): return 0
+            s = f.save()
+            if paid and s.tali_asih: hrd_services.set_tali_asih(s.pk, s.tali_asih, s.tali_asih_note, last + timedelta(days=3), self.hrd_u)   # dibayar → nominal terkunci
+            if pak and s.applied_at: hrd_services.issue_paklaring(s.pk, min(today, last + timedelta(days=5)), self.hrd_u)
+            if void: hrd_services.void_separation(s.pk, void, self.hrd_u)                                                                      # batal beralasan → status karyawan dipulihkan
+            return 1
+
+        made += keluar("resign", -25, "Pindah kota (demo)", 1_500_000, "1 bulan gaji (demo)", paid=True, pak=True)    # lengkap: dibayar + paklaring
+        made += keluar("habis_kontrak", -40, "Kontrak tidak diperpanjang (demo)", pak=True)                            # tanpa tali asih, paklaring terbit
+        made += keluar("phk", -8, "Pelanggaran disiplin berat (demo)", 2_000_000, "Sesuai kebijakan perusahaan (demo)")  # tali asih belum dibayar, paklaring belum terbit → muncul sebagai tugas
+        made += keluar("pensiun", 25, "Memasuki usia pensiun (demo)", 5_000_000, "Penghargaan masa kerja (demo)")     # terjadwal: masih aktif sampai hari keluar
+        keluar("resign", -3, "Salah catat, karyawan batal keluar (demo)", void="Karyawan ternyata tidak jadi mengundurkan diri (demo)")  # contoh catatan batal; tidak dihitung
+        self.stat += f", {made} karyawan keluar"
 
     # ---------- poliklinik
     def poli(self):

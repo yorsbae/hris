@@ -163,7 +163,7 @@ class SidebarTests(HrdBase):
 
 class OperasionalMenuTests(HrdBase):
     """Putaran 28: Operasional HRD = menu + submenu (Seragam, Katering, dst) dengan dropdown buka/tutup berikon."""
-    SUBS = ["Bantuan (rekap)", "Cuti Hamil", "Pekerja Harian Proyek", "Katering (rekap)", "Surat Peringatan", "Seragam"]
+    SUBS = ["Bantuan (rekap)", "Cuti Hamil", "Pekerja Harian Proyek", "Katering (rekap)", "Surat Peringatan", "Seragam", "Karyawan Keluar"]
 
     def tree(self, who, path):
         self.login(who); r = self.client.get(path); self.assertEqual(r.status_code, 200)

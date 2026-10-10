@@ -4,7 +4,9 @@
 {% if full %}<div class="bar"><a class="btn" href="{% url 'employee_edit' e.pk %}" style="margin-left:0">Ubah</a>
 <a class="btn" href="{% url 'contract_new' e.pk %}">Kontrak baru / perpanjang</a>
 <a class="btn" href="{% url 'hrd_bpjs_detail' e.pk %}">Status BPJS</a>
-<a class="btn" href="{% url 'employee_delete' e.pk %}" style="background:#d92d20">Hapus</a></div>{% endif %}
+{% if separation %}<a class="btn" href="{% url 'hrd_separation_detail' separation.pk %}">Catatan keluar</a>{% elif e.status == "aktif" %}<a class="btn" href="{% url 'hrd_separation_new' %}?nik={{ e.nik|urlencode }}">Catat keluar</a>{% endif %}
+<a class="btn" href="{% url 'employee_delete' e.pk %}" style="background:#d92d20">Hapus</a></div>
+{% if separation %}<p class="hint flow">Tercatat keluar: <b>{{ separation.get_kind_display }}</b>, hari terakhir kerja {{ separation.last_date|date:"d M Y" }}{% if not separation.applied_at %} (terjadwal — status berubah menjadi nonaktif setelah hari itu){% endif %}{% if separation.paklaring_number %} · paklaring {{ separation.paklaring_number }}{% endif %}. <a href="{% url 'hrd_separation_detail' separation.pk %}">Buka catatan</a></p>{% endif %}{% endif %}
 <div class="card"><table>{% for k, v in rows %}<tr><th>{{ k }}</th><td style="white-space:pre-line">{{ v }}</td></tr>{% endfor %}</table></div>
 {% if leave_year %}
 <h3>Saldo cuti {{ leave_year }} {% if full %}<a class="btn" href="{% url 'leave_detail' e.pk %}">Kartu saldo</a>{% endif %}</h3>

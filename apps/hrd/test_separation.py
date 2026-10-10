@@ -237,3 +237,40 @@ class AccessAndNavTests(SepBase):
     def test_sensitive_data_not_in_audit(self):
         self.make(tali_asih="1.000.000", reason="alasan pribadi panjang")
         for a in AuditLog.objects.filter(module="hrd", action__startswith="separation"): self.assertNotIn("alasan pribadi", str(a.after)); self.assertNotIn("0001234567890", str(a.after))
+
+
+class EmployeeDetailLinkTests(SepBase):
+    """Putaran 38c: detail karyawan menautkan ke Karyawan Keluar (hanya HRD/Superadmin)."""
+    def page(self, emp=None): return self.client.get(reverse("employee_detail_page", args=[(emp or self.e1).pk]))
+
+    def test_active_without_record_offers_prefilled_button(self):
+        r = self.page(); self.assertContains(r, "Catat keluar"); self.assertContains(r, f"{reverse('hrd_separation_new')}?nik={self.e1.nik}"); self.assertNotContains(r, "Catatan keluar")
+
+    def test_with_record_shows_banner_and_link_instead_of_button(self):
+        s = self.make(last=ahead(10)); r = self.page()
+        self.assertContains(r, "Catatan keluar"); self.assertContains(r, reverse("hrd_separation_detail", args=[s.pk])); self.assertContains(r, "terjadwal"); self.assertNotContains(r, "?nik=")
+        s = self.make(emp=self.e2, last=ago(5)); services.issue_paklaring(s.pk, date.today(), self.hrd)
+        number = Separation.objects.get(pk=s.pk).paklaring_number
+        r = self.page(self.e2); self.assertContains(r, number); self.assertNotContains(r, "terjadwal")
+
+    def test_voided_record_goes_back_to_button(self):
+        s = self.make(last=ahead(10)); services.void_separation(s.pk, "salah catat", self.hrd)
+        r = self.page(); self.assertContains(r, "Catat keluar"); self.assertNotContains(r, "Tercatat keluar")
+
+    def test_inactive_employee_has_no_new_button_but_dept_admin_never_sees_it(self):
+        Employee.objects.filter(pk=self.e2.pk).update(status="nonaktif"); self.assertNotContains(self.page(self.e2), "Catat keluar")
+        self.login("adm"); r = self.page()
+        if r.status_code == 200: self.assertNotContains(r, "Catat keluar"); self.assertNotContains(r, "Catatan keluar")
+
+
+class ContractReminderTests(SepBase):
+    """Putaran 38c: pengingat kontrak habis tidak lagi dikirim untuk karyawan yang sudah keluar (nonaktif)."""
+    def test_reminder_only_for_active_employees(self):
+        from apps.core.models import Notification
+        from apps.hr.models import Contract
+        for n, emp in (("K-AKTIF", self.e1), ("K-KELUAR", self.e2)):
+            Contract.objects.create(employee=emp, number=n, kind="PKWT", start=ago(300), end=ahead(30), status="aktif")
+        self.make(emp=self.e2, last=ago(2)); self.assertEqual(Employee.objects.get(pk=self.e2.pk).status, "nonaktif")
+        call_command("check_contracts")
+        titles = list(Notification.objects.filter(kind="contract").values_list("title", flat=True))
+        self.assertEqual(len(titles), 1); self.assertIn("Budi", titles[0]); self.assertNotIn("Sari", " ".join(titles))

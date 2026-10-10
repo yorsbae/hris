@@ -64,6 +64,8 @@ def employee_detail_page(request, pk):
         from apps.poli.pages import medical_summary
         log(request, "poli", "view_history", e); ctx["medical"] = medical_summary(e)
     if full:
+        from apps.hrd.models import Separation  # impor di dalam fungsi: apps.hrd.models sudah mengimpor apps.hr.models
+        ctx["separation"] = Separation.objects.filter(employee=e, voided_at__isnull=True).first()  # catatan Karyawan Keluar aktif (putaran 38c): tautan dari detail karyawan
         ctx["history"] = e.history.order_by("-effective_date", "-id")[:50]
         ctx["contracts"] = e.contracts.order_by("-start")
         ctx["documents"] = e.documents.filter(deleted_at__isnull=True)

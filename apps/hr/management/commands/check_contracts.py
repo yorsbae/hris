@@ -8,6 +8,7 @@ class Command(BaseCommand):
     def handle(self, *a, **k):
         hrd = list(User.objects.filter(role=Role.HRD))
         for d in REMINDER_DAYS:
-            for c in Contract.objects.filter(status="aktif", end=date.today() + timedelta(days=d)).select_related("employee"):
+            # hanya karyawan aktif: yang sudah keluar (Karyawan Keluar, putaran 38) tidak perlu diingatkan kontraknya habis
+            for c in Contract.objects.filter(status="aktif", employee__status="aktif", end=date.today() + timedelta(days=d)).select_related("employee"):
                 Notification.objects.bulk_create([Notification(user=u, kind="contract",
                     title=f"Kontrak {c.employee.name} habis dalam {d} hari") for u in hrd])

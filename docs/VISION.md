@@ -158,6 +158,7 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 2b. **Operasional HRD** (halaman khusus akun HRD, lihat bagian di bawah): bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS
 2c. **[BARU] HR Lanjutan**: Surat Peringatan (SP1–SP3), pengajuan administrasi, BPJS lanjutan (kelas, faskes, JKK/JHT/JKM/JP, iuran, laporan), **menu BPJS (submenu Ketenagakerjaan/Kesehatan) + rekap potongan karyawan + impor/ekspor XLSX** — **✅ putaran 22–23** (sisa: tarif otomatis, kelas/faskes, komponen JKK/JHT/JKM/JP)
 2d. **[BARU] Seragam**: rekap pembelian seragam + ukuran, tarif potongan L/P, ekspor XLSX (di bawah Operasional HRD) — **✅ putaran 23**
+2e. **[BARU] Karyawan Keluar**: rekap resign/habis kontrak/PHK/pensiun, tali asih, paklaring (PDF), nonaktif otomatis + riwayat (di bawah Operasional HRD) — **✅ putaran 38b–38c** (sisa: tindak lanjut otomatis akun/kontrak/BPJS, clearance, rumus tali asih)
 3. **Workflow**: mutasi, promosi/demosi, izin, cuti, tukar shift/libur (**1 orang atau 2 orang**), **administrasi**, approval
 4. **Informasi**: notifikasi, pengumuman, peraturan, read/unread. **[BARU]** reminder (cuti, SP, kontrak, stok menipis, obat mendekati kedaluwarsa, sinkronisasi absensi)
 5. **Poli**: rekam medis (form menyesuaikan jenis kunjungan; **pemeriksa = karyawan departemen Poli** dipilih lewat NIK, **dokter = bukan karyawan**, hanya nama — putaran 34), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat izin (pulang / libur / hamil), riwayat poli di detail karyawan untuk user Poli
@@ -236,7 +237,7 @@ Perluasan scope: perusahaan memiliki **situs publik** berisi **profil perusahaan
 5. Uji penetrasi, uji aksesibilitas/ponsel, dokumen operasional (runbook insiden, pemulihan), baru dibuka ke publik.
 
 ## Operasional HRD (halaman khusus akun HRD)
-Satu pintu `/hrd/` dengan lima halaman. **[BARU] Di sidebar, Operasional HRD adalah menu dengan submenu** (Bantuan, Cuti Hamil, Pekerja Harian Proyek, Katering, Surat Peringatan, Seragam) — **status: ✅ putaran 28**; induk membuka ringkasan `/hrd/`, anak membuka halamannya. **Aturan sidebar**: setiap menu yang punya submenu tampil sebagai **dropdown buka/tutup dengan ikon** (chevron); tertutup bawaan, otomatis terbuka bila halaman aktif ada di dalamnya, pilihan pengguna diingat. Selain itu ada **[BARU] Rekap Seragam** (bagian khusus di bawah). **[BARU]** BPJS kini juga menjadi menu sidebar tersendiri dengan submenu Ketenagakerjaan/Kesehatan (bagian khusus di bawah). **Hanya HRD (dan Superadmin)**; Admin Departemen dan Poli tidak punya akses (403).
+Satu pintu `/hrd/` dengan lima halaman. **[BARU] Di sidebar, Operasional HRD adalah menu dengan submenu** (Bantuan, Cuti Hamil, Pekerja Harian Proyek, Katering, Surat Peringatan, Seragam, **Karyawan Keluar** — ✅ putaran 38b) — **status: ✅ putaran 28**; induk membuka ringkasan `/hrd/`, anak membuka halamannya. **Aturan sidebar**: setiap menu yang punya submenu tampil sebagai **dropdown buka/tutup dengan ikon** (chevron); tertutup bawaan, otomatis terbuka bila halaman aktif ada di dalamnya, pilihan pengguna diingat. Selain itu ada **[BARU] Rekap Seragam** (bagian khusus di bawah). **[BARU]** BPJS kini juga menjadi menu sidebar tersendiri dengan submenu Ketenagakerjaan/Kesehatan (bagian khusus di bawah). **Hanya HRD (dan Superadmin)**; Admin Departemen dan Poli tidak punya akses (403).
 Semua perubahan tercatat di audit log; data tidak ditimpa diam-diam (ada histori/status).
 
 1. **Bantuan** — pencatatan bantuan kepada karyawan (mis. kematian keluarga, pernikahan, kelahiran, musibah, rawat inap, pendidikan).
@@ -274,8 +275,19 @@ Isi tiap submenu:
 5. **Anomali** ditandai: BPJS aktif tetapi tidak ada potongan pada periode itu, atau dipotong padahal nonaktif.
 6. Potongan disimpan di **tabel sendiri** (tidak di tabel karyawan) dan menjadi sumber komponen Potongan → BPJS pada rantai Payroll. Tetap berlaku: BPJS **tanpa workflow pengajuan/approval**.
 
+## [BARU] Karyawan Keluar (HRD) — ✅ putaran 38b–38c
+Menu di bawah Operasional HRD (`/hrd/separations/`), **hanya HRD dan Superadmin**. Tujuannya satu tempat untuk mencatat siapa yang keluar, kapan, kenapa, apa yang dibayarkan, dan surat keterangannya — tanpa menghapus jejak.
+- **Jenis keluar**: mengundurkan diri, habis kontrak, PHK/diberhentikan, pensiun, meninggal dunia, lainnya. Dicatat: tanggal mengajukan/diberitahukan (opsional), **hari terakhir kerja**, alasan singkat, dan **masa kerja** (dihitung, bukan diketik).
+- **Identitas disalin saat dicatat** (nama, departemen, jabatan, tanggal masuk) sehingga rekap dan paklaring tidak berubah walau data karyawan diubah kemudian. Satu catatan aktif per karyawan.
+- **Status karyawan** menjadi nonaktif **setelah hari terakhir kerja lewat** (perintah harian `apply_separations`, atau tombol manual pada hari H); setiap perubahan status masuk **riwayat karyawan** dengan tanggal efektif = hari keluar. Dibatalkan = status dipulihkan.
+- **Tali asih**: nominal dan dasar hitung dicatat terpisah dari data karyawan (selaras prinsip payroll); **terkunci setelah ditandai dibayar**. Rumus otomatis menunggu kebijakan/Payroll.
+- **Paklaring (surat keterangan kerja)**: PDF dengan kop dan penandatangan dari konfigurasi; nomor unik, terbit sekali, hanya setelah karyawan benar-benar keluar; **tidak memuat alasan keluar maupun tali asih**.
+- **Tidak ada penghapusan**: salah catat = dibatalkan dengan alasan wajib; ditolak bila paklaring sudah terbit atau tali asih sudah dibayar. Semua aksi tercatat di audit tanpa isi sensitif.
+- **Rekap & data**: filter tahun/bulan/jenis/departemen/paklaring/tali asih, ringkasan per jenis dan per departemen, ekspor XLSX/CSV (uang = angka), impor CSV/XLSX yang hanya menambah.
+- **Belum / keputusan terbuka**: akun login, kontrak aktif, dan BPJS/potongan karyawan yang keluar **tidak** ditindaklanjuti otomatis (usulan: daftar tugas serah terima agar tidak ada perubahan diam-diam); clearance aset/seragam; kartu tugas di dashboard.
+
 ## [BARU] Rekap Seragam (HRD)
-> **Status (putaran 23): ✅ ada** di `/hrd/uniforms/` (rekap, rincian, master, impor, ekspor rincian & rekap vendor). Penyimpangan kecil yang disadari: pembatalan berupa penandaan baris (bukan baris pembalik terpisah, A56); potongan = tarif × jumlah pcs (A55, menunggu konfirmasi satuan); "sudah dipotong" ditandai manual HRD sampai Payroll ada (A57). **Belum**: tandai dipotong massal, PDF/cetak pesanan vendor, master vendor, stok seragam.
+> **Status (putaran 23): ✅ ada** di `/hrd/uniforms/` (rekap, rincian, master, impor, ekspor rincian & rekap vendor). Penyimpangan kecil yang disadari: pembatalan berupa penandaan baris (bukan baris pembalik terpisah, A56); potongan = tarif × jumlah pcs (A55, menunggu konfirmasi satuan); "sudah dipotong" ditandai manual HRD sampai Payroll ada (A57). **Belum**: tandai dipotong massal, PDF/cetak pesanan vendor, master vendor. **Putaran 25: stok seragam ✅** (kartu stok append-only). **Putaran 38a: halaman dirapikan menjadi SATU halaman berpusat pada Kartu Stok** dengan tab Stok · Pembelian · Riwayat · Master; barang masuk/koreksi/stok minimum sebaris; kolom "pesan ke vendor" bila stok di bawah minimum; alamat lama tetap hidup dan mendarat di tab yang sesuai.
 
 Pencatatan pembelian **seragam** karyawan **beserta ukuran** (hanya seragam, bukan pakaian lain). Halaman di `/hrd/` — HRD dan Superadmin saja (Admin Departemen dan Poli → 403).
 - **Catatan pembelian**: karyawan (lewat NIK; harus aktif), tanggal, jenis seragam (master), **ukuran** (master), jumlah, tarif potongan, status potongan (belum/sudah dipotong), catatan. Pembelian ganda untuk karyawan + tanggal + jenis + ukuran yang sama ditolak.
@@ -437,3 +449,8 @@ Prinsip (putaran 34): data demo **dibuat lewat servis/form yang sama dengan apli
 - **Aksi per baris selalu berlabel**: tombol aksi memakai teks yang menyebut tugasnya (Catat diterima, Ubah, Hapus), rata kanan di kolom Aksi; aksi berbahaya berbingkai merah dan meminta konfirmasi.
 - **Konteks pasien saat memeriksa**: memilih NIK di rekam medis langsung menampilkan alergi, status BPJS K/TK (tanpa nomor), dan riwayat kunjungan. Data sensitif tidak dikirim ke layar yang tidak perlu.
 - **Pemeriksa satu isian**: dokter (bukan karyawan, tanpa NIK) atau petugas departemen Poli (boleh via NIK) diisi di satu kolom terakhir sebelum Simpan.
+
+## Pembaruan putaran 38 — satu halaman per topik, alur terlihat
+- **Satu halaman per topik, dibagi tab** (bukan satu menu per sub-tugas): halaman pusat (mis. Seragam → Kartu Stok) memuat tab dan form sebaris; alamat lama tidak pernah dimatikan, melainkan diarahkan ke tab yang sesuai. Komponen bersama `page_tabs` dipakai untuk pola ini.
+- **Alur selalu terlihat**: halaman proses memakai langkah alur bersama (`flow_steps`) — langkah yang sudah lewat ditandai selesai, yang sedang dikerjakan disorot, tiap langkah menautkan ke tempatnya. Berlaku untuk halaman baru berikutnya (Karyawan Keluar sudah memakainya).
+- **Peristiwa akhir hubungan kerja tidak diam-diam menyentuh modul lain**: karyawan keluar mengubah status karyawan (dengan riwayat), tetapi akun login, kontrak, dan BPJS/potongan ditindaklanjuti HRD secara sadar (tanda anomali/daftar tugas), bukan diubah otomatis, sampai pemilik produk memutuskan lain.
