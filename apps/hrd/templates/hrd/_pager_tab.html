@@ -1,0 +1,3 @@
+<nav class="pager" aria-label="Halaman">{% if page.has_previous %}<a class="btn ghost" rel="prev" href="?page={{ page.previous_page_number }}&amp;{{ pqs }}">‹ Sebelumnya</a>{% endif %}
+<span>Halaman {{ page.number }} / {{ page.paginator.num_pages }} · {{ page.paginator.count }} data</span>
+{% if page.has_next %}<a class="btn ghost" rel="next" href="?page={{ page.next_page_number }}&amp;{{ pqs }}">Berikutnya ›</a>{% endif %}</nav>

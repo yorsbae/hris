@@ -149,7 +149,7 @@ class VoidAndMarkTests(Base):
         self.client.post(reverse("hrd_uniform_void", args=[p.pk]), {"reason": "salah ukuran"}); p.refresh_from_db()
         self.assertTrue(p.is_void); self.assertEqual((p.void_reason, p.voided_by.username), ("salah ukuran", "hrd"))
         self.assertEqual(self.client.get(reverse("hrd_uniforms"), {"period": PER}).context["totals"]["n"], 0)
-        self.assertEqual(self.client.get(reverse("hrd_uniforms"), {"period": PER, "batal": 1}).context["page"].paginator.count, 1)   # tetap tampil bila diminta
+        self.assertEqual(self.client.get(reverse("hrd_uniforms"), {"period": PER, "batal": 1, "tab": "pembelian"}).context["page"].paginator.count, 1)   # tetap tampil bila diminta
         self.assertEqual(self.last_audit("uniform_void").after["reason"], "salah ukuran")
 
     def test_cannot_void_twice_or_after_deducted(self):
@@ -187,7 +187,7 @@ class RecapTests(Base):
         self.void = self.purchase(self.e1, quantity=5, size=self.M)  # batal: tak boleh masuk rekap
         services.void_uniform_purchase(self.void.pk, "salah", self.hrd)
 
-    def get(self, **q): return self.client.get(reverse("hrd_uniforms"), {"period": PER, **q})
+    def get(self, **q): return self.client.get(reverse("hrd_uniforms"), {"period": PER, "tab": "pembelian", **q})
 
     def test_totals_exclude_void(self):
         t = self.get().context["totals"]; self.assertEqual((t["n"], t["pcs"], t["total"]), (3, 6, Decimal(106000)))
@@ -196,13 +196,13 @@ class RecapTests(Base):
         self.assertEqual(self.get().context["totals"]["belum"], Decimal(55000))
 
     def test_size_by_gender_matrix(self):
-        m = {(r["size"]): r for r in self.get().context["stock"]}
+        m = {(r["size"]): r for r in self.get(tab="stok").context["stock"]}
         self.assertEqual((m["L"]["L"], m["L"]["P"], m["L"]["keluar"]), (2, 1, 3)); self.assertEqual((m["M"]["L"], m["M"]["P"], m["M"]["keluar"]), (0, 3, 3))
-        self.assertEqual([r["size"] for r in self.get().context["stock"]], ["M", "L"])        # urutan master (M=20, L=30), bukan abjad
+        self.assertEqual([r["size"] for r in self.get(tab="stok").context["stock"]], ["M", "L"])        # urutan master (M=20, L=30), bukan abjad
 
     def test_gender_is_the_copy_not_current_employee_gender(self):
         self.e1.gender = "P"; self.e1.save()      # data karyawan berubah setelah pembelian
-        m = {r["size"]: r for r in self.get().context["stock"]}; self.assertEqual(m["L"]["L"], 2)
+        m = {r["size"]: r for r in self.get(tab="stok").context["stock"]}; self.assertEqual(m["L"]["L"], 2)
 
     def test_per_department_and_per_employee(self):
         d = {r["employee__department__name"]: r for r in self.get().context["by_dept"]}

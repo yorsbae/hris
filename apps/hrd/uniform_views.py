@@ -1,11 +1,14 @@
-"""Rekap Seragam (putaran 23, P5): pembelian seragam + ukuran, tarif potongan L/P berlaku-sejak, rekap, ekspor XLSX/CSV, impor.
-Hanya HRD/Superadmin (Admin Dept & Poli → 403). Pembelian tidak diubah/dihapus: koreksi = pembatalan beralasan; 'sudah dipotong' satu arah."""
+"""Seragam (putaran 23 P5 → disatukan putaran 38): SATU halaman `/hrd/uniforms/` berpusat pada Kartu Stok dengan empat tab —
+Stok (saldo, barang masuk/koreksi, minimum, perlu dipesan), Pembelian karyawan, Riwayat gerak, Master & tarif. Alamat lama (`stock/`, `stock/in/`, `stock/adjust/`,
+`master/`) tetap hidup sebagai pintu masuk ke tab yang sama. Hanya HRD/Superadmin (Admin Dept & Poli → 403).
+Pembelian tidak diubah/dihapus: koreksi = pembatalan beralasan; 'sudah dipotong' satu arah."""
 from collections import OrderedDict
 from datetime import date
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Max, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from apps.core import tabular
 from apps.core.audit import log
@@ -32,6 +35,7 @@ def _filters(request):
     return f
 
 
+TABS = ("stok", "pembelian", "riwayat", "master")
 def _base(f):
     """Pembelian terfilter, TERMASUK yang dibatalkan (pemanggil memilih)."""
     qs = UniformPurchase.objects.select_related("employee", "employee__department", "utype", "size")
@@ -46,18 +50,19 @@ def _base(f):
 
 
 def _stock_recap(f, live):
-    """Rekap STOK jenis × ukuran untuk periode filter (menggantikan 'rekap ukuran' putaran 23): stok awal, masuk, keluar (L/P/total dari pembelian aktif),
-    koreksi/kembali (residual: koreksi + pembatalan), saldo akhir. Memakai kartu stok (UniformStockMovement), bukan hitung ulang pembelian. Hanya periode/jenis/ukuran
-    yang berlaku; filter karyawan/departemen/status tidak relevan untuk stok. Baris: semua jenis×ukuran yang punya gerak/pembelian atau saldo ≠ 0."""
+    """SATU tabel stok jenis × ukuran untuk periode filter (menggantikan 'rekap stok' + 'saldo saat ini' yang dulu terpisah): stok awal, masuk, keluar (L/P/total dari
+    pembelian aktif), koreksi/kembali (residual: koreksi + pembatalan), stok akhir periode; ditambah minimum, saldo SEKARANG, status (menipis/minus) dan jumlah yang perlu dipesan.
+    Memakai kartu stok (UniformStockMovement). Filter karyawan/departemen/status tidak relevan untuk stok. Baris: jenis×ukuran yang punya gerak/pembelian, saldo ≠ 0, atau minimum > 0."""
     rng = _month_range(f["period"]); mv = UniformStockMovement.objects.all()
     if _int(f["utype"]): mv = mv.filter(utype_id=_int(f["utype"]))
     if _int(f["size"]): mv = mv.filter(size_id=_int(f["size"]))
     key = lambda r: (r["utype__name"], r["size__sort"], r["size__code"])
-    grp = lambda qs: qs.order_by().values("utype__name", "size__sort", "size__code")
+    grp = lambda qs: qs.order_by().values("utype_id", "utype__name", "size_id", "size__sort", "size__code")
     rows = OrderedDict()
 
     def row(r):
-        return rows.setdefault(key(r), {"utype": r["utype__name"], "size": r["size__code"], "awal": 0, "masuk": 0, "L": 0, "P": 0, "keluar": 0, "adj": 0, "saldo": 0})
+        return rows.setdefault(key(r), {"utype": r["utype__name"], "size": r["size__code"], "utype_id": r["utype_id"], "size_id": r["size_id"], "awal": 0, "masuk": 0, "L": 0, "P": 0,
+                                        "keluar": 0, "adj": 0, "saldo": 0, "min": 0, "now": 0, "low": False, "order_qty": 0})
     for r in grp(mv).annotate(n=Sum("quantity")): row(r)["saldo"] = r["n"]   # saldo akhir = semua gerak s/d akhir periode (di bawah dikoreksi)
     if rng:
         for r in grp(mv.filter(movement_date__gte=rng[1])).annotate(n=Sum("quantity")): row(r)["saldo"] -= r["n"]
@@ -68,13 +73,21 @@ def _stock_recap(f, live):
     lv = live
     if _int(f["utype"]): lv = lv.filter(utype_id=_int(f["utype"]))
     if _int(f["size"]): lv = lv.filter(size_id=_int(f["size"]))
-    for r in lv.order_by().values("utype__name", "size__sort", "size__code", "gender").annotate(n=Sum("quantity")):
+    for r in lv.order_by().values("utype_id", "utype__name", "size_id", "size__sort", "size__code", "gender").annotate(n=Sum("quantity")):
         x = row(r); x[r["gender"]] += r["n"]; x["keluar"] += r["n"]
+    cur = UniformStock.objects.select_related("utype", "size")
+    if _int(f["utype"]): cur = cur.filter(utype_id=_int(f["utype"]))
+    if _int(f["size"]): cur = cur.filter(size_id=_int(f["size"]))
+    for b in cur:
+        x = row({"utype__name": b.utype.name, "size__sort": b.size.sort, "size__code": b.size.code, "utype_id": b.utype_id, "size_id": b.size_id})
+        x["min"], x["now"], x["low"] = b.min_stock, b.balance, b.low
+        x["order_qty"] = max(0, b.min_stock - b.balance) if b.min_stock else 0
+        if not rng: x["saldo"] = b.balance
     out = []
     for k in sorted(rows):
         x = rows[k]
-        if not (x["awal"] or x["masuk"] or x["keluar"] or x["saldo"]): continue
-        x["adj"] = x["saldo"] - x["awal"] - x["masuk"] + x["keluar"]; x["minus"] = x["saldo"] < 0; out.append(x)
+        if not (x["awal"] or x["masuk"] or x["keluar"] or x["saldo"] or x["min"]): continue
+        x["adj"] = x["saldo"] - x["awal"] - x["masuk"] + x["keluar"]; x["minus"] = x["saldo"] < 0; x["now_minus"] = x["now"] < 0; out.append(x)
     return out
 
 
@@ -86,28 +99,142 @@ def _detail_row(p):
 DETAIL_HEADER = ["nik", "nama", "departemen", "tanggal", "jenis", "ukuran", "jk", "jumlah", "tarif_per_satuan", "total_potongan", "status_potongan", "periode_potong", "status", "alasan_batal", "catatan"]
 
 
+
+
+# ---------------------------------------------------------------- Halaman tunggal Seragam
+def _stock_move_post(request, action):
+    """Barang masuk / koreksi dari form sebaris di tab Stok. Mengembalikan (redirect|None, form)."""
+    form = UniformStockForm(request.POST, mode=action)
+    if form.is_valid():
+        d = form.cleaned_data
+        with transaction.atomic():
+            m = services.stock_move(d["utype"].pk, d["size"].pk, action, d["quantity"], d["movement_date"], request.user, note=d["note"])
+            log(request, "hrd", "uniform_stock_" + action, m, None, {"type": d["utype"].name, "size": d["size"].code, "qty": m.quantity, "balance": m.balance_after, "note": m.note})
+        messages.success(request, f"Stok {d['utype'].name} {d['size'].code} dicatat ({m.quantity:+d}); saldo sekarang {m.balance_after} pcs.")
+        return redirect(f"{reverse('hrd_uniforms')}?tab=stok"), form
+    return None, form
+
+
+def _min_stock_post(request):
+    t, z, n = UniformType.objects.filter(pk=_int(request.POST.get("utype"))).first(), UniformSize.objects.filter(pk=_int(request.POST.get("size"))).first(), _int(request.POST.get("min_stock"))
+    try:
+        if not (t and z): raise ValueError("Pilih jenis dan ukuran.")
+        with transaction.atomic():
+            st, old = services.set_min_stock(t.pk, z.pk, n)
+            log(request, "hrd", "uniform_stock_min", st, {"min": old}, {"type": t.name, "size": z.code, "min": st.min_stock})
+        messages.success(request, f"Minimum stok {t.name} {z.code} = {st.min_stock} pcs.")
+    except ValueError as e: messages.error(request, str(e))
+
+
+def _master_post(request, rate_form):
+    """Master jenis, ukuran, dan tarif. Jenis/ukuran hanya dinonaktifkan (bukan dihapus); tarif hanya ditambah (append-only). Mengembalikan True bila berhasil."""
+    act, name = request.POST.get("action", ""), request.POST
+    try:
+        with transaction.atomic():
+            if act == "add_type":
+                v = name.get("name", "").strip()
+                if not v or len(v) > 80: raise ValueError("Nama jenis wajib diisi (maks. 80 karakter).")
+                if UniformType.objects.filter(name__iexact=v).exists(): raise ValueError("Jenis dengan nama itu sudah ada.")
+                t = UniformType.objects.create(name=v); log(request, "hrd", "uniform_master_type_add", t, None, {"name": v})
+            elif act in ("toggle_type", "toggle_size"):
+                model = UniformType if act == "toggle_type" else UniformSize
+                o = model.objects.select_for_update().filter(pk=_int(name.get("id"))).first()
+                if not o: raise ValueError("Data tidak ditemukan.")
+                o.is_active = not o.is_active; o.save(update_fields=["is_active"])
+                log(request, "hrd", "uniform_master_" + ("type" if model is UniformType else "size") + "_toggle", o, None, {"active": o.is_active, "label": str(o)})
+            elif act == "add_size":
+                v = name.get("code", "").strip().upper()
+                if not v or len(v) > 10: raise ValueError("Kode ukuran wajib diisi (maks. 10 karakter).")
+                if UniformSize.objects.filter(code__iexact=v).exists(): raise ValueError("Ukuran dengan kode itu sudah ada.")
+                nxt = (UniformSize.objects.aggregate(m=Max("sort"))["m"] or 0) + 10
+                z = UniformSize.objects.create(code=v, sort=_int(name.get("sort")) if _int(name.get("sort")) is not None and 0 <= _int(name.get("sort")) <= 32000 else nxt)
+                log(request, "hrd", "uniform_master_size_add", z, None, {"code": v})
+            elif act == "add_rate":
+                if not rate_form.is_valid(): raise ValueError("")
+                d = rate_form.cleaned_data
+                r = UniformRate.objects.create(gender=d["gender"], amount=d["amount"], effective_from=d["effective_from"], created_by=request.user)
+                log(request, "hrd", "uniform_master_rate_add", r, None, {"gender": r.gender, "amount": str(r.amount), "effective_from": str(r.effective_from)})
+            else: raise ValueError("Aksi tidak dikenal.")
+        messages.success(request, "Master seragam disimpan."); return True
+    except ValueError as e:
+        if str(e): messages.error(request, str(e))
+    return False
+
+
+def _export(request, f, base, live, shown, kind):
+    if kind == "recap":
+        log(request, "hrd", "uniform_export", None, None, {"kind": "recap", "period": f["period"], "rows": live.count()})
+        rows = [(r["utype"], r["size"], r["awal"], r["masuk"], r["L"], r["P"], r["keluar"], r["adj"], r["saldo"]) for r in _stock_recap(f, live)]
+        return tabular.export_response(f"rekap-stok-seragam-{f['period'] or 'semua'}", ["jenis", "ukuran", "stok_awal", "masuk", "keluar_laki_laki", "keluar_perempuan", "keluar_total", "koreksi_kembali", "stok_akhir"],
+                                       rows, request, sheet="Rekap Stok Seragam", num_cols=("stok_awal", "masuk", "keluar_laki_laki", "keluar_perempuan", "keluar_total", "koreksi_kembali", "stok_akhir"))
+    if kind == "order":
+        # Daftar pesanan ke vendor: semua jenis×ukuran di bawah minimum (termasuk minus), jumlah pesan = minimum − saldo. Tidak bergantung filter periode.
+        rows = [(b.utype.name, b.size.code, b.balance, b.min_stock, b.min_stock - b.balance) for b in UniformStock.objects.select_related("utype", "size").filter(min_stock__gt=0) if b.balance < b.min_stock]
+        log(request, "hrd", "uniform_stock_export", None, None, {"kind": "order", "rows": len(rows)})
+        return tabular.export_response("pesanan-seragam-vendor", ["jenis", "ukuran", "stok_sekarang", "minimum", "jumlah_dipesan"], rows, request, sheet="Pesanan Vendor", num_cols=("stok_sekarang", "minimum", "jumlah_dipesan"))
+    if kind == "ledger":
+        mv = _movements(f); log(request, "hrd", "uniform_stock_export", None, None, {"period": f["period"]})
+        rows = [(m.movement_date, m.utype.name, m.size.code, m.get_kind_display(), m.quantity, m.balance_after, m.note) for m in mv.order_by("movement_date", "id")[:EXPORT_MAX]]
+        return tabular.export_response(f"kartu-stok-seragam-{f['period'] or 'semua'}", ["tanggal", "jenis", "ukuran", "gerak", "jumlah", "saldo_sesudah", "catatan"], rows, request, sheet="Kartu Stok", num_cols=("jumlah", "saldo_sesudah"))
+    log(request, "hrd", "uniform_export", None, None, {"kind": "detail", "period": f["period"], "rows": shown.count()})
+    rows = [_detail_row(p) for p in shown.order_by("purchase_date", "employee__name", "id")[:EXPORT_MAX]]
+    return tabular.export_response(f"seragam-{f['period'] or 'semua'}", DETAIL_HEADER, rows, request, sheet="Seragam", money_cols=("tarif_per_satuan", "total_potongan"), num_cols=("jumlah",))
+
+
+def _movements(f):
+    mv = UniformStockMovement.objects.select_related("utype", "size", "purchase", "created_by"); rng = _month_range(f["period"])
+    if rng: mv = mv.filter(movement_date__gte=rng[0], movement_date__lt=rng[1])
+    if _int(f["utype"]): mv = mv.filter(utype_id=_int(f["utype"]))
+    if _int(f["size"]): mv = mv.filter(size_id=_int(f["size"]))
+    return mv
+
+
 @hrd_only
-def uniforms(request):
-    f = _filters(request); base = _base(f); live = base.filter(voided_at__isnull=True); shown = base if f["batal"] else live
+def uniforms(request, tab=None, mode=None):
+    """Halaman tunggal Seragam. `tab` bawaan dari alamat (alamat lama) atau ?tab=; `mode` ('in'/'adjust') membuka form barang masuk/koreksi."""
+    f = _filters(request); tab = request.GET.get("tab") or tab or "stok"
+    if tab not in TABS: tab = "stok"
+    mode = mode or {"masuk": "in", "koreksi": "adjust"}.get(request.GET.get("form"))      # ?form=in|adjust membuka form di tab Stok
+    sform, rate_form, open_form = None, UniformRateForm(prefix="r"), bool(mode)
+    sform_mode = {"in": "masuk", "adjust": "koreksi"}.get(mode, "masuk")
+    if request.GET.get("form") in ("masuk", "koreksi"): sform_mode, open_form = request.GET["form"], True
+    if request.method == "POST":
+        act = request.POST.get("action", "") or ("min" if "min_stock" in request.POST else sform_mode)
+        if act in ("masuk", "koreksi"):
+            resp, sform = _stock_move_post(request, act)
+            if resp: return resp
+            tab, open_form, sform_mode = "stok", True, act
+        elif act == "min":
+            _min_stock_post(request); return redirect(request.get_full_path())
+        else:
+            tab = "master"
+            if act == "add_rate": rate_form = UniformRateForm(request.POST, prefix="r")
+            if _master_post(request, rate_form): return redirect(f"{reverse('hrd_uniforms')}?tab=master")
+    base = _base(f); live = base.filter(voided_at__isnull=True); shown = base if f["batal"] else live
     kind = request.GET.get("export")
-    if kind:
-        which = "recap" if kind == "recap" else "detail"
-        log(request, "hrd", "uniform_export", None, None, {"kind": which, "period": f["period"], "rows": shown.count() if which == "detail" else live.count()})
-        if which == "recap":
-            rows = [(r["utype"], r["size"], r["awal"], r["masuk"], r["L"], r["P"], r["keluar"], r["adj"], r["saldo"]) for r in _stock_recap(f, live)]
-            return tabular.export_response(f"rekap-stok-seragam-{f['period'] or 'semua'}", ["jenis", "ukuran", "stok_awal", "masuk", "keluar_laki_laki", "keluar_perempuan", "keluar_total", "koreksi_kembali", "stok_akhir"],
-                                           rows, request, sheet="Rekap Stok Seragam", num_cols=("stok_awal", "masuk", "keluar_laki_laki", "keluar_perempuan", "keluar_total", "koreksi_kembali", "stok_akhir"))
-        rows = [_detail_row(p) for p in shown.order_by("purchase_date", "employee__name", "id")[:EXPORT_MAX]]
-        return tabular.export_response(f"seragam-{f['period'] or 'semua'}", DETAIL_HEADER, rows, request, sheet="Seragam",
-                                       money_cols=("tarif_per_satuan", "total_potongan"), num_cols=("jumlah",))
+    if kind: return _export(request, f, base, live, shown, "ledger" if kind == "1" else (kind if kind in ("recap", "order", "ledger") else "detail"))
     totals = live.aggregate(n=Count("id"), pcs=Sum("quantity"), total=Sum("deduction_amount"), belum=Sum("deduction_amount", filter=Q(deduction_status="belum")))
-    by_dept = list(live.order_by().values("employee__department__name").annotate(n=Count("id"), pcs=Sum("quantity"), total=Sum("deduction_amount")).order_by("employee__department__name"))
-    emp_qs = live.order_by().values("employee__nik", "employee__name", "employee__department__name").annotate(pcs=Sum("quantity"), total=Sum("deduction_amount")).order_by("-total", "employee__name")
+    belum_n = live.filter(deduction_status="belum").count()
     from urllib.parse import urlencode
-    ctx = {"page": paginate(request, shown.order_by("-purchase_date", "-id")), "f": f, "totals": totals, "by_dept": by_dept, "stock": _stock_recap(f, live), "low_n": sum(1 for b in UniformStock.objects.filter(min_stock__gt=0) if b.low), "minus_n": UniformStock.objects.filter(balance__lt=0).count(),
-           "employees": list(emp_qs[:SHOW_EMPLOYEES]), "employees_n": live.order_by().values("employee_id").distinct().count(),
+    stocks = list(UniformStock.objects.all())
+    ctx = {"f": f, "tab": tab, "totals": totals, "belum_n": belum_n, "low_n": sum(1 for b in stocks if b.low), "minus_n": sum(1 for b in stocks if b.balance < 0),
            "departments": Department.objects.order_by("name"), "utypes": UniformType.objects.order_by("name"), "sizes": UniformSize.objects.all(),
-           "qs": urlencode({k: v for k, v in f.items() if v or k == "period"})}
+           "qs": urlencode({k: v for k, v in f.items() if v or k == "period"}), "mode": sform_mode, "open_form": open_form, "flow_now": 1 if not stocks else (3 if belum_n else 2),
+           "needs_n": sum(1 for b in stocks if b.low or b.balance < 0), "needs_badge": str(sum(1 for b in stocks if b.low or b.balance < 0) or ""),
+           "sform": sform or UniformStockForm(mode=sform_mode, initial={"movement_date": date.today()}), "rate_form": rate_form}
+    if tab == "stok":
+        stock = _stock_recap(f, live); ctx["stock"] = stock; ctx["order_n"] = sum(1 for r in stock if r["order_qty"])
+    elif tab == "pembelian":
+        ctx["pqs"] = ctx["qs"] + "&tab=pembelian"; ctx["page"] = paginate(request, shown.order_by("-purchase_date", "-id"))
+        ctx["by_dept"] = list(live.order_by().values("employee__department__name").annotate(n=Count("id"), pcs=Sum("quantity"), total=Sum("deduction_amount")).order_by("employee__department__name"))
+        emp_qs = live.order_by().values("employee__nik", "employee__name", "employee__department__name").annotate(pcs=Sum("quantity"), total=Sum("deduction_amount")).order_by("-total", "employee__name")
+        ctx["employees"], ctx["employees_n"] = list(emp_qs[:SHOW_EMPLOYEES]), live.order_by().values("employee_id").distinct().count()
+    elif tab == "riwayat":
+        ctx["pqs"] = ctx["qs"] + "&tab=riwayat"; ctx["page"] = ctx["mpage"] = paginate(request, _movements(f))
+    else:
+        today = date.today()
+        ctx.update(types=UniformType.objects.order_by("name"), rates=list(UniformRate.objects.order_by("gender", "-effective_from")),
+                   current={g: services.uniform_rate_for(g, today) for g, _ in UniformRate.GENDERS})
     return render(request, "hrd/uniforms.html", ctx)
 
 
@@ -162,104 +289,3 @@ def uniform_mark(request, pk):
     except ValueError as e: messages.error(request, str(e))
     return redirect(f"/hrd/uniforms/{pk}/")
 
-
-@hrd_only
-def uniform_master(request):
-    """Master jenis, ukuran, dan tarif. Jenis/ukuran hanya dinonaktifkan (bukan dihapus); tarif hanya ditambah (append-only)."""
-    rate_form = UniformRateForm(request.POST or None, prefix="r") if request.POST.get("action") == "add_rate" else UniformRateForm(prefix="r")
-    if request.method == "POST":
-        act, name = request.POST.get("action", ""), request.POST
-        try:
-            with transaction.atomic():
-                if act == "add_type":
-                    v = name.get("name", "").strip()
-                    if not v or len(v) > 80: raise ValueError("Nama jenis wajib diisi (maks. 80 karakter).")
-                    if UniformType.objects.filter(name__iexact=v).exists(): raise ValueError("Jenis dengan nama itu sudah ada.")
-                    t = UniformType.objects.create(name=v); log(request, "hrd", "uniform_master_type_add", t, None, {"name": v})
-                elif act in ("toggle_type", "toggle_size"):
-                    model = UniformType if act == "toggle_type" else UniformSize
-                    o = model.objects.select_for_update().filter(pk=_int(name.get("id"))).first()
-                    if not o: raise ValueError("Data tidak ditemukan.")
-                    o.is_active = not o.is_active; o.save(update_fields=["is_active"])
-                    log(request, "hrd", "uniform_master_" + ("type" if model is UniformType else "size") + "_toggle", o, None, {"active": o.is_active, "label": str(o)})
-                elif act == "add_size":
-                    v = name.get("code", "").strip().upper()
-                    if not v or len(v) > 10: raise ValueError("Kode ukuran wajib diisi (maks. 10 karakter).")
-                    if UniformSize.objects.filter(code__iexact=v).exists(): raise ValueError("Ukuran dengan kode itu sudah ada.")
-                    nxt = (UniformSize.objects.aggregate(m=Max("sort"))["m"] or 0) + 10
-                    z = UniformSize.objects.create(code=v, sort=_int(name.get("sort")) if _int(name.get("sort")) is not None and 0 <= _int(name.get("sort")) <= 32000 else nxt)
-                    log(request, "hrd", "uniform_master_size_add", z, None, {"code": v})
-                elif act == "add_rate":
-                    if not rate_form.is_valid(): raise ValueError("")
-                    d = rate_form.cleaned_data
-                    r = UniformRate.objects.create(gender=d["gender"], amount=d["amount"], effective_from=d["effective_from"], created_by=request.user)
-                    log(request, "hrd", "uniform_master_rate_add", r, None, {"gender": r.gender, "amount": str(r.amount), "effective_from": str(r.effective_from)})
-                else: raise ValueError("Aksi tidak dikenal.")
-            messages.success(request, "Master seragam disimpan."); return redirect("hrd_uniform_master")
-        except ValueError as e:
-            if str(e): messages.error(request, str(e))
-    today = date.today()
-    rates = list(UniformRate.objects.order_by("gender", "-effective_from"))
-    current = {g: services.uniform_rate_for(g, today) for g, _ in UniformRate.GENDERS}
-    return render(request, "hrd/uniform_master.html", {"types": UniformType.objects.order_by("name"), "sizes": UniformSize.objects.all(), "rates": rates, "current": current, "rate_form": rate_form})
-
-
-@hrd_only
-def uniform_stock_in(request): return _stock_form(request, "masuk")
-
-
-@hrd_only
-def uniform_stock_adjust(request): return _stock_form(request, "koreksi")
-
-
-def _stock_form(request, mode):
-    form = UniformStockForm(request.POST or None, mode=mode)
-    if request.method == "POST" and form.is_valid():
-        d = form.cleaned_data
-        with transaction.atomic():
-            m = services.stock_move(d["utype"].pk, d["size"].pk, mode, d["quantity"], d["movement_date"], request.user, note=d["note"])
-            log(request, "hrd", "uniform_stock_" + mode, m, None, {"type": d["utype"].name, "size": d["size"].code, "qty": m.quantity, "balance": m.balance_after, "note": m.note})
-        messages.success(request, f"Stok {d['utype'].name} {d['size'].code} dicatat ({m.quantity:+d}); saldo sekarang {m.balance_after} pcs.")
-        return redirect("hrd_uniform_stock")
-    masuk = mode == "masuk"
-    return render(request, "hrd/form.html", {"form": form, "title": "Barang masuk seragam" if masuk else "Koreksi stok seragam", "back": "/hrd/uniforms/stock/",
-                                             "hint": "Catat barang yang diterima dari vendor; stok bertambah. Catatan tidak dapat diubah." if masuk else
-                                                     "Untuk selisih hasil hitung fisik/rusak/hilang. Alasan wajib; catatan tidak dapat diubah (koreksi berikutnya = baris baru)."})
-
-
-@hrd_only
-def uniform_stock(request):
-    """Kartu stok: saldo per jenis × ukuran + riwayat gerak (masuk/keluar/kembali/koreksi), difilter jenis, ukuran, dan periode."""
-    f = _filters(request); mv = UniformStockMovement.objects.select_related("utype", "size", "purchase", "created_by")
-    rng = _month_range(f["period"])
-    if rng: mv = mv.filter(movement_date__gte=rng[0], movement_date__lt=rng[1])
-    if _int(f["utype"]): mv = mv.filter(utype_id=_int(f["utype"]))
-    if _int(f["size"]): mv = mv.filter(size_id=_int(f["size"]))
-    if request.method == "POST":
-        t, z, n = UniformType.objects.filter(pk=_int(request.POST.get("utype"))).first(), UniformSize.objects.filter(pk=_int(request.POST.get("size"))).first(), _int(request.POST.get("min_stock"))
-        try:
-            if not (t and z): raise ValueError("Pilih jenis dan ukuran.")
-            with transaction.atomic():
-                st, old = services.set_min_stock(t.pk, z.pk, n)
-                log(request, "hrd", "uniform_stock_min", st, {"min": old}, {"type": t.name, "size": z.code, "min": st.min_stock})
-            messages.success(request, f"Minimum stok {t.name} {z.code} = {st.min_stock} pcs.")
-        except ValueError as e: messages.error(request, str(e))
-        return redirect(request.get_full_path())
-    balances = UniformStock.objects.select_related("utype", "size")
-    if _int(f["utype"]): balances = balances.filter(utype_id=_int(f["utype"]))
-    if _int(f["size"]): balances = balances.filter(size_id=_int(f["size"]))
-    if request.GET.get("export") == "order":
-        # Daftar pesanan ke vendor: semua jenis×ukuran di bawah minimum (termasuk minus), jumlah pesan = minimum − saldo. Tidak bergantung filter periode.
-        rows = [(b.utype.name, b.size.code, b.balance, b.min_stock, b.min_stock - b.balance) for b in UniformStock.objects.select_related("utype", "size").filter(min_stock__gt=0) if b.balance < b.min_stock]
-        log(request, "hrd", "uniform_stock_export", None, None, {"kind": "order", "rows": len(rows)})
-        return tabular.export_response("pesanan-seragam-vendor", ["jenis", "ukuran", "stok_sekarang", "minimum", "jumlah_dipesan"], rows, request, sheet="Pesanan Vendor",
-                                       num_cols=("stok_sekarang", "minimum", "jumlah_dipesan"))
-    if request.GET.get("export"):
-        log(request, "hrd", "uniform_stock_export", None, None, {"period": f["period"]})
-        rows = [(m.movement_date, m.utype.name, m.size.code, m.get_kind_display(), m.quantity, m.balance_after, m.note) for m in mv.order_by("movement_date", "id")[:EXPORT_MAX]]
-        return tabular.export_response(f"kartu-stok-seragam-{f['period'] or 'semua'}", ["tanggal", "jenis", "ukuran", "gerak", "jumlah", "saldo_sesudah", "catatan"], rows, request, sheet="Kartu Stok",
-                                       num_cols=("jumlah", "saldo_sesudah"))
-    from urllib.parse import urlencode
-    return render(request, "hrd/uniform_stock.html", {"page": paginate(request, mv), "f": f, "balances": list(balances), "minus": any(b.balance < 0 for b in balances), "low_n": sum(1 for b in balances if b.low),
-                                                      "utypes": UniformType.objects.order_by("name"), "sizes": UniformSize.objects.all(),
-                                                      "qs": urlencode({k: v for k, v in f.items() if k in ("period", "utype", "size") and (v or k == "period")})})

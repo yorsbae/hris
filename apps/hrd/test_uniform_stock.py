@@ -28,7 +28,7 @@ class StockTests(Base):
 
     def test_negative_stock_allowed_and_flagged(self):
         self.purchase(self.e1, quantity=2); self.assertEqual(self.stock(), -2)
-        r = self.client.get(reverse("hrd_uniform_stock")); self.assertContains(r, "stok minus"); self.assertTrue(r.context["minus"])
+        r = self.client.get(reverse("hrd_uniforms"), {"tab": "stok"}); self.assertContains(r, "stok minus"); self.assertEqual(r.context["minus_n"], 1)
         row = [x for x in self.client.get(reverse("hrd_uniforms"), {"period": PER}).context["stock"] if x["size"] == "L"][0]; self.assertTrue(row["minus"])
 
     def test_stock_in_validation_and_audit(self):
@@ -88,7 +88,7 @@ class MinStockTests(Base):
         self.client.post(reverse("hrd_uniform_stock_in"), {"utype": self.type.pk, "size": self.L.pk, "quantity": 5, "movement_date": D0.isoformat(), "note": "v"})
         self.assertEqual(self.setmin(8).status_code, 302); st = UniformStock.objects.get(utype=self.type, size=self.L)
         self.assertEqual(st.min_stock, 8); self.assertTrue(st.low); self.assertEqual(AuditLog.objects.filter(action="uniform_stock_min").count(), 1)
-        r = self.client.get(reverse("hrd_uniform_stock")); self.assertEqual(r.context["low_n"], 1); self.assertContains(r, "menipis")
+        r = self.client.get(reverse("hrd_uniforms"), {"tab": "stok"}); self.assertEqual(r.context["low_n"], 1); self.assertContains(r, "menipis"); self.assertContains(r, "pesan 3")
         self.assertEqual(self.client.get(reverse("hrd_uniforms"), {"period": PER}).context["low_n"], 1)
         self.assertEqual(UniformStockMovement.objects.count(), 1)       # minimum bukan gerak stok
 
@@ -113,7 +113,7 @@ class LowStockNotifyTests(Base):
     def test_notifies_hrd_once_when_crossing_below_minimum(self):
         self.purchase(self.e1, quantity=1); self.assertFalse(self.notes().exists())              # 4 = minimum, belum di bawah
         self.purchase(self.e2, quantity=1); n = self.notes(); self.assertTrue(n.exists()); self.assertEqual(set(n.values_list("user__role", flat=True)), {"hrd"})
-        self.assertIn("menipis", n[0].title); self.assertEqual(n[0].link, "/hrd/uniforms/stock/")
+        self.assertIn("menipis", n[0].title); self.assertEqual(n[0].link, "/hrd/uniforms/?tab=stok")
         c = n.count(); self.purchase(self.e3, quantity=1); self.assertEqual(self.notes().count(), c)      # terus turun → tidak menumpuk
 
     def test_again_after_recovery_and_read(self):
@@ -135,3 +135,47 @@ class VendorOrderTests(Base):
     def test_minus_stock_orders_minimum_plus_deficit(self):
         self.purchase(self.e1, quantity=2); services.set_min_stock(self.type.pk, self.L.pk, 5)
         rows = self.client.get(reverse("hrd_uniform_stock"), {"export": "order"}).content.decode("utf-8-sig").splitlines(); self.assertIn("Seragam Kerja,L,-2,5,7", rows)
+
+
+class UnifiedPageTests(Base):
+    """Putaran 38: barang masuk / koreksi / minimum dari form di halaman Seragam (tab Stok) — satu halaman, bukan halaman terpisah."""
+    def hub(self, **q): return self.client.get(reverse("hrd_uniforms"), {"tab": "stok", "period": PER, **q})
+
+    def move(self, action, **kw):
+        d = {"action": action, "utype": self.type.pk, "size": self.L.pk, "quantity": 10, "movement_date": D0.isoformat(), "note": "Vendor A", **kw}
+        return self.client.post(reverse("hrd_uniforms") + "?tab=stok", d)
+
+    def test_inline_stock_in_posts_to_hub_and_returns_to_stock_tab(self):
+        r = self.move("masuk"); self.assertEqual(r.status_code, 302); self.assertIn("tab=stok", r["Location"])
+        self.assertEqual(UniformStock.objects.get(utype=self.type, size=self.L).balance, 10)
+
+    def test_inline_form_errors_stay_on_page_with_form_open(self):
+        r = self.move("masuk", quantity=0); self.assertEqual(r.status_code, 200); self.assertTrue(r.context["open_form"]); self.assertContains(r, "Jumlah tidak boleh 0")
+        r = self.move("koreksi", quantity=-2, note=""); self.assertEqual(r.status_code, 200); self.assertEqual(r.context["mode"], "koreksi"); self.assertFalse(UniformStockMovement.objects.exists())
+
+    def test_inline_adjust_and_audit(self):
+        self.move("masuk"); self.assertEqual(self.move("koreksi", quantity=-3, note="rusak").status_code, 302)
+        self.assertEqual(UniformStock.objects.get(utype=self.type, size=self.L).balance, 7); self.assertTrue(AuditLog.objects.filter(action="uniform_stock_koreksi").exists())
+
+    def test_table_shows_order_quantity_when_below_minimum(self):
+        self.move("masuk", quantity=4)
+        self.client.post(reverse("hrd_uniforms"), {"action": "min", "utype": self.type.pk, "size": self.L.pk, "min_stock": 10})
+        row = [x for x in self.hub().context["stock"] if x["size"] == "L"][0]
+        self.assertEqual((row["min"], row["now"], row["order_qty"], row["low"]), (10, 4, 6, True)); self.assertEqual(self.hub().context["order_n"], 1)
+        self.assertContains(self.hub(), "pesan 6")
+
+    def test_minimum_row_appears_even_without_movement_in_period(self):
+        self.move("masuk"); self.client.post(reverse("hrd_uniforms"), {"action": "min", "utype": self.type.pk, "size": self.L.pk, "min_stock": 5})
+        self.assertIn("L", {r["size"] for r in self.client.get(reverse("hrd_uniforms"), {"tab": "stok", "period": "2099-12"}).context["stock"]})
+
+    def test_ledger_export_reachable_from_hub_and_legacy_flag(self):
+        self.move("masuk")
+        for q in ({"export": "ledger"}, {"export": "1"}):
+            r = self.client.get(reverse("hrd_uniforms"), {"period": PER, "format": "xlsx", **q}); self.assertEqual(r.status_code, 200)
+            rows = list(load_workbook(io.BytesIO(r.content)).worksheets[0].iter_rows(values_only=True)); self.assertEqual(rows[0][0], "tanggal"); self.assertEqual(len(rows), 2)
+
+    def test_non_hrd_forbidden_on_every_tab_and_post(self):
+        for u in ("adm", "poli"):
+            self.login(u)
+            for tab in ("stok", "pembelian", "riwayat", "master"): self.assertEqual(self.client.get(reverse("hrd_uniforms"), {"tab": tab}).status_code, 403, (u, tab))
+            self.assertEqual(self.move("masuk").status_code, 403)

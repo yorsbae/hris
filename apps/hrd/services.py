@@ -184,4 +184,4 @@ def _notify_low_stock(st, before):
     if not (st.min_stock > 0 and before >= st.min_stock > st.balance): return
     title = f"Stok seragam menipis: {st.utype.name} {st.size.code} ({st.balance} pcs, minimum {st.min_stock})"
     have = set(Notification.objects.filter(kind="stock", is_read=False, title__startswith=f"Stok seragam menipis: {st.utype.name} {st.size.code} (").values_list("user_id", flat=True))
-    Notification.objects.bulk_create([Notification(user=u, kind="stock", title=title, link="/hrd/uniforms/stock/") for u in User.objects.filter(role=Role.HRD, is_active=True) if u.pk not in have])
+    Notification.objects.bulk_create([Notification(user=u, kind="stock", title=title, link="/hrd/uniforms/?tab=stok") for u in User.objects.filter(role=Role.HRD, is_active=True) if u.pk not in have])

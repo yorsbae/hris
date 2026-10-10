@@ -16,12 +16,12 @@ urlpatterns = [
     path("bpjs/deductions/import/", bulk_import_view(BPJS_DEDUCTION, require_roles(Role.HRD)), name="hrd_bpjs_deduction_import"),
     path("bpjs/deductions/import/template.csv", bulk_template_view(BPJS_DEDUCTION, require_roles(Role.HRD))),
     path("bpjs/<int:pk>/", v.bpjs_detail, name="hrd_bpjs_detail"),
-    path("uniforms/", uv.uniforms, name="hrd_uniforms"),
+    path("uniforms/", uv.uniforms, name="hrd_uniforms"),                                                    # satu halaman: tab Stok (bawaan) · Pembelian · Riwayat · Master
     path("uniforms/new/", uv.uniform_new, name="hrd_uniform_new"),
-    path("uniforms/stock/", uv.uniform_stock, name="hrd_uniform_stock"),
-    path("uniforms/stock/in/", uv.uniform_stock_in, name="hrd_uniform_stock_in"),
-    path("uniforms/stock/adjust/", uv.uniform_stock_adjust, name="hrd_uniform_stock_adjust"),
-    path("uniforms/master/", uv.uniform_master, name="hrd_uniform_master"),
+    path("uniforms/stock/", uv.uniforms, {"tab": "riwayat"}, name="hrd_uniform_stock"),                      # alamat lama kartu stok → tab Riwayat
+    path("uniforms/stock/in/", uv.uniforms, {"tab": "stok", "mode": "in"}, name="hrd_uniform_stock_in"),      # alamat lama barang masuk → form di tab Stok
+    path("uniforms/stock/adjust/", uv.uniforms, {"tab": "stok", "mode": "adjust"}, name="hrd_uniform_stock_adjust"),
+    path("uniforms/master/", uv.uniforms, {"tab": "master"}, name="hrd_uniform_master"),                      # alamat lama master → tab Master
     path("uniforms/import/", bulk_import_view(UNIFORM_PURCHASE, require_roles(Role.HRD)), name="hrd_uniform_import"),
     path("uniforms/import/template.csv", bulk_template_view(UNIFORM_PURCHASE, require_roles(Role.HRD))),
     path("uniforms/<int:pk>/", uv.uniform_detail, name="hrd_uniform_detail"),

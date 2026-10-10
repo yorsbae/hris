@@ -1,39 +1,95 @@
-{% extends "base.html" %}{% load money %}{% block title %}Rekap Seragam{% endblock %}{% block content %}
+{% extends "base.html" %}{% load money ui %}{% block title %}Seragam{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Seragam{% if f.period %} — {{ f.period }}{% else %} — semua periode{% endif %}</h2>
-<p class="hint flow">Alur: <b>1.</b> catat <b>barang masuk</b> dari vendor (stok bertambah) → <b>2.</b> catat <b>pembelian</b> karyawan (stok berkurang, potongan gaji terhitung otomatis) → <b>3.</b> tandai <b>sudah dipotong</b> di rincian, atau ekspor untuk Payroll.</p>
-<div class="tools"><a class="btn" href="{% url 'hrd_uniform_new' %}">+ Catat pembelian karyawan</a><a class="btn ghost" href="{% url 'hrd_uniform_stock_in' %}">+ Barang masuk dari vendor</a>
-<details class="more"><summary>Lainnya ▾</summary><div><small>Stok & master</small><a href="{% url 'hrd_uniform_stock' %}?{{ qs }}">Kartu stok</a><a href="{% url 'hrd_uniform_master' %}">Master seragam (jenis, ukuran, tarif)</a><small>Data massal</small><a href="{% url 'hrd_uniform_import' %}">Impor dari CSV/XLSX</a><small>Ekspor (sesuai filter)</small><a href="?{{ qs }}&export=detail&format=xlsx">Rincian pembelian · XLSX</a><a href="?{{ qs }}&export=detail">Rincian pembelian · CSV</a><a href="?{{ qs }}&export=recap&format=xlsx">Rekap stok untuk vendor · XLSX</a><a href="?{{ qs }}&export=recap">Rekap stok untuk vendor · CSV</a></div></details></div>
-<form method="get" class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama karyawan" aria-label="Cari NIK atau nama">
-<label class="chk">Periode <input type="month" name="period" value="{{ f.period }}" title="Kosongkan untuk semua periode"></label><button>Terapkan</button>{% if f.q or f.department or f.utype or f.size or f.status or f.batal %}<a class="chip" href="?">Reset filter</a>{% endif %}</form>
-<details class="flt"{% if f.department or f.utype or f.size or f.status or f.batal %} open{% endif %}><summary>Filter lainnya (departemen, jenis, ukuran, status potongan)</summary>
-<form method="get" class="bar"><input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="period" value="{{ f.period }}">
+<p class="sub">Satu tempat untuk stok, pembelian karyawan, dan potongan gajinya.</p>
+{% url 'hrd_uniform_new' as new_url %}{% url 'hrd_uniforms' as hub_url %}
+{% flow_steps "Barang masuk|Catat kiriman vendor; stok bertambah|?tab=stok&form=in#gerak" "Pembelian karyawan|Stok berkurang, potongan gaji terhitung otomatis|"|add:new_url "Tandai dipotong|Setelah Payroll memotong, atau ekspor untuk Payroll|?tab=pembelian&status=belum" now=flow_now note="Alur lazim. Perlu pesan ke vendor? Lihat kolom Status di tab Stok: muncul otomatis saat saldo di bawah minimum." %}
+<div class="tools"><a class="btn" href="{{ new_url }}">+ Catat pembelian karyawan</a><a class="btn ghost" href="{{ hub_url }}?tab=stok&amp;form=in#gerak">+ Barang masuk dari vendor</a>
+<details class="more"><summary>Lainnya ▾</summary><div><small>Data massal</small><a href="{% url 'hrd_uniform_import' %}">Impor pembelian dari CSV/XLSX</a>
+<small>Ekspor (sesuai filter)</small>
+<div class="xrow"><span>Rincian pembelian</span><a href="?{{ qs }}&amp;export=detail&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=detail">CSV</a></div>
+<div class="xrow"><span>Rekap stok</span><a href="?{{ qs }}&amp;export=recap&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=recap">CSV</a></div>
+<div class="xrow"><span>Kartu stok (riwayat)</span><a href="?{{ qs }}&amp;export=ledger&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=ledger">CSV</a></div>
+<div class="xrow"><span>Pesanan ke vendor</span><a href="?export=order&amp;format=xlsx">XLSX</a><a href="?export=order">CSV</a></div></div></details></div>
+<div class="grid">
+<a class="card{% if minus_n %} bad{% elif low_n %} warn{% endif %}" href="?{{ qs }}&amp;tab=stok"><b>{{ needs_n }}</b><span>jenis/ukuran perlu perhatian{% if minus_n %} ({{ minus_n }} minus){% endif %}</span></a>
+<a class="card" href="?{{ qs }}&amp;tab=pembelian"><b>{{ totals.pcs|default:0 }}</b><span>seragam dibeli ({{ totals.n }} transaksi)</span></a>
+<a class="card" href="?{{ qs }}&amp;tab=pembelian"><b>{{ totals.total|rupiah }}</b><span>total potongan gaji</span></a>
+<a class="card{% if totals.belum %} warn{% endif %}" href="?period={{ f.period }}&amp;status=belum&amp;tab=pembelian"><b>{{ totals.belum|rupiah }}</b><span>belum dipotong ({{ belum_n }}) — perlu ditindaklanjuti</span></a>
+</div>
+<form method="get" class="bar" style="margin-top:14px"><input type="hidden" name="tab" value="{{ tab }}">
+{% if tab == "pembelian" %}<input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama karyawan" aria-label="Cari NIK atau nama">{% endif %}
+<label class="chk">Periode <input type="month" name="period" value="{{ f.period }}" title="Kosongkan untuk semua periode"></label>
+{% if tab == "stok" or tab == "riwayat" %}<select name="utype" aria-label="Jenis"><option value="">Semua jenis</option>{% for t in utypes %}<option value="{{ t.pk }}"{% if f.utype == t.pk|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
+<select name="size" aria-label="Ukuran"><option value="">Semua ukuran</option>{% for z in sizes %}<option value="{{ z.pk }}"{% if f.size == z.pk|stringformat:"s" %} selected{% endif %}>{{ z.code }}</option>{% endfor %}</select>{% endif %}
+{% if tab != "master" %}<button>Terapkan</button>{% endif %}{% if f.q or f.department or f.utype or f.size or f.status or f.batal %}<a class="chip" href="?tab={{ tab }}&amp;period={{ f.period }}">Reset filter</a>{% endif %}</form>
+{% if tab == "pembelian" %}<details class="flt"{% if f.department or f.utype or f.size or f.status or f.batal %} open{% endif %}><summary>Filter lainnya (departemen, jenis, ukuran, status potongan)</summary>
+<form method="get" class="bar"><input type="hidden" name="tab" value="pembelian"><input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="period" value="{{ f.period }}">
 <select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
 <select name="utype" aria-label="Jenis"><option value="">Semua jenis</option>{% for t in utypes %}<option value="{{ t.pk }}"{% if f.utype == t.pk|stringformat:"s" %} selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
 <select name="size" aria-label="Ukuran"><option value="">Semua ukuran</option>{% for z in sizes %}<option value="{{ z.pk }}"{% if f.size == z.pk|stringformat:"s" %} selected{% endif %}>{{ z.code }}</option>{% endfor %}</select>
 <select name="status" aria-label="Status potongan"><option value="">Semua status potongan</option><option value="belum"{% if f.status == "belum" %} selected{% endif %}>Belum dipotong</option><option value="sudah"{% if f.status == "sudah" %} selected{% endif %}>Sudah dipotong</option></select>
-<label class="chk"><input type="checkbox" name="batal" value="1"{% if f.batal %} checked{% endif %}> Tampilkan yang dibatalkan</label><button>Terapkan</button></form></details>
-<div class="grid">
-<div class="card"><b>{{ totals.pcs|default:0 }}</b><span>seragam dibeli ({{ totals.n }} transaksi)</span></div>
-<div class="card"><b>{{ totals.total|rupiah }}</b><span>total potongan gaji</span></div>
-<div class="card{% if totals.belum %} warn{% endif %}"><b>{{ totals.belum|rupiah }}</b><span>belum dipotong — perlu ditindaklanjuti</span></div>
-</div>
-{% if low_n or minus_n %}<p>{% if minus_n %}<span class="pill rejected">{{ minus_n }} stok minus</span> {% endif %}{% if low_n %}<span class="pill pending">{{ low_n }} di bawah minimum</span> {% endif %}<a class="chip" href="{% url 'hrd_uniform_stock' %}">Lihat kartu stok</a></p>{% endif %}
-{% if stock %}<h3>Rekap stok seragam{% if f.period %} — {{ f.period }}{% endif %}</h3>
-<div class="wrap"><table id="by-size"><thead><tr><th>Jenis</th><th>Ukuran</th><th>Stok awal</th><th>Masuk</th><th>Keluar L</th><th>Keluar P</th><th>Keluar total</th><th>Koreksi/kembali</th><th>Stok akhir</th></tr></thead><tbody>
-{% for r in stock %}<tr><td>{{ r.utype }}</td><td>{{ r.size }}</td><td>{{ r.awal }}</td><td>{{ r.masuk }}</td><td>{{ r.L }}</td><td>{{ r.P }}</td><td>{{ r.keluar }}</td><td>{{ r.adj }}</td><td>{% if r.minus %}<span class="pill rejected" title="Stok minus: barang keluar belum tercatat masuk">{{ r.saldo }}</span>{% else %}<b>{{ r.saldo }}</b>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
-<p style="color:var(--mu);font-size:13px;margin-top:6px">Keluar otomatis dari pembelian; batal = stok kembali. Stok minus berarti barang masuk belum dicatat. Filter karyawan/departemen/status tidak memengaruhi tabel ini.</p>{% endif %}
-{% if by_dept %}<h3>Per departemen</h3>
-<div class="wrap"><table id="by-dept"><thead><tr><th>Departemen</th><th>Pembelian</th><th>Pcs</th><th>Total potongan</th></tr></thead><tbody>
-{% for r in by_dept %}<tr><td>{{ r.employee__department__name }}</td><td>{{ r.n }}</td><td>{{ r.pcs }}</td><td>{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<label class="chk"><input type="checkbox" name="batal" value="1"{% if f.batal %} checked{% endif %}> Tampilkan yang dibatalkan</label><button>Terapkan</button></form></details>{% endif %}
+{% page_tabs tab "stok|Stok|?tab=stok&"|add:qs|add:"|"|add:needs_badge "pembelian|Pembelian karyawan|?tab=pembelian&"|add:qs "riwayat|Riwayat gerak|?tab=riwayat&"|add:qs "master|Master & tarif|?tab=master" %}
+
+{% if tab == "stok" %}
+<details class="quick card" id="gerak"{% if open_form %} open{% endif %}><summary>+ Catat barang masuk / koreksi stok</summary>
+<form method="post" action="{{ hub_url }}?tab=stok&amp;period={{ f.period }}">{% csrf_token %}{{ sform.non_field_errors }}
+<p><label class="chk"><input type="radio" name="action" value="masuk"{% if mode == "masuk" %} checked{% endif %}> <b>Barang masuk</b> dari vendor (stok bertambah)</label>
+&nbsp; <label class="chk"><input type="radio" name="action" value="koreksi"{% if mode == "koreksi" %} checked{% endif %}> <b>Koreksi</b> hitung fisik / rusak / hilang (+ atau −, alasan wajib)</label></p>
+<div class="row"><div class="fld"><label for="{{ sform.utype.id_for_label }}">Jenis</label>{{ sform.utype }}{{ sform.utype.errors }}</div>
+<div class="fld"><label for="{{ sform.size.id_for_label }}">Ukuran</label>{{ sform.size }}{{ sform.size.errors }}</div>
+<div class="fld"><label for="{{ sform.quantity.id_for_label }}">Jumlah (pcs)</label>{{ sform.quantity }}{{ sform.quantity.errors }}</div>
+<div class="fld"><label for="{{ sform.movement_date.id_for_label }}">Tanggal</label>{{ sform.movement_date }}{{ sform.movement_date.errors }}</div>
+<div class="fld" style="flex:2 1 240px"><label for="{{ sform.note.id_for_label }}">Vendor / no. surat jalan / alasan koreksi</label>{{ sform.note }}{{ sform.note.errors }}</div></div>
+<p><button>Simpan</button> <small class="help">Catatan tidak dapat diubah; koreksi berikutnya = baris baru.</small></p></form></details>
+<div class="wrap"><table id="by-size"><thead><tr><th>Jenis</th><th>Ukuran</th><th class="num">Stok awal</th><th class="num">Masuk</th><th class="num">Keluar</th><th class="num">Koreksi / kembali</th><th class="num">Stok akhir</th><th>Minimum</th><th>Status</th></tr></thead><tbody>
+{% for r in stock %}<tr><td>{{ r.utype }}</td><td>{{ r.size }}</td><td class="num">{{ r.awal }}</td><td class="num">{{ r.masuk }}</td><td class="num">{{ r.keluar }}<small>L {{ r.L }} · P {{ r.P }}</small></td><td class="num">{{ r.adj }}</td>
+<td class="num">{% if r.minus %}<span class="pill rejected" title="Stok minus: barang keluar belum tercatat masuk">{{ r.saldo }}</span>{% else %}<b>{{ r.saldo }}</b>{% endif %}</td>
+<td><form method="post" class="inline" style="margin:0">{% csrf_token %}<input type="hidden" name="action" value="min"><input type="hidden" name="utype" value="{{ r.utype_id }}"><input type="hidden" name="size" value="{{ r.size_id }}"><input class="min" type="number" name="min_stock" value="{{ r.min }}" min="0" max="100000" aria-label="Minimum {{ r.utype }} {{ r.size }}"><button class="sm ghost">Simpan</button></form></td>
+<td>{% if r.now_minus %}<span class="pill rejected">stok minus</span>{% elif r.low %}<span class="pill pending">menipis</span>{% elif r.min %}<span class="pill ok">aman</span>{% else %}<span style="color:var(--mu)">—</span>{% endif %}{% if r.order_qty %} <b>pesan {{ r.order_qty }}</b>{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="9">Belum ada stok seragam. Mulai dengan <a href="?tab=stok&amp;form=in#gerak"><b>+ Barang masuk dari vendor</b></a>, lalu <b>+ Catat pembelian karyawan</b>.</td></tr>{% endfor %}</tbody></table></div>
+<p class="help">Keluar otomatis dari pembelian; batal = stok kembali. <b>Minimum</b> 0 = tidak dipantau; di bawah minimum muncul <b>pesan N</b> (= minimum − saldo) dan notifikasi ke HRD. Stok minus = barang masuk belum dicatat.
+Status dan minimum mengacu pada stok <b>sekarang</b>{% if f.period %}; kolom awal/masuk/keluar/akhir untuk periode {{ f.period }}{% endif %}.{% if order_n %} <a href="?export=order&amp;format=xlsx">Unduh daftar pesanan vendor ({{ order_n }})</a>.{% endif %}</p>
+
+{% elif tab == "pembelian" %}
+{% if by_dept or employees %}<details class="flt"><summary>Ringkasan per departemen dan per karyawan</summary>
+{% if by_dept %}<h3>Per departemen</h3><div class="wrap"><table id="by-dept"><thead><tr><th>Departemen</th><th class="num">Pembelian</th><th class="num">Pcs</th><th class="num">Total potongan</th></tr></thead><tbody>
+{% for r in by_dept %}<tr><td>{{ r.employee__department__name }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.pcs }}</td><td class="num">{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 {% if employees %}<h3>Per karyawan{% if employees_n > employees|length %} (teratas {{ employees|length }} dari {{ employees_n }}; ekspor memuat semua){% endif %}</h3>
-<div class="wrap"><table id="by-employee"><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Pcs</th><th>Total potongan</th></tr></thead><tbody>
-{% for r in employees %}<tr><td>{{ r.employee__nik }}</td><td>{{ r.employee__name }}</td><td>{{ r.employee__department__name }}</td><td>{{ r.pcs }}</td><td>{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
-<h3>Rincian pembelian</h3>
-<div class="wrap"><table id="detail"><thead><tr><th>Tanggal</th><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jenis</th><th>Ukuran</th><th>JK</th><th>Pcs</th><th>Tarif</th><th>Potongan</th><th>Status</th><th></th></tr></thead><tbody>
-{% for p in page %}<tr{% if p.is_void %} style="opacity:.55;text-decoration:line-through"{% endif %}><td>{{ p.purchase_date|date:"d-m-Y" }}</td><td>{{ p.employee.nik }}</td><td>{{ p.employee.name }}</td><td>{{ p.employee.department.name }}</td><td>{{ p.utype.name }}</td><td>{{ p.size.code }}</td><td>{{ p.gender }}</td><td>{{ p.quantity }}</td><td>{{ p.rate_amount|rupiah }}</td><td>{{ p.deduction_amount|rupiah }}</td>
+<div class="wrap"><table id="by-employee"><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th class="num">Pcs</th><th class="num">Total potongan</th></tr></thead><tbody>
+{% for r in employees %}<tr><td>{{ r.employee__nik }}</td><td>{{ r.employee__name }}</td><td>{{ r.employee__department__name }}</td><td class="num">{{ r.pcs }}</td><td class="num">{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}</details>{% endif %}
+<div class="wrap"><table id="detail"><thead><tr><th>Tanggal</th><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jenis</th><th>Ukuran</th><th>JK</th><th class="num">Pcs</th><th class="num">Tarif</th><th class="num">Potongan</th><th>Status</th><th></th></tr></thead><tbody>
+{% for p in page %}<tr{% if p.is_void %} style="opacity:.55;text-decoration:line-through"{% endif %}><td>{{ p.purchase_date|date:"d-m-Y" }}</td><td>{{ p.employee.nik }}</td><td>{{ p.employee.name }}</td><td>{{ p.employee.department.name }}</td><td>{{ p.utype.name }}</td><td>{{ p.size.code }}</td><td>{{ p.gender }}</td><td class="num">{{ p.quantity }}</td><td class="num">{{ p.rate_amount|rupiah }}</td><td class="num">{{ p.deduction_amount|rupiah }}</td>
 <td>{% if p.is_void %}<span class="pill rejected">batal</span>{% elif p.deduction_status == "sudah" %}<span class="pill approved">dipotong {{ p.deducted_period }}</span>{% else %}<span class="pill pending">belum dipotong</span>{% endif %}</td>
-<td><a href="{% url 'hrd_uniform_detail' p.pk %}">Kelola</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="12">{% if f.q or f.department or f.utype or f.size or f.status or f.batal %}Tidak ada pembelian yang cocok dengan filter. <a href="?period={{ f.period }}">Reset filter</a>{% else %}Belum ada pembelian seragam{% if f.period %} pada periode {{ f.period }}{% endif %}. Pastikan stok sudah dicatat lewat <b>+ Barang masuk dari vendor</b>, lalu klik <b>+ Catat pembelian karyawan</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
-{% include "hrd/_pager.html" %}
+<td class="acts"><a class="btn sm ghost" href="{% url 'hrd_uniform_detail' p.pk %}">Kelola</a></td></tr>
+{% empty %}<tr><td class="empty" colspan="12">{% if f.q or f.department or f.utype or f.size or f.status or f.batal %}Tidak ada pembelian yang cocok dengan filter. <a href="?tab=pembelian&amp;period={{ f.period }}">Reset filter</a>{% else %}Belum ada pembelian seragam{% if f.period %} pada periode {{ f.period }}{% endif %}. Pastikan stok sudah dicatat lewat <b>+ Barang masuk dari vendor</b>, lalu klik <b>+ Catat pembelian karyawan</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager_tab.html" %}
+
+{% elif tab == "riwayat" %}
+<div class="wrap"><table id="movements"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Ukuran</th><th>Gerak</th><th class="num">Jumlah</th><th class="num">Saldo</th><th>Catatan</th><th>Oleh</th></tr></thead><tbody>
+{% for m in page %}<tr><td>{{ m.movement_date|date:"d-m-Y" }}</td><td>{{ m.utype.name }}</td><td>{{ m.size.code }}</td><td>{{ m.get_kind_display }}</td><td class="num">{{ m.quantity }}</td><td class="num">{{ m.balance_after }}</td><td>{% if m.purchase_id %}<a href="{% url 'hrd_uniform_detail' m.purchase_id %}">{{ m.note|default:"pembelian" }}</a>{% else %}{{ m.note }}{% endif %}</td><td>{{ m.created_by.username|default:"—" }}</td></tr>
+{% empty %}<tr><td class="empty" colspan="8">Belum ada gerak stok untuk filter ini.</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager_tab.html" %}
+
+{% else %}
+<h3>Tarif potongan per satuan pembelian</h3>
+<p class="help" style="font-size:14px">Berlaku hari ini: {% for g, r in current.items %}{% if g == "L" %}Laki-laki{% else %}Perempuan{% endif %} {% if r %}<b>{{ r.amount|rupiah }}</b> (sejak {{ r.effective_from|date:"d-m-Y" }}){% else %}<b>belum ada tarif</b>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}.
+Tarif tidak dapat diubah atau dihapus; untuk mengganti, tambahkan tarif baru dengan tanggal berlaku. Pembelian lama tetap memakai tarif yang disalin saat dicatat.</p>
+<div class="wrap"><table id="rates"><thead><tr><th>Jenis kelamin</th><th class="num">Potongan / satuan</th><th>Berlaku sejak</th></tr></thead><tbody>
+{% for r in rates %}<tr><td>{% if r.gender == "L" %}Laki-laki{% else %}Perempuan{% endif %}</td><td class="num">{{ r.amount|rupiah }}</td><td>{{ r.effective_from|date:"d-m-Y" }}</td></tr>{% empty %}<tr><td class="empty" colspan="3">Belum ada tarif.</td></tr>{% endfor %}</tbody></table></div>
+<details class="quick card"{% if rate_form.errors %} open{% endif %}><summary>+ Tambah tarif</summary><form method="post" action="{{ hub_url }}?tab=master">{% csrf_token %}<input type="hidden" name="action" value="add_rate">{{ rate_form.non_field_errors }}
+<div class="row">{% for fl in rate_form %}<div class="fld"><label for="{{ fl.id_for_label }}">{{ fl.label }}</label>{{ fl }}{{ fl.errors }}</div>{% endfor %}</div><p><button>Tambah tarif</button></p></form></details>
+<h3>Jenis seragam</h3>
+<div class="wrap"><table id="types"><thead><tr><th>Nama</th><th>Status</th><th></th></tr></thead><tbody>
+{% for t in types %}<tr><td>{{ t.name }}</td><td>{% if t.is_active %}<span class="pill approved">aktif</span>{% else %}<span class="pill rejected">nonaktif</span>{% endif %}</td>
+<td class="acts"><form method="post" action="{{ hub_url }}?tab=master">{% csrf_token %}<input type="hidden" name="action" value="toggle_type"><input type="hidden" name="id" value="{{ t.pk }}"><button class="sm ghost">{% if t.is_active %}Nonaktifkan{% else %}Aktifkan{% endif %}</button></form></td></tr>{% empty %}<tr><td class="empty" colspan="3">Belum ada jenis.</td></tr>{% endfor %}</tbody></table></div>
+<details class="quick card"><summary>+ Tambah jenis</summary><form method="post" action="{{ hub_url }}?tab=master">{% csrf_token %}<input type="hidden" name="action" value="add_type"><div class="row"><div class="fld"><label for="tname">Jenis baru</label><input id="tname" name="name" maxlength="80" required></div></div><p><button>Tambah jenis</button></p></form></details>
+<h3>Ukuran</h3>
+<div class="wrap"><table id="sizes"><thead><tr><th>Kode</th><th class="num">Urutan</th><th>Status</th><th></th></tr></thead><tbody>
+{% for z in sizes %}<tr><td>{{ z.code }}</td><td class="num">{{ z.sort }}</td><td>{% if z.is_active %}<span class="pill approved">aktif</span>{% else %}<span class="pill rejected">nonaktif</span>{% endif %}</td>
+<td class="acts"><form method="post" action="{{ hub_url }}?tab=master">{% csrf_token %}<input type="hidden" name="action" value="toggle_size"><input type="hidden" name="id" value="{{ z.pk }}"><button class="sm ghost">{% if z.is_active %}Nonaktifkan{% else %}Aktifkan{% endif %}</button></form></td></tr>{% empty %}<tr><td class="empty" colspan="4">Belum ada ukuran.</td></tr>{% endfor %}</tbody></table></div>
+<details class="quick card"><summary>+ Tambah ukuran</summary><form method="post" action="{{ hub_url }}?tab=master">{% csrf_token %}<input type="hidden" name="action" value="add_size"><div class="row"><div class="fld"><label for="zcode">Ukuran baru (kode)</label><input id="zcode" name="code" maxlength="10" required></div>
+<div class="fld"><label for="zsort">Urutan (opsional)</label><input id="zsort" name="sort" type="number" min="0" max="32000"></div></div><p><button>Tambah ukuran</button></p></form></details>
+{% endif %}
 {% endblock %}
