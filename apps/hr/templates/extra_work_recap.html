@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Rekap Lembur & Stand By{% endblock %}{% block content %}
+<p class="back"><a href="/requests/g/lembur/">‹ Stand By & Lembur</a></p>
+<h2>Rekap Lembur & Stand By — {{ month }}</h2>
+<p class="hint">Hanya pengajuan yang sudah <b>disetujui HRD</b> yang dihitung. Pengajuan yang dibatalkan tidak masuk rekap. Satuan: menit.</p>
+<form method="get" class="bar"><label for="mo">Bulan</label><input id="mo" type="month" name="month" value="{{ month }}"><button>Tampilkan</button>
+<a class="btn" href="?month={{ month }}&fmt=xlsx">Ekspor XLSX</a> <a class="btn" href="?month={{ month }}&fmt=csv">Ekspor CSV</a></form>
+{% if rows %}<div class="table-wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Pengajuan</th><th>Lembur</th><th>Stand By</th><th>Total</th></tr></thead><tbody>
+{% for x in rows %}<tr><td>{{ x.emp.nik }}</td><td>{{ x.emp.name }}</td><td>{{ x.emp.department.name }}</td><td>{{ x.n }}</td><td>{{ x.lembur }}</td><td>{{ x.standby }}</td><td><b>{{ x.total }}</b></td></tr>{% endfor %}
+</tbody><tfoot><tr><th colspan="4">Jumlah</th><th>{{ totals.lembur }}</th><th>{{ totals.standby }}</th><th>{{ totals.total }}</th></tr></tfoot></table></div>
+{% else %}<p class="hint">Belum ada lembur/stand by yang disetujui pada bulan ini.</p>{% endif %}
+{% endblock %}

@@ -150,3 +150,30 @@ def batch_action(request, batch, action):
         log(request, "hr", f"extra_work_batch_{action}", None, {"status": "pending"}, {"batch": batch, "rows": n})
     messages.success(request, f"{n} pengajuan {'disetujui' if action == 'approved' else 'ditolak'}." if n else "Tidak ada pengajuan yang masih menunggu pada kiriman ini.")
     return redirect(f"/requests/g/lembur/?batch={batch}")
+
+
+@login_required
+@require_roles(Role.HRD, Role.DEPT_ADMIN)
+def extra_work_recap(request):
+    """Rekap bulanan lembur & stand by per karyawan (putaran 31). Hanya yang final (Dilaksanakan); yang dibatalkan tidak dihitung.
+    Admin Departemen hanya melihat departemennya (scope). `?fmt=xlsx|csv` = ekspor dengan angka sungguhan."""
+    from collections import defaultdict
+    from django.http import HttpResponse
+    from apps.core import tabular
+    from apps.core.scope import scope_by_department
+    m = request.GET.get("month") or timezone.localdate().strftime("%Y-%m")
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", m): m = timezone.localdate().strftime("%Y-%m")
+    qs = scope_by_department(request.user, ChangeRequest.objects.filter(type__in=("standby", "lembur"), status="executed", payload__date__startswith=m).select_related("employee__department"))
+    agg = defaultdict(lambda: {"lembur": 0, "standby": 0, "n": 0})
+    for r in qs:
+        a = agg[r.employee]; a[r.type] += int(r.payload.get("minutes", 0)); a["n"] += 1
+    rows = sorted(({"emp": e, **a, "total": a["lembur"] + a["standby"]} for e, a in agg.items()), key=lambda x: (x["emp"].department.name, x["emp"].name))
+    fmt = request.GET.get("fmt")
+    if fmt in ("xlsx", "csv"):
+        data, ctype = tabular.to_bytes(["NIK", "Nama", "Departemen", "Pengajuan", "Lembur (menit)", "Stand By (menit)", "Total (menit)"],
+                                       [[x["emp"].nik, x["emp"].name, x["emp"].department.name, x["n"], x["lembur"], x["standby"], x["total"]] for x in rows],
+                                       fmt, sheet=f"Lembur {m}", num_cols=(3, 4, 5, 6))
+        log(request, "hr", "extra_work_recap_export", None, None, {"month": m, "rows": len(rows), "fmt": fmt})
+        resp = HttpResponse(data, content_type=ctype); resp["Content-Disposition"] = f'attachment; filename="lembur-standby-{m}.{fmt}"'; return resp
+    totals = {k: sum(x[k] for x in rows) for k in ("lembur", "standby", "total")}
+    return render(request, "extra_work_recap.html", {"rows": rows, "month": m, "totals": totals})

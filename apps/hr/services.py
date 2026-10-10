@@ -9,7 +9,8 @@ AUTO_EXEC = {"standby", "lembur"}  # tidak ada langkah "Laksanakan" terpisah: di
 @transaction.atomic
 def transition(req: ChangeRequest, to: str, user, note: str = "", notify: bool = True):
     req = ChangeRequest.objects.select_for_update().get(pk=req.pk)
-    if to not in ChangeRequest.FLOW.get(req.status, set()):
+    undo = req.status == "executed" and to == "cancelled" and req.type in AUTO_EXEC  # A80: lembur/stand by final bisa dibatalkan HRD (dengan alasan)
+    if to not in ChangeRequest.FLOW.get(req.status, set()) and not undo:
         raise ValueError(f"Transisi {req.status}→{to} tidak valid")
     if to in HRD_ONLY and user.role not in (Role.HRD, Role.SUPERADMIN):
         raise PermissionError("Hanya HRD yang dapat memutuskan")
@@ -17,7 +18,7 @@ def transition(req: ChangeRequest, to: str, user, note: str = "", notify: bool =
         raise PermissionError("Di luar scope")
     if to == "cancelled":
         hrd = user.role in (Role.HRD, Role.SUPERADMIN)
-        if req.status == "approved" and not hrd: raise PermissionError("Hanya HRD yang dapat membatalkan pengajuan yang sudah disetujui")
+        if req.status in ("approved", "executed") and not hrd: raise PermissionError("Hanya HRD yang dapat membatalkan pengajuan yang sudah disetujui")
         if not hrd and req.requested_by_id != user.id: raise PermissionError("Hanya pemohon atau HRD yang dapat membatalkan")
         if req.status != "draft" and not note.strip(): raise ValueError("Alasan pembatalan wajib diisi")
     req.status = to

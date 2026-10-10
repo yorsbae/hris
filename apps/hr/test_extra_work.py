@@ -90,3 +90,44 @@ class ExtraWorkTests(TestCase):
         self.assertNotIn("standby", [c[0] for c in r.context["form"].fields["type"].choices])
         self.assertContains(self.client.get("/requests/g/lembur/"), 'href="/requests/g/lembur/"')
         r = self.client.get("/requests/g/lembur/new/"); self.assertContains(r, "Emp 001"); self.assertNotContains(r, "Emp 003")
+
+
+class ExtraWorkUndoRecapTests(ExtraWorkTests):
+    """Putaran 31: pembatalan lembur yang sudah final (A80) + rekap bulanan."""
+    def approved(self):
+        self.post(); self.client.force_login(self.hrd)
+        b = ChangeRequest.objects.filter(type="lembur").first().payload["batch"]
+        self.client.post(f"/requests/batch/{b}/approved/"); return b
+
+    def test_hrd_can_cancel_executed_with_reason_and_slot_is_freed(self):
+        self.approved(); r = ChangeRequest.objects.filter(type="lembur").first(); self.assertEqual(r.status, "executed")
+        self.client.post(f"/requests/{r.pk}/cancelled/", {"note": ""}); r.refresh_from_db(); self.assertEqual(r.status, "executed")  # alasan wajib
+        self.client.post(f"/requests/{r.pk}/cancelled/", {"note": "Salah setuju"}); r.refresh_from_db(); self.assertEqual(r.status, "cancelled")
+        self.assertTrue(Notification.objects.filter(user=self.adm, title__contains="dibatalkan HRD").exists())
+        self.assertEqual(self.post(niks=[r.employee.nik]).status_code, 302)  # jam yang sama bisa diajukan lagi
+
+    def test_dept_admin_cannot_cancel_executed(self):
+        self.approved(); r = ChangeRequest.objects.filter(type="lembur").first()
+        self.client.force_login(self.adm); self.client.post(f"/requests/{r.pk}/cancelled/", {"note": "x"}); r.refresh_from_db()
+        self.assertEqual(r.status, "executed")
+
+    def test_executed_swap_cannot_be_cancelled(self):
+        from .services import transition
+        self.assertIn("executed", ChangeRequest.FLOW["approved"]); self.assertNotIn("executed", ChangeRequest.FLOW)  # hanya lembur/stand by yang punya jalur batal
+        r = ChangeRequest.objects.create(type="mutasi_jabatan", employee=self.a, department=self.prd, payload={}, requested_by=self.adm, status="executed")
+        with self.assertRaises(ValueError): transition(r, "cancelled", self.hrd, "x")
+
+    def test_recap_counts_only_executed_and_respects_scope(self):
+        self.approved(); self.post(kind="standby", start="12:00", end="12:30", niks=["001"])  # pending: tidak dihitung
+        m = self.today.strftime("%Y-%m")
+        self.client.force_login(self.hrd); r = self.client.get(f"/requests/g/lembur/rekap/?month={m}")
+        self.assertContains(r, "Emp 001"); self.assertEqual(r.context["totals"], {"lembur": 240, "standby": 0, "total": 240})
+        self.client.force_login(self.adm2); self.assertNotContains(self.client.get(f"/requests/g/lembur/rekap/?month={m}"), "Emp 001")
+        self.client.force_login(self.poli); self.assertEqual(self.client.get("/requests/g/lembur/rekap/").status_code, 403)
+
+    def test_recap_excludes_cancelled_and_exports(self):
+        self.approved(); r = ChangeRequest.objects.filter(type="lembur", employee=self.a).first()
+        self.client.post(f"/requests/{r.pk}/cancelled/", {"note": "salah"}); m = self.today.strftime("%Y-%m")
+        self.assertEqual(self.client.get(f"/requests/g/lembur/rekap/?month={m}").context["totals"]["lembur"], 120)
+        e = self.client.get(f"/requests/g/lembur/rekap/?month={m}&fmt=csv"); self.assertEqual(e.status_code, 200); self.assertIn(b"Emp 002", e.content)
+        self.assertEqual(self.client.get("/requests/g/lembur/rekap/?month=bukan").status_code, 200)

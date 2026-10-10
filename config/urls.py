@@ -75,6 +75,7 @@ urlpatterns = [
     path("requests/", rq.request_list),
     path("requests/new/", rq.request_new),
     path("requests/g/lembur/new/", ot.extra_work_new, name="extra_work_new"),
+    path("requests/g/lembur/rekap/", ot.extra_work_recap, name="extra_work_recap"),
     path("requests/batch/<str:batch>/<str:action>/", ot.batch_action, name="extra_work_batch"),
     path("requests/g/<slug:grp>/", rq.request_list, name="request_group"),
     path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
