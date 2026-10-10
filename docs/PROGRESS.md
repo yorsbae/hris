@@ -166,7 +166,19 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 ### Putaran 13a — perbaikan /admin/ (dari riwayat git; dicatat belakangan)
 `/admin/` tampil tanpa CSS karena `DEBUG=False`: ditambah WhiteNoise untuk `/static/`, nama app & judul admin berbahasa Indonesia, dan tes regresi (`apps/core/test_static_admin.py`). Tes 332 → 337.
 
-### Putaran 39 — Karyawan Keluar diringkas: tanpa scroll samping, fokus data & fungsi ← terbaru
+### Putaran 40 — Tombol Filter di semua halaman + kolom tabel mengikuti VISION ← terbaru
+**Yang dilakukan**
+- **Komponen bersama tombol Filter** (`base.html`: CSS `.fbar/.fbtn/.fchips/.fpanel` + JS kecil, tanpa pustaka): form GET / `div.filters` bertanda `data-fbar` diubah di peramban menjadi **[pencarian] [Filter ▾ n] [chip filter aktif]** dan **panel** berisi semua pilihan/periode/tanggal/centang + tombol Terapkan (+ tautan *Reset filter* dari server dipindah ke panel). Panel **di dalam alur halaman** (bukan popover melayang) → tidak menutupi tabel/KPI/tombol, tidak bertabrakan; grid `auto-fill` + pembungkusan baris → responsif dari ponsel sampai layar lebar. Chip ✕ menghapus satu filter lalu mengirim ulang form; `data-default` mencegah nilai bawaan (mis. *Karyawan aktif*) dihitung sebagai filter. Tanpa JS, form lama tetap berfungsi.
+- **Diterapkan ke 26 form di semua halaman daftar**: Karyawan (JS-list), Pengajuan, Cuti/Saldo, Pengumuman, Rekap Lembur, Validasi Kehadiran, Jadwal Mingguan, Seragam (3 tab), Bantuan, Cuti Hamil, Kerja Harian Proyek (daftar + detail), Katering, Surat Peringatan, Status BPJS, Potongan BPJS, Karyawan Keluar, Tagihan Mitra, Obat, Rekam Medis, Rujukan, Laporan Stok Poli, Pengguna, Audit log. **Filter ganda digabung** menjadi satu form (Validasi Kehadiran, Status BPJS, Seragam-Pembelian, Tagihan Mitra, Audit): blok "Filter lainnya" terlipat dihapus. Tab Master Seragam tidak lagi menampilkan filter periode yang tak berfungsi. Ekspor/Cetak/‹ Sebelumnya di Rekap Lembur & Laporan Stok dipindah keluar form ke `.tools`.
+- **Kolom tabel** (VISION butir 4): CSS global — kolom `.num/.nw/.acts` selebar isi, `.fill` mengisi sisa; `small` dalam sel = teks sekunder bertumpuk. Dirapikan: Bantuan (KPI → strip, NIK di bawah nama), Cuti Hamil 6→5, Surat Peringatan 7→6, Proyek 6→5, Status BPJS 7→5, Rekam Medis 6→5, Rujukan, Obat, Cuti 6→5, Pengguna 7→6, Stok Seragam (kolom Minimum/Status tidak lagi melebar), detail Proyek (KPI strip).
+- **Tes**: `apps/core/test_filter_button.py` (3 tes penjaga: setiap form GET berisi kontrol filter wajib `data-fbar`; tidak ada `details.flt` berisi form GET; komponen ada di base). 6 tes lama diperbarui ke struktur baru. **886 tes lulus** di SQLite (13 dilewati khusus PostgreSQL). Logika JS diuji di jsdom (pemindahan kontrol, lencana, chip, ✕ → kirim ulang, buka/tutup, nilai bawaan).
+**Yang akan dilakukan / utang**
+- **Belum diukur di peramban sungguhan** (Chromium tidak dapat diunduh di lingkungan kerja putaran ini): periksa panel Filter pada 1366 px, 768 px, 390 px — terutama panel Audit (8 kolom isian) dan chip yang membungkus. Jadikan `scripts/ui_audit.py` (Playwright) bersama utang putaran 39d.
+- Halaman yang masih memuat kartu `.grid .card` besar di luar yang disebut di atas (mis. detail lain) → strip KPI bila tidak bisa ditindaklanjuti.
+- Form GET non-daftar (pemilih departemen di form Stand By/Lembur) sengaja tidak memakai tombol Filter (`ALLOW` di tes penjaga).
+- Tetap dari putaran 39: uji PostgreSQL 16 (`hrd/0008–0011`, `hr/0009–0010`), A96–A98, tali asih otomatis.
+
+### Putaran 39 — Karyawan Keluar diringkas: tanpa scroll samping, fokus data & fungsi
 **Yang dilakukan**
 - `/hrd/separations/`: blok 3 langkah (`flow_steps`) dibuang; diganti satu baris keterangan. Empat kartu besar menjadi **strip KPI** satu baris yang tetap berfungsi sebagai pintasan filter (tali asih belum dibayar, paklaring belum terbit).
 - **Satu baris filter** (cari · tahun · bulan · jenis · departemen · termasuk batal · Terapkan/Reset); formulir "Filter lainnya" terlipat dihapus. Filter tali/paklaring dari strip KPI tetap berlaku dan ditampilkan sebagai keterangan "Filter aktif".

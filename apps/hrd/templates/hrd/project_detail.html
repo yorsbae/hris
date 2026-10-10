@@ -5,10 +5,10 @@
 <div class="card"><table><tr><th>Lokasi</th><td>{{ p.location|default:"—" }}</td></tr><tr><th>Periode</th><td>{{ p.start_date|date:"d M Y" }} – {{ p.end_date|date:"d M Y"|default:"…" }}</td></tr><tr><th>Catatan</th><td>{{ p.note|default:"—" }}</td></tr></table></div>
 <h3>Pekerja harian <small style="color:var(--mu)">(bukan karyawan)</small></h3>
 <form method="get" data-fbar class="bar"><input name="q" value="{{ q }}" placeholder="Nama pekerja"><label>Dari tanggal <input type="date" name="from" value="{{ from }}"></label><label>Sampai tanggal <input type="date" name="to" value="{{ to }}"></label></form>
-<div class="grid" style="margin-bottom:12px"><div class="card"><b>{{ agg.n }}</b><span>Catatan orang-hari</span></div><div class="card"><b>{{ agg.days }}</b><span>Hari kerja</span></div><div class="card"><b>{{ agg.t|rupiah }}</b><span>Total upah (hasil filter)</span></div></div>
+<div class="sepkpi"><span><b>{{ agg.n }}</b> catatan orang-hari</span><span><b>{{ agg.days }}</b> hari kerja</span><span><b>{{ agg.t|rupiah }}</b> total upah <small>(hasil filter)</small></span></div>
 {% if per_worker %}<details style="margin-bottom:12px"><summary>Rekap per pekerja ({{ per_worker|length }} orang)</summary><div class="wrap"><table><thead><tr><th>Pekerja</th><th>Hari</th><th>Total upah</th></tr></thead><tbody>{% for r in per_worker %}<tr><td>{{ r.worker_name }}</td><td>{{ r.days }}</td><td>{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
-<div class="wrap"><table><thead><tr><th>Tanggal</th><th>Pekerja</th><th>Mengerjakan</th><th class="num">Upah</th><th class="acts">Aksi</th></tr></thead><tbody>
-{% for l in page %}<tr><td class="nw">{{ l.work_date|date:"D, d M Y" }}</td><td>{{ l.worker_name }}</td><td>{{ l.activity }}{% if l.note %}<br><small style="color:var(--mu)">{{ l.note }}</small>{% endif %}</td><td class="num nw">{{ l.wage|rupiah }}</td>
+<div class="wrap"><table><thead><tr><th class="nw">Tanggal</th><th class="fill">Pekerja</th><th class="fill">Mengerjakan</th><th class="num">Upah</th><th class="acts">Aksi</th></tr></thead><tbody>
+{% for l in page %}<tr><td class="nw">{{ l.work_date|date:"D, d M Y" }}</td><td class="fill">{{ l.worker_name }}</td><td class="fill">{{ l.activity }}{% if l.note %}<br><small style="color:var(--mu)">{{ l.note }}</small>{% endif %}</td><td class="num nw">{{ l.wage|rupiah }}</td>
 <td class="acts"><a class="chip" href="{% url 'hrd_project_work_edit' p.pk l.pk %}">Ubah</a>
 <form method="post" action="{% url 'hrd_project_work_delete' p.pk l.pk %}">{% csrf_token %}<button class="sm danger" title="Hapus baris ini">Hapus</button></form></td></tr>
 {% empty %}<tr><td class="empty" colspan="5">Belum ada catatan pekerja harian.</td></tr>{% endfor %}</tbody></table></div>

@@ -5,8 +5,8 @@
 <select name="department"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
 <select name="filter"><option value="">Semua</option><option value="nogrant"{% if f.filter == "nogrant" %} selected{% endif %}>Belum diberi jatah</option><option value="low"{% if f.filter == "low" %} selected{% endif %}>Saldo ≤ 3 hari</option></select>
 <button>Filter</button></form>
-<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jatah {{ year }}</th><th>Saldo</th><th></th></tr></thead><tbody>
-{% for e in page %}<tr><td>{{ e.nik }}</td><td>{{ e.name }}</td><td>{{ e.department.name }}</td><td>{% if e.grants %}sudah{% else %}<span class="pill">belum</span>{% endif %}</td><td>{{ e.bal }}</td><td><a href="{% url 'leave_detail' e.pk %}?year={{ year }}">Kartu</a></td></tr>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="fill">Karyawan</th><th class="fill">Departemen</th><th class="nw">Jatah {{ year }}</th><th class="num">Saldo</th><th class="acts"></th></tr></thead><tbody>
+{% for e in page %}<tr><td class="fill">{{ e.name }}<small>{{ e.nik }}</small></td><td class="fill">{{ e.department.name }}</td><td class="nw">{% if e.grants %}sudah{% else %}<span class="pill">belum</span>{% endif %}</td><td class="num">{{ e.bal }}</td><td class="acts"><a href="{% url 'leave_detail' e.pk %}?year={{ year }}">Kartu</a></td></tr>
 {% empty %}<tr><td class="empty" colspan="6">Tidak ada data.</td></tr>{% endfor %}</tbody></table></div>
 <nav class="pager" aria-label="Halaman">{% if page.has_previous %}<a class="btn ghost" href="?page={{ page.previous_page_number }}&year={{ year }}&q={{ f.q|urlencode }}&department={{ f.department }}&filter={{ f.filter }}">‹ Sebelumnya</a>{% endif %}
 Halaman {{ page.number }} / {{ page.paginator.num_pages }}
