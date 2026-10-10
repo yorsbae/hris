@@ -185,7 +185,7 @@ Tujuan: pengguna (Admin Departemen, HRD, Poli) yang tidak teknis dapat menyelesa
 10. **Bisa diuji**: struktur penting (aksi utama, lipatan, keadaan kosong) dijaga oleh tes; pengecekan di peramban nyata/ponsel tetap dicatat sebagai utang sampai dilakukan.
 
 ## [BARU] Stand By & Lembur (Admin Departemen → HRD)
-> **Status (putaran 30): ✅ ada** di `/requests/g/lembur/` (daftar, filter, ekspor) dan `/requests/g/lembur/new/` (form). Migrasi `hr/0010`. **Putaran 31 ✅**: HRD dapat membatalkan lembur/stand by yang sudah final (alasan wajib, jam bebas diajukan lagi) dan ada **rekap bulanan per karyawan** (`/requests/g/lembur/rekap/`, ekspor XLSX/CSV; hanya yang disetujui dihitung). **Belum**: tautan ke Absensi (Tahap 6) dan Payroll (Tahap 7), kebijakan upah lembur, pengingat pengajuan yang belum diputuskan.
+> **Status (putaran 30): ✅ ada** di `/requests/g/lembur/` (daftar, filter, ekspor) dan `/requests/g/lembur/new/` (form). Migrasi `hr/0010`. **Putaran 31 ✅**: HRD dapat membatalkan lembur/stand by yang sudah final (alasan wajib, jam bebas diajukan lagi) dan ada **rekap bulanan per karyawan** (`/requests/g/lembur/rekap/`, ekspor XLSX/CSV; hanya yang disetujui dihitung). **Putaran 32 ✅**: pengingat harian ke HRD (`remind_extra_work`) untuk pengajuan menunggu yang tanggal kerjanya besok/lewat. **Belum**: tautan ke Absensi (Tahap 6) dan Payroll (Tahap 7), kebijakan upah lembur, batas mingguan.
 
 Dua jenis pengajuan baru, diajukan **Admin Departemen** (terutama **Admin Produksi**) untuk karyawan departemennya dan diputuskan **HRD**:
 | Jenis | Arti | Batas awal (usulan, dapat disetel) |

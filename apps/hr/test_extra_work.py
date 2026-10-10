@@ -8,7 +8,7 @@ from .overtime import minutes_between
 from datetime import time
 
 
-class ExtraWorkTests(TestCase):
+class ExtraWorkBase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.prd, cls.oth = Department.objects.create(code="P", name="Produksi"), Department.objects.create(code="Q", name="Gudang")
@@ -26,6 +26,8 @@ class ExtraWorkTests(TestCase):
         d = {"kind": "lembur", "date": self.today.isoformat(), "start": "16:00", "end": "18:00", "reason": "Kejar target", "niks": ["001", "002"], **kw}
         return self.client.post("/requests/g/lembur/new/", d)
 
+
+class ExtraWorkTests(ExtraWorkBase):
     def test_batch_creates_one_request_per_employee_and_notifies_hrd_once(self):
         r = self.post(); self.assertEqual(r.status_code, 302)
         rows = ChangeRequest.objects.filter(type="lembur"); self.assertEqual(rows.count(), 2)
@@ -92,7 +94,7 @@ class ExtraWorkTests(TestCase):
         r = self.client.get("/requests/g/lembur/new/"); self.assertContains(r, "Emp 001"); self.assertNotContains(r, "Emp 003")
 
 
-class ExtraWorkUndoRecapTests(ExtraWorkTests):
+class ExtraWorkUndoRecapTests(ExtraWorkBase):
     """Putaran 31: pembatalan lembur yang sudah final (A80) + rekap bulanan."""
     def approved(self):
         self.post(); self.client.force_login(self.hrd)
@@ -131,3 +133,23 @@ class ExtraWorkUndoRecapTests(ExtraWorkTests):
         self.assertEqual(self.client.get(f"/requests/g/lembur/rekap/?month={m}").context["totals"]["lembur"], 120)
         e = self.client.get(f"/requests/g/lembur/rekap/?month={m}&fmt=csv"); self.assertEqual(e.status_code, 200); self.assertIn(b"Emp 002", e.content)
         self.assertEqual(self.client.get("/requests/g/lembur/rekap/?month=bukan").status_code, 200)
+
+
+class ExtraWorkReminderTests(ExtraWorkBase):
+    """Putaran 32: pengingat harian ke HRD untuk pengajuan yang belum diputuskan."""
+    def test_reminds_hrd_once_and_only_for_imminent_dates(self):
+        from .management.commands.remind_extra_work import run
+        self.post(date=(self.today + timedelta(days=10)).isoformat())
+        self.assertEqual(run(self.today), 0)  # tanggal masih jauh
+        self.post(date=self.today.isoformat(), start="08:00", end="09:00")
+        self.assertEqual(run(self.today), 1); self.assertEqual(run(self.today), 0)  # tidak menumpuk
+        n = Notification.objects.get(user=self.hrd, title__startswith="Stand By & Lembur:"); self.assertIn("2 pengajuan", n.title)
+        self.assertFalse(Notification.objects.filter(user=self.adm, title__startswith="Stand By & Lembur:").exists())
+
+    def test_late_count_and_no_reminder_after_decision(self):
+        from .management.commands.remind_extra_work import run
+        self.post(date=(self.today - timedelta(days=2)).isoformat())
+        run(self.today); self.assertIn("sudah lewat", Notification.objects.get(user=self.hrd, title__startswith="Stand By & Lembur:").title)
+        Notification.objects.all().update(is_read=True)
+        self.client.force_login(self.hrd); b = ChangeRequest.objects.filter(type="lembur").first().payload["batch"]
+        self.client.post(f"/requests/batch/{b}/approved/"); self.assertEqual(run(self.today), 0)
