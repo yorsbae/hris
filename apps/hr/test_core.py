@@ -257,3 +257,18 @@ class MasterTests(CoreBase):
 
     def test_superadmin_allowed(self):
         self.login("su"); self.assertEqual(self.client.get("/master/shift/").status_code, 200)
+
+
+class EmployeeDetailTabsTests(TestCase):
+    """Putaran 45: detail karyawan bertab (sisi klien; tanpa JS semua bagian tetap tampil berurutan)."""
+    def test_panes_and_script_rendered_for_hrd(self):
+        from django.contrib.auth import get_user_model
+        from apps.hr.models import Department, Employee
+        U = get_user_model()
+        d = Department.objects.create(code="TST", name="Tes")
+        e = Employee.objects.create(nik="T1", name="Tes Tab", department=d, join_date="2024-01-01")
+        u = U.objects.create_user("hrdtab", password="x", role="hrd"); self.client.force_login(u)
+        r = self.client.get(f"/employees/{e.pk}/"); self.assertEqual(r.status_code, 200)
+        for k in ('data-tab="profil"', 'data-tab="jadwal"', 'data-tab="kontrak"', 'data-tab="dokumen"', 'data-tab="riwayat"', "Bagian detail karyawan"):
+            self.assertContains(r, k)
+        self.assertNotContains(r, 'data-tab="poli"')  # HRD tanpa data poli

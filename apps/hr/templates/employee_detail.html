@@ -7,8 +7,9 @@
 {% if separation %}<a class="btn" href="{% url 'hrd_separation_detail' separation.pk %}">Catatan keluar</a>{% elif e.status == "aktif" %}<a class="btn" href="{% url 'hrd_separation_new' %}?nik={{ e.nik|urlencode }}">Catat keluar</a>{% endif %}
 <a class="btn" href="{% url 'employee_delete' e.pk %}" style="background:#d92d20">Hapus</a></div>
 {% if separation %}<p class="hint flow">Tercatat keluar: <b>{{ separation.get_kind_display }}</b>, hari terakhir kerja {{ separation.last_date|date:"d M Y" }}{% if not separation.applied_at %} (terjadwal — status berubah menjadi nonaktif setelah hari itu){% endif %}{% if separation.paklaring_number %} · paklaring {{ separation.paklaring_number }}{% endif %}. <a href="{% url 'hrd_separation_detail' separation.pk %}">Buka catatan</a></p>{% endif %}{% endif %}
-<div class="card"><table>{% for k, v in rows %}<tr><th>{{ k }}</th><td style="white-space:pre-line">{{ v }}</td></tr>{% endfor %}</table></div>
+<section class="tabpane" data-tab="profil" data-label="Profil"><div class="card"><table>{% for k, v in rows %}<tr><th>{{ k }}</th><td style="white-space:pre-line">{{ v }}</td></tr>{% endfor %}</table></div></section>
 {% if leave_year %}
+<section class="tabpane" data-tab="jadwal" data-label="Jadwal &amp; cuti">
 <h3>Saldo cuti {{ leave_year }} {% if full %}<a class="btn" href="{% url 'leave_detail' e.pk %}">Kartu saldo</a>{% endif %}</h3>
 <div class="card"><table><tr><th>Saldo</th><td>{{ leave_balance }} hari</td></tr><tr><th>Tersedia (setelah pengajuan berjalan)</th><td>{{ leave_available }} hari</td></tr></table></div>
 <h3>Jadwal 14 hari ke depan</h3>
@@ -18,8 +19,9 @@
 <div class="wrap"><table><thead><tr><th>Tanggal</th><th>Jadwal</th><th>Pengajuan</th></tr></thead><tbody>
 {% for a in schedule_rows %}<tr><td>{{ a.date|date:"D, d M Y" }}</td><td>{{ a.get_kind_display }}{% if a.shift %}: {{ a.shift.name }}{% endif %}</td><td><a href="{% url 'request_detail' a.request_id %}">#{{ a.request_id }}</a></td></tr>
 {% empty %}<tr><td class="empty" colspan="3">Tidak ada penyesuaian (mengikuti shift reguler).</td></tr>{% endfor %}</tbody></table></div>
-{% endif %}
+</section>{% endif %}
 {% if medical %}
+<section class="tabpane" data-tab="poli" data-label="Poliklinik">
 <h3>Riwayat poliklinik <a class="btn" href="{% url 'poli_record_new' %}?nik={{ e.nik|urlencode }}">+ Kunjungan baru</a> <a class="btn" href="{% url 'poli_employee_history' e.pk %}">Semua riwayat</a></h3>
 <div class="card"><p style="margin:0 0 6px"><b>{{ medical.total }}</b> kunjungan tercatat{% for label, n in medical.kinds %}{% if n %} · {{ label }}: {{ n }}{% endif %}{% endfor %}</p>
 {% if medical.pregnancy %}<p style="margin:0"><span class="pill {% if medical.pregnancy.active %}aktif{% else %}nonaktif{% endif %}">{% if medical.pregnancy.active %}Hamil (HPL belum lewat){% else %}Kehamilan tercatat{% endif %}</span> HPHT {{ medical.pregnancy.hpht|default:"-" }} · HPL {{ medical.pregnancy.hpl|default:"-" }} · usia {{ medical.pregnancy.weeks|default:"-" }} minggu{% if medical.pregnancy.gpa %} · G/P/A {{ medical.pregnancy.gpa }}{% endif %} <a href="{% url 'poli_record_detail' medical.pregnancy.record.pk %}">rekam medis #{{ medical.pregnancy.record.pk }}</a></p>{% endif %}</div>
@@ -28,20 +30,31 @@
 <h4>Surat izin</h4>
 <div class="wrap"><table><thead><tr><th>Jenis</th><th>No.</th><th>Terbit</th><th>Masa berlaku</th></tr></thead><tbody>{% for l in medical.letters %}<tr><td>{{ l.get_kind_display }}</td><td><a href="{% url 'poli_letter_pdf' l.pk %}" target="_blank">{{ l.number }}</a></td><td>{{ l.issued_at|date:"d M Y" }}</td><td>{% if l.start_date %}{{ l.start_date|date:"d M" }} – {{ l.end_date|date:"d M Y" }} ({{ l.days }} hari){% else %}-{% endif %}</td></tr>{% empty %}<tr><td class="empty" colspan="4">Belum ada surat.</td></tr>{% endfor %}</tbody></table></div>
 {% if medical.referrals %}<h4>Rujukan</h4><div class="wrap"><table><tbody>{% for x in medical.referrals %}<tr><td><a href="{% url 'poli_referral_detail' x.pk %}">{{ x.number }}</a></td><td>{{ x.facility }}</td><td>{{ x.get_status_display }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
-{% endif %}
+</section>{% endif %}
 {% if full %}
+<section class="tabpane" data-tab="kontrak" data-label="Kontrak">
 <h3>Kontrak</h3>
 <div class="wrap"><table><thead><tr><th>Nomor</th><th>Jenis</th><th>Mulai</th><th>Berakhir</th><th>Status</th><th>Perpanjangan dari</th></tr></thead><tbody>
 {% for c in contracts %}<tr><td>{{ c.number }}</td><td>{{ c.kind }}</td><td>{{ c.start|date:"d M Y" }}</td><td>{{ c.end|date:"d M Y"|default:"—" }}</td><td>{{ c.status }}</td><td>{{ c.previous.number|default:"—" }}</td></tr>
-{% empty %}<tr><td class="empty" colspan="6">Belum ada kontrak.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada kontrak.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="tabpane" data-tab="dokumen" data-label="Dokumen">
 <h3>Dokumen <a class="btn" href="{% url 'document_new' e.pk %}">+ Unggah</a></h3>
 <div class="wrap"><table><thead><tr><th>Jenis</th><th>Judul</th><th>Diunggah</th><th>Ukuran</th><th></th></tr></thead><tbody>
 {% for d in documents %}<tr><td>{{ d.get_kind_display }}</td><td><a href="{% url 'document_download' e.pk d.pk %}">{{ d.title }}</a></td><td>{{ d.uploaded_at|date:"d M Y" }}</td><td>{{ d.size|filesizeformat }}</td>
 <td><form method="post" action="{% url 'document_delete' e.pk d.pk %}" style="display:flex;gap:6px">{% csrf_token %}<input name="reason" placeholder="Alasan hapus" required maxlength="300"><button class="danger">Hapus</button></form></td></tr>
-{% empty %}<tr><td class="empty" colspan="5">Belum ada dokumen.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada dokumen.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="tabpane" data-tab="riwayat" data-label="Riwayat">
 <h3>Riwayat</h3>
 <div class="wrap"><table><thead><tr><th>Efektif</th><th>Bidang</th><th>Dari</th><th>Menjadi</th><th>Oleh</th></tr></thead><tbody>
 {% for h in history %}<tr><td>{{ h.effective_date|date:"d M Y" }}</td><td>{{ h.field }}</td><td>{{ h.old_value|default:"—" }}</td><td>{{ h.new_value }}</td><td>{{ h.changed_by.get_username|default:"—" }}</td></tr>
-{% empty %}<tr><td class="empty" colspan="5">Belum ada riwayat.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada riwayat.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endif %}
+<script>(function(){var P=[].slice.call(document.querySelectorAll(".tabpane"));if(P.length<2)return;
+var nav=document.createElement("nav");nav.className="tabs";nav.setAttribute("role","tablist");nav.setAttribute("aria-label","Bagian detail karyawan");
+function cnt(p){if(["kontrak","dokumen","riwayat"].indexOf(p.dataset.tab)<0)return"";var n=0;p.querySelectorAll("tbody tr").forEach(function(r){if(!r.querySelector("td.empty"))n++});return n}
+var T={};P.forEach(function(p){var a=document.createElement("a");a.className="t";a.href="#"+p.dataset.tab;a.setAttribute("role","tab");a.textContent=p.dataset.label;var c=cnt(p);if(c!==""){var b=document.createElement("span");b.className="tabn";b.textContent=c;a.append(" ",b)}T[p.dataset.tab]=a;nav.appendChild(a)});
+P[0].before(nav);
+function show(k){if(!T[k])k=P[0].dataset.tab;P.forEach(function(p){p.hidden=p.dataset.tab!==k});Object.keys(T).forEach(function(x){T[x].classList.toggle("on",x===k);T[x].setAttribute("aria-selected",x===k?"true":"false");if(x===k)T[x].setAttribute("aria-current","page");else T[x].removeAttribute("aria-current")})}
+nav.addEventListener("click",function(e){var a=e.target.closest("a.t");if(!a)return;e.preventDefault();var k=a.getAttribute("href").slice(1);history.replaceState(null,"","#"+k);show(k)});
+window.addEventListener("hashchange",function(){show(location.hash.slice(1))});show(location.hash.slice(1))})();</script>
 {% endblock %}
