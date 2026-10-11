@@ -235,3 +235,25 @@ class PatientAllergy(models.Model):
         ordering = ["-created_at", "-id"]
         indexes = [models.Index(fields=["employee", "voided_at"])]
     def delete(self, *a, **k): raise PermissionError("Alergi tidak dihapus; nonaktifkan saja")
+
+
+class PatientVisit(models.Model):
+    """Rekap visit pasien (putaran 46): rawat jalan / sakit (istirahat) / kunjungan rumah. Ringkasan operasional Poli; isi medis (keluhan, hasil) terenkripsi.
+    Tidak dihapus: berjalan → selesai / batal (alasan/hasil wajib). Tautan ke rekam medis opsional."""
+    KINDS = [("rawat_jalan", "Rawat jalan"), ("sakit", "Sakit (istirahat)"), ("rumah", "Kunjungan rumah")]
+    STATUSES = [("berjalan", "Berjalan"), ("selesai", "Selesai"), ("batal", "Dibatalkan")]
+    FLOW = {"berjalan": {"selesai", "batal"}}
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="patient_visits")
+    kind = models.CharField(max_length=12, choices=KINDS, db_index=True)
+    visit_date = models.DateField(db_index=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default="berjalan", db_index=True)
+    location = models.CharField("Lokasi / alamat", max_length=200, blank=True)   # wajib untuk kunjungan rumah
+    rest_days = models.PositiveSmallIntegerField("Hari istirahat", null=True, blank=True)  # untuk jenis sakit
+    complaint = EncryptedTextField(blank=True)                                    # MEDIS, terenkripsi
+    outcome = EncryptedTextField(blank=True)                                      # hasil / tindak lanjut (wajib saat selesai) atau alasan batal
+    record = models.ForeignKey(MedicalRecord, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ["-visit_date", "-id"]
+        constraints = [models.CheckConstraint(name="visit_rest_days_le_365", condition=models.Q(rest_days__isnull=True) | models.Q(rest_days__lte=365))]

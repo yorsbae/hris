@@ -249,3 +249,27 @@ def tenure_text(join_date, today=None):
     today = today or timezone.localdate(); m = (today.year - join_date.year) * 12 + today.month - join_date.month - (today.day < join_date.day)
     m = max(m, 0); y, mo = divmod(m, 12)
     return " ".join(x for x in (f"{y} tahun" if y else "", f"{mo} bulan" if mo else "") if x) or "< 1 bulan"
+
+
+# ================================================================ Rekap visit pasien (putaran 46)
+def create_visit(user, employee, kind, visit_date, complaint="", location="", rest_days=None, record=None):
+    """Catat visit. Kunjungan rumah wajib berlokasi; jenis sakit boleh memuat hari istirahat. Karyawan harus aktif."""
+    from .models import PatientVisit
+    if employee.status != "aktif": raise ValueError("Karyawan tidak aktif.")
+    if kind not in dict(PatientVisit.KINDS): raise ValueError("Jenis visit tidak dikenal.")
+    location = " ".join((location or "").split())
+    if kind == "rumah" and not location: raise ValueError("Kunjungan rumah wajib mengisi lokasi / alamat.")
+    if rest_days is not None and kind != "sakit": rest_days = None
+    return PatientVisit.objects.create(employee=employee, kind=kind, visit_date=visit_date, complaint=(complaint or "").strip(), location=location, rest_days=rest_days, record=record, created_by=user)
+
+
+def visit_transition(pk, to, user, outcome=""):
+    """berjalan → selesai (hasil wajib) / batal (alasan wajib). Baris dikunci agar dua petugas tidak menimpa satu sama lain. Mengembalikan (visit, status_lama)."""
+    from .models import PatientVisit
+    with transaction.atomic():
+        v = PatientVisit.objects.select_for_update().get(pk=pk); before = v.status
+        if to not in PatientVisit.FLOW.get(v.status, ()): raise ValueError(f"Visit berstatus {v.get_status_display()}; tidak bisa diubah ke {dict(PatientVisit.STATUSES).get(to, to)}.")
+        outcome = (outcome or "").strip()
+        if not outcome: raise ValueError("Hasil / tindak lanjut wajib diisi." if to == "selesai" else "Alasan pembatalan wajib diisi.")
+        v.status, v.outcome = to, outcome; v.save(update_fields=["status", "outcome"])
+    return v, before

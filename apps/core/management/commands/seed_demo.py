@@ -568,7 +568,13 @@ class Command(BaseCommand):
                                        rec.diagnosis, r.choice(["perusahaan", "perusahaan", "bpjs"]), total, [("Pelayanan (demo)", 1, total)] if i % 2 == 0 else ())
             for st in flows[i]:
                 ps.bill_transition(b.pk, st, self.poli_u, note="Data demo" if st == "ditolak" else "", paid_date=timezone.localdate() if st == "dibayar" else None, payment_ref="TRF-DEMO" if st == "dibayar" else "")
-        self.stat += f", {len(recs)} kunjungan poli ({len(preg_recs)} kehamilan), {self.letters} surat Poli, {len(meds)} obat, 6 tagihan mitra"
+        # rekap visit pasien (putaran 46): tiga jenis, status beragam (berjalan / selesai / batal), dibuat lewat servis yang sama dengan aplikasi
+        for i, rec in enumerate(r.sample(recs[:40], 9)):
+            kind = ("rawat_jalan", "sakit", "rumah")[i % 3]
+            v = ps.create_visit(self.poli_u, rec.employee, kind, min(timezone.localdate(), rec.visit_at.date()), "Keluhan demo", "Mess karyawan (demo)" if kind == "rumah" else "", 2 if kind == "sakit" else None)
+            if i % 3 == 1: ps.visit_transition(v.pk, "selesai", self.poli_u, "Sembuh, kembali bekerja (demo)")
+            elif i % 4 == 3: ps.visit_transition(v.pk, "batal", self.poli_u, "Salah catat (demo)")
+        self.stat += f", {len(recs)} kunjungan poli ({len(preg_recs)} kehamilan), {self.letters} surat Poli, {len(meds)} obat, 6 tagihan mitra, 9 visit pasien"
 
     # ---------- audit contoh
     def audit(self):

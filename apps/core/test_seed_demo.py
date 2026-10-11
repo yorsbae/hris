@@ -47,6 +47,14 @@ class SeedDemoTests(TestCase):
         for b in bs: self.assertEqual(b.events.first().to_status, "diterima"); self.assertEqual(b.events.last().to_status, b.status); self.assertGreaterEqual(b.bill_date, b.service_date)
         self.assertTrue({"dibayar", "ditolak", "diterima"} <= {b.status for b in bs})
 
+    def test_patient_visits_seeded_consistently(self):
+        from apps.poli.models import PatientVisit
+        vs = list(PatientVisit.objects.select_related("employee")); self.assertEqual(len(vs), 9)
+        self.assertEqual({v.kind for v in vs}, {"rawat_jalan", "sakit", "rumah"}); self.assertTrue({"berjalan", "selesai", "batal"} <= {v.status for v in vs})
+        for v in vs:
+            if v.kind == "rumah": self.assertTrue(v.location)
+            if v.status != "berjalan": self.assertTrue(v.outcome)
+
     def test_second_run_refuses(self):
         with self.assertRaises(CommandError): call_command("seed_demo", "--employees", "20", stdout=StringIO())
 

@@ -1,6 +1,6 @@
 from django.urls import path
 from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
-from . import billing_views as bv, pages as v
+from . import billing_views as bv, pages as v, visit_views as vv
 from .bulk_specs import BILL, DIAGNOSIS, MEDICINE
 from .pages import poli_only
 
@@ -41,6 +41,10 @@ urlpatterns = [
     path("billing/import/template.csv", bulk_template_view(BILL, poli_only)),
     path("billing/<int:pk>/", bv.bill_detail, name="poli_bill_detail"),
     path("billing/<int:pk>/<str:action>/", bv.bill_action, name="poli_bill_action"),
+    path("visits/", vv.visit_list, name="poli_visits"),
+    path("visits/new/", vv.visit_new, name="poli_visit_new"),
+    path("visits/<int:pk>/", vv.visit_detail, name="poli_visit_detail"),
+    path("visits/<int:pk>/<str:action>/", vv.visit_action, name="poli_visit_action"),
     path("referrals/", v.referral_list, name="poli_referrals"),
     path("referrals/<int:pk>/", v.referral_detail, name="poli_referral_detail"),
     path("referrals/<int:pk>/letter.pdf", v.referral_letter, name="poli_referral_letter"),

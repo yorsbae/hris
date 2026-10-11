@@ -20,9 +20,9 @@
 {% if employees %}<h3>Per karyawan (teratas {{ employees|length }})</h3><div class="wrap"><table id="by-employee"><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Tagihan</th><th>Total</th></tr></thead><tbody>{% for r in employees %}<tr><td>{{ r.employee__nik }}</td><td>{{ r.employee__name }}</td><td>{{ r.employee__department__name }}</td><td>{{ r.n }}</td><td>{{ r.total|rupiah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 </details>
 <h3>Daftar tagihan</h3>
-<div class="wrap"><table id="detail" class="sepfit"><thead><tr><th>Layanan</th><th>Tagihan</th><th>Karyawan</th><th>Departemen</th><th class="num">Total</th><th>Status</th><th></th></tr></thead><tbody>
-{% for b in page %}<tr><td class="nw">{{ b.service_date|date:"d-m-Y" }}</td><td><a href="{% url 'poli_bill_detail' b.pk %}">{{ b.bill_number }}</a><small>{{ b.partner.name }}</small></td><td>{{ b.employee.name }}<small>{{ b.employee.nik }}</small></td><td>{{ b.employee.department.name }}</td><td class="num nw">{{ b.total_amount|rupiah }}{% if b.mismatch %} <span class="pill rejected" title="Jumlah rincian berbeda">selisih</span>{% endif %}<small>{{ b.get_payer_display }}</small></td>
+<div class="wrap"><table id="detail" class="sepfit"><thead><tr><th>Layanan</th><th>Tagihan</th><th>Karyawan</th><th class="num">Total</th><th>Status</th><th></th></tr></thead><tbody>
+{% for b in page %}<tr><td class="nw">{{ b.service_date|date:"d-m-Y" }}</td><td><a href="{% url 'poli_bill_detail' b.pk %}">{{ b.bill_number }}</a><small>{{ b.partner.name }}</small></td><td>{{ b.employee.name }}<small>{{ b.employee.nik }} · {{ b.employee.department.name }}</small></td><td class="num nw">{{ b.total_amount|rupiah }}{% if b.mismatch %} <span class="pill rejected" title="Jumlah rincian berbeda">selisih</span>{% endif %}<small>{{ b.get_payer_display }}</small></td>
 <td class="nw"><span class="pill {% if b.status == 'dibayar' %}approved{% elif b.status == 'ditolak' %}rejected{% else %}pending{% endif %}">{{ b.get_status_display }}</span></td><td class="acts"><a class="btn sm ghost" href="{% url 'poli_bill_detail' b.pk %}">Buka</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="7">Belum ada tagihan untuk filter ini.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada tagihan untuk filter ini.</td></tr>{% endfor %}</tbody></table></div>
 {% include "poli/_pager.html" %}
 {% endblock %}

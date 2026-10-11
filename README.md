@@ -47,3 +47,5 @@ Lihat `docs/PROGRESS.md` untuk status & rencana, `docs/VISION.md` untuk visi.
 **Putaran 35:** setelah menarik jalankan `python manage.py migrate` (`poli/0007_patient_allergy`). Form Kunjungan baru menampilkan ringkasan pasien (alergi, BPJS K/TK, riwayat) dan Pemeriksa kini satu isian di bagian akhir; alergi dikelola di Riwayat pasien. Tes: 821.
 
 **Kop surat & pemeriksa (putaran 34):** isi `COMPANY_NAME`, `COMPANY_ADDRESS`, `POLI_NAME`, `POLI_DOCTOR_NAME`, `HRD_SIGNER_*` di `.env` (lihat `.env.example`) agar kop dan penanda tangan surat benar; `POLI_DEPARTMENT_CODE` (bawaan `POL`) = departemen yang karyawannya ditawarkan sebagai **Pemeriksa** di rekam medis. Setelah menarik: `python manage.py migrate` (`poli/0006`).
+
+**Rekap Visit Pasien (putaran 46):** menu Poli → *Rekap Visit Pasien* (`/poli/visits/`): catat visit rawat jalan / sakit (istirahat) / kunjungan rumah, tutup dengan hasil atau alasan batal. Hanya akun Poli/Superadmin; keluhan & hasil terenkripsi. Setelah menarik: `python manage.py migrate` (`poli/0008`).

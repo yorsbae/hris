@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Visit {{ v.employee.name }}{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'poli_visits' %}">‹ Rekap Visit Pasien</a></p>
+<h2>{{ v.get_kind_display }} · {{ v.get_status_display }}</h2>
+<div class="card"><table>{% for k, x in idn %}<tr><th>{{ k }}</th><td>{{ x }}</td></tr>{% endfor %}
+<tr><th>Tanggal visit</th><td>{{ v.visit_date|date:"d-m-Y" }}</td></tr>
+{% if v.location %}<tr><th>Lokasi / alamat</th><td>{{ v.location }}</td></tr>{% endif %}
+{% if v.rest_days %}<tr><th>Hari istirahat</th><td>{{ v.rest_days }} hari</td></tr>{% endif %}
+<tr><th>Keluhan / catatan</th><td>{{ v.complaint|linebreaksbr|default:"-" }}</td></tr>
+<tr><th>{% if v.status == "batal" %}Alasan batal{% else %}Hasil / tindak lanjut{% endif %}</th><td>{{ v.outcome|linebreaksbr|default:"-" }}</td></tr>
+<tr><th>Dicatat</th><td>{{ v.created_at|date:"d-m-Y H:i" }} · {{ v.created_by.username|default:"—" }}</td></tr></table></div>
+<p><a class="btn ghost" style="margin-left:0" href="{% url 'poli_employee_history' v.employee_id %}">Riwayat poli karyawan</a></p>
+{% if next %}<form method="post" class="card form">{% csrf_token %}
+<div class="fld"><label for="outcome">Hasil / tindak lanjut (wajib untuk Selesai) · alasan (wajib untuk Batal)</label><textarea id="outcome" name="outcome" rows="3" maxlength="2000"></textarea></div>
+<button formaction="{% url 'poli_visit_action' v.pk 'finish' %}">Tandai selesai</button> <button class="danger" formaction="{% url 'poli_visit_action' v.pk 'cancel' %}">Batalkan</button></form>{% endif %}
+{% endblock %}

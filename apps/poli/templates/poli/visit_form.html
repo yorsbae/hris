@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Catat visit{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'poli_visits' %}">‹ Rekap Visit Pasien</a></p>
+<h2>Catat visit pasien</h2>
+<form method="post" class="card form wide">{% csrf_token %}{{ form.non_field_errors }}
+<div class="fgrid g2">{% include "poli/_fld.html" with f=form.nik %}{% include "poli/_fld.html" with f=form.kind %}</div>
+<div class="fgrid g2">{% include "poli/_fld.html" with f=form.visit_date %}{% include "poli/_fld.html" with f=form.rest_days %}</div>
+{% include "poli/_fld.html" with f=form.location %}{% include "poli/_fld.html" with f=form.complaint %}
+<p><button>Simpan</button> <a class="btn ghost" href="{% url 'poli_visits' %}">Batal</a></p></form>
+{% endblock %}

@@ -144,6 +144,9 @@ table.sepfit{width:100%}table.sepfit small{display:block;color:var(--mu);font-si
 .epanel .xrow{padding:6px 14px}.epanel .xrow a{display:inline-block;padding:3px 10px;border:1px solid var(--bd2);border-radius:6px;color:var(--ac);text-decoration:none}
 .epanel .exports{padding:8px 14px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:14px}.epanel .exports a{color:var(--ac)}
 @media(max-width:600px){.fbar .fsearch{flex:1 1 140px;max-width:none;order:3}.fbar .fsub{order:3}.epanel{width:auto}}
+/* putaran 46: kiri = aksi tambah data (.fprim); kanan = Cari · Ekspor/Impor · Filter (.fr = elemen kanan pertama, margin-left:auto) */
+.fbar .fr{margin-left:auto}.fbar .fsearch{flex:0 1 300px;max-width:300px}
+@media(max-width:600px){.fbar .fr{margin-left:0}.fbar .fsearch{flex:1 1 140px;max-width:none}}
 /* putaran 44: strip KPI 2 kolom di ponsel (hemat tinggi layar; kartu ganjil terakhir selebar penuh) */
 @media(max-width:600px){.sepkpi{display:grid;grid-template-columns:1fr 1fr}.sepkpi>*{min-width:0;overflow-wrap:anywhere}.sepkpi>*:last-child:nth-child(odd){grid-column:1/-1}}
 /* putaran 42: tabel daftar jadi kartu per baris di ponsel (<=600px). JS (cardify) memberi data-label dari <th>; tabel dengan >8 kolom, rowspan, atau .nocard tetap bergulir */
@@ -248,6 +251,7 @@ document.addEventListener("click",function(e){if(!panel.hidden&&!wrap.contains(e
 document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!panel.hidden){open(false);btn.focus()}})}
 dead.forEach(function(d){d.remove()});
 [].slice.call(main.querySelectorAll(".tools")).forEach(function(t){if(!t.children.length&&!t.textContent.trim())t.remove()})}
+function align(h){var k=[].slice.call(h.children).filter(function(c){return !c.hidden&&!c.classList.contains("fchips")&&!(c.tagName==="INPUT"&&c.type==="hidden")&&!c.classList.contains("fprim")});h.querySelectorAll(":scope>.fr").forEach(function(o){o.classList.remove("fr")});if(k.length)k[0].classList.add("fr")}
 function setup(root){if(root.dataset.fdone)return;root.dataset.fdone="1";var isForm=root.tagName==="FORM",id="fp"+(++uid);
 root.classList.add("fbar");
 var panel=document.createElement("div");panel.className="fpanel";panel.id=id;panel.hidden=true;panel.setAttribute("role","dialog");
@@ -291,8 +295,8 @@ document.addEventListener("click",function(e){if(!panel.hidden&&!wrap.contains(e
 document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!panel.hidden){toggle(false);btn.focus()}});
 root.addEventListener("change",refresh);root.addEventListener("input",refresh);root.addEventListener("click",function(){setTimeout(refresh,0)});
 refresh();window.addEventListener("load",refresh);
-if(root.hasAttribute("data-fopen"))toggle(true)}
-document.querySelectorAll("[data-fbar]").forEach(setup);document.querySelectorAll("[data-pbar]").forEach(function(h){toolbar(h,null)})})();
+align(root);if(root.hasAttribute("data-fopen"))toggle(true)}
+document.querySelectorAll("[data-fbar]").forEach(setup);document.querySelectorAll("[data-pbar]").forEach(function(h){toolbar(h,null);align(h)})})();
 (function(){function cardify(t){if(t.classList.contains("nocard")||t.closest(".nocard"))return;var hr=t.tHead&&t.tHead.rows;if(!hr||hr.length!==1)return;var ths=[].slice.call(hr[0].cells);if(ths.length<2||ths.length>8)return;
 var rows=[].slice.call(t.tBodies[0]?t.tBodies[0].rows:[]);for(var i=0;i<rows.length;i++){var c=rows[i].cells;if(c.length===1&&c[0].classList.contains("empty"))continue;if(c.length!==ths.length)return;for(var j=0;j<c.length;j++)if(c[j].rowSpan>1||c[j].colSpan>1)return}
 function hl(th){var x="";th.childNodes.forEach(function(n){if(n.nodeType===3)x+=n.textContent});x=x.trim();return x||th.textContent.trim()}

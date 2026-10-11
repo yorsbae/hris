@@ -8,8 +8,8 @@
 <input name="user" value="{{ f.user }}" placeholder="Username" aria-label="Username">
 <input name="object_type" value="{{ f.object_type }}" placeholder="Jenis objek" aria-label="Jenis objek"><input name="object_id" value="{{ f.object_id }}" placeholder="ID objek" aria-label="ID objek">
 <input name="ip" value="{{ f.ip }}" placeholder="IP" aria-label="IP"></form>
-<div class="wrap"><table><thead><tr><th>Waktu</th><th>User</th><th>IP</th><th>Modul</th><th>Aksi</th><th>Objek</th><th></th></tr></thead><tbody>
-{% for a in page %}<tr><td>{{ a.created_at|date:"d M Y H:i:s" }}</td><td>{{ a.user.username|default:"—" }}</td><td>{{ a.ip|default:"-" }}</td><td>{{ a.module }}</td><td>{{ a.action }}</td><td>{{ a.object_type }} {{ a.object_id }}</td><td><a href="/audit/{{ a.pk }}/">Detail</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="7">Tidak ada entri.</td></tr>{% endfor %}</tbody></table></div>
+<div class="wrap"><table><thead><tr><th>Waktu</th><th>User</th><th>Modul</th><th>Aksi</th><th>Objek</th><th></th></tr></thead><tbody>
+{% for a in page %}<tr><td>{{ a.created_at|date:"d M Y H:i:s" }}</td><td>{{ a.user.username|default:"—" }}<small>{{ a.ip|default:"-" }}</small></td><td>{{ a.module }}</td><td>{{ a.action }}</td><td>{{ a.object_type }} {{ a.object_id }}</td><td><a href="/audit/{{ a.pk }}/">Detail</a></td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Tidak ada entri.</td></tr>{% endfor %}</tbody></table></div>
 {% include "_pager.html" %}
 {% endblock %}

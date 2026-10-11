@@ -21,7 +21,7 @@ from . import services
 from . import reports
 from .forms import (AllergyForm, LetterForm, EXAM_CONCLUSIONS, INJURY_TYPES, AddendumForm, AddPrescriptionForm, DiagnosisForm, DiagnosisMedicineForm, MedicineForm, PrescriptionFormSet, RecordForm, ReferralForm,
                     ReturnPrescriptionForm, StockAdjustForm, StockInForm)
-from .models import Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, PartnerBill, PatientAllergy, Prescription, Referral, SickLeaveLetter, StockMovement
+from .models import Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, PartnerBill, PatientAllergy, PatientVisit, Prescription, Referral, SickLeaveLetter, StockMovement
 from .pdf import referral_pdf, sick_leave_pdf
 
 PER_PAGE = 50
@@ -96,6 +96,7 @@ def hub(request):
     cards = [
         ("Rekam medis", "/poli/records/", MedicalRecord.objects.filter(**_day_range(today, today)).count(), "kunjungan hari ini"),
         ("Kecelakaan kerja", "/poli/records/?kind=kecelakaan_kerja", MedicalRecord.objects.filter(kind="kecelakaan_kerja", **_day_range(today.replace(day=1), today)).count(), "bulan ini"),
+        ("Rekap visit", "/poli/visits/", PatientVisit.objects.filter(status="berjalan").count(), "visit berjalan (rawat jalan / sakit / rumah)"),
         ("Rujukan", "/poli/referrals/", Referral.objects.filter(status__in=("diajukan", "dirujuk")).count(), "rujukan berjalan"),
         ("Obat & kartu stok", "/poli/medicines/", Medicine.objects.filter(stock__lte=F("min_stock")).count(), "obat stok minimum"),
         ("Tagihan mitra", "/poli/billing/", PartnerBill.objects.filter(status__in=("diterima", "diverifikasi", "disetujui")).count(), "tagihan belum selesai"),

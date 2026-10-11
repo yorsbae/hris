@@ -4,7 +4,7 @@ import re
 
 from django.test import SimpleTestCase
 
-MAX_COLS = 8
+MAX_COLS = 8  # rekap stok obat (kartu stok) sengaja 8 kolom angka; daftar lain <= 6
 EXEMPT = set()
 BRANCH = re.compile(r"\{%\s*(?:if|elif|else|endif)\b[^%]*%\}")
 

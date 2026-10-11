@@ -3,9 +3,10 @@ from decimal import Decimal
 import csv
 from django import forms
 from django.forms import formset_factory
+from django.utils import timezone
 from apps.core.money import RupiahField
 from apps.hr.models import Employee
-from .models import Diagnosis, MedicalRecord, Medicine, Partner, PartnerBill, PatientAllergy
+from .models import Diagnosis, MedicalRecord, Medicine, Partner, PartnerBill, PatientAllergy, PatientVisit
 from . import services
 
 TA = lambda rows=3: forms.Textarea(attrs={"rows": rows})
@@ -339,3 +340,29 @@ class AllergyForm(forms.Form):
     substance = forms.CharField(label="Alergen", max_length=100, help_text="Obat, makanan, atau lainnya (mis. Amoxicillin, udang).")
     reaction = forms.CharField(label="Reaksi", required=False, max_length=200)
     severity = forms.ChoiceField(label="Tingkat", choices=PatientAllergy.SEVERITY, initial="sedang")
+
+
+class VisitForm(forms.Form):
+    """Rekap visit pasien (putaran 46). NIK dipilih lewat saran; hanya karyawan aktif."""
+    nik = forms.CharField(label="NIK karyawan", max_length=20, help_text="Ketik NIK atau nama; pilih dari saran. Hanya karyawan aktif.",
+                          widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+    kind = forms.ChoiceField(label="Jenis visit", choices=[("", "— pilih —")] + PatientVisit.KINDS)
+    visit_date = forms.DateField(label="Tanggal visit", widget=forms.DateInput(attrs={"type": "date"}))
+    location = forms.CharField(label="Lokasi / alamat", required=False, max_length=200, help_text="Wajib untuk kunjungan rumah (alamat atau nama tempat tinggal/mess).")
+    rest_days = forms.IntegerField(label="Hari istirahat", required=False, min_value=1, max_value=365, help_text="Untuk jenis Sakit; boleh kosong.")
+    complaint = forms.CharField(label="Keluhan / catatan", required=False, widget=TA(), max_length=4000)
+
+    def clean_nik(self):
+        self.employee = services.active_employee(nik=self.cleaned_data["nik"].strip())
+        if not self.employee: raise forms.ValidationError("Karyawan tidak ditemukan atau tidak aktif.")
+        return self.cleaned_data["nik"].strip()
+
+    def clean_visit_date(self):
+        d = self.cleaned_data["visit_date"]
+        if d > timezone.localdate(): raise forms.ValidationError("Tanggal visit tidak boleh di masa depan.")
+        return d
+
+    def clean(self):
+        c = super().clean()
+        if c.get("kind") == "rumah" and not (c.get("location") or "").strip(): self.add_error("location", "Kunjungan rumah wajib mengisi lokasi / alamat.")
+        return c

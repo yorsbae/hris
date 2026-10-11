@@ -34,6 +34,22 @@ class ToolbarComponent(SimpleTestCase):
         self.assertTrue((ROOT.parent / "scripts" / "ui_toolbar_audit.js").exists())
 
 
+class ToolbarAlignment(SimpleTestCase):
+    """Putaran 46: aksi tambah data rata KIRI; Cari · Ekspor/Impor · Filter rata KANAN (elemen kanan pertama diberi `.fr` = margin-left:auto)."""
+    def test_right_group_is_pushed_right(self):
+        self.assertIn("function align(", BASE)
+        self.assertIn(".fbar .fr{margin-left:auto}", BASE)
+        self.assertIn("align(root)", BASE)  # halaman [data-fbar]
+        self.assertIn("toolbar(h,null);align(h)", BASE)  # halaman [data-pbar]
+
+    def test_search_does_not_stretch_and_phone_is_reset(self):
+        self.assertIn(".fbar .fsearch{flex:0 1 300px;max-width:300px}", BASE)
+        self.assertIn(".fbar .fr{margin-left:0}", BASE)  # ponsel: kembali memenuhi baris
+
+    def test_add_buttons_stay_first(self):
+        self.assertIn("host.insertBefore(fr,host.firstChild)", BASE)  # [+ Tambah] selalu di awal bilah
+
+
 class MobileCardTables(SimpleTestCase):
     """Putaran 42: tabel daftar jadi kartu per baris di <=600px (CSS + JS `cardify` di base.html)."""
     def test_component_is_in_base(self):
