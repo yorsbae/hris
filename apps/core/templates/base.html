@@ -144,6 +144,14 @@ table.sepfit{width:100%}table.sepfit small{display:block;color:var(--mu);font-si
 .epanel .xrow{padding:6px 14px}.epanel .xrow a{display:inline-block;padding:3px 10px;border:1px solid var(--bd2);border-radius:6px;color:var(--ac);text-decoration:none}
 .epanel .exports{padding:8px 14px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:14px}.epanel .exports a{color:var(--ac)}
 @media(max-width:600px){.fbar .fsearch{flex:1 1 140px;max-width:none;order:3}.fbar .fsub{order:3}.epanel{width:auto}}
+/* putaran 42: tabel daftar jadi kartu per baris di ponsel (<=600px). JS (cardify) memberi data-label dari <th>; tabel dengan >8 kolom, rowspan, atau .nocard tetap bergulir */
+@media(max-width:600px){table.cards,table.cards tbody{display:block;width:100%}table.cards thead{display:none}
+table.cards tr{display:block;margin:0 0 10px;padding:6px 12px;background:var(--card);border:1px solid var(--bd);border-radius:12px}
+table.cards td{display:block;width:auto!important;padding:7px 0;border:0;border-bottom:1px dashed var(--bd);text-align:left;white-space:normal!important}
+table.cards td:last-child{border-bottom:0}table.cards td::before{content:attr(data-label);display:block;color:var(--mu);font-size:12px;font-weight:600;margin-bottom:1px}
+table.cards td[data-label=""]::before{display:none}table.cards td small{display:block}
+table.cards td.empty{display:block;text-align:center;border:0}table.cards td.empty::before{display:none}
+}
 /* putaran 40: kolom tabel — kolom angka/aksi/tanggal selebar isinya, kolom teks mengisi sisa lebar (tanpa celah antarkolom yang melebar) */
 table th.num,table td.num,table th.nw,table td.nw,table th.acts,table td.acts{width:1%;white-space:nowrap}table td.acts{text-align:right}table th.fill,table td.fill{width:auto;white-space:normal;overflow-wrap:anywhere}
 table td small,table th small{display:block;color:var(--mu);font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;white-space:normal}
@@ -275,4 +283,8 @@ root.addEventListener("change",refresh);root.addEventListener("input",refresh);r
 refresh();window.addEventListener("load",refresh);
 if(root.hasAttribute("data-fopen"))toggle(true)}
 document.querySelectorAll("[data-fbar]").forEach(setup);document.querySelectorAll("[data-pbar]").forEach(function(h){toolbar(h,null)})})();
+(function(){function cardify(t){if(t.classList.contains("nocard")||t.closest(".nocard"))return;var hr=t.tHead&&t.tHead.rows;if(!hr||hr.length!==1)return;var ths=[].slice.call(hr[0].cells);if(ths.length<2||ths.length>8)return;
+var rows=[].slice.call(t.tBodies[0]?t.tBodies[0].rows:[]);for(var i=0;i<rows.length;i++){var c=rows[i].cells;if(c.length===1&&c[0].classList.contains("empty"))continue;if(c.length!==ths.length)return;for(var j=0;j<c.length;j++)if(c[j].rowSpan>1||c[j].colSpan>1)return}
+function lab(){[].forEach.call(t.tBodies[0].rows,function(r){if(r.cells.length===ths.length)[].forEach.call(r.cells,function(td,j){td.setAttribute("data-label",ths[j].textContent.trim())})})}lab();t.classList.add("cards");if(window.MutationObserver){var mo=new MutationObserver(function(){mo.disconnect();lab();mo.observe(t.tBodies[0],{childList:true})});mo.observe(t.tBodies[0],{childList:true})}}
+document.querySelectorAll("main .wrap table").forEach(cardify)})();
 </script>{% if user.is_authenticated %}{% include "_lookup.html" %}{% endif %}</body></html>

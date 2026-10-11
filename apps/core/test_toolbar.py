@@ -32,3 +32,13 @@ class ToolbarComponent(SimpleTestCase):
 
     def test_audit_script_present(self):
         self.assertTrue((ROOT.parent / "scripts" / "ui_toolbar_audit.js").exists())
+
+
+class MobileCardTables(SimpleTestCase):
+    """Putaran 42: tabel daftar jadi kartu per baris di <=600px (CSS + JS `cardify` di base.html)."""
+    def test_component_is_in_base(self):
+        for k in ("function cardify(", "table.cards", "attr(data-label)", "nocard", "MutationObserver", "max-width:600px"):
+            self.assertIn(k, BASE, k)
+
+    def test_wide_tables_are_not_cardified(self):
+        self.assertIn("ths.length>8", BASE)  # grid lebar (jadwal mingguan) tetap bergulir
