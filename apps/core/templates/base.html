@@ -132,6 +132,18 @@ table.sepfit{width:100%}table.sepfit small{display:block;color:var(--mu);font-si
 .rowacts{display:inline-flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:nowrap;white-space:nowrap}table th.num small,table td.num small{white-space:nowrap}.rowacts form{margin:0;display:inline}
 .fscrim{display:none}
 @media(max-width:600px){.fbar .fsearch{flex-basis:100%;max-width:none}.fwrap{position:static}.fpanel,.fpanel.r{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:85vh;border-radius:14px 14px 0 0}.fscrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55}.fscrim[hidden]{display:none}}
+/* putaran 41: bilah alat seragam di semua halaman daftar — [+ Tambah] [Cari…] [Cari] [Ekspor/Impor ▾] [Filter ▾]; ekspor/impor jadi popover overlay (komponen sama dengan Filter); chip filter aktif di baris sendiri */
+.fbar .fprim,.fbar .fbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;min-height:38px;box-sizing:border-box;margin:0;white-space:nowrap;line-height:1.2}
+.fbar .fsearch,.fbar .fsub{height:38px;box-sizing:border-box}.fbar .fsub{margin:0}
+.fbar .fprim.ghost{background:transparent}
+.fchips{flex:1 1 100%;order:9}.fchips:empty{display:none}
+.fbar[data-pbar]{margin:0 0 12px}
+.epanel{width:300px}.epanel .fbody{padding:6px 0;gap:0}.esec{display:flex;flex-direction:column}
+.epanel small{display:block;padding:8px 14px 2px;color:var(--mu);font-size:12px;font-weight:600}
+.epanel .fbody>a,.epanel a.eitem{display:block;padding:9px 14px;color:var(--tx);text-decoration:none;font-size:14px}.epanel .fbody>a:hover,.epanel a.eitem:hover{background:var(--hov)}
+.epanel .xrow{padding:6px 14px}.epanel .xrow a{display:inline-block;padding:3px 10px;border:1px solid var(--bd2);border-radius:6px;color:var(--ac);text-decoration:none}
+.epanel .exports{padding:8px 14px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:14px}.epanel .exports a{color:var(--ac)}
+@media(max-width:600px){.fbar .fsearch{flex:1 1 140px;max-width:none;order:3}.fbar .fsub{order:3}.epanel{width:auto}}
 /* putaran 40: kolom tabel — kolom angka/aksi/tanggal selebar isinya, kolom teks mengisi sisa lebar (tanpa celah antarkolom yang melebar) */
 table th.num,table td.num,table th.nw,table td.nw,table th.acts,table td.acts{width:1%;white-space:nowrap}table td.acts{text-align:right}table th.fill,table td.fill{width:auto;white-space:normal;overflow-wrap:anywhere}
 table td small,table th small{display:block;color:var(--mu);font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;white-space:normal}
@@ -188,6 +200,36 @@ function act(c){var v=val(c);return v!==""&&v!==(c.dataset.default||"")}
 function txt(c){if(c.tagName==="SELECT"){var o=c.options[c.selectedIndex];return o?o.text:""}return c.value}
 function clr(c){if(c.type==="checkbox"||c.type==="radio"){c.checked=false;return}c.value=c.dataset.default||"";if(c.tagName==="SELECT"&&c.selectedIndex<0)c.selectedIndex=0}
 function pageTitle(){var h=document.querySelector("main h2");if(!h||!h.childNodes[0])return"";return h.childNodes[0].textContent.trim().split(" — ")[0]}
+var EIC='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>';
+function toolbar(host,anchor){var inside=host.hasAttribute("data-pbar")&&host.tagName!=="FORM",main=host.closest("main")||document,prim=[],imp=[],exp=[],blocks=[],dead=[];
+[].slice.call(main.querySelectorAll("h2 a.btn,.tools>a,.tools>details.more,.exports,[data-pbar]>a")).forEach(function(el){if(el.dataset.tb)return;
+if(inside){if(!host.contains(el))return}else if(host.contains(el))return;
+if(el.closest("table,.wrap,form"))return;
+if(el.tagName==="DETAILS"){var d=el.querySelector("div");if(d)blocks.push(d);dead.push(el);el.dataset.tb="1";return}
+if(el.classList.contains("exports")){blocks.push(el);el.dataset.tb="1";return}
+var t=el.textContent.trim(),h=el.getAttribute("href")||"";
+if(/^\+/.test(t))prim.push(el);else if(/impor/i.test(t)||/\/import/i.test(h))imp.push(el);
+else if(/^export-/.test(el.id)||/ekspor|unduh/i.test(t)||/export=|fmt=|format=|\/export\//i.test(h))exp.push(el);else return;
+el.dataset.tb="1"});
+if(prim.length){var fr=document.createDocumentFragment();prim.forEach(function(a){a.classList.add("fprim");a.removeAttribute("style");fr.appendChild(a)});host.insertBefore(fr,host.firstChild)}
+if(imp.length||exp.length||blocks.length){var id="ep"+(++uid),panel=document.createElement("div");panel.className="fpanel epanel";panel.id=id;panel.hidden=true;panel.setAttribute("role","dialog");
+var body=document.createElement("div");body.className="fbody";
+function sec(title,arr){if(!arr.length)return;var s=document.createElement("div");s.className="esec";var h=document.createElement("small");h.textContent=title;s.appendChild(h);arr.forEach(function(a){a.className="eitem";a.removeAttribute("style");s.appendChild(a)});body.appendChild(s)}
+sec("Impor data",imp);sec("Ekspor (sesuai filter)",exp);
+blocks.forEach(function(b){if(b.parentNode&&b.parentNode.tagName==="DETAILS"){while(b.firstChild)body.appendChild(b.firstChild)}else body.appendChild(b)});
+var tx=body.textContent,hi=imp.length||/impor/i.test(tx),he=exp.length||/ekspor|unduh/i.test(tx),lab=hi&&he?"Ekspor / Impor":hi?"Impor":"Ekspor";
+var head=document.createElement("div");head.className="fhead";head.innerHTML="<b></b>";head.firstChild.textContent=lab;panel.setAttribute("aria-label",lab);
+var xb=document.createElement("button");xb.type="button";xb.className="fx";xb.setAttribute("aria-label","Tutup");xb.textContent="✕";head.appendChild(xb);panel.append(head,body);
+var wrap=document.createElement("div");wrap.className="fwrap";var btn=document.createElement("button");btn.type="button";btn.className="fbtn";btn.setAttribute("aria-expanded","false");btn.setAttribute("aria-controls",id);btn.innerHTML=EIC+"<span></span>";btn.lastChild.textContent=lab;
+var scrim=document.createElement("div");scrim.className="fscrim";scrim.hidden=true;wrap.append(btn,scrim,panel);
+if(anchor)anchor.parentNode.insertBefore(wrap,anchor);else host.appendChild(wrap);
+function open(o){panel.hidden=!o;scrim.hidden=!o;btn.setAttribute("aria-expanded",o?"true":"false");if(o){panel.classList.remove("r");var r=panel.getBoundingClientRect();if(r.right>innerWidth-8)panel.classList.add("r")}}
+btn.addEventListener("click",function(e){e.stopPropagation();open(panel.hidden)});xb.addEventListener("click",function(){open(false);btn.focus()});scrim.addEventListener("click",function(){open(false)});
+panel.addEventListener("click",function(e){if(e.target.closest&&e.target.closest("a"))setTimeout(function(){open(false)},0)});
+document.addEventListener("click",function(e){if(!panel.hidden&&!wrap.contains(e.target))open(false)});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!panel.hidden){open(false);btn.focus()}})}
+dead.forEach(function(d){d.remove()});
+[].slice.call(main.querySelectorAll(".tools")).forEach(function(t){if(!t.children.length&&!t.textContent.trim())t.remove()})}
 function setup(root){if(root.dataset.fdone)return;root.dataset.fdone="1";var isForm=root.tagName==="FORM",id="fp"+(++uid);
 root.classList.add("fbar");
 var panel=document.createElement("div");panel.className="fpanel";panel.id=id;panel.hidden=true;panel.setAttribute("role","dialog");
@@ -218,7 +260,7 @@ panel.append(head,body,acts);
 var btn=document.createElement("button");btn.type="button";btn.className="fbtn";btn.setAttribute("aria-expanded","false");btn.setAttribute("aria-controls",id);
 var chips=document.createElement("div");chips.className="fchips";chips.setAttribute("aria-label","Filter yang dipakai");
 if(search&&isForm){var sb=document.createElement("button");sb.type="submit";sb.className="ghost fsub";sb.textContent="Cari";search.after(sb);sb.after(btn)}else if(search){search.after(btn)}else{root.insertBefore(btn,root.firstChild)}
-var wrap=document.createElement("div");wrap.className="fwrap";btn.before(wrap);var scrim=document.createElement("div");scrim.className="fscrim";scrim.hidden=true;wrap.append(btn,scrim,panel);wrap.after(chips);
+var wrap=document.createElement("div");wrap.className="fwrap";btn.before(wrap);var scrim=document.createElement("div");scrim.className="fscrim";scrim.hidden=true;wrap.append(btn,scrim,panel);wrap.after(chips);toolbar(root,wrap);
 function refresh(){var n=0;chips.textContent="";ctr.forEach(function(c){if(!act(c))return;n++;var ch=document.createElement("button");ch.type="button";ch.className="fchip";
 var t=c.type==="checkbox"?(c.dataset.fl||c.name):(c.dataset.fl?c.dataset.fl+": ":"")+txt(c);ch.textContent=t+" ✕";ch.title="Hapus filter ini";
 ch.addEventListener("click",function(){clr(c);if(isForm)submit();else{c.dispatchEvent(new Event("change",{bubbles:true}));refresh()}});chips.appendChild(ch)});
@@ -232,5 +274,5 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!panel.hidd
 root.addEventListener("change",refresh);root.addEventListener("input",refresh);root.addEventListener("click",function(){setTimeout(refresh,0)});
 refresh();window.addEventListener("load",refresh);
 if(root.hasAttribute("data-fopen"))toggle(true)}
-document.querySelectorAll("[data-fbar]").forEach(setup)})();
+document.querySelectorAll("[data-fbar]").forEach(setup);document.querySelectorAll("[data-pbar]").forEach(function(h){toolbar(h,null)})})();
 </script>{% if user.is_authenticated %}{% include "_lookup.html" %}{% endif %}</body></html>

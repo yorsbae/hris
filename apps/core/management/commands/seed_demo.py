@@ -462,7 +462,11 @@ class Command(BaseCommand):
     # Karyawan yang keluar SENGAJA masih punya keanggotaan/potongan BPJS aktif: halaman BPJS menandainya sebagai anomali "nonaktif tetapi BPJS masih aktif" (tugas nyata bagi HRD; A98).
     def separations(self):
         r, today = self.r, self.today
-        pool = [e for e in self.active if e.department.code != "POL" and e.pk not in {x.pk for x, _ in self.pregnant} and e.join_date <= today - timedelta(days=120)]
+        swapped = set()  # putaran 41: karyawan yang terlibat tukar shift/libur (pengaju maupun rekan) tidak boleh dijadikan Karyawan Keluar → tes seed tidak bergantung tanggal
+        for q in hr.ChangeRequest.objects.filter(type__in=("tukar_shift", "tukar_libur")).only("employee_id", "payload"):
+            swapped.add(q.employee_id)
+            if (q.payload or {}).get("partner_id"): swapped.add(q.payload["partner_id"])
+        pool = [e for e in self.active if e.department.code != "POL" and e.pk not in {x.pk for x, _ in self.pregnant} and e.pk not in swapped and e.join_date <= today - timedelta(days=120)]
         r.shuffle(pool); made = 0
 
         def keluar(kind, days, reason, tali=0, note="", paid=False, pak=False, void=""):

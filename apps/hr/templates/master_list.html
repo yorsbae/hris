@@ -2,9 +2,9 @@
 <h2>Master data</h2>
 {% if no_admin %}<div class="msg error" role="alert"><span>Belum ada Admin Departemen aktif di: <b>{% for d in no_admin %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</b>. Tanpa admin, permintaan Validasi Kehadiran untuk departemen itu ditolak.</span></div>{% endif %}
 <div class="bar">{% for k, l in kinds.items %}<a class="btn" href="{% url 'master_list' k %}" style="margin-left:0{% if k != kind %};opacity:.55{% endif %}">{{ l }}</a>{% endfor %}</div>
-<p><a class="btn" href="{% url 'master_new' kind %}" style="margin-left:0">+ {{ label }} baru</a>
+<div class="fbar" data-pbar><a class="btn" href="{% url 'master_new' kind %}" style="margin-left:0">+ {{ label }} baru</a>
 <a class="btn" href="/master/{{ kind }}/import/">Impor CSV/XLSX</a> <a class="btn" href="/master/{{ kind }}/export/?format=csv">Ekspor CSV</a> <a class="btn" href="/master/{{ kind }}/export/?format=xlsx">Ekspor XLSX</a>
-</p>
+</div>
 <div class="wrap"><table><thead><tr>
 {% if kind == "department" %}<th>Kode</th><th>Nama</th><th>Induk</th><th>Admin Departemen</th>{% elif kind == "position" %}<th>Nama</th><th>Level</th>{% else %}<th>Kode</th><th>Nama</th><th>Jam kerja</th><th>Jenis</th><th>Status</th>{% endif %}<th></th></tr></thead><tbody>
 {% for i in items %}<tr>
