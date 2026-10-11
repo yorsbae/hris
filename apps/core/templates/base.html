@@ -129,12 +129,13 @@ table.sepfit{width:100%}table.sepfit small{display:block;color:var(--mu);font-si
 .fpanel .ff{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--tx);font-weight:600;min-width:0;margin:0}.fpanel .ff input,.fpanel .ff select{width:100%;min-width:0;max-width:none;flex:none;font-weight:400}
 .fpanel .ff.chk{flex-direction:row;align-items:center;gap:8px;min-height:38px;font-weight:400}.fpanel .ff.chk input{width:auto}
 .facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px;border-top:1px solid var(--bd)}.facts>*{margin:0;text-align:center;justify-content:center;display:inline-flex;align-items:center}
+.rowacts{display:inline-flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:nowrap;white-space:nowrap}table th.num small,table td.num small{white-space:nowrap}.rowacts form{margin:0;display:inline}
 .fscrim{display:none}
 @media(max-width:600px){.fbar .fsearch{flex-basis:100%;max-width:none}.fwrap{position:static}.fpanel,.fpanel.r{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:85vh;border-radius:14px 14px 0 0}.fscrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55}.fscrim[hidden]{display:none}}
 /* putaran 40: kolom tabel — kolom angka/aksi/tanggal selebar isinya, kolom teks mengisi sisa lebar (tanpa celah antarkolom yang melebar) */
 table th.num,table td.num,table th.nw,table td.nw,table th.acts,table td.acts{width:1%;white-space:nowrap}table td.acts{text-align:right}table th.fill,table td.fill{width:auto;white-space:normal;overflow-wrap:anywhere}
 table td small,table th small{display:block;color:var(--mu);font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;white-space:normal}
-@media(max-width:900px){table th,table th.nw,table td.nw,table td.acts{white-space:normal}table td.num{white-space:nowrap}table td.acts{display:table-cell}}
+@media(max-width:900px){table th,table th.nw,table td.nw,table td.acts{white-space:normal}table td.num{white-space:nowrap}table td.acts{display:table-cell}.rowacts{flex-wrap:wrap}}
 .table-wrap{overflow-x:auto;max-width:100%;border-radius:var(--r)}
 .wrap table,.table-wrap table{table-layout:auto}main,.col{min-width:0}.wrap{max-width:100%}
 </style></head><body class="{% block bodyclass %}{% endblock %}"><a class="skip" href="#main">Lewati ke isi</a>
