@@ -126,13 +126,13 @@ def record_new(request):
     if request.method == "POST" and form.is_valid() and fs.is_valid():
         try:
             r, low = services.create_record(request.user, form.employee, form.cleaned_data["kind"], form.cleaned_data["complaint"].strip(), form.exam(),
-                                            form.diagnosis, form.cleaned_data["treatment"].strip(), fs.lines(), examiner=form.examiner, doctor_name=form.cleaned_data["doctor_name"])
+                                            form.diagnosis, form.cleaned_data["treatment"].strip(), fs.lines(), examiner=form.examiner, doctor_name=form.cleaned_data["doctor_name"], allergy=form.allergy())
         except ValueError as ex: form.add_error(None, str(ex))
         else:
             # audit TANPA isi medis (keluhan/tindakan/tanda vital): hanya penanda
-            log(request, "poli", "create_record", r, None, {"employee": form.employee.nik, "kind": r.kind, "diagnosis": form.diagnosis.code if form.diagnosis else None, "examiner": form.examiner.nik if form.examiner else None, "doctor": bool(r.doctor_name),
+            log(request, "poli", "create_record", r, None, {"employee": form.employee.nik, "kind": r.kind, "diagnosis": form.diagnosis.code if form.diagnosis else None, "examiner": form.examiner.nik if form.examiner else None, "doctor": bool(r.doctor_name), "allergy_added": bool(form.allergy()),
                                                              "prescriptions": [(p.medicine.code, p.qty) for p in r.prescriptions.select_related("medicine")]})
-            messages.success(request, "Rekam medis disimpan." + (f" Stok minimum: {', '.join(m.name for m in low)}." if low else ""))
+            messages.success(request, "Rekam medis disimpan." + (" Alergi baru dicatat pada data pasien." if form.allergy() else "") + (f" Stok minimum: {', '.join(m.name for m in low)}." if low else ""))
             return redirect("poli_record_detail", pk=r.pk)
     return render(request, "poli/record_form.html", {"form": form, "fs": fs})
 
@@ -147,7 +147,7 @@ def record_detail(request, pk):
     return render(request, "poli/record_detail.html", {
         "r": r, "idn": identity_rows(r.employee), "rx": rx, "add_form": AddPrescriptionForm(), "ret_form": ReturnPrescriptionForm(), "addenda": r.addenda.select_related("created_by"),
         "referrals": r.referral_set.order_by("-id"), "letters": letters, "addendum_form": AddendumForm(),
-        "exam_rows": exam_rows(r.exam)})
+        "exam_rows": exam_rows(r.exam), "allergies": r.employee.allergies.filter(voided_at__isnull=True).order_by("-created_at")})
 
 
 @poli_only
@@ -289,12 +289,13 @@ def referral_list(request):
 @poli_only
 def referral_new(request, pk):
     r = get_object_or_404(MedicalRecord.objects.select_related("employee"), pk=pk)
-    form = ReferralForm(request.POST or None)
+    form = ReferralForm(request.POST or None, initial={"incident_date": timezone.localtime(r.visit_at).date(), "purpose": "berobat"})
     if request.method == "POST" and form.is_valid():
-        try: ref = services.create_referral(request.user, r, form.cleaned_data["facility"], form.cleaned_data["note"])
+        c = form.cleaned_data
+        try: ref = services.create_referral(request.user, r, c["facility"], c["note"], purpose=c["purpose"], incident_date=c["incident_date"])
         except ValueError as ex: form.add_error(None, str(ex))
         else:
-            log(request, "poli", "referral_create", ref, None, {"number": ref.number, "facility": ref.facility})
+            log(request, "poli", "referral_create", ref, None, {"number": ref.number, "facility": ref.facility, "purpose": ref.purpose})
             messages.success(request, f"Rujukan {ref.number} dibuat."); return redirect("poli_referral_detail", pk=ref.pk)
     return render(request, "poli/form.html", {"form": form, "title": f"Rujukan baru — {r.employee.nik} {r.employee.name}", "back": f"/poli/records/{r.pk}/"})
 
@@ -322,7 +323,7 @@ def referral_action(request, pk, action):
 
 @poli_only
 def referral_letter(request, pk):
-    ref = get_object_or_404(Referral.objects.select_related("record__employee__department", "record__created_by", "created_by"), pk=pk)
+    ref = get_object_or_404(Referral.objects.select_related("record__employee__department", "record__employee__position", "record__created_by", "record__examiner", "record__diagnosis", "created_by"), pk=pk)
     if ref.status == "batal": raise Http404
     log(request, "poli", "print_referral", ref)
     resp = HttpResponse(referral_pdf(ref), content_type="application/pdf")
@@ -446,25 +447,26 @@ def stock_report(request):
 # ================================================================ Surat Poli (izin pulang / libur / hamil)
 @poli_only
 def letter_new(request, pk):
-    """Buat surat menurut jenis (satu per rekam medis per jenis). Pembuatan lewat POST (bukan GET); cetak ulang lewat tautan PDF."""
-    r = get_object_or_404(MedicalRecord.objects.select_related("employee", "employee__department"), pk=pk)
-    initial = {"kind": request.GET.get("jenis", "izin_libur"), "start_date": date.today(), "days": 1}
-    form = LetterForm(request.POST or None, record=r, initial=initial)
+    """Buat surat menurut jenis (satu per rekam medis per jenis). Pembuatan lewat POST (bukan GET); cetak ulang lewat tautan PDF.
+    Putaran 47: `istirahat` (pulang hari itu juga / istirahat-cuti beberapa hari) menggantikan surat izin pulang + izin libur; `izin_hamil` = Surat Keterangan Cuti Hamil."""
+    r = get_object_or_404(MedicalRecord.objects.select_related("employee", "employee__department", "examiner", "created_by"), pk=pk)
+    jenis = request.GET.get("jenis", "istirahat")
+    legacy = {"izin_pulang": ("istirahat", "pulang"), "izin_libur": ("istirahat", "istirahat")}  # tautan lama tetap bekerja
+    kind, mode = legacy.get(jenis, (jenis if jenis in SickLeaveLetter.NEW_KINDS else "istirahat", request.GET.get("mode") or "pulang"))
+    form = LetterForm(request.POST or None, record=r, initial={"kind": kind, "mode": mode, "start_date": timezone.localdate(), "days": 1, "months": 3})
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
-        with transaction.atomic():
-            letter = SickLeaveLetter.objects.filter(record=r, kind=d["kind"]).first()
-            if letter is None:
-                extra = {"start_date": d.get("start_date"), "days": d.get("days"), "purpose": d.get("purpose") or ""} if d["kind"] != "izin_pulang" else {}
-                letter = SickLeaveLetter.objects.create(record=r, kind=d["kind"], number=LetterCounter.next_number(SickLeaveLetter.COUNTER[d["kind"]], timezone.now()), **extra)
-                log(request, "poli", "create_letter", letter, None, {"kind": letter.kind, "number": letter.number})
-        return redirect("poli_letter_pdf", pk=letter.pk)
+        try: letter, created = services.create_letter(request.user, r, d["kind"], go_home=d.get("mode") == "pulang", start_date=d.get("start_date"), days=d.get("days"), months=d.get("months"))
+        except ValueError as ex: form.add_error(None, str(ex))
+        else:
+            if created: log(request, "poli", "create_letter", letter, None, {"kind": letter.kind, "number": letter.number})
+            return redirect("poli_letter_pdf", pk=letter.pk)
     return render(request, "poli/letter_form.html", {"form": form, "r": r, "idn": identity_rows(r.employee), "existing": r.sickleaveletter_set.order_by("id")})
 
 
 @poli_only
 def letter_pdf(request, pk):
-    letter = get_object_or_404(SickLeaveLetter.objects.select_related("record__employee__department", "record__created_by"), pk=pk)
+    letter = get_object_or_404(SickLeaveLetter.objects.select_related("record__employee__department", "record__employee__position", "record__created_by", "record__examiner"), pk=pk)
     log(request, "poli", "print_letter", letter)
     resp = HttpResponse(sick_leave_pdf(letter), content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="{letter.number.replace("/", "-")}.pdf"'

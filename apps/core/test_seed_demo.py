@@ -178,7 +178,7 @@ class SeedDemoLatestFeaturesTests(TestCase):
         self.assertEqual(set(MaternityLeave.objects.values_list("state", flat=True)), {"aktif", "selesai", "batal"})
         m = MaternityLeave.objects.get(state="aktif"); last = MedicalRecord.objects.filter(employee=m.employee, kind="kehamilan").order_by("-visit_at").first()
         self.assertEqual(last.exam["kehamilan"]["hpl"], m.due_date.isoformat())  # HPL kunjungan = HPL cuti hamil
-        self.assertEqual(set(SickLeaveLetter.objects.values_list("kind", flat=True)), {"izin_pulang", "izin_libur", "izin_hamil"})
+        self.assertEqual(set(SickLeaveLetter.objects.values_list("kind", flat=True)), {"istirahat", "izin_hamil"})
         for l in SickLeaveLetter.objects.filter(kind="izin_hamil"): self.assertEqual(l.record.kind, "kehamilan")
 
     def test_warning_revoked_bpjs_two_periods_and_all_pdfs_render(self):

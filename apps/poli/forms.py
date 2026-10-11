@@ -6,7 +6,7 @@ from django.forms import formset_factory
 from django.utils import timezone
 from apps.core.money import RupiahField
 from apps.hr.models import Employee
-from .models import Diagnosis, MedicalRecord, Medicine, Partner, PartnerBill, PatientAllergy, PatientVisit
+from .models import Diagnosis, MedicalRecord, Medicine, Partner, PartnerBill, PatientAllergy, PatientVisit, Referral, SickLeaveLetter
 from . import services
 
 TA = lambda rows=3: forms.Textarea(attrs={"rows": rows})
@@ -51,6 +51,12 @@ class RecordForm(forms.Form):
     # khusus pemeriksaan (MCU / cek kesehatan)
     exam_conclusion = forms.ChoiceField(label="Kesimpulan pemeriksaan", required=False, choices=[("", "—")] + EXAM_CONCLUSIONS)
     exam_result = forms.CharField(label="Hasil pemeriksaan", required=False, widget=TA(), max_length=2000)
+    # alergi (putaran 47): bagian dari data pasien, bukan hanya rekam medis ini. Alergi yang sudah tercatat otomatis tampil di setiap kunjungan berikutnya (ringkasan pasien, form, detail).
+    allergy_substance = forms.CharField(label="Alergen baru", required=False, max_length=100,
+                                        help_text="Isi bila pasien punya alergi yang BELUM tercatat (obat, makanan, dll.). Tersimpan pada data pasien dan otomatis tampil di kunjungan berikutnya.",
+                                        widget=forms.TextInput(attrs={"placeholder": "mis. Amoxicillin, udang", "autocomplete": "off"}))
+    allergy_reaction = forms.CharField(label="Reaksi", required=False, max_length=200, widget=forms.TextInput(attrs={"placeholder": "mis. gatal, bengkak, sesak", "autocomplete": "off"}))
+    allergy_severity = forms.ChoiceField(label="Tingkat", required=False, choices=PatientAllergy.SEVERITY, initial="sedang")
     diagnosis_code = forms.CharField(label="Kode diagnosa", required=False, max_length=10, help_text="Ketik kode atau nama (mis. A09); obat yang ditautkan di Master diagnosa terisi otomatis di resep.",
                                      widget=forms.TextInput(attrs={"data-lookup": "diagnosis", "placeholder": "Ketik kode atau nama diagnosa…"}))
     treatment = forms.CharField(label="Tindakan / anjuran", required=False, widget=TA(), max_length=4000)
@@ -110,7 +116,16 @@ class RecordForm(forms.Form):
                 self.add_error("preg_g", "P + A tidak boleh melebihi G.")
             if getattr(self, "employee", None) and self.employee.gender != "P": self.add_error("nik", "Pemeriksaan kehamilan hanya untuk karyawan perempuan.")
         if k == "pemeriksaan" and not d.get("exam_conclusion"): self.add_error("exam_conclusion", "Kesimpulan pemeriksaan wajib dipilih.")
+        sub = " ".join((d.get("allergy_substance") or "").split()); d["allergy_substance"] = sub
+        if not sub and (d.get("allergy_reaction") or "").strip(): self.add_error("allergy_substance", "Isi alergen bila reaksi diisi.")
+        if sub and getattr(self, "employee", None) and PatientAllergy.objects.filter(employee=self.employee, voided_at__isnull=True, substance__iexact=sub).exists():
+            self.add_error("allergy_substance", "Alergi ini sudah tercatat pada pasien (tampil di ringkasan); tidak perlu diisi lagi.")
         return d
+
+    def allergy(self):
+        """(alergen, reaksi, tingkat) bila petugas mengisi alergi baru, selain itu None."""
+        d = self.cleaned_data
+        return (d["allergy_substance"], (d.get("allergy_reaction") or "").strip(), d.get("allergy_severity") or "sedang") if d.get("allergy_substance") else None
 
     def exam(self):
         """Dict JSON-able; hanya bidang yang relevan untuk jenis kunjungan dan yang terisi."""
@@ -233,30 +248,44 @@ class AddendumForm(forms.Form):
 
 
 class ReferralForm(forms.Form):
+    """Rujukan (putaran 47): jenis mengikuti formulir Surat Pengantar Rumah Sakit; tanggal kejadian/keluhan terisi dari tanggal kunjungan, boleh diubah."""
+    purpose = forms.ChoiceField(label="Jenis rujukan", choices=Referral.PURPOSES, initial="berobat")
     facility = forms.CharField(label="Fasilitas tujuan", max_length=150)
+    incident_date = forms.DateField(label="Tanggal kejadian / keluhan", required=False, widget=forms.DateInput(attrs={"type": "date"}),
+                                    help_text="Kosong = tanggal kunjungan. Tercetak di surat rujukan (dipakai untuk klaim BPJS bila kecelakaan kerja).")
     note = forms.CharField(label="Catatan klinis singkat", required=False, widget=TA(), max_length=2000)
+
+    def clean_incident_date(self):
+        d = self.cleaned_data.get("incident_date")
+        if d and d > timezone.localdate(): raise forms.ValidationError("Tanggal kejadian / keluhan tidak boleh di masa depan.")
+        return d
 
 
 class LetterForm(forms.Form):
-    """Surat Poli menurut jenis. izin_libur & izin_hamil butuh tanggal mulai + lama; izin_hamil juga keperluan dan hanya untuk kunjungan kehamilan."""
-    from .models import SickLeaveLetter as _L
-    kind = forms.ChoiceField(label="Jenis surat", choices=_L.KINDS)
+    """Surat Poli (putaran 47). `istirahat` = Surat Keterangan Istirahat / Cuti: pulang (hari itu juga) ATAU istirahat/cuti beberapa hari — satu surat, bukan dua.
+    `izin_hamil` = Surat Keterangan Cuti Hamil (hanya kunjungan kehamilan): mulai tanggal + lama (bulan, bawaan 3)."""
+    kind = forms.ChoiceField(label="Jenis surat", choices=[c for c in SickLeaveLetter.KINDS if c[0] in SickLeaveLetter.NEW_KINDS])
+    mode = forms.ChoiceField(label="Bentuk", required=False, initial="pulang", widget=forms.RadioSelect,
+                             choices=[("pulang", "Pulang — berlaku hari itu juga"), ("istirahat", "Istirahat / cuti beberapa hari")])
     start_date = forms.DateField(label="Mulai tanggal", required=False, widget=forms.DateInput(attrs={"type": "date"}))
     days = forms.IntegerField(label="Lama (hari)", required=False, min_value=1, max_value=365)
-    purpose = forms.ChoiceField(label="Keperluan (izin hamil)", required=False, choices=[("", "—")] + _L.PURPOSES)
+    months = forms.IntegerField(label="Lama cuti hamil (bulan)", required=False, min_value=1, max_value=6, initial=3)
 
     def __init__(self, *a, record=None, **k):
         super().__init__(*a, **k); self.record = record
 
     def clean(self):
         d = super().clean(); k = d.get("kind")
-        if k in ("izin_libur", "izin_hamil"):
-            if not d.get("start_date"): self.add_error("start_date", "Tanggal mulai wajib diisi.")
-            if not d.get("days"): self.add_error("days", "Lama (hari) wajib diisi.")
-            elif k == "izin_libur" and d["days"] > 30: self.add_error("days", "Izin libur maksimal 30 hari; lebih lama perlu rujukan/pengajuan cuti sakit.")
+        if k == "istirahat":
+            d["mode"] = d.get("mode") or "pulang"
+            if d["mode"] == "istirahat":
+                if not d.get("start_date"): self.add_error("start_date", "Tanggal mulai wajib diisi.")
+                if not d.get("days"): self.add_error("days", "Lama (hari) wajib diisi.")
+                elif d["days"] > 30: self.add_error("days", "Istirahat / cuti maksimal 30 hari; lebih lama perlu rujukan/pengajuan cuti sakit.")
         if k == "izin_hamil":
-            if not d.get("purpose"): self.add_error("purpose", "Keperluan wajib dipilih.")
-            if self.record is not None and self.record.kind != "kehamilan": self.add_error("kind", "Surat izin hamil hanya untuk kunjungan jenis kehamilan.")
+            if not d.get("start_date"): self.add_error("start_date", "Tanggal mulai cuti hamil wajib diisi.")
+            if not d.get("months"): d["months"] = 3
+            if self.record is not None and self.record.kind != "kehamilan": self.add_error("kind", "Surat cuti hamil hanya untuk kunjungan jenis kehamilan.")
         return d
 
 

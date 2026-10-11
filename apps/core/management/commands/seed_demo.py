@@ -128,7 +128,7 @@ class Command(BaseCommand):
             e = hr.Employee.objects.create(
                 nik=f"DM{i:05d}", nik_ktp="33" + "".join(str(r.randint(0, 9)) for _ in range(14)), name=name, gender=g,
                 marital_status=r.choice(["Belum menikah", "Menikah", "Menikah"]), education=r.choice(["SMA", "SMK", "D3", "S1"]),
-                address=f"Jl. Contoh No. {r.randint(1, 99)}, Tegal", phone="08" + "".join(str(r.randint(0, 9)) for _ in range(10)), department=d, position=self.pos[lvl],
+                address=f"Jl. Contoh No. {r.randint(1, 99)}, Tegal", birth_date=today - timedelta(days=r.randint(20 * 365, 55 * 365)), phone="08" + "".join(str(r.randint(0, 9)) for _ in range(10)), department=d, position=self.pos[lvl],
                 status="nonaktif" if (r.random() < .04 and not staff) else "aktif", join_date=join, shift=shift, shift_group=group, gs_short=r.choice(["14", "12"]),
                 bpjs_kes="000" + "".join(str(r.randint(0, 9)) for _ in range(10)), bpjs_tk="26" + "".join(str(r.randint(0, 9)) for _ in range(9)),
                 npwp="".join(str(r.randint(0, 9)) for _ in range(15)), bank_name=r.choice(["BCA", "BRI", "Mandiri", "BNI"]), bank_account="".join(str(r.randint(0, 9)) for _ in range(10)))
@@ -545,17 +545,15 @@ class Command(BaseCommand):
                 preg_recs.append(rec); recs.append(rec)
         # catatan tambahan (append-only) pada beberapa rekam medis
         for rec in r.sample(recs[:60], 3): ps.add_addendum(self.poli_u, rec, "Koreksi: berat badan tercatat 58 kg, seharusnya 56 kg (demo)")
-        # surat Poli lewat penghitung nomor resmi: izin pulang/libur untuk kunjungan berobat, izin hamil untuk kunjungan kehamilan
+        # surat Poli lewat servis resmi (putaran 47): istirahat/cuti (pulang hari itu juga atau beberapa hari) untuk kunjungan berobat, cuti hamil untuk kunjungan kehamilan
         nl = 0
-        for rec in [x for x in recs if x.kind == "berobat"][:6]:
-            pl.SickLeaveLetter.objects.create(record=rec, kind="izin_pulang", number=pl.LetterCounter.next_number("sip", timezone.now())); nl += 1
-        for rec in [x for x in recs if x.kind == "berobat"][6:11]:
-            pl.SickLeaveLetter.objects.create(record=rec, kind="izin_libur", number=pl.LetterCounter.next_number("sil", timezone.now()), start_date=rec.visit_at.date(), days=r.randint(1, 3)); nl += 1
-        for rec, purpose in zip(preg_recs[-3:], ("kontrol", "ringan", "cuti_melahirkan")):
-            pl.SickLeaveLetter.objects.create(record=rec, kind="izin_hamil", number=pl.LetterCounter.next_number("sih", timezone.now()), start_date=rec.visit_at.date(), days=1 if purpose != "cuti_melahirkan" else 90, purpose=purpose); nl += 1
+        berobat = [x for x in recs if x.kind == "berobat"]
+        for rec in berobat[:6]: ps.create_letter(self.poli_u, rec, "istirahat", go_home=True); nl += 1
+        for rec in berobat[6:11]: ps.create_letter(self.poli_u, rec, "istirahat", start_date=rec.visit_at.date(), days=r.randint(1, 3)); nl += 1
+        for rec in preg_recs[-3:]: ps.create_letter(self.poli_u, rec, "izin_hamil", start_date=rec.visit_at.date(), months=3); nl += 1
         self.letters = nl
         for rec, st in zip(r.sample(recs[:40], 4), ("diajukan", "dirujuk", "selesai", "batal")):
-            ref = ps.create_referral(self.poli_u, rec, r.choice(["RSUD Kardinah Tegal", "RS Mitra Keluarga Tegal", "RS Islam Harapan Anda"]), "Rujukan demo")
+            ref = ps.create_referral(self.poli_u, rec, r.choice(["RSUD Kardinah Tegal", "RS Mitra Keluarga Tegal", "RS Islam Harapan Anda"]), "Rujukan demo", purpose=r.choice(["kontrol", "berobat", "tes_lab", "spesialis"]))
             if st in ("dirujuk", "selesai"): ps.referral_transition(ref.pk, "dirujuk", self.poli_u)
             if st == "selesai": ps.referral_transition(ref.pk, "selesai", self.poli_u, "Pasien sudah ditangani, kontrol 1 minggu (demo)")
             if st == "batal": ps.referral_transition(ref.pk, "batal", self.poli_u, "Pasien membaik, rujukan tidak diperlukan (demo)")

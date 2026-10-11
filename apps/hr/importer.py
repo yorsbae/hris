@@ -6,10 +6,10 @@ from .emp_forms import EmployeeForm
 from .models import Department, Employee, Position, Shift, ShiftGroup
 
 COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "status", "marital_status", "education",
-           "shift_group", "gs_short", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "supervisor_nik"]
+           "shift_group", "gs_short", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "supervisor_nik", "birth_date"]
 REQUIRED = ["nik", "name", "gender", "join_date", "department_code"]
 MAX_ROWS, MAX_BYTES = tabular.MAX_ROWS, tabular.MAX_BYTES
-EXAMPLE = ["EMP-0001", "Budi Santoso", "L", "2024-01-15", "PROD", "Staff", "Pagi", "aktif", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+EXAMPLE = ["EMP-0001", "Budi Santoso", "L", "2024-01-15", "PROD", "Staff", "Pagi", "aktif", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
 
 
 def template_csv(): return tabular.to_bytes(COLUMNS, [EXAMPLE], "csv")[0].decode("utf-8")  # (BOM di awal; pembaca CSV memakai utf-8-sig)

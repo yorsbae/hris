@@ -58,31 +58,40 @@ class LetterTests(PoliBase):
         e = Employee.objects.get(nik=nik); from apps.poli import services
         return services.create_record(self.poli, e, kind, "k", {"kehamilan": {"usia_minggu": 20, "hpl": "2027-01-10"}} if kind == "kehamilan" else {}, None, "", ())[0]
 
-    def test_leave_letter_created_once_and_printed(self):
+    def test_rest_letter_created_once_and_printed(self):
         r = self.rec(); u = f"/poli/records/{r.pk}/letter/new/"
         self.assertEqual(self.client.get(u).status_code, 200)
-        resp = self.client.post(u, {"kind": "izin_libur", "start_date": date.today().isoformat(), "days": "3"})
-        l = SickLeaveLetter.objects.get(record=r, kind="izin_libur"); self.assertEqual(resp.status_code, 302); self.assertTrue(l.number.startswith("SIL/"))
+        resp = self.client.post(u, {"kind": "istirahat", "mode": "istirahat", "start_date": date.today().isoformat(), "days": "3"})
+        l = SickLeaveLetter.objects.get(record=r, kind="istirahat"); self.assertEqual(resp.status_code, 302); self.assertTrue(l.number.startswith("SKI-SIT/"))
         pdf = self.client.get(resp["Location"]); self.assertTrue(pdf.content.startswith(b"%PDF")); self.assertEqual(l.end_date, date.today() + timedelta(days=2))
-        self.client.post(u, {"kind": "izin_libur", "start_date": date.today().isoformat(), "days": "9"})
+        self.client.post(u, {"kind": "istirahat", "mode": "istirahat", "start_date": date.today().isoformat(), "days": "9"})
         self.assertEqual(SickLeaveLetter.objects.filter(record=r).count(), 1); self.assertEqual(SickLeaveLetter.objects.get(record=r).days, 3)  # idempoten
         self.assertTrue(AuditLog.objects.filter(action="print_letter").exists() and AuditLog.objects.filter(action="create_letter").exists())
 
-    def test_pulang_letter_needs_no_dates_and_both_kinds_coexist(self):
+    def test_going_home_and_resting_are_ONE_letter_kind(self):
+        """Putaran 47: surat izin pulang + izin libur dijadikan satu (istirahat); pulang = hari itu juga, tanpa tanggal/lama."""
         r = self.rec(); u = f"/poli/records/{r.pk}/letter/new/"
-        self.assertEqual(self.client.post(u, {"kind": "izin_pulang"}).status_code, 302)
-        self.client.post(u, {"kind": "izin_libur", "start_date": date.today().isoformat(), "days": "1"})
-        self.assertEqual(set(SickLeaveLetter.objects.filter(record=r).values_list("kind", flat=True)), {"izin_pulang", "izin_libur"})
+        self.assertEqual(self.client.post(u, {"kind": "istirahat", "mode": "pulang"}).status_code, 302)
+        l = SickLeaveLetter.objects.get(record=r); self.assertEqual((l.kind, l.go_home, l.days, l.start_date), ("istirahat", True, 1, date.today()))
+        self.client.post(u, {"kind": "istirahat", "mode": "istirahat", "start_date": date.today().isoformat(), "days": "5"})
+        self.assertEqual(SickLeaveLetter.objects.filter(record=r).count(), 1)  # satu surat per rekam medis; yang ada dicetak ulang
+        for old in ("izin_pulang", "izin_libur"): self.assertEqual(self.client.post(u, {"kind": old}).status_code, 200, old)  # jenis lama tidak bisa dibuat baru
+
+    def test_old_links_still_open_the_unified_form(self):
+        r = self.rec()
+        for jenis in ("izin_pulang", "izin_libur", "istirahat"): self.assertEqual(self.client.get(f"/poli/records/{r.pk}/letter/new/?jenis={jenis}").status_code, 200, jenis)
+        self.assertContains(self.client.get(f"/poli/records/{r.pk}/"), "Surat istirahat / cuti"); self.assertNotContains(self.client.get(f"/poli/records/{r.pk}/"), "Surat izin libur")
 
     def test_validation_and_pregnancy_letter(self):
         r = self.rec(); u = f"/poli/records/{r.pk}/letter/new/"
-        for bad in ({"kind": "izin_libur"}, {"kind": "izin_libur", "start_date": "2026-10-10", "days": "40"}, {"kind": "izin_hamil", "start_date": "2026-10-10", "days": "1", "purpose": "kontrol"}):
-            self.assertEqual(self.client.post(u, bad).status_code, 200, bad)
+        for bad in ({"kind": "istirahat", "mode": "istirahat"}, {"kind": "istirahat", "mode": "istirahat", "start_date": "2026-10-10", "days": "40"}, {"kind": "izin_hamil", "start_date": "2026-10-10", "months": "3"}):
+            self.assertEqual(self.client.post(u, bad).status_code, 200, bad)  # istirahat tanpa tanggal/lama; > 30 hari; cuti hamil untuk kunjungan non-kehamilan
         self.assertEqual(SickLeaveLetter.objects.count(), 0)
         p = self.rec("002", "kehamilan"); u2 = f"/poli/records/{p.pk}/letter/new/"
-        self.assertEqual(self.client.post(u2, {"kind": "izin_hamil", "start_date": "2026-10-12", "days": "1"}).status_code, 200)  # keperluan wajib
-        resp = self.client.post(u2, {"kind": "izin_hamil", "start_date": "2026-10-12", "days": "1", "purpose": "kontrol"})
-        self.assertEqual(resp.status_code, 302); self.assertTrue(SickLeaveLetter.objects.get(record=p).number.startswith("SIH/"))
+        self.assertEqual(self.client.post(u2, {"kind": "izin_hamil", "months": "3"}).status_code, 200)  # tanggal mulai wajib
+        resp = self.client.post(u2, {"kind": "izin_hamil", "start_date": "2026-10-12", "months": "3"})
+        l = SickLeaveLetter.objects.get(record=p); self.assertEqual(resp.status_code, 302); self.assertTrue(l.number.startswith("SKI-SIT/"))
+        self.assertEqual((l.months, l.days, l.end_date), (3, 92, date(2027, 1, 11)))  # 12 Okt 2026 + 3 bulan = 12 Jan 2027 (hari terakhir 11 Jan)
         self.assertTrue(self.client.get(resp["Location"]).content.startswith(b"%PDF"))
 
     def test_letters_closed_to_hrd_and_dept_admin(self):

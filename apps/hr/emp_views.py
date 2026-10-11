@@ -43,7 +43,7 @@ def _rows(user, e):
              ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
     if user.role == Role.DEPT_ADMIN: return rows  # tanpa data sensitif
     return rows + [("Status pernikahan", e.marital_status or "-"), ("Pendidikan", e.education or "-"), ("Alamat", e.address or "-"),
-                   ("Telepon", e.phone or "-"), ("NIK KTP", e.nik_ktp or "-"), ("BPJS Kesehatan", e.bpjs_kes or "-"),
+                   ("Tanggal lahir", f"{e.birth_date:%d-%m-%Y} ({e.age()} tahun)" if e.birth_date else "-"), ("Telepon", e.phone or "-"), ("NIK KTP", e.nik_ktp or "-"), ("BPJS Kesehatan", e.bpjs_kes or "-"),
                    ("BPJS Ketenagakerjaan", e.bpjs_tk or "-"), ("NPWP", e.npwp or "-"), ("Bank", e.bank_name or "-"), ("No. rekening", e.bank_account or "-")]
 
 

@@ -5,7 +5,7 @@ from django.db.models import F
 from django.utils import timezone
 from apps.core.models import Notification, Role, User
 from apps.hr.models import Employee
-from .models import (Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, Prescription, PrescriptionReturn, PatientAllergy, RecordAddendum, Referral, StockMovement, dispense)
+from .models import (Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, Prescription, PrescriptionReturn, PatientAllergy, RecordAddendum, Referral, SickLeaveLetter, StockMovement, dispense)
 
 MAX_LINES = 20
 
@@ -38,9 +38,10 @@ def _notify_low_stock(meds):
                                                        link=f"/poli/medicines/{m.pk}/") for u in users])
 
 
-def create_record(user, employee, kind, complaint="", exam=None, diagnosis=None, treatment="", prescriptions=(), examiner=None, doctor_name=""):
+def create_record(user, employee, kind, complaint="", exam=None, diagnosis=None, treatment="", prescriptions=(), examiner=None, doctor_name="", allergy=None):
     """Rekam medis + resep dalam SATU transaksi: stok kurang di resep mana pun → seluruh rekam medis dibatalkan.
-    prescriptions: iterable (medicine_id, qty:int, dosage). Mengembalikan (record, [obat yang stoknya ≤ minimum])."""
+    prescriptions: iterable (medicine_id, qty:int, dosage). allergy: (alergen, reaksi, tingkat) bila petugas mencatat alergi baru pada kunjungan ini (putaran 47);
+    alergi yang sudah tercatat tidak diulang. Mengembalikan (record, [obat yang stoknya ≤ minimum])."""
     if employee is None: raise ValueError("Karyawan tidak ditemukan atau tidak aktif")
     if kind not in dict(MedicalRecord.KINDS): raise ValueError("Jenis kunjungan tidak valid")
     if kind == "kehamilan" and employee.gender != "P": raise ValueError("Pemeriksaan kehamilan hanya untuk karyawan perempuan")
@@ -60,6 +61,7 @@ def create_record(user, employee, kind, complaint="", exam=None, diagnosis=None,
             Prescription.objects.create(record=r, medicine=m, qty=qty, dosage=dosage or "")
             if m.stock <= m.min_stock: low.append(m)
         if low: _notify_low_stock(low)
+        if allergy and (allergy[0] or "").strip(): add_allergy(user, employee, *allergy)  # duplikat/tidak valid → ValueError → seluruh rekam medis dibatalkan
     return r, low
 
 
@@ -92,15 +94,30 @@ def add_addendum(user, record, note):
     return RecordAddendum.objects.create(record=record, note=note, created_by=user)
 
 
-def create_referral(user, record, facility, note=""):
+def record_signer(record):
+    """(label, nama) penanda tangan surat Poli = PEMERIKSA pada rekam medis itu (putaran 47): dokter yang diisi → pemeriksa (karyawan Poli) → petugas Poli pembuat rekam medis.
+    Dokter perusahaan di .env hanya menjadi isian awal form, bukan penanda tangan tetap."""
+    if record.doctor_name: return "Dokter Pemeriksa,", record.doctor_name
+    if record.examiner_id: return "Pemeriksa,", record.examiner.name
+    u = record.created_by
+    return "Petugas Poliklinik,", ((u.get_full_name() or u.get_username()) if u is not None else "")
+
+
+def create_referral(user, record, facility, note="", purpose="", incident_date=None):
+    """Rujukan + data untuk cetak: jenis (kontrol/berobat/tes lab/spesialis) dan tanggal kejadian/keluhan (bawaan: tanggal kunjungan). Penanda tangan disalin dari pemeriksa."""
     facility = (facility or "").strip()
     if not facility: raise ValueError("Fasilitas tujuan wajib diisi")
+    if purpose and purpose not in dict(Referral.PURPOSES): raise ValueError("Jenis rujukan tidak dikenal")
+    today = timezone.localdate()
+    incident_date = incident_date or timezone.localtime(record.visit_at).date()
+    if incident_date > today: raise ValueError("Tanggal kejadian / keluhan tidak boleh di masa depan")
     with transaction.atomic():
         MedicalRecord.objects.select_for_update().get(pk=record.pk)  # serialisasi per rekam medis: dua petugas bersamaan tidak lolos berdua
         if Referral.objects.filter(record=record, status__in=("diajukan", "dirujuk")).exists():
             raise ValueError("Rekam medis ini masih punya rujukan yang berjalan")
-        return Referral.objects.create(number=LetterCounter.next_number("rjk", timezone.now()), record=record, facility=facility[:150],
-                                       note=note or "", created_by=user)
+        role, name = record_signer(record)
+        return Referral.objects.create(number=LetterCounter.next_number("rjk", timezone.now()), record=record, facility=facility[:150], note=note or "", created_by=user,
+                                       purpose=purpose or "", incident_date=incident_date, signer_role=role, signer_name=name[:100])
 
 
 def referral_transition(pk, to, user, outcome=""):
@@ -116,6 +133,44 @@ def referral_transition(pk, to, user, outcome=""):
         if outcome: ref.outcome = outcome
         ref.save(update_fields=["status", "outcome"])
     return ref, before
+
+
+# ---------------------------------------------------------------- Surat Poli (putaran 47)
+def add_months(d, n):
+    """Tanggal `n` bulan setelah `d` (hari dipotong ke akhir bulan bila perlu: 31 Jan + 1 bulan = 28/29 Feb)."""
+    import calendar
+    from datetime import date
+    y, m = divmod(d.month - 1 + n, 12); y += d.year; m += 1
+    return date(y, m, min(d.day, calendar.monthrange(y, m)[1]))
+
+
+def create_letter(user, record, kind, go_home=False, start_date=None, days=None, months=None):
+    """Surat keterangan menurut jenis; SATU per rekam medis per jenis (sudah ada → dikembalikan apa adanya). Mengembalikan (surat, dibuat_baru).
+    istirahat: pulang (go_home → hari itu juga, 1 hari) atau istirahat/cuti `days` hari mulai `start_date`.
+    izin_hamil (Surat Keterangan Cuti Hamil): hanya untuk kunjungan kehamilan; `months` bulan mulai `start_date` (bawaan 3). Penanda tangan disalin dari pemeriksa."""
+    from datetime import timedelta
+    if kind not in SickLeaveLetter.NEW_KINDS: raise ValueError("Jenis surat tidak dikenal")
+    if kind == "izin_hamil" and record.kind != "kehamilan": raise ValueError("Surat cuti hamil hanya untuk kunjungan jenis kehamilan")
+    with transaction.atomic():
+        MedicalRecord.objects.select_for_update().get(pk=record.pk)
+        old = SickLeaveLetter.objects.filter(record=record, kind=kind).first()
+        if old: return old, False
+        extra = {}
+        if kind == "istirahat":
+            if go_home: extra = {"go_home": True, "start_date": timezone.localdate(), "days": 1}
+            else:
+                if not start_date or not days: raise ValueError("Tanggal mulai dan lama istirahat wajib diisi")
+                if not (1 <= days <= 30): raise ValueError("Istirahat / cuti maksimal 30 hari; lebih lama perlu rujukan/pengajuan cuti sakit")
+                extra = {"start_date": start_date, "days": days}
+        else:
+            months = months or 3
+            if not start_date: raise ValueError("Tanggal mulai cuti hamil wajib diisi")
+            if not (1 <= months <= 6): raise ValueError("Lama cuti hamil 1–6 bulan")
+            extra = {"start_date": start_date, "months": months, "days": (add_months(start_date, months) - start_date).days}
+        role, name = record_signer(record)
+        letter = SickLeaveLetter.objects.create(record=record, kind=kind, number=LetterCounter.next_number(SickLeaveLetter.COUNTER[kind], timezone.now()),
+                                                signer_role=role, signer_name=name[:100], **extra)
+    return letter, True
 
 
 # ---------------------------------------------------------------- Tambah / kurangi obat pada rekam medis (rekam medis tetap tidak diubah)

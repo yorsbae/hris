@@ -90,6 +90,12 @@ class Referral(models.Model):
     # diajukan → dirujuk (sudah dikirim ke fasilitas) → selesai (hasil wajib); diajukan/dirujuk → batal (alasan wajib di `outcome`)
     STATUSES = [("diajukan", "Diajukan"), ("dirujuk", "Dirujuk"), ("selesai", "Selesai"), ("batal", "Dibatalkan")]
     FLOW = {"diajukan": {"dirujuk", "batal"}, "dirujuk": {"selesai", "batal"}}
+    # Jenis rujukan mengikuti formulir "Surat Pengantar Rumah Sakit": kontrol / berobat / tes lab / rujukan spesialis (putaran 47). Kosong = rujukan lama.
+    PURPOSES = [("kontrol", "Kontrol"), ("berobat", "Berobat"), ("tes_lab", "Tes lab"), ("spesialis", "Rujukan spesialis")]
+    purpose = models.CharField("Jenis rujukan", max_length=10, choices=PURPOSES, blank=True, default="")
+    incident_date = models.DateField("Tanggal kejadian / keluhan", null=True, blank=True)
+    # Penanda tangan DISALIN saat rujukan dibuat (putaran 47): mengikuti pemeriksa rekam medis saat itu, tidak berubah walau data karyawan berubah.
+    signer_role = models.CharField(max_length=40, blank=True); signer_name = models.CharField(max_length=100, blank=True)
     status = models.CharField(max_length=20, choices=STATUSES, default="diajukan", db_index=True); outcome = models.TextField(blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True, null=True)
@@ -104,15 +110,23 @@ class LetterCounter(models.Model):  # nomor surat otomatis, per jenis per bulan
             c.last += 1; c.save()
             return f"{kind.upper()}/{c.period}/{c.last:04d}"
 class SickLeaveLetter(models.Model):
-    """Surat dari Poli. Satu per rekam medis per JENIS: izin pulang, izin libur (istirahat beberapa hari), izin hamil. Tanpa diagnosa di surat."""
-    KINDS = [("izin_pulang", "Surat izin pulang"), ("izin_libur", "Surat izin libur / istirahat"), ("izin_hamil", "Surat izin hamil")]
-    PURPOSES = [("kontrol", "Kontrol kehamilan"), ("ringan", "Keringanan tugas"), ("cuti_melahirkan", "Rekomendasi cuti melahirkan")]
-    COUNTER = {"izin_pulang": "sip", "izin_libur": "sil", "izin_hamil": "sih"}
+    """Surat dari Poli. Satu per rekam medis per JENIS. Sejak putaran 47: `istirahat` = Surat Keterangan Istirahat / Cuti (menggantikan izin pulang + izin libur:
+    pulang = hari itu juga, `go_home`) dan `izin_hamil` = Surat Keterangan Cuti Hamil. Jenis lama (izin_pulang, izin_libur) hanya untuk surat yang sudah terbit
+    (tetap bisa dicetak ulang dengan tata letak baru). Tanpa diagnosa di surat."""
+    KINDS = [("istirahat", "Surat keterangan istirahat / cuti"), ("izin_hamil", "Surat keterangan cuti hamil"),
+             ("izin_pulang", "Surat izin pulang (lama)"), ("izin_libur", "Surat izin libur / istirahat (lama)")]
+    NEW_KINDS = ("istirahat", "izin_hamil")
+    PURPOSES = [("kontrol", "Kontrol kehamilan"), ("ringan", "Keringanan tugas"), ("cuti_melahirkan", "Rekomendasi cuti melahirkan")]  # surat izin hamil lama
+    COUNTER = {"istirahat": "ski-sit", "izin_hamil": "ski-sit", "izin_pulang": "sip", "izin_libur": "sil"}
     number = models.CharField(max_length=30, unique=True)
     record = models.ForeignKey(MedicalRecord, on_delete=models.PROTECT); issued_at = models.DateTimeField(auto_now_add=True)
-    kind = models.CharField(max_length=20, choices=KINDS, default="izin_pulang")
-    start_date = models.DateField(null=True, blank=True); days = models.PositiveSmallIntegerField(null=True, blank=True)  # izin_libur / izin_hamil
-    purpose = models.CharField(max_length=20, blank=True, choices=PURPOSES)  # izin_hamil
+    kind = models.CharField(max_length=20, choices=KINDS, default="istirahat")
+    start_date = models.DateField(null=True, blank=True); days = models.PositiveSmallIntegerField(null=True, blank=True)  # istirahat / izin_hamil
+    go_home = models.BooleanField("Pulang hari itu juga", default=False)  # istirahat: 1 hari, tanggal terbit
+    months = models.PositiveSmallIntegerField("Lama cuti hamil (bulan)", null=True, blank=True)  # izin_hamil baru; days = jumlah hari kalender
+    purpose = models.CharField(max_length=20, blank=True, choices=PURPOSES)  # izin_hamil lama
+    # Penanda tangan DISALIN saat surat dibuat: mengikuti pemeriksa rekam medis saat itu juga (putaran 47)
+    signer_role = models.CharField(max_length=40, blank=True); signer_name = models.CharField(max_length=100, blank=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=["record", "kind"], name="uniq_letter_record_kind"),
                        models.CheckConstraint(name="letter_days_range", condition=models.Q(days__isnull=True) | models.Q(days__gte=1, days__lte=365))]

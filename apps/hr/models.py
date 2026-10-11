@@ -66,6 +66,7 @@ class Employee(models.Model):
     marital_status = models.CharField(max_length=20, blank=True)
     education = models.CharField(max_length=30, blank=True)
     address = models.TextField(blank=True); phone = models.CharField(max_length=30, blank=True)
+    birth_date = models.DateField("Tanggal lahir", null=True, blank=True)  # putaran 47: untuk "Umur" di surat Poli; boleh kosong (surat mencetak "-")
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="employees")
     position = models.ForeignKey(Position, null=True, on_delete=models.PROTECT)
     status = models.CharField(max_length=20, default="aktif", db_index=True)  # tetap/kontrak/..., aktif/nonaktif
@@ -86,9 +87,14 @@ class Employee(models.Model):
     objects = EmployeeManager(); all_objects = models.Manager()
     class Meta:
         indexes = [models.Index(fields=["department", "status"]), models.Index(fields=["name", "nik"])]
-    SENSITIVE = ("nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "address", "phone")
+    SENSITIVE = ("nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "address", "phone", "birth_date")
     ENCRYPTED = ("nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_account")
     def __str__(self): return f"{self.nik} {self.name}"
+    def age(self, on=None):
+        """Umur penuh (tahun) pada tanggal `on` (bawaan hari ini); None bila tanggal lahir belum diisi."""
+        if not self.birth_date: return None
+        on = on or timezone.localdate()
+        return on.year - self.birth_date.year - ((on.month, on.day) < (self.birth_date.month, self.birth_date.day))
     def soft_delete(self, user, reason):
         self.deleted_at, self.deleted_by, self.delete_reason = timezone.now(), user, reason[:300]
         self.save(update_fields=["deleted_at", "deleted_by", "delete_reason"])

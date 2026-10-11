@@ -5,6 +5,9 @@
 <form method="post" class="card form wide" id="rm-form">{% csrf_token %}{{ form.non_field_errors }}{{ form.examiner_nik }}
 <div class="fgrid g2">{% include "poli/_fld.html" with f=form.nik %}{% include "poli/_fld.html" with f=form.kind %}</div>
 <p id="kind-hint" class="note" hidden></p>
+<fieldset class="kf always" id="allergy-box"><legend>Alergi pasien</legend>
+<div id="al-current" class="al none" aria-live="polite"><span>Pilih NIK karyawan untuk menampilkan alergi yang sudah tercatat.</span></div>
+<div class="fgrid g3">{% include "poli/_fld.html" with f=form.allergy_substance %}{% include "poli/_fld.html" with f=form.allergy_reaction %}{% include "poli/_fld.html" with f=form.allergy_severity %}</div></fieldset>
 {% include "poli/_fld.html" with f=form.complaint %}
 <fieldset class="kf" data-kinds="berobat kecelakaan_kerja kehamilan pemeriksaan"><legend>Tanda vital</legend><div class="fgrid g5">{% include "poli/_fld.html" with f=form.tensi %}{% include "poli/_fld.html" with f=form.suhu %}{% include "poli/_fld.html" with f=form.nadi %}{% include "poli/_fld.html" with f=form.bb %}{% include "poli/_fld.html" with f=form.tb %}</div></fieldset>
 <fieldset class="kf" data-kinds="kecelakaan_kerja"><legend>Kecelakaan kerja</legend><div class="fgrid g2">{% include "poli/_fld.html" with f=form.incident_place %}{% include "poli/_fld.html" with f=form.injury_part %}</div>{% include "poli/_fld.html" with f=form.incident_story %}<div class="fgrid g2">{% include "poli/_fld.html" with f=form.injury_type %}{% include "poli/_fld.html" with f=form.lost_days %}</div></fieldset>
@@ -74,8 +77,14 @@ document.addEventListener("click",function(e){var b=e.target.closest&&e.target.c
 var cs=$('select[name="exam_conclusion"]');if(cs)cs.addEventListener("change",function(){if(cs.value&&!diagInp.value.trim())quick(cs.value)});
 function el(t,txt,c){var e=document.createElement(t);if(txt!=null)e.textContent=txt;if(c)e.className=c;return e}
 var EMPTY="Pilih NIK karyawan untuk menampilkan riwayat medis, alergi, dan status BPJS (K/TK).";
-function reset(){seq++;body.textContent="";body.appendChild(el("p",EMPTY,"help"))}
-function render(j){body.textContent="";
+var alc=$("#al-current"),AL_EMPTY="Pilih NIK karyawan untuk menampilkan alergi yang sudah tercatat.";
+function setAllergy(list){alc.textContent="";
+ if(!list){alc.className="al none";alc.appendChild(el("span",AL_EMPTY));return}
+ if(!list.length){alc.className="al none";alc.appendChild(el("span","Belum ada alergi tercatat untuk pasien ini. Isi di bawah bila pasien menyebutkan alergi."));return}
+ alc.className="al";alc.appendChild(el("b","⚠ Alergi tercatat ("+list.length+") — periksa sebelum meresepkan obat"));var u=el("ul");
+ list.forEach(function(a){u.appendChild(el("li",a.substance+(a.reaction?" — "+a.reaction:"")+" ["+a.severity_label+"]"))});alc.appendChild(u)}
+function reset(){seq++;setAllergy(null);body.textContent="";body.appendChild(el("p",EMPTY,"help"))}
+function render(j){body.textContent="";setAllergy(j.allergies);
  var w=el("div",null,"who");w.appendChild(el("b",j.name));w.appendChild(el("span","NIK "+j.nik,"sub"));body.appendChild(w);
  var dl=el("dl",null,"dl");[["Jenis kelamin",j.gender],["Departemen",j.department],["Jabatan",j.position||"—"],["Shift",(j.shift||"—")+(j.group?" · Kelompok "+j.group:"")],["Bergabung",j.join_date+" ("+j.tenure+")"],["Status",j.status]].forEach(function(r){dl.appendChild(el("dt",r[0]));dl.appendChild(el("dd",r[1]))});body.appendChild(dl);
  var al=el("div",null,"al"+(j.allergies.length?"":" none"));

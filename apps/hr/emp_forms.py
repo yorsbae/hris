@@ -20,12 +20,12 @@ class EmployeeForm(forms.ModelForm):
     class Meta:
         model = Employee
         fields = ["nik", "name", "gender", "join_date", "department", "position", "shift", "shift_group", "gs_short", "status", "marital_status", "education",
-                  "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account"]
-        widgets = {"join_date": forms.DateInput(attrs={"type": "date"}), "address": forms.Textarea(attrs={"rows": 2}),
+                  "birth_date", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account"]
+        widgets = {"join_date": forms.DateInput(attrs={"type": "date"}), "birth_date": forms.DateInput(attrs={"type": "date"}), "address": forms.Textarea(attrs={"rows": 2}),
                    **{f: forms.TextInput() for f in Employee.ENCRYPTED}}
         labels = {"nik": "NIK induk kerja", "name": "Nama", "gender": "Jenis kelamin", "join_date": "Tanggal masuk", "nik_ktp": "NIK KTP",
                   "bpjs_kes": "BPJS Kesehatan", "bpjs_tk": "BPJS Ketenagakerjaan", "bank_name": "Bank", "bank_account": "No. rekening",
-                  "marital_status": "Status pernikahan", "education": "Pendidikan", "address": "Alamat", "phone": "Telepon",
+                  "marital_status": "Status pernikahan", "education": "Pendidikan", "birth_date": "Tanggal lahir", "address": "Alamat", "phone": "Telepon",
                   "department": "Departemen", "position": "Jabatan", "shift": "Shift tetap / GS", "shift_group": "Kelompok shift (rotasi)", "gs_short": "GS sebelum libur"}
 
     def __init__(self, *a, **k):
@@ -70,6 +70,12 @@ class EmployeeForm(forms.ModelForm):
         d = super().clean()
         if d.get("shift") and d.get("shift_group"):  # satu sumber jadwal dasar: rotasi kelompok ATAU shift tetap/GS (jadwal efektif tidak ambigu)
             self.add_error("shift_group", "Pilih salah satu: kelompok rotasi atau shift tetap/GS, tidak keduanya.")
+        return d
+
+    def clean_birth_date(self):
+        d = self.cleaned_data.get("birth_date")
+        if d and not (14 <= (date.today().year - d.year - ((date.today().month, date.today().day) < (d.month, d.day))) <= 100):
+            raise forms.ValidationError("Tanggal lahir tidak masuk akal (umur harus 14–100 tahun).")
         return d
 
     def clean_join_date(self):

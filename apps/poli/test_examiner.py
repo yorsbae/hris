@@ -61,13 +61,19 @@ class ExaminerTests(PoliBase):
         a = AuditLog.objects.filter(action="create_record").latest("id"); blob = str(a.__dict__)
         self.assertIn("P01", blob); self.assertNotIn("dr. Rahasia", blob)
 
-    def test_signer_priority_on_letters(self):
+    def test_signer_follows_the_examiner_of_that_record(self):
+        """Putaran 47: tanda tangan surat = pemeriksa pada rekam medis itu (dokter yang diisi → pemeriksa Poli → petugas pembuat); dokter .env hanya isian awal form."""
         def sign(**kw):
             r = services.create_record(self.poli, self.e1, "berobat", "k", {}, None, "", (), **kw)[0]
-            l = SickLeaveLetter.objects.create(record=r, kind="izin_pulang", number=LetterCounter.next_number("sip", date.today()) + str(r.pk)); return pdf_text(sick_leave_pdf(l))
+            return pdf_text(sick_leave_pdf(services.create_letter(self.poli, r, "istirahat", go_home=True)[0]))
         with override_settings(POLI_DOCTOR_NAME="dr. Perusahaan", COMPANY_NAME="PT X"):
             t = sign(examiner=self.nurse, doctor_name="dr. Pemeriksa"); self.assertIn("Dokter Pemeriksa,", t); self.assertIn("( dr. Pemeriksa )", t)   # dokter di rekam medis menang
-            t = sign(examiner=self.nurse); self.assertIn("Dokter Perusahaan,", t); self.assertIn("( dr. Perusahaan )", t)                           # lalu dokter perusahaan
-        with override_settings(POLI_DOCTOR_NAME="", COMPANY_NAME="PT X"):
-            t = sign(examiner=self.nurse); self.assertIn("Petugas Poliklinik,", t); self.assertIn("( Ratna Perawat )", t)                           # lalu pemeriksa
-            t = sign(); self.assertIn("Petugas Poliklinik,", t); self.assertNotIn("Ratna", t)                                                       # terakhir pembuat rekam medis
+            t = sign(examiner=self.nurse); self.assertIn("Pemeriksa,", t); self.assertIn("( Ratna Perawat )", t); self.assertNotIn("dr. Perusahaan", t)   # lalu pemeriksa Poli
+            t = sign(); self.assertIn("Petugas Poliklinik,", t); self.assertNotIn("Ratna", t); self.assertNotIn("dr. Perusahaan", t)                     # terakhir pembuat rekam medis
+
+    def test_signer_is_copied_into_the_letter_and_does_not_change_later(self):
+        r = services.create_record(self.poli, self.e1, "berobat", "k", {}, None, "", (), examiner=self.nurse)[0]
+        letter = services.create_letter(self.poli, r, "istirahat", go_home=True)[0]; ref = services.create_referral(self.poli, r, "RS A", purpose="berobat")
+        self.assertEqual((letter.signer_role, letter.signer_name), ("Pemeriksa,", "Ratna Perawat")); self.assertEqual(ref.signer_name, "Ratna Perawat")
+        Employee.objects.filter(pk=self.nurse.pk).update(name="Nama Baru")  # perubahan data karyawan tidak mengubah surat yang sudah terbit
+        self.assertIn("( Ratna Perawat )", pdf_text(sick_leave_pdf(letter)))

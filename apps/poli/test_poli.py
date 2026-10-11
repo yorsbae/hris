@@ -225,11 +225,11 @@ class RecordTests(PoliBase):
 class ReferralTests(PoliBase):
     def test_create_flow_and_numbering(self):
         r = self.create(); self.login("poli")
-        resp = self.client.post(f"/poli/records/{r.pk}/referral/new/", {"facility": "RSUD Kota", "note": "Curiga apendisitis"})
+        resp = self.client.post(f"/poli/records/{r.pk}/referral/new/", {"facility": "RSUD Kota", "note": "Curiga apendisitis", "purpose": "berobat"})
         ref = Referral.objects.get(); self.assertRedirects(resp, f"/poli/referrals/{ref.pk}/"); self.assertRegex(ref.number, r"^RJK/\d{6}/0001$")
         self.assertEqual((ref.status, ref.created_by), ("diajukan", self.poli))
         # satu rujukan berjalan per rekam medis
-        resp = self.client.post(f"/poli/records/{r.pk}/referral/new/", {"facility": "RS Lain"}); self.assertContains(resp, "masih punya rujukan")
+        resp = self.client.post(f"/poli/records/{r.pk}/referral/new/", {"facility": "RS Lain", "purpose": "berobat"}); self.assertContains(resp, "masih punya rujukan")
         self.assertEqual(Referral.objects.count(), 1)
         self.client.post(f"/poli/referrals/{ref.pk}/finish/", {"outcome": "x"}); ref.refresh_from_db(); self.assertEqual(ref.status, "diajukan")  # tidak boleh lompat
         self.client.post(f"/poli/referrals/{ref.pk}/send/"); ref.refresh_from_db(); self.assertEqual(ref.status, "dirujuk")
