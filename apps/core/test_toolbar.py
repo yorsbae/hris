@@ -49,3 +49,8 @@ class MobileCardActions(SimpleTestCase):
     def test_action_and_empty_cell_rules_in_base(self):
         for k in ("td.kact", "td.knul", "function hl(", 'classList.toggle("kact"', 'classList.toggle("knul"', "min-height:38px"):
             self.assertIn(k, BASE, k)
+
+
+class MobileKpiStrip(SimpleTestCase):
+    def test_kpi_strip_two_columns_on_phone(self):
+        self.assertIn(".sepkpi{display:grid;grid-template-columns:1fr 1fr}", BASE)

@@ -144,6 +144,8 @@ table.sepfit{width:100%}table.sepfit small{display:block;color:var(--mu);font-si
 .epanel .xrow{padding:6px 14px}.epanel .xrow a{display:inline-block;padding:3px 10px;border:1px solid var(--bd2);border-radius:6px;color:var(--ac);text-decoration:none}
 .epanel .exports{padding:8px 14px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:14px}.epanel .exports a{color:var(--ac)}
 @media(max-width:600px){.fbar .fsearch{flex:1 1 140px;max-width:none;order:3}.fbar .fsub{order:3}.epanel{width:auto}}
+/* putaran 44: strip KPI 2 kolom di ponsel (hemat tinggi layar; kartu ganjil terakhir selebar penuh) */
+@media(max-width:600px){.sepkpi{display:grid;grid-template-columns:1fr 1fr}.sepkpi>*{min-width:0;overflow-wrap:anywhere}.sepkpi>*:last-child:nth-child(odd){grid-column:1/-1}}
 /* putaran 42: tabel daftar jadi kartu per baris di ponsel (<=600px). JS (cardify) memberi data-label dari <th>; tabel dengan >8 kolom, rowspan, atau .nocard tetap bergulir */
 @media(max-width:600px){table.cards,table.cards tbody{display:block;width:100%}table.cards thead{display:none}
 table.cards tr{display:block;margin:0 0 10px;padding:6px 12px;background:var(--card);border:1px solid var(--bd);border-radius:12px}
