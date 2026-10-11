@@ -42,3 +42,10 @@ class MobileCardTables(SimpleTestCase):
 
     def test_wide_tables_are_not_cardified(self):
         self.assertIn("ths.length>8", BASE)  # grid lebar (jadwal mingguan) tetap bergulir
+
+
+class MobileCardActions(SimpleTestCase):
+    """Putaran 43: sel aksi di kartu = baris tombol selebar kartu; sel kosong disembunyikan; label tanpa teks <small>."""
+    def test_action_and_empty_cell_rules_in_base(self):
+        for k in ("td.kact", "td.knul", "function hl(", 'classList.toggle("kact"', 'classList.toggle("knul"', "min-height:38px"):
+            self.assertIn(k, BASE, k)
