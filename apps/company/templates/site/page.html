@@ -1,2 +1,2 @@
-{% extends "site/base.html" %}{% load site_tags %}{% block content %}<section class="hero tight"><h1>{% t pg "title" %}</h1>{% t pg "subtitle" as st %}{% if st %}<p class="lead mid">{{ st }}</p>{% endif %}</section>
-<div class="panel prose center">{% t pg "body" as b %}{{ b|rich }}</div>{% endblock %}
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<section class="sh"><h1>{% t pg "title" %}</h1><span class="orn" aria-hidden="true"><i></i></span>{% t pg "subtitle" as st %}{% if st %}<p class="lead mid">{{ st }}</p>{% endif %}</section>
+<div class="pagebody"><div class="panel prose">{% t pg "body" as b %}{{ b|rich }}</div>{% if pg.slug == "tentang-kami" %}<div class="art">{% include "site/ill/about.html" %}</div>{% endif %}</div>{% endblock %}

@@ -34,6 +34,38 @@ UI = {
     "results_for": {"id": "Hasil untuk", "en": "Results for"}, "rights": {"id": "Seluruh hak cipta dilindungi.", "en": "All rights reserved."},
 }
 
+# ---- putaran 53: teks beranda/karir/kontak yang diperkaya (ilustrasi, sorotan, proses, cara melamar)
+UI.update({
+    "hl1_t": {"id": "Bahan Pilihan", "en": "Selected Materials"}, "hl1_d": {"id": "Benang berkualitas dengan pewarnaan awet, nyaman dipakai setiap hari.", "en": "Quality yarn with long-lasting dyes, comfortable for everyday wear."},
+    "hl2_t": {"id": "Motif Warisan", "en": "Heritage Motifs"}, "hl2_d": {"id": "Motif klasik dan kontemporer yang dijaga ketelitiannya helai demi helai.", "en": "Classic and contemporary motifs, carefully kept thread by thread."},
+    "hl3_t": {"id": "Pengrajin Terlatih", "en": "Skilled Artisans"}, "hl3_d": {"id": "Dikerjakan operator dan pengrajin berpengalaman dengan pemeriksaan mutu berlapis.", "en": "Made by experienced operators and artisans with layered quality checks."},
+    "process_t": {"id": "Dari Benang Menjadi Sarung", "en": "From Thread to Sarong"},
+    "pr1_t": {"id": "Pilih benang", "en": "Choose yarn"}, "pr1_d": {"id": "Benang diseleksi kekuatan dan kehalusannya.", "en": "Yarn is selected for strength and fineness."},
+    "pr2_t": {"id": "Pewarnaan", "en": "Dyeing"}, "pr2_d": {"id": "Warna dikunci agar tidak mudah pudar.", "en": "Colours are fixed so they do not fade easily."},
+    "pr3_t": {"id": "Menenun", "en": "Weaving"}, "pr3_d": {"id": "Motif terbentuk di alat tenun, helai demi helai.", "en": "The motif forms on the loom, thread by thread."},
+    "pr4_t": {"id": "Cek mutu", "en": "Quality check"}, "pr4_d": {"id": "Setiap lembar diperiksa sebelum dikemas.", "en": "Every piece is inspected before packing."},
+    "about_t": {"id": "Mengenal Sarung Kita", "en": "Getting to Know Our Sarong"},
+    "about_d": {"id": "Sarung bukan sekadar kain: ia membawa identitas, kebersamaan, dan cerita turun-temurun. Kami menenunnya dengan menjaga mutu dan makna.", "en": "A sarong is more than cloth: it carries identity, togetherness and stories passed down the generations. We weave it with care for quality and meaning."},
+    "learn_more": {"id": "Pelajari lebih lanjut", "en": "Learn more"},
+    "careers_t": {"id": "Tumbuh Bersama Kami", "en": "Grow With Us"}, "careers_d": {"id": "Kami mencari orang-orang teliti dan bersemangat untuk menjaga warisan tenun tetap hidup.", "en": "We are looking for careful, enthusiastic people to keep the weaving heritage alive."},
+    "why_join": {"id": "Mengapa Bergabung?", "en": "Why Join Us?"},
+    "perk1_t": {"id": "BPJS lengkap", "en": "Full BPJS cover"}, "perk1_d": {"id": "Kesehatan & Ketenagakerjaan untuk karyawan.", "en": "Health & employment insurance for staff."},
+    "perk2_t": {"id": "Shift jelas", "en": "Clear shifts"}, "perk2_d": {"id": "Jadwal kerja terbuka dan teratur.", "en": "Open, regular work schedules."},
+    "perk3_t": {"id": "Berkembang", "en": "Room to grow"}, "perk3_d": {"id": "Pelatihan dan jenjang karir yang jelas.", "en": "Training and a clear career path."},
+    "perk4_t": {"id": "Tim yang suportif", "en": "Supportive team"}, "perk4_d": {"id": "Lingkungan kerja yang saling menghargai.", "en": "A workplace built on mutual respect."},
+    "howto_t": {"id": "Cara Melamar", "en": "How to Apply"},
+    "how1": {"id": "Pilih lowongan yang sesuai", "en": "Pick a position that fits"}, "how2": {"id": "Isi formulir 3 langkah dan unggah CV", "en": "Fill the 3-step form and upload your CV"}, "how3": {"id": "Verifikasi email & pantau status", "en": "Verify your email & follow your status"},
+    "openings": {"id": "formasi", "en": "openings"}, "view_jobs": {"id": "Lihat lowongan", "en": "View openings"},
+    "visit_us": {"id": "Kunjungi Kami", "en": "Visit Us"}, "directions": {"id": "Petunjuk arah", "en": "Get directions"},
+    "stores_intro": {"id": "Temukan toko dan gerai kami terdekat.", "en": "Find our nearest stores and outlets."},
+    "products_intro": {"id": "Koleksi sarung tenun untuk keseharian, ibadah, dan acara istimewa.", "en": "Woven sarong collection for everyday wear, worship and special occasions."},
+    "contact_intro": {"id": "Pertanyaan, pesanan grosir, atau kerja sama? Tulis pesan atau hubungi kami langsung.", "en": "Questions, wholesale orders or partnerships? Send a message or reach us directly."},
+    "faq_intro": {"id": "Jawaban singkat untuk pertanyaan yang paling sering kami terima.", "en": "Quick answers to the questions we receive most."},
+    "careers_page_d": {"id": "Karir di sini berarti ikut menjaga mutu dan budaya tenun.", "en": "A career here means helping keep weaving quality and culture alive."},
+    "empty_t": {"id": "Belum ada isi di sini", "en": "Nothing here yet"}, "chat_wa": {"id": "Chat WhatsApp", "en": "Chat on WhatsApp"}, "call": {"id": "Telepon", "en": "Call"},
+    "demo_note": {"id": "Data contoh — ganti lewat menu Company Profile.", "en": "Sample data — edit it in the Company Profile menu."},
+})
+
 CONSENT_ID = ("Data yang Anda isi (nama, kontak, tanggal lahir, riwayat, dan CV) hanya dipakai untuk seleksi lowongan ini oleh tim HRD, disimpan terenkripsi, "
               "tidak dijual atau dibagikan ke pihak lain, dan dihapus/dianonimkan setelah masa simpan berakhir. Anda dapat mengunduh, membatalkan, atau menghapus data kapan saja lewat tautan status.")
 CONSENT_EN = ("The data you enter (name, contact, birth date, history and CV) is used only by our HR team to assess this vacancy. It is stored encrypted, never sold or shared, "

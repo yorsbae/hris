@@ -1,3 +1,3 @@
-{% extends "site/base.html" %}{% load site_tags %}{% block content %}<p><a href="{% purl 'articles' %}">‹ {% ui "articles" %}</a></p>
-<article class="panel"><h1>{% t a "title" %}</h1><p class="meta">{% ui "posted" %} {{ a.published_at|date:"j N Y" }}{% if a.author %} · {% ui "by" %} {{ a.author }}{% endif %}</p>
-{% if a.cover %}<img class="cover" src="{{ a.cover|media }}" alt="">{% endif %}<div class="prose">{% t a "body" as b %}{{ b|rich }}</div></article>{% endblock %}
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<p class="crumb"><a href="{% purl 'articles' %}">‹ {% ui "articles" %}</a></p>
+<article class="panel"><h1>{% t a "title" %}</h1><p class="meta">{% ui "posted" %} {{ a.published_at|date:"j N Y" }}{% if a.author %} · {% ui "by" %} {{ a.author }}{% endif %}</p><span class="orn" aria-hidden="true"><i></i></span>
+<div class="cover pimg">{% if a.cover %}<img src="{{ a.cover|media }}" alt="">{% else %}{% motif a %}{% endif %}</div><div class="prose">{% t a "body" as b %}{{ b|rich }}</div></article>{% endblock %}

@@ -21,12 +21,13 @@
 <form class="sform" action="{% purl 'search' %}" method="get" role="search"><input type="search" name="q" maxlength="80" placeholder="{% ui 'search_ph' %}" aria-label="{% ui 'search' %}"><button type="submit">{% ui "search" %}</button></form>
 <a class="lang" href="{{ alt_url }}" hreflang="{{ alt_lang }}" lang="{{ alt_lang }}">{% ui "lang_switch" %}</a>
 </nav></div><div class="batik" aria-hidden="true"></div></header>
-<main id="isi">{% block content %}{% endblock %}</main>
+<main id="isi" class="{% block mainclass %}{% endblock %}">{% block content %}{% endblock %}</main>
 {% if S.whatsapp %}<a class="wa-fab" href="{{ S.whatsapp|wa_link }}" rel="noopener" target="_blank">WhatsApp</a>{% endif %}
+<div class="tumpal" aria-hidden="true"></div>
 <footer class="foot"><div class="in">
-<div><h4>{{ S.brand_name }}</h4><p>{% t S "tagline" %}</p>{% if S.address %}<p>{{ S.address|linebreaksbr }}</p>{% endif %}</div>
-<div><h4>{% ui "contact" %}</h4>{% if S.phone %}<p>{% ui "phone" %}: {{ S.phone }}</p>{% endif %}{% if S.email %}<p><a href="mailto:{{ S.email }}">{{ S.email }}</a></p>{% endif %}{% if S.hours_id %}<p>{% t S "hours" %}</p>{% endif %}</div>
-<div><h4>{% ui "menu" %}</h4><p><a href="{% purl 'products' %}">{% ui "products" %}</a> · <a href="{% purl 'faq' %}">{% ui "faq" %}</a>{% if open_jobs %} · <a href="{% purl 'careers' %}">{% ui "careers" %}</a>{% endif %}</p>
-<p>{% if S.instagram %}<a href="{{ S.instagram }}" rel="noopener" target="_blank">Instagram</a> {% endif %}{% if S.facebook %}<a href="{{ S.facebook }}" rel="noopener" target="_blank">Facebook</a> {% endif %}{% if S.tiktok %}<a href="{{ S.tiktok }}" rel="noopener" target="_blank">TikTok</a> {% endif %}{% if S.marketplace_url %}<a href="{{ S.marketplace_url }}" rel="noopener" target="_blank">Marketplace</a>{% endif %}</p></div>
+<div><h4>{{ S.brand_name }}</h4><p>{% t S "tagline" %}</p>{% if S.address %}<ul class="rows"><li>{% icon "pin" %}<span>{{ S.address|linebreaksbr }}</span></li></ul>{% endif %}</div>
+<div><h4>{% ui "contact" %}</h4><ul class="rows">{% if S.phone %}<li>{% icon "phone" %}<span>{{ S.phone }}</span></li>{% endif %}{% if S.email %}<li>{% icon "mail" %}<a href="mailto:{{ S.email }}">{{ S.email }}</a></li>{% endif %}{% if S.hours_id %}<li>{% icon "clock" %}<span>{% t S "hours" %}</span></li>{% endif %}</ul></div>
+<div><h4>{% ui "menu" %}</h4><ul><li><a href="{% purl 'products' %}">{% ui "products" %}</a></li><li><a href="{% purl 'about' %}">{% ui "about" %}</a></li><li><a href="{% purl 'stores' %}">{% ui "stores" %}</a></li><li><a href="{% purl 'faq' %}">{% ui "faq" %}</a></li>{% if open_jobs %}<li><a href="{% purl 'careers' %}">{% ui "careers" %}</a></li>{% endif %}</ul></div>
+<div><h4>{% ui "visit_us" %}</h4><div class="soc">{% if S.instagram %}<a href="{{ S.instagram }}" rel="noopener" target="_blank">Instagram</a>{% endif %}{% if S.facebook %}<a href="{{ S.facebook }}" rel="noopener" target="_blank">Facebook</a>{% endif %}{% if S.tiktok %}<a href="{{ S.tiktok }}" rel="noopener" target="_blank">TikTok</a>{% endif %}{% if S.marketplace_url %}<a href="{{ S.marketplace_url }}" rel="noopener" target="_blank">Marketplace</a>{% endif %}{% if S.maps_url %}<a href="{{ S.maps_url }}" rel="noopener" target="_blank">{% ui "map" %}</a>{% endif %}</div></div>
 <div class="copy">© {{ now.year }} {{ S.brand_name }}. {% ui "rights" %} {% t S "footer_note" %}</div></div></footer>
 </body></html>

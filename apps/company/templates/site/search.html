@@ -1,5 +1,5 @@
-{% extends "site/base.html" %}{% load site_tags %}{% block content %}<h1>{% ui "search" %}</h1>
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<div class="sh"><h1>{% ui "search" %}</h1><span class="orn" aria-hidden="true"><i></i></span></div>
 {% if q %}<p class="lead">{% ui "results_for" %} “{{ q }}”</p>
 {% if prods %}<h2>{% ui "products" %}</h2><div class="grid">{% for p in prods %}{% include "site/_product_card.html" %}{% endfor %}</div>{% endif %}
 {% if arts %}<h2>{% ui "articles" %}</h2><ul>{% for a in arts %}<li><a href="{% purl 'article' a.slug %}">{% t a "title" %}</a></li>{% endfor %}</ul>{% endif %}
-{% if not prods and not arts %}<p>{% ui "no_results" %}</p>{% endif %}{% endif %}{% endblock %}
+{% if not prods and not arts %}<div class="empty">{% include "site/ill/empty.html" %}<p>{% ui "no_results" %}</p></div>{% endif %}{% endif %}{% endblock %}

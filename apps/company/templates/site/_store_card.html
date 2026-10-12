@@ -1,0 +1,3 @@
+{% load site_tags %}<div class="card scard"><div class="map v{{ n }}">{% include "site/ill/map.html" %}</div><div class="in"><h3>{{ s.name }}</h3><p class="meta">{{ s.city }}</p>
+<ul class="rows"><li>{% icon "pin" %}<span>{{ s.address|linebreaksbr }}</span></li>{% if s.phone %}<li>{% icon "phone" %}<span>{{ s.phone }}</span></li>{% endif %}{% t s "hours" as h %}{% if h %}<li>{% icon "clock" %}<span>{{ h }}</span></li>{% endif %}</ul>
+<div class="acts">{% if s.maps_url %}<a class="btn sm" href="{{ s.maps_url }}" rel="noopener" target="_blank">{% ui "directions" %}</a>{% endif %}{% if s.phone %}<a class="btn sm alt" href="tel:{{ s.phone|cut:' '|cut:'-' }}">{% ui "call" %}</a>{% endif %}</div></div></div>

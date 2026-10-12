@@ -441,3 +441,48 @@ class SeedCompanyTests(Base):
         self.assertEqual(n, (Product.objects.count(), Article.objects.count(), Job.objects.count(), Faq.objects.count()))
         self.assertTrue(Product.objects.filter(name="Diubah HRD").exists()); self.assertEqual(SiteSetting.get().tagline_id, "Slogan HRD")
         self.assertTrue(Page.objects.filter(slug="tentang-kami", status="published").exists())
+
+
+@ov(public=True)
+class Putaran53VisualTests(Base):
+    """Putaran 53: ilustrasi, ikon, motif otomatis, data demo lengkap — semuanya server-side & patuh CSP publik (tanpa style/skrip inline)."""
+    def setUp(self):
+        super().setUp(); call_command("seed_company", stdout=io.StringIO())
+
+    def test_demo_seed_is_rich_and_idempotent_by_slug(self):
+        self.assertGreaterEqual(Product.objects.count(), 8); self.assertGreaterEqual(StoreLocation.objects.count(), 4)
+        self.assertGreaterEqual(Faq.objects.count(), 6); self.assertGreaterEqual(Article.objects.count(), 4); self.assertGreaterEqual(Job.objects.filter(status="open").count(), 4)
+        n = (Product.objects.count(), Article.objects.count(), StoreLocation.objects.count(), Faq.objects.count(), Job.objects.count())
+        Product.objects.update(name="Diubah HRD"); StoreLocation.objects.update(name="Toko Diubah"); Job.objects.update(title="Judul Diubah")
+        call_command("seed_company", stdout=io.StringIO())
+        self.assertEqual(n, (Product.objects.count(), Article.objects.count(), StoreLocation.objects.count(), Faq.objects.count(), Job.objects.count()))
+        self.assertEqual(Product.objects.filter(price__isnull=False, show_price=True).count() >= 7, True)
+        self.assertTrue(StoreLocation.objects.exclude(maps_url="").exists())
+
+    def test_seed_fills_blank_site_contact_but_keeps_hrd_edits(self):
+        s = SiteSetting.get(); s.phone = ""; s.address = "Alamat HRD"; s.save()
+        call_command("seed_company", stdout=io.StringIO()); s = SiteSetting.get()
+        self.assertEqual(s.address, "Alamat HRD"); self.assertTrue(s.phone)
+
+    def test_pages_render_with_illustrations_and_no_inline_style(self):
+        for path in ("/", "/en/", "/produk/", "/tentang-kami/", "/lokasi-toko/", "/artikel/", "/karir/", "/kontak/", "/faq/"):
+            r = self.client.get(path); self.assertEqual(r.status_code, 200, path)
+            html = r.content.decode(); self.assertNotRegex(html, r'\sstyle=|<style|\son\w+=', path)
+        self.assertContains(self.client.get("/"), "class=\"ill\""); self.assertContains(self.client.get("/karir/"), "Ilustrasi tim pengrajin")
+        self.assertContains(self.client.get("/lokasi-toko/"), "Ilustrasi peta"); self.assertContains(self.client.get("/kontak/"), "Ilustrasi surat")
+
+    def test_product_without_photo_gets_motif_not_blank_placeholder(self):
+        r = self.client.get("/produk/"); self.assertContains(r, "class=\"motif\""); self.assertNotContains(r, "class=\"ph\"")
+        p = Product.objects.get(slug="sarung-wadimor-songket"); self.assertContains(self.client.get(f"/produk/{p.slug}/"), "Rp 325.000")
+
+    def test_store_card_has_directions_and_phone_link(self):
+        r = self.client.get("/lokasi-toko/"); self.assertContains(r, "Petunjuk arah"); self.assertContains(r, "google.com/maps"); self.assertContains(r, "tel:")
+
+    def test_motif_tag_is_stable_and_escapes_name(self):
+        from apps.company.templatetags.site_tags import motif
+        class O: pk = 3; name = "<b>x</b>"; motif = "songket"; colors = "biru"
+        a, b = motif({}, O()), motif({}, O()); self.assertEqual(a, b); self.assertNotIn("<b>x", a); self.assertIn("&lt;b&gt;", a)
+
+    def test_icon_tag_unknown_is_empty(self):
+        from apps.company.templatetags.site_tags import icon
+        self.assertEqual(icon("tidak-ada"), ""); self.assertIn("<svg", icon("shield"))
