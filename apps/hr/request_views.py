@@ -5,15 +5,15 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import Http404
+from django.http import FileResponse, Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 from apps.core.audit import log
 from apps.core.models import Notification, Role
 from apps.core.scope import get_scoped_or_404, require_roles, scope_dept_only
-from . import schedule, services
+from . import attachments, schedule, services
 from .forms import FIELDS_BY_TYPE, LABELS, REQUEST_GROUPS, RequestForm, allowed_types
-from .models import ChangeRequest
+from .models import ChangeRequest, RequestAttachment
 
 ROLES = (Role.HRD, Role.DEPT_ADMIN, Role.POLI)  # Superadmin lolos otomatis di require_roles
 FIELD_LABELS = {"start_date": "Tanggal mulai", "end_date": "Tanggal selesai", "date": "Tanggal", "date_to": "Diganti ke tanggal",
@@ -62,11 +62,18 @@ def request_list(request, grp=None):
 def request_new(request):
     grp = request.GET.get("grp") or request.POST.get("grp") or None
     form = RequestForm(request.POST or None, user=request.user, group=grp)
-    if request.method == "POST" and form.is_valid():
+    files = request.FILES.getlist("photos") if request.method == "POST" else []
+    ok = request.method == "POST" and form.is_valid()
+    if ok and files and form.cleaned_data["type"] in attachments.ATTACH_TYPES:
+        errs = attachments.check(files)
+        for e in errs: form.add_error(None, e)
+        ok = not errs
+    if ok:
         d = form.cleaned_data
         req = ChangeRequest.objects.create(type=d["type"], employee=form.employee, department=form.employee.department,
                                            payload=form.payload(), requested_by=request.user)
         log(request, "hr", "request_create", req, None, {"type": req.type, "employee": form.employee.nik})
+        if files and req.type in attachments.ATTACH_TYPES: _save_attachments(request, req, files)  # bukti opsional; jenis lain mengabaikan berkas
         if "submit" in request.POST:
             try: services.submit(req, request.user)
             except (PermissionError, ValueError) as e:
@@ -78,7 +85,14 @@ def request_new(request):
         return redirect("request_detail", pk=req.pk)
     return render(request, "request_form.html", {"form": form, "fields_by_type": FIELDS_BY_TYPE, "grp": grp if grp in REQUEST_GROUPS else "",
                                                  "title": REQUEST_GROUPS[grp][0] if grp in REQUEST_GROUPS else "Buat pengajuan",
-                                                 "back": f"/requests/g/{grp}/" if grp in REQUEST_GROUPS else "/requests/", "back_label": REQUEST_GROUPS[grp][0] if grp in REQUEST_GROUPS else "Pengajuan"})
+                                                 "back": f"/requests/g/{grp}/" if grp in REQUEST_GROUPS else "/requests/", "back_label": REQUEST_GROUPS[grp][0] if grp in REQUEST_GROUPS else "Pengajuan",
+                                                 "attach_types": attachments.ATTACH_TYPES, "attach_max_mb": attachments.max_bytes() // 1048576})
+
+
+def _save_attachments(request, req, files):
+    saved = attachments.save(req, files, request.user)
+    log(request, "hr", "request_attach", req, None, {"files": [{"name": a.original_name, "size": a.size} for a in saved]})
+    return saved
 
 
 def summary(r):
@@ -111,7 +125,8 @@ def request_detail(request, pk):
     rows = [(FIELD_LABELS[k], v) for k, v in req.payload.items() if k in FIELD_LABELS]
     mode = (" — dengan rekan (2 orang)" if req.payload.get("partner_id") else " — sendiri (1 orang)") if req.type in schedule.SWAP_TYPES else ""
     ctx = {"r": req, "rows": rows, "actions": _actions(request.user, req), "label": LABELS[req.type] + mode,
-           "status_label": STATUS_LABELS.get(req.status, req.status)}
+           "status_label": STATUS_LABELS.get(req.status, req.status), "files": req.attachments.all(),
+           "can_attach": _can_attach(request.user, req), "attach_max_mb": attachments.max_bytes() // 1048576}
     if req.status == "executed":  # hasil pelaksanaan: apa yang benar-benar ditulis
         ctx["schedule_rows"] = req.schedule_rows.select_related("shift", "employee").order_by("date", "employee__name")
         ctx["leave_rows"] = req.leave_rows.order_by("year")
@@ -140,3 +155,40 @@ def request_action(request, pk, action):
     log(request, "hr", f"request_{action}", new, before, {"status": new.status})
     messages.success(request, f"Status sekarang: {STATUS_LABELS.get(new.status, new.status)}.")
     return redirect("request_detail", pk=pk)
+
+
+def _can_attach(user, req):
+    """Bukti boleh ditambah selama pengajuan belum diputuskan: oleh pemohon, atau HRD/Superadmin."""
+    if req.status not in ("draft", "pending"): return False
+    return req.requested_by_id == user.id or user.role in (Role.HRD, Role.SUPERADMIN)
+
+
+@require_POST
+@login_required
+@require_roles(*ROLES)
+def request_attach(request, pk):
+    req = get_scoped_or_404(request.user, ChangeRequest.objects.all(), pk, strict=True)
+    if not _can_attach(request.user, req):
+        messages.error(request, "Bukti tidak dapat ditambahkan pada pengajuan ini."); return redirect("request_detail", pk=pk)
+    files = request.FILES.getlist("photos")
+    if not files: messages.error(request, "Pilih foto/berkas terlebih dahulu."); return redirect("request_detail", pk=pk)
+    errs = attachments.check(files + list(req.attachments.all()))  # batas jumlah berlaku untuk total berkas pengajuan
+    if errs:
+        for e in errs: messages.error(request, e)
+        return redirect("request_detail", pk=pk)
+    _save_attachments(request, req, files)
+    messages.success(request, f"{len(files)} berkas bukti ditambahkan.")
+    return redirect("request_detail", pk=pk)
+
+
+@login_required
+@require_roles(*ROLES)
+def request_attachment(request, pk, att_id):
+    req = get_scoped_or_404(request.user, ChangeRequest.objects.all(), pk, strict=True)  # di luar scope = 404
+    a = RequestAttachment.objects.filter(pk=att_id, request=req).first()
+    if not a: raise Http404
+    log(request, "hr", "request_attachment_view", req, None, {"file": a.original_name})  # bukti sering memuat data kesehatan: akses tercatat
+    inline = a.is_image and request.GET.get("dl") != "1"
+    resp = FileResponse(a.file.open("rb"), as_attachment=not inline, filename=a.original_name, content_type=a.content_type if inline else "application/octet-stream")
+    resp["X-Content-Type-Options"] = "nosniff"; resp["Content-Security-Policy"] = "sandbox; default-src 'none'"; resp["Cache-Control"] = "private, no-store"
+    return resp

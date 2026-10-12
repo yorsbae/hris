@@ -89,6 +89,8 @@ urlpatterns = [
     path("requests/batch/<str:batch>/<str:action>/", ot.batch_action, name="extra_work_batch"),
     path("requests/g/<slug:grp>/", rq.request_list, name="request_group"),
     path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
+    path("requests/<int:pk>/foto/", rq.request_attach, name="request_attach"),
+    path("requests/<int:pk>/foto/<int:att_id>/", rq.request_attachment, name="request_attachment"),
     path("requests/<int:pk>/<str:action>/", rq.request_action),
     path("hrd/", include("apps.hrd.urls")),
     path("poli/", include("apps.poli.urls")),

@@ -165,6 +165,9 @@ table.cards td.kact a:not(.btn):not(.chip){display:inline-flex;align-items:cente
 table.cards td:has(+td.kact){border-bottom:0}
 table.cards td.empty{display:block;text-align:center;border:0}table.cards td.empty::before{display:none}
 }
+/* putaran 50: baris judul kelompok (Kelompokkan) */
+tr.grow td{background:var(--hov);font-weight:700;color:var(--tx);padding:8px 12px;border-bottom:1px solid var(--bd2);text-align:left}
+@media(max-width:600px){table.cards tr.grow{padding:0;background:transparent;border:0;border-radius:0;margin:12px 0 6px}table.cards tr.grow td{display:block;padding:6px 4px;border:0;background:transparent;color:var(--mu);font-size:13px;text-transform:uppercase;letter-spacing:.03em}}
 /* putaran 40: kolom tabel — kolom angka/aksi/tanggal selebar isinya, kolom teks mengisi sisa lebar (tanpa celah antarkolom yang melebar) */
 table th.num,table td.num,table th.nw,table td.nw,table th.acts,table td.acts{width:1%;white-space:nowrap}table td.acts{text-align:right}table th.fill,table td.fill{width:auto;white-space:normal;overflow-wrap:anywhere}
 table td small,table th small{display:block;color:var(--mu);font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;white-space:normal}
@@ -252,7 +255,48 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!panel.hidd
 dead.forEach(function(d){d.remove()});
 [].slice.call(main.querySelectorAll(".tools")).forEach(function(t){if(!t.children.length&&!t.textContent.trim())t.remove()})}
 function align(h){var k=[].slice.call(h.children).filter(function(c){return !c.hidden&&!c.classList.contains("fchips")&&!(c.tagName==="INPUT"&&c.type==="hidden")&&!c.classList.contains("fprim")});h.querySelectorAll(":scope>.fr").forEach(function(o){o.classList.remove("fr")});if(k.length)k[0].classList.add("fr")}
-function setup(root){if(root.dataset.fdone)return;root.dataset.fdone="1";var isForm=root.tagName==="FORM",id="fp"+(++uid);
+/* putaran 50: Urutkan (sort by) & Kelompokkan (group by) bersama untuk semua halaman berfilter [data-fbar] yang memuat tabel.
+   Disuntik sebagai dua <select name="sort|group"> ke dalam panel Filter (ikut chip, Reset, Terapkan). Tabel yang diurutkan = tabel data pertama setelah bilah filter.
+   Halaman yang mengurus sendiri di server (employees.html) memberi atribut data-sg="server" dan menyertakan select sort/group sendiri. */
+var SG_MON={jan:0,feb:1,mar:2,apr:3,mei:4,may:4,jun:5,jul:6,agu:7,aug:7,sep:8,okt:9,oct:9,nov:10,des:11,dec:11},SG_COL=(window.Intl&&Intl.Collator)?new Intl.Collator("id",{numeric:true,sensitivity:"base"}):{compare:function(a,b){return a<b?-1:a>b?1:0}};
+function sgTexts(el){var out=[],w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);while(w.nextNode()){var t=w.currentNode.nodeValue.replace(/\s+/g," ").trim();if(t)out.push(t)}return out}
+function sgKey(td,first){if(!td)return"";var v=td.getAttribute("data-sort");if(v!==null)return v.trim();var a=sgTexts(td);return first?(a[0]||""):a.join(" ")}
+function sgDate(s){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s);if(m)return Date.UTC(+m[1],+m[2]-1,+m[3]);m=/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/.exec(s);if(m)return Date.UTC(+m[3],+m[2]-1,+m[1]);
+m=/^(\d{1,2}) ([A-Za-z]{3,})\.? (\d{4})/.exec(s);if(m){var mo=SG_MON[m[2].slice(0,3).toLowerCase()];if(mo!==undefined)return Date.UTC(+m[3],mo,+m[1])}return null}
+function sgNum(s){var m=/^(?:Rp\.?\s*)?(-?\d[\d.,]*)\s*(?:%|menit|mnt|hari|jam)?$/i.exec(s);if(!m)return null;var x=m[1];
+if(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(x))x=x.replace(/\./g,"").replace(",",".");else if(/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(x))x=x.replace(/,/g,"");else x=x.replace(",",".");var n=parseFloat(x);return isNaN(n)?null:n}
+function sgCmp(a,b){var da=sgDate(a),db=sgDate(b);if(da!==null&&db!==null)return da-db;var na=sgNum(a),nb=sgNum(b);if(na!==null&&nb!==null)return na-nb;return SG_COL.compare(a,b)}
+function sgHead(th){var x="";th.childNodes.forEach(function(n){if(n.nodeType===3)x+=n.textContent});x=x.trim();return x||th.textContent.replace(/\s+/g," ").trim()}
+function sgTable(root){var main=root.closest("main")||document,ts=[].slice.call(main.querySelectorAll("table"));
+for(var i=0;i<ts.length;i++){var t=ts[i];if(t.closest(".nosg")||!t.tHead||t.tHead.rows.length!==1||!t.tBodies[0])continue;if(root.compareDocumentPosition(t)&4)return t}return null}
+function sgCols(t){var out=[];[].forEach.call(t.tHead.rows[0].cells,function(th,j){var l=sgHead(th);if(!l||/^(aksi|kelola|tindakan|ubah|no\.?|#)$/i.test(l)||th.colSpan>1)return;out.push({j:j,l:l})});return out}
+function sgInject(root){if(root.dataset.sg==="server"||root.querySelector('[name="sortby"],[name="groupby"],#sort'))return;var t=sgTable(root);if(!t)return;var cols=sgCols(t);if(cols.length<2)return;
+function mk(name,label,first){var s=document.createElement("select");s.name=name;s.setAttribute("aria-label",label);s.dataset.sgctl="1";var o=document.createElement("option");o.value="";o.textContent=first;s.appendChild(o);return s}
+var so=mk("sortby","Urutkan","Urutan bawaan"),gr=mk("groupby","Kelompokkan","Tanpa pengelompokan");  /* nama sortby/groupby: tidak bentrok dengan filter lama bernama group (mis. Jadwal) */
+cols.forEach(function(c){["a","d"].forEach(function(d){var o=document.createElement("option");o.value=c.j+":"+d;o.textContent=c.l+(d==="a"?" (A→Z / terkecil)":" (Z→A / terbesar)");so.appendChild(o)});var g=document.createElement("option");g.value=String(c.j);g.textContent=c.l;gr.appendChild(g)});
+root.appendChild(so);root.appendChild(gr);root._sg={t:t,so:so,gr:gr};
+var key="sg:"+location.pathname,u=new URLSearchParams(location.search),sv={};try{sv=JSON.parse(sessionStorage.getItem(key)||"{}")}catch(e){}
+function pick(sel,v){if(v&&[].some.call(sel.options,function(o){return o.value===v}))sel.value=v}
+pick(so,u.has("sortby")?u.get("sortby"):sv.sort);pick(gr,u.has("groupby")?u.get("groupby"):sv.group);
+var busy=false;function run(){if(busy)return;busy=true;try{sgApply(t,so.value,gr.value)}finally{busy=false}}
+function save(){try{if(so.value||gr.value)sessionStorage.setItem(key,JSON.stringify({sort:so.value,group:gr.value}));else sessionStorage.removeItem(key)}catch(e){}
+try{var p=new URLSearchParams(location.search);["sortby","groupby"].forEach(function(k){var v=k==="sortby"?so.value:gr.value;if(v)p.set(k,v);else p.delete(k)});var qs=p.toString();history.replaceState(null,"",location.pathname+(qs?"?"+qs:"")+location.hash)}catch(e){}}
+[so,gr].forEach(function(s){s.addEventListener("change",function(){run();save()})});
+if(window.MutationObserver){var mo=new MutationObserver(function(){if(busy)return;mo.disconnect();run();mo.observe(t.tBodies[0],{childList:true})});mo.observe(t.tBodies[0],{childList:true})}
+run()}
+function sgApply(t,sort,group){var tb=t.tBodies[0],n=t.tHead.rows[0].cells.length;[].slice.call(tb.querySelectorAll("tr.grow")).forEach(function(r){r.remove()});
+var rows=[].slice.call(tb.rows);if(!rows.length||(rows.length===1&&rows[0].cells.length===1&&rows[0].cells[0].classList.contains("empty")))return;
+rows.forEach(function(r,i){if(r.dataset.o===undefined)r.dataset.o=i});
+var sj=-1,sd=1;if(sort){var p=sort.split(":");sj=parseInt(p[0],10);sd=p[1]==="d"?-1:1}var gj=group===""||group==null?-1:parseInt(group,10);
+function cell(r,j,first){return r.cells.length===n?sgKey(r.cells[j],first):""}
+function byRow(a,b){if(sj>=0){var x=cell(a,sj),y=cell(b,sj);if(x!==y){if(x==="")return 1;if(y==="")return -1;var c=sgCmp(x,y)*sd;if(c)return c}}return a.dataset.o-b.dataset.o}
+rows.sort(byRow);var frag=document.createDocumentFragment();
+if(gj<0){rows.forEach(function(r){frag.appendChild(r)})}
+else{var gs={},order=[];rows.forEach(function(r){var k=cell(r,gj,true)||"(kosong)";if(!gs.hasOwnProperty(k)){gs[k]=[];order.push(k)}gs[k].push(r)});
+order.sort(function(a,b){if(a==="(kosong)")return 1;if(b==="(kosong)")return -1;return sgCmp(a,b)});
+order.forEach(function(k){var tr=document.createElement("tr");tr.className="grow";var td=document.createElement("td");td.colSpan=n;td.textContent=k+" · "+gs[k].length;tr.appendChild(td);frag.appendChild(tr);gs[k].forEach(function(r){frag.appendChild(r)})})}
+tb.appendChild(frag)}
+function setup(root){if(root.dataset.fdone)return;root.dataset.fdone="1";sgInject(root);var isForm=root.tagName==="FORM",id="fp"+(++uid);
 root.classList.add("fbar");
 var panel=document.createElement("div");panel.className="fpanel";panel.id=id;panel.hidden=true;panel.setAttribute("role","dialog");
 var tt=pageTitle(),head=document.createElement("div");head.className="fhead";head.innerHTML="<b></b>";head.firstChild.textContent="Filter"+(tt?" "+tt:"");

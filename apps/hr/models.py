@@ -376,3 +376,25 @@ class AttendanceCheckEvent(models.Model):
         super().save(*a, **k)
 
     def delete(self, *a, **k): raise PermissionError("Jejak validasi kehadiran tidak dapat dihapus.")
+
+
+def request_attachment_path(instance, filename):
+    """Nama berkas di disk diacak (uuid); hanya ekstensi bersih yang dipertahankan. Nama asli disimpan di kolom, tidak pernah dipakai sebagai path."""
+    import os, re, uuid
+    ext = re.sub(r"[^a-z0-9.]", "", os.path.splitext(filename)[1].lower())[:10]
+    return f"request_attachments/{instance.request_id}/{uuid.uuid4().hex}{ext}"
+
+
+class RequestAttachment(models.Model):
+    """Foto/berkas bukti pengajuan (surat dokter, foto, dll; opsional, ekstensi bebas). Tidak pernah dihapus (bagian jejak pengajuan);
+    disajikan hanya lewat view ber-scope: gambar (dikenali dari isi, bukan nama) tampil inline, selain itu selalu diunduh."""
+    request = models.ForeignKey(ChangeRequest, on_delete=models.PROTECT, related_name="attachments")
+    file = models.FileField(upload_to=request_attachment_path)
+    original_name = models.CharField(max_length=200)
+    content_type = models.CharField(max_length=100, blank=True)  # hasil deteksi isi (image/jpeg, ...); kosong = bukan gambar yang dikenali
+    size = models.PositiveBigIntegerField()
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    class Meta: ordering = ["id"]
+    @property
+    def is_image(self): return bool(self.content_type)
