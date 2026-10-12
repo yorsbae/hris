@@ -87,6 +87,7 @@ def stage_label(value, lang="id"):
 
 # ------------------------------------------------------------------ Ikon & motif (putaran 53): semua SVG dibuat di server dari data statis → aman untuk CSP tanpa inline style.
 _ICONS = {
+    "globe": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3.2 3 3.2 15 0 18"/><path d="M12 3c-3.2 3-3.2 15 0 18"/>',
     "shield": '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5L16 9.5"/>',
     "clock": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     "growth": '<path d="M4 19h16"/><path d="M6 15l4-4 3 3 5-6"/><path d="M15 8h3v3"/>',
@@ -146,3 +147,14 @@ def motif(context, obj, kind=""):
         f'<rect width="320" height="240" fill="#f6ecb8"/><rect x="24" y="20" width="272" height="200" rx="6" fill="url(#{uid})"/>'
         f'<rect x="24" y="20" width="272" height="22" fill="{c}" opacity=".95"/><rect x="24" y="198" width="272" height="22" fill="{c}" opacity=".95"/>'
         f'<path d="M24 31h272M24 209h272" stroke="{b}" stroke-width="2"/><rect x="24" y="20" width="272" height="200" rx="6" fill="url(#{uid}g)"/></svg>')
+
+
+@register.simple_tag(takes_context=True)
+def gmap(context, address="", city="", url=""):
+    """URL peta Google tersemat (iframe) untuk sebuah alamat — tanpa kunci API. Bila `url` sudah berupa URL embed Google, dipakai apa adanya.
+    Hanya host google.com yang pernah dihasilkan (PUBLIC_CSP `frame-src` mengizinkan host itu saja)."""
+    from urllib.parse import urlencode
+    if url and url.startswith("https://www.google.com/maps/embed"): return url
+    q = ", ".join(x.strip() for x in (str(address or "").replace("\r", "").replace("\n", ", "), str(city or "")) if x and x.strip())
+    if not q: return ""
+    return "https://www.google.com/maps?" + urlencode({"q": q[:300], "output": "embed", "hl": context.get("lang", "id")})

@@ -167,7 +167,30 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 ### Putaran 13a — perbaikan /admin/ (dari riwayat git; dicatat belakangan)
 `/admin/` tampil tanpa CSS karena `DEBUG=False`: ditambah WhiteNoise untuk `/static/`, nama app & judul admin berbahasa Indonesia, dan tes regresi (`apps/core/test_static_admin.py`). Tes 332 → 337.
 
-### Putaran 53 — Company Profile dipercantik: gradasi/ornamen tenun, ilustrasi, data demo produk/toko/peta ← terbaru
+### Putaran 54 — Company Profile: header berlogo, ikon bahasa kanan, pita produk geser otomatis, peta Google, beranda ala referensi ke-3 ← terbaru
+Dasar: permintaan pemilik produk (12 Okt 2026, dilanjutkan 13 Okt) dengan 3 tangkapan layar rujukan (situs sendiri, wadimor.co.id, templat MAKAI). Dikerjakan di atas `0ba075f` (putaran 53). **Tanpa migrasi, tanpa dependensi baru.**
+
+**Yang dilakukan**
+- **Latar tidak polos**: seluruh halaman memakai petak berlian tenun samar + titik marun, cahaya radial berwarna (emas/marun/navy); isi halaman dalam (Produk, Toko, Kontak, dst.) berada di "kartu" krem berbingkai dengan sudut tumpal; bagian `.sec.dark/.band` diberi pola dan gradasi.
+- **Logo menggantikan teks "PT SUKORINTEX"**: `static/company/logo.svg` (wordmark SUKORINTEX + lambang berlian tenun, SVG murni) di header dan footer. Bila HRD mengunggah logo di *Pengaturan situs*, logo unggahan yang dipakai. Teks nama tetap ada sebagai `alt`.
+- **Bahasa = ikon globe + kode (EN/ID) di pojok kanan header** (tombol berbingkai emas, `title`/`aria-label` penuh "Ganti bahasa ke English"). Pencarian jadi kapsul + tombol ikon kaca pembesar. Header kini gelap navy beraksen emas, menempel di atas (sticky); menu tengah. Ponsel: tombol Menu + ikon bahasa.
+- **Pita produk bergeser otomatis ke kanan, berputar tanpa putus** (`_marquee.html`; dipakai di Beranda *Koleksi Kami* dan atas halaman Produk saat tanpa filter): dua salinan trek (salinan kedua `inert`/`aria-hidden`, tidak dibaca pembaca layar maupun difokus), CSS animation murni; kecepatan menurut jumlah kartu; berhenti saat disorot/difokus; tombol **Jeda/Putar** (WCAG 2.2.2, JS opsional); `prefers-reduced-motion` → tanpa animasi, bisa digulir manual.
+- **Peta asli Google** (iframe `https://www.google.com/maps?q=<alamat>&output=embed`, tanpa kunci API) di kartu Toko, halaman Lokasi Toko, dan Kontak. Tag `{% gmap %}` menyusun URL dari alamat+kota (di-URL-encode); URL embed kustom hanya diterima bila berawalan `https://www.google.com/maps/embed`. **CSP publik** ditambah `frame-src https://www.google.com` (satu-satunya pelonggaran; tetap tanpa `unsafe-inline`). Ilustrasi peta lama jadi cadangan di belakang iframe (muncul bila Google diblokir/offline).
+- **Beranda mengikuti referensi gambar ke-3 (MAKAI)**: hero gelap layar penuh, judul nama perusahaan huruf kapital berjarak lebar bergradasi emas, subjudul kapital berjarak, CTA pil emas + tautan bergaris dengan ikon lingkaran, belah ketupat besar beraksen, kilau berkedip, info telepon/alamat di sudut kiri dan *Jam Buka* di sudut kanan. Warna dan ornamen disesuaikan tema produk (emas/marun/navy/tumpal), bagian lain mengikuti.
+- **i18n**: kunci baru `lang_title`, `hours_label`, `marq_label`, `pause`/`play`, `collection`, `all_products`, `map_title`.
+- **Tes**: `Putaran54Tests` (+6): logo di header, ikon bahasa setelah menu, beranda hero3 + pita (2 set, salinan `inert`) tanpa `style=`, pita di Produk, iframe Google + CSP `frame-src` tanpa `unsafe-inline`, tag `gmap` meng-escape & menolak URL embed non-Google, halaman EN. Tes 53 diperbarui (peta Google). `apps.company`: **61 tes lulus**.
+- **Verifikasi visual**: `SITE_MODE=public` + Chromium (desktop 1440 px, ponsel 390 px): Beranda, Lokasi Toko. Bug yang ditemukan lalu diperbaiki: teks logo terpotong, judul hero memotong "PT " pada nama pendek ("PT X" → "X"), cadangan peta tertutup.
+
+**Belum dikerjakan / keterbatasan yang jujur**
+- **Peta Google belum terlihat langsung di sandbox** (tanpa internet): iframe terverifikasi di HTML + CSP, tetapi tampilannya perlu dicek sekali di jaringan yang online. Peta berdasarkan teks alamat, kurang presisi dibanding koordinat/Place; isi alamat toko lengkap agar tepat. Ini tetap sambungan ke pihak ketiga (Google memasang cookie di iframe) — pertimbangkan teks kebijakan privasi.
+- Halaman dalam (Produk, Toko, Kontak, Karir, dst.) hanya mendapat header/latar/kartu baru; tata letaknya belum disusun ulang sedalam Beranda. Referensi ke-2 (wadimor.co.id: hero logo besar + tombol "Lihat Produk") belum ditiru; foto hero latar (seperti MAKAI) belum ada — butuh foto asli.
+- Logo SVG adalah **usulan** (lambang + wordmark); ganti dengan logo resmi lewat `/company/` atau timpa `logo.svg`.
+- Dropdown submenu Produk/Artikel seperti wadimor.co.id belum ada.
+- Belum diuji di PostgreSQL 16 / peramban selain Chromium; kontras belum diaudit dengan alat. Jumlah tes seluruh proyek belum dihitung ulang (hanya `apps.company`).
+
+**Yang akan dilakukan (urut)**: (1) cek peta Google & tampilan di jaringan online/ponsel nyata; (2) unggah logo resmi + foto produk/hero asli, ganti data contoh; (3) susun ulang halaman dalam mengikuti gaya Beranda (hero gelap kecil per halaman, submenu Produk); (4) koordinat toko (peta lebih presisi, opsional); (5) sisa Tahap 11 (CAPTCHA, host terpisah, konversi pelamar → karyawan); (6) uji PostgreSQL 16, antivirus/SMTP nyata; (7) tetap: P1 sisa, Tahap 7 Payroll.
+
+### Putaran 53 — Company Profile dipercantik: gradasi/ornamen tenun, ilustrasi, data demo produk/toko/peta
 Dasar: permintaan pemilik produk (12 Okt 2026) — lanjutkan progres yang belum dikerjakan, perbaiki halaman company profile agar **menarik (gradasi warna/ornamen)**, tambah **data demo produk beserta alamat/peta demo**, dan **gambar ilustrasi di Karir/halaman yang membutuhkan**. Repo di-clone, PROGRESS/VISION dibaca (Tahap 11 = fondasi putaran 48, tampilan masih polos: kartu produk hanya kotak emas kosong bertuliskan nama), baseline `apps.company` 48 tes lulus. Dikerjakan di atas commit `399d438` (putaran 52). **Tanpa migrasi, tanpa dependensi baru.**
 
 **Yang dilakukan**

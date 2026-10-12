@@ -1,5 +1,12 @@
 /* Situs publik: hanya peningkatan opsional (situs tetap berfungsi tanpa JavaScript). */
 (function () {
+  // pita produk: tombol jeda/putar (WCAG 2.2.2) — hanya bila JS aktif; tanpa JS tetap bergeser dan berhenti saat disorot/fokus.
+  Array.prototype.forEach.call(document.querySelectorAll(".marq"), function (m) {
+    var b = document.createElement("button"); b.type = "button"; b.className = "mpause"; b.textContent = m.getAttribute("data-pause") || "Pause"; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", function () { var p = m.classList.toggle("paused"); b.setAttribute("aria-pressed", p ? "true" : "false"); b.textContent = m.getAttribute(p ? "data-play" : "data-pause"); });
+    m.appendChild(b);
+  });
+
   var f = document.getElementById("applyform");
   if (f) {
     var key = "draft:" + f.getAttribute("data-job");

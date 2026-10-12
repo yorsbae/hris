@@ -1,0 +1,3 @@
+{% load site_tags %}{% if mq %}<div class="marq {{ mqc }}" role="region" aria-label="{% ui 'marq_label' %}" data-pause="{% ui 'pause' %}" data-play="{% ui 'play' %}"><div class="mtrack">
+<div class="mset">{% for p in mq %}{% include "site/_product_card.html" %}{% endfor %}</div>
+<div class="mset" inert aria-hidden="true">{% for p in mq %}{% include "site/_product_card.html" %}{% endfor %}</div></div></div>{% endif %}

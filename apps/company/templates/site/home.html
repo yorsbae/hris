@@ -1,17 +1,24 @@
 {% extends "site/base.html" %}{% load site_tags %}{% block mainclass %}wide{% endblock %}{% block content %}
-<section class="hero2"><div class="wrap"><div>
-<span class="eyebrow">{% t S "tagline" %}{% if not S.tagline_id %}{{ S.brand_name }}{% endif %}</span>
-<h1>{% t S "hero_title" %}{% if not S.hero_title_id %}{{ S.brand_name }}{% endif %}</h1>
+<section class="hero3" aria-labelledby="h1home">
+<i class="spark s1" aria-hidden="true"></i><i class="spark s2" aria-hidden="true"></i><i class="spark s3" aria-hidden="true"></i><i class="spark s4" aria-hidden="true"></i>
+<div class="rhomb" aria-hidden="true"></div>
+<div class="wrap hero3in">
+{% if S.logo %}<img class="hlogo" src="{{ S.logo|media }}" alt="">{% endif %}
+<span class="eyebrow dk">{% t S "tagline" %}{% if not S.tagline_id %}{{ S.brand_name }}{% endif %}</span>
+<h1 id="h1home">{% if S.brand_name|slice:":3" == "PT " and S.brand_name|length > 6 %}{{ S.brand_name|slice:"3:" }}{% else %}{{ S.brand_name }}{% endif %}</h1>
+<p class="sub">{% t S "hero_title" %}{% if not S.hero_title_id %}{{ S.brand_name }}{% endif %}</p>
+<div class="cta"><a class="btn pill" href="{% purl 'products' %}">{% ui "products" %}</a><a class="tlink" href="{% purl 'about' %}">{% ui "about" %} <span class="cir" aria-hidden="true">›</span></a>{% if S.whatsapp %}<a class="btn pill line" href="{{ S.whatsapp|wa_link }}" rel="noopener" target="_blank">{% ui "chat_wa" %}</a>{% endif %}</div>
 <div class="txt prose">{% t S "hero_text" as ht %}{{ ht|rich }}</div>
-<div class="cta"><a class="btn lg" href="{% purl 'products' %}">{% ui "products" %}</a> <a class="btn alt lg" href="{% purl 'about' %}">{% ui "about" %}</a>{% if S.whatsapp %} <a class="btn gold lg" href="{{ S.whatsapp|wa_link }}" rel="noopener" target="_blank">{% ui "chat_wa" %}</a>{% endif %}</div></div>
-<div class="art">{% if S.logo %}<img class="logo" src="{{ S.logo|media }}" alt="{{ S.brand_name }}">{% else %}{% include "site/ill/hero.html" %}{% endif %}</div></div></section>
-<div class="tumpal" aria-hidden="true"></div>
+</div>
+<div class="corners wrap">{% if S.phone or S.address %}<div class="cl">{% if S.phone %}<b>{{ S.phone }}</b>{% endif %}{% if S.address %}<span>{{ S.address|linebreaksbr }}</span>{% endif %}</div>{% endif %}{% t S "hours" as hh %}{% if hh %}<div class="cr"><b>{% ui "hours_label" %}</b><span>{{ hh }}</span></div>{% endif %}</div>
+</section>
+<div class="tumpal dk" aria-hidden="true"></div>
+{% if mq %}<section class="sec band prodsec"><div class="wrap"><div class="sh"><h2>{% ui "collection" %}</h2><span class="orn" aria-hidden="true"><i></i></span><p>{% ui "products_intro" %}</p></div></div>
+{% include "site/_marquee.html" %}<p class="more-link center"><a class="btn alt" href="{% purl 'products' %}">{% ui "see_all" %} ›</a></p></section>{% endif %}
 <section class="sec tight"><div class="wrap"><div class="hl">
 <div class="it"><span class="badge">{% icon "leaf" %}</span><h3>{% ui "hl1_t" %}</h3><p>{% ui "hl1_d" %}</p></div>
 <div class="it"><span class="badge">{% icon "palette" %}</span><h3>{% ui "hl2_t" %}</h3><p>{% ui "hl2_d" %}</p></div>
 <div class="it"><span class="badge">{% icon "award" %}</span><h3>{% ui "hl3_t" %}</h3><p>{% ui "hl3_d" %}</p></div></div></div></section>
-{% if featured %}<section class="sec band"><div class="wrap"><div class="sh"><h2>{% ui "featured" %}</h2><span class="orn" aria-hidden="true"><i></i></span><p>{% ui "products_intro" %}</p></div>
-<div class="grid g3">{% for p in featured %}{% include "site/_product_card.html" %}{% endfor %}</div><p class="more-link center"><a class="btn alt" href="{% purl 'products' %}">{% ui "see_all" %} ›</a></p></div></section>{% endif %}
 <section class="sec dark"><div class="wrap"><div class="duo"><div class="art">{% include "site/ill/about.html" %}</div><div><span class="orn" aria-hidden="true"><i></i></span><h2>{% ui "about_t" %}</h2><p class="lead">{% ui "about_d" %}</p><p><a class="btn gold" href="{% purl 'about' %}">{% ui "learn_more" %} ›</a></p></div></div>
 <div class="sh process"><h2>{% ui "process_t" %}</h2></div>
 <div class="flow"><div class="st">{% icon "layers" 30 %}<h3>{% ui "pr1_t" %}</h3><p>{% ui "pr1_d" %}</p></div><div class="st">{% icon "palette" 30 %}<h3>{% ui "pr2_t" %}</h3><p>{% ui "pr2_d" %}</p></div><div class="st">{% icon "loom" 30 %}<h3>{% ui "pr3_t" %}</h3><p>{% ui "pr3_d" %}</p></div><div class="st">{% icon "check" 30 %}<h3>{% ui "pr4_t" %}</h3><p>{% ui "pr4_d" %}</p></div></div></div></section>

@@ -469,7 +469,7 @@ class Putaran53VisualTests(Base):
             r = self.client.get(path); self.assertEqual(r.status_code, 200, path)
             html = r.content.decode(); self.assertNotRegex(html, r'\sstyle=|<style|\son\w+=', path)
         self.assertContains(self.client.get("/"), "class=\"ill\""); self.assertContains(self.client.get("/karir/"), "Ilustrasi tim pengrajin")
-        self.assertContains(self.client.get("/lokasi-toko/"), "Ilustrasi peta"); self.assertContains(self.client.get("/kontak/"), "Ilustrasi surat")
+        self.assertContains(self.client.get("/lokasi-toko/"), "google.com/maps"); self.assertContains(self.client.get("/kontak/"), "Ilustrasi surat")
 
     def test_product_without_photo_gets_motif_not_blank_placeholder(self):
         r = self.client.get("/produk/"); self.assertContains(r, "class=\"motif\""); self.assertNotContains(r, "class=\"ph\"")
@@ -486,3 +486,47 @@ class Putaran53VisualTests(Base):
     def test_icon_tag_unknown_is_empty(self):
         from apps.company.templatetags.site_tags import icon
         self.assertEqual(icon("tidak-ada"), ""); self.assertIn("<svg", icon("shield"))
+
+
+
+@ov(public=True)
+class Putaran54Tests(Base):
+    """Putaran 54: logo di header, ikon bahasa kanan, pita produk geser, peta Google tersemat, beranda gelap."""
+    def setUp(self):
+        super().setUp(); call_command("seed_company", stdout=io.StringIO())
+
+    def test_header_logo_and_language_icon(self):
+        h = self.client.get("/").content.decode()
+        head = h[h.index("<header"):h.index("</header>")]
+        self.assertIn("company/logo.svg", head); self.assertNotIn("<span>PT", head)
+        self.assertIn('class="lang"', head); self.assertIn("<svg", head[head.index('class="lang"'):])
+        self.assertLess(head.index("</nav>"), head.index('class="lang"'))  # ikon bahasa setelah menu = pojok kanan
+        self.assertIn("/en/", head)
+
+    def test_home_has_marquee_hero3_and_no_inline_style(self):
+        h = self.client.get("/").content.decode()
+        self.assertIn('class="hero3"', h); self.assertIn('class="marq', h); self.assertEqual(h.count("mset"), 2)
+        self.assertIn('inert aria-hidden="true"', h); self.assertNotIn("style=", h)
+
+    def test_products_page_marquee_only_without_filter(self):
+        self.assertContains(self.client.get("/produk/"), 'class="marq')
+
+    def test_google_map_embed_and_csp(self):
+        r = self.client.get("/lokasi-toko/")
+        self.assertContains(r, '<iframe class="gmap" src="https://www.google.com/maps?q=')
+        self.assertIn("frame-src https://www.google.com", r["Content-Security-Policy"]); self.assertNotIn("unsafe-inline", r["Content-Security-Policy"])
+        self.assertContains(self.client.get("/kontak/"), "google.com/maps")
+
+    def test_gmap_tag_escapes_and_accepts_embed_url_only_from_google(self):
+        from django.template import Context
+        from apps.company.templatetags.site_tags import gmap
+        c = Context({"lang": "en"})
+        self.assertEqual(gmap(c, "", "", ""), "")
+        u = gmap(c, "Jl. <b>X</b> & Y\n12", "Tegal", "")
+        self.assertTrue(u.startswith("https://www.google.com/maps?q=")); self.assertNotIn("<", u); self.assertIn("hl=en", u)
+        self.assertEqual(gmap(c, "a", "b", "https://evil.example/maps/embed"), gmap(c, "a", "b", ""))
+        ok = "https://www.google.com/maps/embed?pb=!1m18"; self.assertEqual(gmap(c, "a", "b", ok), ok)
+
+    def test_english_pages(self):
+        h = self.client.get("/en/").content.decode()
+        self.assertIn("Switch language to Bahasa Indonesia", h); self.assertIn("<b>ID</b>", h); self.assertIn("Our Collection", h)

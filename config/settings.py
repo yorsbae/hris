@@ -137,4 +137,4 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", False)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@localhost")
 # CSP situs publik: tanpa 'unsafe-inline' (semua gaya/skrip berupa berkas statis). Diterapkan oleh view publik (apps/company/public_views.py).
 PUBLIC_CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
-              "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
+              "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src https://www.google.com")  # putaran 54: peta Google tersemat, hanya host ini

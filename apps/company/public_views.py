@@ -95,12 +95,22 @@ def notfound(request, *a, **k):
 
 
 # ------------------------------------------------------------------ Halaman konten
+def marquee(prods):
+    """Daftar produk untuk pita geser otomatis: diulang sampai cukup panjang agar putarannya mulus; kelas kecepatan menurut jumlah kartu."""
+    prods = list(prods)
+    if not prods: return [], ""
+    items = prods * max(1, -(-8 // len(prods)))
+    return items, ("m40" if len(items) <= 8 else "m70" if len(items) <= 16 else "m100")
+
+
 def home(request):
-    prods = pub(Product.objects.filter(featured=True), request).select_related("category")[:6]
+    prods = list(pub(Product.objects.filter(featured=True), request).select_related("category")[:12])
+    if len(prods) < 4: prods = list(pub(Product.objects.all(), request).select_related("category")[:12])  # belum cukup "unggulan": tampilkan produk terbaru
+    mq, mqc = marquee(prods)
     arts = pub(Article.objects.all(), request)[:3]
     stores = StoreLocation.objects.filter(active=True)[:3]
     jobs = pub(Job.objects.all(), request, "status", JobStatus.OPEN)[:3]
-    return respond(request, "site/home.html", ctx(request, featured=prods, articles=arts, stores=stores, jobs=jobs))
+    return respond(request, "site/home.html", ctx(request, featured=prods, mq=mq, mqc=mqc, articles=arts, stores=stores, jobs=jobs))
 
 
 def products(request):
@@ -110,7 +120,8 @@ def products(request):
     cur = request.GET.get("c", "")
     if cur: qs = qs.filter(category__slug=cur)
     page = Paginator(qs, 12).get_page(request.GET.get("page", 1))
-    return respond(request, "site/products.html", ctx(request, cats=cats, page=page, cur=cur, title=ui(lang, "products")))
+    mq, mqc = marquee(list(qs[:24]))
+    return respond(request, "site/products.html", ctx(request, cats=cats, page=page, cur=cur, mq=mq, mqc=mqc, title=ui(lang, "products")))
 
 
 def product(request, slug):
