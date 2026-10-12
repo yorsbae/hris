@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -12,8 +13,8 @@ from apps.core import tabular
 from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import get_scoped_or_404, require_roles, scope_by_department
-from . import attendance_check as svc
-from .models import AttendanceCheck as AC, Department, Employee
+from . import attachments, attendance_check as svc
+from .models import AttendanceCheck as AC, AttendanceCheckAttachment as ACA, Department, Employee
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)(fn))
 from apps.core.scope import DEPT_ACTORS, scope_dept_only
@@ -131,7 +132,8 @@ def check_detail(request, pk):
     a = _get(request, pk); log(request, "hr", "attendance_check_view", a)
     is_admin = request.user.role in DEPT_ACTORS
     return render(request, "hr/attendance_check_detail.html", {"a": a, "events": a.events.select_related("user"), "answers": AC.ANSWERS, "pill": STATUS_PILL[a.status], "late": a.is_late(),
-                  "is_admin": is_admin, "result": a.result, "result_label": dict(AC.ANSWERS).get(a.result, ""), "steps": flow_steps(a.status), "turn": turn_text(a, is_admin)})
+                  "is_admin": is_admin, "result": a.result, "result_label": dict(AC.ANSWERS).get(a.result, ""), "steps": flow_steps(a.status), "turn": turn_text(a, is_admin),
+                  "files": a.attachments.all(), "attach_max_mb": attachments.max_bytes() // 1048576})
 
 
 def _act(request, pk, fn, ok_msg, audit):
@@ -146,8 +148,29 @@ def _act(request, pk, fn, ok_msg, audit):
 @require_POST
 def check_answer(request, pk):
     if request.user.role not in DEPT_ACTORS: raise Http404  # Admin Departemen = perantara yang menjawab (A41); HRD/Superadmin memverifikasi
-    p = request.POST
-    return _act(request, pk, lambda a: svc.answer(request.user, pk, p.get("answer", ""), p.get("note", "")), "Jawaban terkirim ke HRD.", "attendance_check_answer")
+    p = request.POST; files = request.FILES.getlist("photos")
+    errs = attachments.check(files)
+    if errs:
+        _get(request, pk)  # scope dulu: di luar departemen tetap 404
+        for e in errs: messages.error(request, e)
+        return redirect(f"/validasi/{pk}/")
+
+    def run(a):
+        with transaction.atomic():  # jawaban + bukti satu kesatuan: bukti gagal tersimpan = jawaban tidak terkirim
+            res = svc.answer(request.user, pk, p.get("answer", ""), p.get("note", ""))
+            if files:
+                saved = attachments.save_check(res, files, request.user)
+                log(request, "hr", "attendance_check_attach", res, None, {"files": [{"name": x.original_name, "size": x.size} for x in saved]})
+    return _act(request, pk, run, "Jawaban terkirim ke HRD.", "attendance_check_answer")
+
+
+@both
+def check_attachment(request, pk, att_id):
+    a = _get(request, pk)  # di luar scope = 404
+    f = ACA.objects.filter(pk=att_id, att=a).first()
+    if not f: raise Http404
+    log(request, "hr", "attendance_check_attachment_view", a, None, {"file": f.original_name})  # bukti sering memuat data kesehatan: akses tercatat
+    return attachments.serve(f, request.GET.get("dl") == "1")
 
 
 @hrd

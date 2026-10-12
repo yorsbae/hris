@@ -46,7 +46,7 @@ def request_list(request, grp=None):
                 for r in qs.order_by("-created_at")[:20000]]
         log(request, "hr", "requests_export", None, None, {"rows": len(rows)})
         return tabular.export_response("pengajuan", ["no", "jenis", "status", "nik", "nama", "departemen", "diajukan_oleh", "dibuat", "rincian"], rows, request, sheet="Pengajuan")
-    page = Paginator(qs.order_by("-created_at"), 50).get_page(request.GET.get("page", 1))
+    page = Paginator(qs.annotate(n_files=Count("attachments", distinct=True)).order_by("-created_at"), 50).get_page(request.GET.get("page", 1))
     for r in page: r.status_label, r.summary, r.type_label = STATUS_LABELS.get(r.status, r.status), summary(r), LABELS.get(r.type, r.type)
     types = {t: LABELS[t] for t in (group_types if grp else LABELS)}
     batch = None
@@ -188,7 +188,4 @@ def request_attachment(request, pk, att_id):
     a = RequestAttachment.objects.filter(pk=att_id, request=req).first()
     if not a: raise Http404
     log(request, "hr", "request_attachment_view", req, None, {"file": a.original_name})  # bukti sering memuat data kesehatan: akses tercatat
-    inline = a.is_image and request.GET.get("dl") != "1"
-    resp = FileResponse(a.file.open("rb"), as_attachment=not inline, filename=a.original_name, content_type=a.content_type if inline else "application/octet-stream")
-    resp["X-Content-Type-Options"] = "nosniff"; resp["Content-Security-Policy"] = "sandbox; default-src 'none'"; resp["Cache-Control"] = "private, no-store"
-    return resp
+    return attachments.serve(a, request.GET.get("dl") == "1")

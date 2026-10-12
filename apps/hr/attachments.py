@@ -3,9 +3,10 @@ Keamanan tanpa membatasi ekstensi: nama di disk acak, tidak pernah dieksekusi/di
 ditampilkan inline hanya untuk format raster yang aman (BUKAN SVG/HTML); selain itu selalu `attachment` + nosniff + CSP sandbox."""
 from django.conf import settings
 from django.utils.text import get_valid_filename
-from .models import RequestAttachment
+from django.http import FileResponse
+from .models import AttendanceCheckAttachment, RequestAttachment
 
-ATTACH_TYPES = ("izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus")  # jenis yang lazim butuh bukti (grup Izin & Cuti)
+ATTACH_TYPES = ("izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus", "standby", "lembur")  # jenis yang lazim butuh bukti: grup Izin & Cuti (putaran 50) + Stand By & Lembur (putaran 51)
 
 
 def max_bytes(): return int(getattr(settings, "REQUEST_ATTACH_MAX_MB", 50)) * 1024 * 1024
@@ -38,3 +39,32 @@ def save(req, files, user):
         name = get_valid_filename(f.name.replace("\\", "/").split("/")[-1])[:200] or "bukti"
         out.append(RequestAttachment.objects.create(request=req, file=f, original_name=name, content_type=sniff_image(head), size=f.size, uploaded_by=user))
     return out
+
+
+def save_batch(reqs, files, user):
+    """Stand By & Lembur (satu regu = banyak pengajuan, satu bukti): berkas disimpan SEKALI di disk, tiap pengajuan mendapat baris lampiran
+    yang menunjuk berkas yang sama (berkas tidak pernah dihapus, jadi aman dipakai bersama)."""
+    if not files or not reqs: return []
+    first = save(reqs[0], files, user)
+    for r in reqs[1:]:
+        for a in first:
+            RequestAttachment.objects.create(request=r, file=a.file.name, original_name=a.original_name, content_type=a.content_type, size=a.size, uploaded_by=user)
+    return first
+
+
+def save_check(check, files, user):
+    """Bukti jawaban Validasi Kehadiran (mis. foto surat dokter / daftar hadir). Aturan sama dengan bukti pengajuan."""
+    out = []
+    for f in files:
+        head = f.read(16); f.seek(0)
+        name = get_valid_filename(f.name.replace("\\", "/").split("/")[-1])[:200] or "bukti"
+        out.append(AttendanceCheckAttachment.objects.create(att=check, file=f, original_name=name, content_type=sniff_image(head), size=f.size, uploaded_by=user))
+    return out
+
+
+def serve(a, download=False):
+    """Respons aman untuk satu lampiran (pengajuan atau validasi): gambar raster dikenali dari isi tampil inline, selain itu selalu diunduh."""
+    inline = a.is_image and not download
+    resp = FileResponse(a.file.open("rb"), as_attachment=not inline, filename=a.original_name, content_type=a.content_type if inline else "application/octet-stream")
+    resp["X-Content-Type-Options"] = "nosniff"; resp["Content-Security-Policy"] = "sandbox; default-src 'none'"; resp["Cache-Control"] = "private, no-store"
+    return resp

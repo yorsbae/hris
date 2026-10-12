@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from apps.core.audit import log
 from apps.core.models import Notification, Role, User
 from apps.core.scope import DEPT_ACTORS, require_roles
-from . import services
+from . import attachments, services
 from .forms import ACTIVE, RANGE_TYPES
 from .models import ChangeRequest, Department, Employee
 
@@ -109,14 +109,24 @@ def roster_department(request):
 def extra_work_new(request):
     dept = roster_department(request)
     form = ExtraWorkForm(request.POST or None, user=request.user, initial={"kind": request.GET.get("kind") or "lembur", "date": timezone.localdate()})
-    if request.method == "POST" and form.is_valid():
+    files = request.FILES.getlist("photos") if request.method == "POST" else []
+    ok = request.method == "POST" and form.is_valid()
+    if ok and files:
+        errs = attachments.check(files)
+        for e in errs: form.add_error(None, e)
+        ok = not errs
+    if ok:
         d, batch = form.cleaned_data, uuid.uuid4().hex
         payload = {"date": d["date"].isoformat(), "time": d["start"].strftime("%H:%M"), "time_to": d["end"].strftime("%H:%M"),
                    "minutes": form.minutes, "reason": d["reason"], "batch": batch}
+        made = []
         with transaction.atomic():
             for e in form.people:
                 req = ChangeRequest.objects.create(type=d["kind"], employee=e, department=e.department, payload=payload, requested_by=request.user)
-                services.submit(req, request.user, notify=False)
+                services.submit(req, request.user, notify=False); made.append(req)
+            if files:
+                attachments.save_batch(made, files, request.user)
+                log(request, "hr", "request_attach", None, None, {"batch": batch, "requests": len(made), "files": [{"name": f.name[:80], "size": f.size} for f in files]})
             depts = ", ".join(sorted({e.department.name for e in form.people}))
             Notification.objects.bulk_create([Notification(user=u, kind="request", link=f"/requests/g/lembur/?batch={batch}",
                 title=f"{len(form.people)} pengajuan {d['kind']} {payload['date']} dari {depts} menunggu keputusan") for u in User.objects.filter(role=Role.HRD, is_active=True)])
@@ -127,7 +137,7 @@ def extra_work_new(request):
     picked = set(request.POST.getlist("niks")) if request.method == "POST" else set()
     past, fut = window()
     return render(request, "extra_work_form.html", {"form": form, "dept": dept, "roster": roster, "picked": picked, "depts": Department.objects.order_by("name") if request.user.role not in DEPT_ACTORS else [],
-                                                    "limits": {"lembur": limit("lembur"), "standby": limit("standby")}, "past": past, "fut": fut, "help": KIND_HELP})
+                                                    "attach_max_mb": attachments.max_bytes() // 1048576, "limits": {"lembur": limit("lembur"), "standby": limit("standby")}, "past": past, "fut": fut, "help": KIND_HELP})
 
 
 @require_POST

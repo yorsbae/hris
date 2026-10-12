@@ -27,6 +27,7 @@ urlpatterns = [
     path("validasi/new/", av7.check_new, name="attcheck_new"),
     path("validasi/<int:pk>/", av7.check_detail, name="attcheck_detail"),
     path("validasi/<int:pk>/answer/", av7.check_answer, name="attcheck_answer"),
+    path("validasi/<int:pk>/foto/<int:att_id>/", av7.check_attachment, name="attcheck_attachment"),
     path("validasi/<int:pk>/verify/", av7.check_verify, name="attcheck_verify"),
     path("validasi/<int:pk>/cancel/", av7.check_cancel, name="attcheck_cancel"),
     path("validasi/<int:pk>/correct/", av7.check_correct, name="attcheck_correct"),

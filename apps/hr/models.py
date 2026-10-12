@@ -398,3 +398,24 @@ class RequestAttachment(models.Model):
     class Meta: ordering = ["id"]
     @property
     def is_image(self): return bool(self.content_type)
+
+
+def check_attachment_path(instance, filename):
+    import os, re, uuid
+    ext = re.sub(r"[^a-z0-9.]", "", os.path.splitext(filename)[1].lower())[:10]
+    return f"check_attachments/{instance.att_id}/{uuid.uuid4().hex}{ext}"
+
+
+class AttendanceCheckAttachment(models.Model):
+    """Bukti jawaban Validasi Kehadiran (putaran 51; opsional, ekstensi bebas). Tidak pernah dihapus (bagian jejak validasi);
+    disajikan hanya lewat view ber-scope, gambar dikenali dari isi."""
+    att = models.ForeignKey(AttendanceCheck, on_delete=models.PROTECT, related_name="attachments")
+    file = models.FileField(upload_to=check_attachment_path)
+    original_name = models.CharField(max_length=200)
+    content_type = models.CharField(max_length=100, blank=True)
+    size = models.PositiveBigIntegerField()
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    class Meta: ordering = ["id"]
+    @property
+    def is_image(self): return bool(self.content_type)

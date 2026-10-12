@@ -6,9 +6,10 @@
 {% if turn %}<div class="note {{ turn.0 }}">{{ turn.1 }}</div>{% endif %}
 
 {% if is_admin and a.status == 'diminta' or is_admin and a.status == 'dikembalikan' %}
-<form method="post" action="{% url 'attcheck_answer' a.pk %}" class="card" style="max-width:640px">{% csrf_token %}
+<form method="post" action="{% url 'attcheck_answer' a.pk %}" class="card" style="max-width:640px" enctype="multipart/form-data">{% csrf_token %}
 <label class="blk"><span><b>Jawaban Anda</b></span><select name="answer" required><option value="">Pilih…</option>{% for k, v in answers %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
 <label class="blk"><span>Keterangan <small class="muted">(wajib untuk Izin dan Alfa)</small></span><input name="note" maxlength="300" style="width:100%"></label>
+<label class="blk"><span>Foto / berkas bukti <small class="muted">(opsional — mis. surat dokter, daftar hadir)</small></span><input type="file" name="photos" multiple accept="image/*,application/pdf,*/*"><small class="hint">Format bebas, maks {{ attach_max_mb }} MB per berkas.</small></label>
 <button class="btn" style="margin-left:0">Kirim jawaban ke HRD</button></form>
 {% endif %}
 
@@ -26,7 +27,8 @@
 {% if a.answer and a.status != 'dijawab' or a.answer and is_admin %}<tr><th>Jawaban Admin</th><td>{{ a.get_answer_display }}{% if a.answer_note %} — {{ a.answer_note }}{% endif %} <small>({{ a.answered_by.get_username }}, {{ a.answered_at|date:"d M Y H:i" }})</small></td></tr>{% endif %}
 {% if a.conflict %}<tr><th>Konflik</th><td><span class="pill rejected">{{ a.conflict }}</span></td></tr>{% endif %}
 {% if a.status == 'diverifikasi' %}<tr><th>Hasil terverifikasi</th><td><b>{{ result_label }}</b>{% if a.verify_note %} — {{ a.verify_note }}{% endif %} <small>(dikunci oleh {{ a.verified_by.get_username }}, {{ a.verified_at|date:"d M Y H:i" }})</small></td></tr>{% endif %}
-{% if a.cancel_reason %}<tr><th>Alasan batal</th><td>{{ a.cancel_reason }}</td></tr>{% endif %}</table></div>
+{% if a.cancel_reason %}<tr><th>Alasan batal</th><td>{{ a.cancel_reason }}</td></tr>{% endif %}
+{% if files %}<tr><th>Bukti</th><td>{% for f in files %}<a href="{% url 'attcheck_attachment' a.pk f.pk %}{% if not f.is_image %}?dl=1{% endif %}" target="_blank" rel="noopener">{{ f.original_name }}</a> <small class="muted">({{ f.size|filesizeformat }})</small>{% if not forloop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endif %}</table></div>
 
 {% if not is_admin and a.status != 'dibatalkan' %}
 <details class="flt" style="margin-top:12px"><summary>{% if a.status == 'diverifikasi' %}Koreksi hasil{% else %}Tindakan lain{% endif %}</summary>
