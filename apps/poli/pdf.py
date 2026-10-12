@@ -182,7 +182,7 @@ def _checkbox(c, x, y, checked, label):
 
 
 def referral_pdf(ref):
-    """Surat rujukan, satu halaman: jenis (kontrol/berobat/tes lab/rujukan spesialis), data karyawan, no. BPJS K/TK, tanggal kejadian/keluhan, keluhan + catatan klinis,
+    """Surat rujukan, satu halaman: jenis (kontrol/berobat/tes lab/rujukan spesialis), data karyawan (NIK karyawan + NIK KTP, putaran 52), no. BPJS K/TK, tanggal kejadian/keluhan, keluhan + catatan klinis,
     ditandatangani pemeriksa saat rujukan dibuat. TANPA diagnosa."""
     rec, emp = ref.record, ref.record.employee
     lh = letterhead.info(ref.created_by or rec.created_by); role, name = _signer(ref)
@@ -196,7 +196,7 @@ def referral_pdf(ref):
     y = _lines(c, L, yn - 15 * mm, "Mohon agar karyawan yang tercantum di bawah ini dapat diperiksa kesehatannya / ditangani lebih lanjut.", W - 2 * L)
     inc = ref.incident_date or timezone.localtime(rec.visit_at).date()
     rows = [("Tujuan rujukan", ref.facility), ("Nama", emp.name), ("Jenis kelamin", GENDER.get(emp.gender, emp.gender)), ("Umur", f"{emp.age(created)} tahun" if emp.age(created) is not None else "-"),
-            ("Alamat", emp.address or "-"), ("Jabatan", emp.position.name if emp.position_id else "-"), ("Departemen", emp.department.name), ("NIK", emp.nik),
+            ("Alamat", emp.address or "-"), ("Jabatan", emp.position.name if emp.position_id else "-"), ("Departemen", emp.department.name), ("NIK Karyawan", emp.nik), ("NIK KTP", emp.nik_ktp or "-"),
             ("No. BPJS Kesehatan (K)", emp.bpjs_kes or "-"), ("No. BPJS Ketenagakerjaan (TK)", emp.bpjs_tk or "-"), ("Tanggal kejadian / keluhan", _fmt(inc))]
     y = _fields(c, W, L, y - 0.5 * mm, rows, label_w=58 * mm)
     inc_data = ((rec.exam or {}).get("kecelakaan") or {}) if isinstance(rec.exam, dict) else {}

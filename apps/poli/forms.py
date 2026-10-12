@@ -17,7 +17,7 @@ EXAM_CONCLUSIONS = [("fit", "Sehat / fit bekerja"), ("fit_catatan", "Fit dengan 
 
 class RecordForm(forms.Form):
     nik = forms.CharField(label="NIK karyawan", max_length=20, help_text="Ketik NIK atau nama; pilih dari saran. Hanya karyawan aktif.",
-                          widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+                          widget=forms.TextInput(attrs={"data-lookup": "employee", "data-q-scope": "all", "placeholder": "Ketik NIK atau nama…"}))
     kind = forms.ChoiceField(label="Jenis kunjungan", choices=MedicalRecord.KINDS)
     # Pemeriksa (putaran 35): SATU isian di bagian akhir form. Ketik nama dokter/petugas medis (tanpa NIK, mis. dokter bukan karyawan) ATAU ketik NIK/nama petugas
     # departemen Poli lalu pilih dari saran (NIK tersimpan di kolom tersembunyi examiner_nik). Penyimpanan tidak berubah: examiner (karyawan Poli) / doctor_name (teks).
@@ -69,7 +69,7 @@ class RecordForm(forms.Form):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         dept = services.poli_department()
-        if dept: self.fields["doctor_name"].widget.attrs["data-q-department"] = str(dept.pk)  # saran hanya dari departemen Poli
+        if dept: self.fields["doctor_name"].widget.attrs.update({"data-q-department": str(dept.pk), "data-q-scope": "all"})  # saran hanya dari departemen Poli (form klinis → scope=all, putaran 52)
         if not self.is_bound and not self.initial.get("doctor_name"):
             from django.conf import settings
             self.initial["doctor_name"] = settings.POLI_DOCTOR_NAME  # bawaan dari .env; bisa diganti per kunjungan
@@ -295,7 +295,7 @@ class PartnerBillForm(forms.Form):
     partner = forms.ModelChoiceField(label="Mitra", queryset=Partner.objects.none(), empty_label="— pilih —")
     bill_number = forms.CharField(label="Nomor tagihan mitra", max_length=40)
     bill_date = forms.DateField(label="Tanggal tagihan", initial=date.today, widget=forms.DateInput(attrs={"type": "date"}))
-    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+    nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "data-q-scope": "all", "placeholder": "Ketik NIK atau nama…"}))
     service_date = forms.DateField(label="Tanggal pelayanan", widget=forms.DateInput(attrs={"type": "date"}))
     service_type = forms.ChoiceField(label="Jenis layanan", choices=PartnerBill.SERVICES)
     complaint = forms.CharField(label="Keluhan", required=False, widget=TA(), max_length=2000)
@@ -374,7 +374,7 @@ class AllergyForm(forms.Form):
 class VisitForm(forms.Form):
     """Rekap visit pasien (putaran 46). NIK dipilih lewat saran; hanya karyawan aktif."""
     nik = forms.CharField(label="NIK karyawan", max_length=20, help_text="Ketik NIK atau nama; pilih dari saran. Hanya karyawan aktif.",
-                          widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
+                          widget=forms.TextInput(attrs={"data-lookup": "employee", "data-q-scope": "all", "placeholder": "Ketik NIK atau nama…"}))
     kind = forms.ChoiceField(label="Jenis visit", choices=[("", "— pilih —")] + PatientVisit.KINDS)
     visit_date = forms.DateField(label="Tanggal visit", widget=forms.DateInput(attrs={"type": "date"}))
     location = forms.CharField(label="Lokasi / alamat", required=False, max_length=200, help_text="Wajib untuk kunjungan rumah (alamat atau nama tempat tinggal/mess).")

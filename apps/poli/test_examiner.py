@@ -52,7 +52,7 @@ class ExaminerTests(PoliBase):
         self.assertIn(f'data-q-department="{self.dpoli.pk}"', h); self.assertIn('name="examiner_nik"', h); self.assertIn('value="dr. Default"', h)
 
     def test_lookup_endpoint_filters_by_poli_department(self):
-        j = self.client.get(f"/api/lookup/employees/?q=P0&department={self.dpoli.pk}").json()["results"]
+        j = self.client.get(f"/api/lookup/employees/?q=P0&scope=all&department={self.dpoli.pk}").json()["results"]
         self.assertEqual([x["nik"] for x in j], ["P01"])
 
     def test_audit_has_markers_not_names(self):

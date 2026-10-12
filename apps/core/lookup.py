@@ -2,7 +2,8 @@
 
 Prinsip: JANGAN pernah mengirim seluruh tabel. Setiap endpoint menuntut minimal MIN_CHARS karakter, membatasi hasil
 (LIMIT) dan hanya mengembalikan kolom yang perlu. Izin dan scope sama dengan halaman asalnya:
-  • karyawan  → Superadmin/HRD semua, Admin Departemen hanya departemennya, Poli identitas minimum (aktif saja)
+  • karyawan  → Superadmin/HRD semua, Admin Departemen hanya departemennya. Poli: DEFAULT hanya departemen Poli (putaran 52, saran NIK di form
+                pengajuan tidak boleh membocorkan departemen lain); identitas minimum semua karyawan hanya bila form klinis meminta `scope=all`
   • obat/diagnosa → hanya Poli (data poliklinik tertutup untuk HRD/Admin Departemen)
 Hasil bersifat saran saja; validasi akhir tetap di form/servis (NIK/ID dicek ulang saat disimpan).
 """
@@ -10,7 +11,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from .models import Role
-from .scope import require_roles, scope_by_department
+from .scope import require_roles, scope_by_department, scope_dept_only
 
 MIN_CHARS = 2
 LIMIT = 10
@@ -31,7 +32,10 @@ def employees(request):
     from apps.hr.models import Employee
     q = _q(request)
     if not q: return JsonResponse({"results": []})
-    qs = scope_by_department(request.user, Employee.objects.filter(status="aktif"))
+    base = Employee.objects.filter(status="aktif")
+    # Putaran 52: gagal tertutup. Hanya akun Poli yang boleh meminta scope=all (pasien di form klinis); selain itu ketat per departemen.
+    wide = request.user.role == Role.POLI and request.GET.get("scope") == "all"
+    qs = scope_by_department(request.user, base) if wide else scope_dept_only(request.user, base)
     qs = qs.filter(Q(nik__istartswith=q) | Q(name__icontains=q))
     g = request.GET.get("gender", "")
     if g in ("L", "P"): qs = qs.filter(gender=g)

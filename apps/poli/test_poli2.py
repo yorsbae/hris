@@ -13,11 +13,12 @@ def js(resp): return json.loads(resp.content)
 
 class LookupTests(PoliBase):
     def test_employee_lookup_scope_and_limits(self):
-        self.login("poli"); r = js(self.client.get("/api/lookup/employees/", {"q": "00"}))["results"]
+        """Form klinis Poli meminta scope=all (pasien = semua karyawan aktif, identitas minimum); tanpa scope=all Poli hanya departemennya (putaran 52)."""
+        self.login("poli"); r = js(self.client.get("/api/lookup/employees/", {"scope": "all", "q": "00"}))["results"]
         self.assertEqual({x["nik"] for x in r}, {"001", "002", "003"})  # 009 nonaktif tidak muncul
-        self.assertEqual(js(self.client.get("/api/lookup/employees/", {"q": "0"}))["results"], [])  # < 2 karakter: tidak ada hasil (bukan seluruh tabel)
-        self.assertEqual({x["nik"] for x in js(self.client.get("/api/lookup/employees/", {"q": "00", "gender": "P"}))["results"]}, {"002", "003"})
-        self.assertEqual({x["nik"] for x in js(self.client.get("/api/lookup/employees/", {"q": "00", "exclude": "001"}))["results"]}, {"002", "003"})
+        self.assertEqual(js(self.client.get("/api/lookup/employees/", {"scope": "all", "q": "0"}))["results"], [])  # < 2 karakter: tidak ada hasil (bukan seluruh tabel)
+        self.assertEqual({x["nik"] for x in js(self.client.get("/api/lookup/employees/", {"scope": "all", "q": "00", "gender": "P"}))["results"]}, {"002", "003"})
+        self.assertEqual({x["nik"] for x in js(self.client.get("/api/lookup/employees/", {"scope": "all", "q": "00", "exclude": "001"}))["results"]}, {"002", "003"})
         self.login("adm")  # Admin Departemen hanya departemennya (Produksi: 001, 003)
         self.assertEqual({x["nik"] for x in js(self.client.get("/api/lookup/employees/", {"q": "00"}))["results"]}, {"001", "003"})
         self.login("hrd"); self.assertEqual(len(js(self.client.get("/api/lookup/employees/", {"q": "00"}))["results"]), 3)
