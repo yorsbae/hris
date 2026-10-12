@@ -530,3 +530,17 @@ class Putaran54Tests(Base):
     def test_english_pages(self):
         h = self.client.get("/en/").content.decode()
         self.assertIn("Switch language to Bahasa Indonesia", h); self.assertIn("<b>ID</b>", h); self.assertIn("Our Collection", h)
+
+    def test_seed_makes_a_complete_looking_site(self):
+        s = SiteSetting.get()
+        self.assertEqual(s.brand_name, "PT SUKORINTEX")
+        for k in ("instagram", "facebook", "tiktok", "marketplace_url", "whatsapp", "email", "address", "phone"): self.assertTrue(getattr(s, k), k)
+        self.assertGreaterEqual(Job.objects.filter(status="open").count(), 6)
+        html = self.client.get("/").content.decode(); foot = html[html.index("<footer"):]
+        for w in ("Instagram", "Facebook", "TikTok", "Marketplace"): self.assertIn(w, foot)
+        self.assertContains(self.client.get("/tentang-kami/"), 'class="aboutside"')
+
+    def test_seed_keeps_brand_renamed_by_hrd_and_is_idempotent(self):
+        s = SiteSetting.get(); s.brand_name = "Wadimor"; s.save(); n = Job.objects.count()
+        call_command("seed_company", stdout=io.StringIO())
+        self.assertEqual(SiteSetting.get().brand_name, "Wadimor"); self.assertEqual(Job.objects.count(), n)

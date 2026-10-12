@@ -236,3 +236,5 @@ main.wide{background:none}
  .hero3 h1{letter-spacing:.12em}.hero3 .sub{letter-spacing:.2em}.mset .card{width:236px}main:not(.wide){padding:22px 14px 40px;border-radius:12px}main:not(.wide):before,main:not(.wide):after{display:none}}
 @media(max-width:520px){.brand img{height:40px}.cta{gap:14px}}
 .scard .map,.cinfo .map{position:relative}.map>svg.ill{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.map .gmap{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+/* putaran 54b: sisi halaman Tentang */
+.aboutside{display:grid;gap:18px;align-content:start}.aboutside .cinfo h3{margin:.1em 0 .3em}.aboutside .art{max-width:none}

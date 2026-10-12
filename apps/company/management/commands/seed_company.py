@@ -114,6 +114,8 @@ FAQS = (
 JOBS = (  # judul, divisi, lokasi, jenis, jumlah, ringkasan, tugas, syarat, benefit
     ("Staf Quality Control", "Produksi", "Batang", "kontrak", 2, "Memeriksa mutu kain sebelum dikemas.", "- Memeriksa cacat tenun dan warna\n- Mencatat hasil pemeriksaan\n- Berkoordinasi dengan operator", "- Pendidikan minimal SMA/SMK\n- Teliti dan jujur\n- Bersedia kerja shift", "- Gaji sesuai UMK\n- BPJS Kesehatan & Ketenagakerjaan\n- Pelatihan"),
     ("Staf Gudang & Logistik", "Gudang", "Batang", "kontrak", 3, "Mengelola stok dan pengiriman barang jadi.", "- Menerima dan menata barang\n- Menyiapkan pesanan\n- Mencatat stok masuk/keluar", "- Pendidikan minimal SMA/SMK\n- Sehat dan cekatan\n- Bisa menggunakan Excel dasar (nilai tambah)", "- Gaji sesuai UMK\n- BPJS\n- Uang makan"),
+    ("Staf Desain Motif", "Desain", "Batang", "magang", 2, "Menyusun dan merapikan motif tenun untuk koleksi baru.", "- Menggambar dan menyusun motif\n- Menyiapkan acuan warna\n- Berkoordinasi dengan tim tenun", "- Pendidikan minimal SMK/D3 desain\n- Menguasai aplikasi desain dasar\n- Kreatif dan terbuka pada masukan", "- Uang saku\n- Bimbingan langsung\n- Sertifikat magang"),
+    ("Teknisi Mesin Tenun", "Perawatan", "Batang", "kontrak", 2, "Merawat dan memperbaiki mesin tenun agar produksi lancar.", "- Pemeriksaan dan perawatan berkala\n- Memperbaiki kerusakan mesin\n- Mencatat riwayat perawatan", "- Pendidikan minimal SMK mesin/listrik\n- Memahami dasar mekanik\n- Bersedia kerja shift", "- Gaji sesuai UMK\n- BPJS\n- Tunjangan keahlian"),
     ("Admin Penjualan", "Penjualan", "Tegal", "tetap", 1, "Melayani pesanan dan pelanggan toko.", "- Menjawab pertanyaan pelanggan\n- Membuat faktur dan rekap penjualan\n- Koordinasi dengan gudang", "- Pendidikan minimal D3/S1\n- Komunikatif dan rapi\n- Mahir Excel/Spreadsheet", "- Gaji kompetitif\n- BPJS\n- Insentif penjualan"),
 )
 
@@ -124,6 +126,7 @@ class Command(BaseCommand):
     def handle(self, *a, **o):
         import datetime
         s = SiteSetting.get()
+        if s.brand_name.strip() in ("", "PT X", "PT Nama Perusahaan"): s.brand_name = "PT SUKORINTEX"   # nama bawaan .env → nama demo; nama yang sudah diganti HRD tidak disentuh
         if not s.tagline_id:
             s.tagline_id = "Tenun Sarung Kita"; s.tagline_en = "Our Woven Sarong"
             s.hero_title_id = "Warisan Budaya dalam Setiap Helai"; s.hero_title_en = "Cultural Heritage in Every Thread"
@@ -135,7 +138,8 @@ class Command(BaseCommand):
         # kontak demo: hanya mengisi kolom yang masih kosong
         for k, v in dict(address="Jl. Industri Tekstil No. 5, Kawasan Industri, Batang, Jawa Tengah 51211", phone="(0285) 555 0100", whatsapp="628120000000", email="info@sukorintex.example",
                          hours_id="Senin–Sabtu 08.00–16.00", hours_en="Mon–Sat 08:00–16:00", maps_url="https://www.google.com/maps/search/?api=1&query=Batang+Jawa+Tengah",
-                         instagram="https://www.instagram.com/", footer_note_id="Data contoh untuk tahap pengembangan.", footer_note_en="Sample data for the development stage.").items():
+                         instagram="https://www.instagram.com/", facebook="https://www.facebook.com/", tiktok="https://www.tiktok.com/", marketplace_url="https://shopee.co.id/",
+                         footer_note_id="Data contoh untuk tahap pengembangan.", footer_note_en="Sample data for the development stage.").items():
             if not getattr(s, k): setattr(s, k, v)
         s.save()
         pg, _ = Page.objects.get_or_create(slug="tentang-kami", defaults=dict(title_id="Tentang Sarung", title_en="About the Sarong", subtitle_id="Mengenal lebih dalam tentang warisan budaya Indonesia",
@@ -176,9 +180,9 @@ class Command(BaseCommand):
             Job.objects.create(title="Operator Mesin Tenun", department_name="Produksi", location="Batang", employment_type="kontrak", openings=5, summary="Mengoperasikan mesin tenun dan menjaga mutu kain.",
                                description="- Mengoperasikan mesin tenun\n- Memeriksa mutu kain\n- Menjaga kebersihan area kerja", requirements="- Pendidikan minimal SMA/SMK\n- Bersedia kerja shift\n- Teliti dan disiplin",
                                benefits="- Gaji sesuai UMK\n- BPJS Kesehatan & Ketenagakerjaan", questions=[{"label": "Pernah bekerja di pabrik tekstil?", "required": False}], status="open")
-        few_jobs = Job.objects.count() <= 1
+        few_jobs = Job.objects.count() < len(JOBS) + 1   # tambahan demo hanya saat lowongan masih sedikit (hindari duplikat setelah HRD mengganti judul)
         for title, dept, loc, typ, n, summ, desc, req, ben in JOBS:
-            if few_jobs and not Job.objects.filter(title=title).exists():   # tambahan demo hanya saat lowongan masih sedikit (hindari duplikat setelah HRD mengganti judul)
+            if few_jobs and not Job.objects.filter(title=title).exists():
                 Job.objects.create(title=title, department_name=dept, location=loc, employment_type=typ, openings=n, summary=summ, description=desc.replace("\\n", "\n"), requirements=req.replace("\\n", "\n"),
                                    benefits=ben.replace("\\n", "\n"), closes_on=datetime.date.today() + datetime.timedelta(days=45), status="open")
         self.stdout.write("Konten contoh situs publik siap. Lihat /situs/ (pratinjau) atau jalankan SITE_MODE=public.")
