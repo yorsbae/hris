@@ -1,0 +1,4 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<h1>{% ui "products" %}</h1>
+<div class="tags"><a href="{% purl 'products' %}"{% if not cur %} aria-current="true"{% endif %}>{% ui "all" %}</a>{% for c in cats %}<a href="{% purl 'products' %}?c={{ c.slug }}"{% if cur == c.slug %} aria-current="true"{% endif %}>{% t c "name" %}</a>{% endfor %}</div>
+<div class="grid">{% for p in page %}{% include "site/_product_card.html" %}{% empty %}<p>{% ui "no_results" %}</p>{% endfor %}</div>
+{% if page.paginator.num_pages > 1 %}<nav class="pager">{% if page.has_previous %}<a class="btn alt" rel="prev" href="?page={{ page.previous_page_number }}{% if cur %}&amp;c={{ cur }}{% endif %}">‹</a>{% endif %}<span>{{ page.number }} / {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="btn alt" rel="next" href="?page={{ page.next_page_number }}{% if cur %}&amp;c={{ cur }}{% endif %}">›</a>{% endif %}</nav>{% endif %}{% endblock %}

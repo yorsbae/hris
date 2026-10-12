@@ -49,8 +49,8 @@ class WorkflowUITests(TestCase):
         self.assertEqual(self.client.post(f"/requests/{req.pk}/submit/").status_code, 404)
         self.assertNotContains(self.client.get("/requests/"), "Emp 001")
 
-    def test_poli_forbidden_and_anonymous_blocked(self):
-        self.login("poli"); self.assertEqual(self.client.get("/requests/").status_code, 403)
+    def test_poli_without_department_sees_nothing_and_anonymous_blocked(self):  # putaran 48
+        self.login("poli"); self.post_leave(); self.assertFalse(ChangeRequest.objects.exists()); self.assertEqual(self.client.get("/requests/").status_code, 200)
         self.client.logout(); self.assertIn(self.client.get("/requests/").status_code, (302, 401))
 
     def test_dept_admin_cannot_decide_or_change_status(self):

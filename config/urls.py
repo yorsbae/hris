@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv, attendance_views as av7
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import lookup
@@ -11,6 +11,7 @@ from apps.core.scope import require_roles
 from apps.core.models import Role
 from apps.hr import bulk_specs as hbs, overtime as ot
 from apps.core.dashboard_panels import panels as dashboard_panels
+from django.conf import settings
 admin.site.site_header = admin.site.site_title = "HRIS & Poliklinik — Administrasi data"
 admin.site.index_title = "Administrasi data (khusus Superadmin; pekerjaan harian lewat menu aplikasi)"
 urlpatterns = [
@@ -29,6 +30,15 @@ urlpatterns = [
     path("validasi/<int:pk>/verify/", av7.check_verify, name="attcheck_verify"),
     path("validasi/<int:pk>/cancel/", av7.check_cancel, name="attcheck_cancel"),
     path("validasi/<int:pk>/correct/", av7.check_correct, name="attcheck_correct"),
+    path("absensi/", ap.daily_list, name="att_daily"),
+    path("absensi/bulanan/", ap.monthly, name="att_monthly"),
+    path("absensi/karyawan/<int:pk>/", ap.employee_month, name="att_employee"),
+    path("absensi/olah/", ap.reprocess, name="att_process"),
+    path("absensi/minta-validasi/", ap.ask_validation, name="att_ask"),
+    path("absensi/impor/", ap.import_home, name="att_import"),
+    path("absensi/impor/<int:pk>/", ap.import_detail, name="att_import_detail"),
+    path("absensi/pin/", ap.pins, name="att_pins"),
+    path("absensi/libur/", ap.holidays, name="att_holidays"),
     path("employees/", hr.employees_page),
     path("employees/import/", iv2.employee_import, name="employee_import"),
     path("employees/import/template.csv", iv2.import_template),
@@ -82,6 +92,8 @@ urlpatterns = [
     path("requests/<int:pk>/<str:action>/", rq.request_action),
     path("hrd/", include("apps.hrd.urls")),
     path("poli/", include("apps.poli.urls")),
+    path("company/", include("apps.company.urls")),            # putaran 48: backend Company Profile (HRD/Superadmin)
+    path("recruitment/", include("apps.company.recruit_urls")),  # putaran 48: lowongan & pelamar (HRD/Superadmin)
     path("api/lookup/employees/", lookup.employees),
     path("api/lookup/medicines/", lookup.medicines),
     path("api/lookup/diagnoses/", lookup.diagnoses),
@@ -90,3 +102,5 @@ urlpatterns = [
     path("api/poli/records/", poli.record_create),
     path("api/poli/records/<int:record_id>/letter.pdf", poli.letter_pdf),
 ]
+if settings.PUBLIC_PREVIEW:  # pratinjau situs publik di aplikasi internal (draf tampil untuk HRD/Superadmin yang login); situs publik sebenarnya: SITE_MODE=public
+    urlpatterns.append(path("situs/", include("apps.company.public_urls")))

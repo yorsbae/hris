@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Hari Libur{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
+<h2>Hari libur {{ year }}</h2>
+<p class="sub">Tanpa scan di hari libur bukan tanpa-scan/alfa. Pilih berlaku untuk <b>karyawan non-rotasi</b> (shift bergilir tetap jalan) atau <b>semua karyawan</b>. Setelah mengubah, olah ulang rekap tanggal itu.</p>
+<div class="tools"><a class="btn ghost" style="margin-left:0" href="?year={{ year|add:'-1' }}">‹ {{ year|add:"-1" }}</a><a class="btn ghost" href="?year={{ year|add:'1' }}">{{ year|add:"1" }} ›</a></div>
+<form method="post" class="bar">{% csrf_token %}<input type="hidden" name="action" value="add"><input type="date" name="date" required aria-label="Tanggal"><input name="name" placeholder="Nama (mis. Idul Fitri)" required maxlength="100">
+<select name="kind">{% for k, v in kinds %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><select name="applies">{% for k, v in applies %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><button class="btn" type="submit">+ Tambah</button></form>
+<div class="wrap"><table class="sepfit"><thead><tr><th>Tanggal</th><th>Nama</th><th>Jenis</th><th>Berlaku</th><th>Status</th><th></th></tr></thead><tbody>
+{% for h in items %}<tr><td class="nw">{{ h.date|date:"D d M Y" }}</td><td>{{ h.name }}</td><td>{{ h.get_kind_display }}</td><td>{{ h.get_applies_display }}</td><td><span class="pill {% if h.active %}approved{% else %}nonaktif{% endif %}">{% if h.active %}Aktif{% else %}Nonaktif{% endif %}</span></td>
+<td class="nw"><form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ h.pk }}"><button class="btn ghost" name="action" value="toggle">{% if h.active %}Nonaktifkan{% else %}Aktifkan{% endif %}</button> <button class="btn ghost" name="action" value="delete" data-confirm="Hapus hari libur ini?">Hapus</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada hari libur {{ year }}.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

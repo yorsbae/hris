@@ -40,10 +40,10 @@ class NavTests(DashboardUiBase):
         want = {"su": ['href="/users/"', 'href="/audit/"', 'href="/poli/"', 'href="/hrd/"', 'href="/master/department/"'],
                 "hrd": ['href="/hrd/"', 'href="/leave/"', 'href="/master/department/"'],
                 "adm": ['href="/employees/"', 'href="/requests/"'],
-                "poli": ['href="/poli/"', 'href="/poli/medicines/"', 'href="/poli/records/"']}
+                "poli": ['href="/poli/"', 'href="/poli/medicines/"', 'href="/poli/records/"', 'href="/requests/"', 'href="/requests/g/lembur/"', 'href="/requests/g/izin/"', 'href="/validasi/"']}  # putaran 48: akun Poli = admin dept Poli
         deny = {"hrd": ['href="/poli/', 'href="/users/"', 'href="/audit/"'],
                 "adm": ['href="/poli/', 'href="/hrd/"', 'href="/leave/"', 'href="/master/', 'href="/users/"', 'href="/audit/"'],
-                "poli": ['href="/hrd/"', 'href="/leave/"', 'href="/master/', 'href="/users/"', 'href="/audit/"', 'href="/requests/"']}
+                "poli": ['href="/hrd/"', 'href="/leave/"', 'href="/master/', 'href="/users/"', 'href="/audit/"', 'href="/requests/g/status/"']}  # Perubahan Status tetap HRD saja
         for name, needles in want.items():
             h = self.hrefs(User.objects.get(username=name))
             for n in needles: self.assertIn(n, h, (name, n))

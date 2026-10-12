@@ -3,6 +3,7 @@ Alur: diminta → dijawab → diverifikasi (terkunci) | dikembalikan → dijawab
 from datetime import date, timedelta
 from django.conf import settings
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from apps.core.models import Notification, Role, User
 from .models import AttendanceCheck as AC, AttendanceCheckEvent as Ev, ChangeRequest, Employee
 
@@ -38,6 +39,17 @@ def hint_for(emp, d):
     try:
         if effective_schedule(emp, d).get("off"): return "Jadwal efektif: libur"
     except Exception: pass  # jadwal tak terbaca tidak boleh menggagalkan permintaan
+    return machine_hint(emp, d)
+
+
+def machine_hint(emp, d):
+    """Dugaan dari rekap mesin (Tahap 6): tanpa scan / hanya satu scan / ada scan. Kosong bila hari itu belum pernah diolah. Bukan jawaban."""
+    from .models import AttendanceDaily
+    r = AttendanceDaily.objects.filter(employee=emp, date=d).first()
+    if not r: return ""
+    if r.status == "tanpa_scan": return "Mesin: tidak ada scan"
+    if r.incomplete: return "Mesin: hanya satu scan (" + (f"masuk {timezone.localtime(r.first_in):%H:%M}" if r.first_in else f"pulang {timezone.localtime(r.last_out):%H:%M}") + ")"
+    if r.scan_count and r.status == "hadir": return "Mesin: ada scan" + (f", terlambat {r.late_minutes} menit" if r.late_minutes else "")
     return ""
 
 
@@ -45,7 +57,7 @@ def _ev(att, user, action, frm="", to="", value="", note=""):
     return Ev.objects.create(att=att, user=user, action=action, from_status=frm, to_status=to, value=value, note=note[:300])
 
 
-def _admins(dept_id): return list(User.objects.filter(role=Role.DEPT_ADMIN, department_id=dept_id, is_active=True))
+def _admins(dept_id): return list(User.objects.filter(role__in=(Role.DEPT_ADMIN, Role.POLI), department_id=dept_id, is_active=True))  # akun Poli mewakili departemen Poli (putaran 48)
 
 
 def _notify(users, title): Notification.objects.bulk_create([Notification(user=u, kind="absensi", title=title[:200], link="/validasi/") for u in users])
@@ -96,7 +108,7 @@ def answer(user, pk, value, note=""):
     if len(note) > 300: raise ValueError("Keterangan maksimal 300 karakter.")
     with transaction.atomic():
         a = _locked(pk)
-        if user.role == Role.DEPT_ADMIN and a.department_id != user.department_id: raise PermissionError("Di luar departemen Anda.")
+        if user.role in (Role.DEPT_ADMIN, Role.POLI) and a.department_id != user.department_id: raise PermissionError("Di luar departemen Anda.")
         if a.status not in ("diminta", "dikembalikan"): raise ValueError("Permintaan ini tidak sedang menunggu jawaban.")
         frm = a.status; r = _covering(a.employee, a.date)
         a.conflict = f"Jawaban Alfa bertabrakan dengan pengajuan {r.type} #{r.pk} yang sudah dilaksanakan" if value == "alfa" and r else ""
@@ -124,6 +136,7 @@ def verify(user, pk, action, note="", final=""):
         if a.final_answer == "alfa": r = _covering(a.employee, a.date); a.conflict = f"Alfa bertabrakan dengan pengajuan {r.type} #{r.pk}" if r else ""
         a.status, a.verified_by, a.verified_at, a.verify_note = "diverifikasi", user, _now(), note; a.save()
         _ev(a, user, "verifikasi" if action == "terima" else "ubah", "dijawab", "diverifikasi", a.final_answer, note)
+    _refresh(a)
     return a
 
 
@@ -148,7 +161,14 @@ def correct(user, pk, value, note):
         a = _locked(pk)
         if a.status != "diverifikasi": raise ValueError("Koreksi hanya untuk data yang sudah diverifikasi.")
         _ev(a, user, "koreksi", "diverifikasi", "diverifikasi", value, note)
+    _refresh(a)
     return a
+
+
+def _refresh(a):
+    """Hasil terverifikasi menjadi sumber rekap Absensi (Tahap 6): hitung ulang karyawan-tanggal ini. Gagal = rekap menyusul lewat `process_attendance`; verifikasi tetap sah."""
+    from . import attendance_calc
+    attendance_calc.recompute(a.employee, a.date)
 
 
 def _now():

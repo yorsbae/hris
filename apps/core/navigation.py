@@ -18,6 +18,13 @@ def _bpjs():
 
 def _validasi(): return [("Validasi Kehadiran", "/validasi/", "clock")]  # putaran 26, P7 (HRD, Admin Dept, Superadmin)
 
+def _absensi(full):
+    """Menu Absensi (Tahap 6, putaran 48). HRD: rekap + impor + PIN + hari libur. Admin Dept: hanya rekap departemennya."""
+    items = [("Absensi", "/absensi/", "clock"), ("Rekap Bulanan", "/absensi/bulanan/", "calendar", True)]
+    if full: items += [("Impor Fingerspot", "/absensi/impor/", "file", True), ("Pemetaan PIN", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True)]
+    return items
+
+
 def _ophrd():
     """Operasional HRD = menu + submenu (putaran 28). Induk membuka ringkasan /hrd/; tiap fungsi punya butir sendiri. Seragam (P5) pindah ke sini.
     BPJS tetap menu tersendiri (sudah bersubmenu sejak putaran 23). Hanya HRD & Superadmin."""
@@ -26,23 +33,34 @@ def _ophrd():
             ("Surat Peringatan", "/hrd/warnings/", "file", True), ("Seragam", "/hrd/uniforms/", "clipboard", True),
             ("Karyawan Keluar", "/hrd/separations/", "users", True)]
 
+def _company():
+    """Company Profile (situs publik) + Rekrutmen (lowongan & pelamar) — putaran 48, Tahap 11. Hanya HRD & Superadmin."""
+    return [("Company Profile", "/company/", "briefcase"), ("Produk", "/company/products/", "clipboard", True), ("Artikel", "/company/articles/", "file", True),
+            ("Halaman", "/company/pages/", "file", True), ("FAQ", "/company/faqs/", "file", True), ("Lokasi Toko", "/company/stores/", "file", True), ("Pesan Masuk", "/company/messages/", "chat", True),
+            ("Pengaturan Situs", "/company/settings/", "sliders", True),
+            ("Rekrutmen", "/recruitment/", "users"), ("Lowongan", "/recruitment/jobs/", "clipboard", True), ("Pelamar", "/recruitment/applicants/", "users", True)]
+
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 
 def _groups(role):
     if role == Role.SUPERADMIN:
-        return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"),
+        return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True),
                            *_ophrd(), *_bpjs(), *_validasi()]),
+                ("Situs & Rekrutmen", _company()),
                 ("Poliklinik", _poli(True)),
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
-        return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"),
-                        *_ophrd(), *_bpjs(), *_validasi(), ("Master Data", "/master/department/", "sliders")]), _INFO]
+        return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True),
+                        *_ophrd(), *_bpjs(), *_validasi(), ("Master Data", "/master/department/", "sliders")]),
+                ("Situs & Rekrutmen", _company()), _INFO]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
-                                      *_req("Pengajuan & Monitoring", False), *_validasi()]), _INFO]
+                                      *_req("Pengajuan & Monitoring", False), *_absensi(False), *_validasi()]), _INFO]
     if role == Role.POLI:
-        return [("Poli", [_DASH, ("Data Pasien/Karyawan", "/employees/", "users")] + _poli(True)), _INFO]
+        # Putaran 48: akun Poli = admin departemen Poli → menu "Pengajuan Departemen" (induk + submenu Izin & Cuti, Lembur, dst.); hanya departemen Poli (scope di server)
+        return [("Poli", [_DASH, ("Data Pasien/Karyawan", "/employees/", "users")] + _poli(True)),
+                ("Pengajuan Departemen", [*_req("Pengajuan Departemen", False), *_validasi()]), _INFO]
     return []
 
 def _poli(with_hub):

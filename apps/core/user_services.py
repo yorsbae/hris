@@ -13,9 +13,14 @@ def dept_admin_map():
     """{department_id: [nama Admin Departemen aktif]}. Tiap departemen wajib punya admin sendiri (minimal satu aktif; A74) —
     dipakai form Validasi Kehadiran, daftar Pengguna, dan Master Departemen."""
     out = {}
-    for u in User.objects.filter(role=Role.DEPT_ADMIN, is_active=True, department__isnull=False).order_by("username"):
+    for u in User.objects.filter(role__in=(Role.DEPT_ADMIN, Role.POLI), is_active=True, department__isnull=False).order_by("username"):
         out.setdefault(u.department_id, []).append(u.get_full_name() or u.get_username())
     return out
+
+
+def other_active_poli(exclude_pk=None):
+    """Akun Poli aktif lain (putaran 49): hanya SATU akun Poli, mewakili tiga perawat karyawan; pemeriksa dicatat sebagai karyawan di rekam medis."""
+    return User.objects.filter(role=Role.POLI, is_active=True).exclude(pk=exclude_pk).first()
 
 
 def departments_without_admin():

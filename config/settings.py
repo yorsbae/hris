@@ -22,7 +22,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 INSTALLED_APPS = [
     "apps.core.admin_config.HrisAdminConfig", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "apps.core", "apps.hr.apps.HrConfig", "apps.poli.apps.PoliConfig", "apps.hrd",
+    "apps.core", "apps.hr.apps.HrConfig", "apps.poli.apps.PoliConfig", "apps.hrd", "apps.company",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -40,7 +40,10 @@ MIDDLEWARE = [
     "apps.core.middleware.ThrottleMiddleware",
     "apps.core.middleware.RejectNulMiddleware",
 ]
-ROOT_URLCONF = "config.urls"
+# SITE_MODE: "internal" (bawaan; aplikasi HRIS LAN) atau "public" (hanya situs profil + karir untuk internet; JANGAN jalankan mode public dengan
+# URLconf internal). Mode public memakai config/urls_public.py: tidak ada /admin/, /employees/, /poli/, dll. Lihat docs/DEPLOY-PUBLIK.md.
+SITE_MODE = env("SITE_MODE", default="internal")
+ROOT_URLCONF = "config.urls_public" if SITE_MODE == "public" else "config.urls"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "templates"], "APP_DIRS": True,  # DIRS dulu: templates/admin/* menimpa tema bawaan Django admin
   "OPTIONS": {"context_processors": ["django.template.context_processors.request",
   "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages", "apps.core.context.unread"]}}]
@@ -110,3 +113,26 @@ LOGIN_URL = "/login/"; LOGIN_REDIRECT_URL = "/"; LOGOUT_REDIRECT_URL = "/login/"
 ANNUAL_LEAVE_DAYS = 12            # jatah cuti tahunan (hari kerja)
 ANNUAL_LEAVE_MIN_MONTHS = 12      # masa kerja minimum sebelum berhak jatah
 REGULAR_OFF_WEEKDAYS = (6,)       # hari libur reguler (0=Senin … 6=Minggu); tidak dihitung sebagai hari cuti
+
+
+# --- Company Profile & Lamar Kerja (putaran 48, Tahap 11). Semua opsional; angka = usulan awal.
+PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="")           # mis. https://wadimor.co.id ; dipakai untuk tautan di email pelamar & sitemap
+PUBLIC_PREVIEW = env.bool("PUBLIC_PREVIEW", True)               # di mode internal: pratinjau situs di /situs/ (hanya login HRD/Superadmin; draf ikut tampil)
+PRIVATE_MEDIA_ROOT = env("PRIVATE_MEDIA_ROOT", default=str(BASE_DIR / "private_media"))  # CV pelamar (terenkripsi); JANGAN diarahkan ke folder yang disajikan Nginx
+CAREER_MAX_UPLOAD_MB = env.int("CAREER_MAX_UPLOAD_MB", 3)
+CAREER_RETENTION_MONTHS = env.int("CAREER_RETENTION_MONTHS", 12)  # lamaran tidak diterima dianonimkan setelah N bulan (x2 bila pelamar setuju talent pool)
+CAREER_REQUIRE_EMAIL_VERIFY = env.bool("CAREER_REQUIRE_EMAIL_VERIFY", True)  # lamaran baru terlihat HRD setelah pelamar membuka tautan di email
+CAREER_MIN_FILL_SECONDS = env.int("CAREER_MIN_FILL_SECONDS", 4)  # formulir terkirim lebih cepat dari ini dianggap bot
+CAREER_UNVERIFIED_DAYS = env.int("CAREER_UNVERIFIED_DAYS", 7)    # lamaran yang tak pernah diverifikasi dihapus setelah N hari
+PUBLIC_THROTTLE = {"apply": (6, 3600), "contact": (5, 3600), "lookup": (5, 3600), "search": (60, 60)}  # {zona: (jumlah, detik)} per IP
+if "test" in sys.argv: PUBLIC_THROTTLE = {}
+CLAMAV_ADDRESS = env("CLAMAV_ADDRESS", default="")             # "unix:/var/run/clamav/clamd.ctl" atau "tcp:127.0.0.1:3310"; kosong = tanpa pemindai (ditandai "belum dipindai")
+CAREER_AV_REQUIRED = env.bool("CAREER_AV_REQUIRED", True)      # bila pemindai dikonfigurasi tetapi tidak menjawab: tolak unggahan (jangan loloskan diam-diam)
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="localhost"); EMAIL_PORT = env.int("EMAIL_PORT", 25)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default=""); EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", False)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@localhost")
+# CSP situs publik: tanpa 'unsafe-inline' (semua gaya/skrip berupa berkas statis). Diterapkan oleh view publik (apps/company/public_views.py).
+PUBLIC_CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+              "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")

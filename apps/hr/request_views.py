@@ -10,12 +10,12 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 from apps.core.audit import log
 from apps.core.models import Notification, Role
-from apps.core.scope import get_scoped_or_404, require_roles, scope_by_department
+from apps.core.scope import get_scoped_or_404, require_roles, scope_dept_only
 from . import schedule, services
 from .forms import FIELDS_BY_TYPE, LABELS, REQUEST_GROUPS, RequestForm, allowed_types
 from .models import ChangeRequest
 
-ROLES = (Role.HRD, Role.DEPT_ADMIN)  # Superadmin lolos otomatis di require_roles
+ROLES = (Role.HRD, Role.DEPT_ADMIN, Role.POLI)  # Superadmin lolos otomatis di require_roles
 FIELD_LABELS = {"start_date": "Tanggal mulai", "end_date": "Tanggal selesai", "date": "Tanggal", "date_to": "Diganti ke tanggal",
                 "time": "Jam", "effective_date": "Tanggal efektif", "department_name": "Departemen tujuan",
                 "position_name": "Jabatan tujuan", "shift_name": "Shift tujuan", "status": "Status baru", "reason": "Alasan",
@@ -28,7 +28,7 @@ STATUS_LABELS = {"draft": "Draft", "submitted": "Diajukan", "pending": "Menunggu
 @require_roles(*ROLES)
 def request_list(request, grp=None):
     if grp is not None and grp not in REQUEST_GROUPS: raise Http404
-    qs = scope_by_department(request.user, ChangeRequest.objects.select_related("employee", "department", "requested_by"))
+    qs = scope_dept_only(request.user, ChangeRequest.objects.select_related("employee", "department", "requested_by"))
     group_types = [t for t in allowed_types(request.user) if grp is None or t in REQUEST_GROUPS[grp][1]]
     if grp is not None:
         if not group_types: raise Http404  # mis. Admin Dept membuka Perubahan Status (hanya HRD)
@@ -106,7 +106,7 @@ def _actions(user, req):
 @login_required
 @require_roles(*ROLES)
 def request_detail(request, pk):
-    req = get_scoped_or_404(request.user, ChangeRequest.objects.select_related("employee__department", "department", "requested_by", "decided_by"), pk)
+    req = get_scoped_or_404(request.user, ChangeRequest.objects.select_related("employee__department", "department", "requested_by", "decided_by"), pk, strict=True)
     Notification.objects.filter(user=request.user, is_read=False, link__in=[f"/requests/{pk}", f"/requests/{pk}/"]).update(is_read=True)
     rows = [(FIELD_LABELS[k], v) for k, v in req.payload.items() if k in FIELD_LABELS]
     mode = (" — dengan rekan (2 orang)" if req.payload.get("partner_id") else " — sendiri (1 orang)") if req.type in schedule.SWAP_TYPES else ""
@@ -122,7 +122,7 @@ def request_detail(request, pk):
 @login_required
 @require_roles(*ROLES)
 def request_action(request, pk, action):
-    req = get_scoped_or_404(request.user, ChangeRequest.objects.all(), pk)  # URL tampering → 404
+    req = get_scoped_or_404(request.user, ChangeRequest.objects.all(), pk, strict=True)  # URL tampering → 404
     if action not in ("submit", "approved", "rejected", "executed", "cancelled"):
         messages.error(request, "Aksi tidak dikenal."); return redirect("request_detail", pk=pk)
     note = request.POST.get("note", "")

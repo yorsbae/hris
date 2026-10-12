@@ -1,0 +1,5 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<h1>{% ui "contact" %}</h1>
+<div class="grid two"><div class="panel flush"><dl class="kv">{% if S.address %}<dt>{% ui "address" %}</dt><dd>{{ S.address|linebreaksbr }}</dd>{% endif %}{% if S.phone %}<dt>{% ui "phone" %}</dt><dd>{{ S.phone }}</dd>{% endif %}{% if S.email %}<dt>{% ui "email" %}</dt><dd><a href="mailto:{{ S.email }}">{{ S.email }}</a></dd>{% endif %}{% t S "hours" as h %}{% if h %}<dt>{% ui "hours" %}</dt><dd>{{ h }}</dd>{% endif %}</dl>{% if S.maps_url %}<p><a href="{{ S.maps_url }}" rel="noopener" target="_blank">{% ui "map" %} ›</a></p>{% endif %}</div>
+<form class="f" method="post" novalidate>{% csrf_token %}{% if form.non_field_errors %}<div class="errsum" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+{% for f in form %}{% if f.name == "website" %}<div class="hp" aria-hidden="true">{{ f }}</div>{% elif f.name == "ts" %}{{ f }}{% else %}{% include "site/_field.html" %}{% endif %}{% endfor %}
+<button class="btn" type="submit">{% ui "send" %}</button></form></div>{% endblock %}

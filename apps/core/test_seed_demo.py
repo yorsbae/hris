@@ -133,13 +133,13 @@ class SeedDemoLatestFeaturesTests(TestCase):
 
     def test_poli_department_has_staff_and_examiners_are_only_poli_staff(self):
         from apps.poli.models import MedicalRecord
-        staff = Employee.objects.filter(department__code="POL", status="aktif"); self.assertGreaterEqual(staff.count(), 3)
-        self.assertTrue(staff.filter(position__name="Bidan", gender="P").exists())
+        staff = Employee.objects.filter(department__code="POL", status="aktif"); self.assertEqual(staff.count(), 3)  # putaran 49: satu akun Poli mewakili tiga perawat
+        self.assertEqual(set(staff.values_list("position__name", flat=True)), {"Perawat"}); self.assertEqual(User.objects.filter(role="poli", is_active=True).count(), 1)
         used = MedicalRecord.objects.exclude(examiner=None)
         self.assertTrue(used.exists() and MedicalRecord.objects.exclude(doctor_name="").exists() and MedicalRecord.objects.filter(examiner=None).exists())
         for rec in used: self.assertEqual(rec.examiner.department.code, "POL")
         self.assertFalse(Employee.objects.filter(name__startswith="dr.").exists())  # dokter bukan karyawan
-        for rec in MedicalRecord.objects.filter(kind="kehamilan"): self.assertEqual(rec.examiner.position.name, "Bidan")
+        for rec in MedicalRecord.objects.filter(kind="kehamilan").exclude(examiner=None): self.assertEqual(rec.examiner.position.name, "Perawat")
         for rec in MedicalRecord.objects.exclude(employee__department__code="POL"): self.assertNotEqual(rec.employee.department.code, "POL")  # staf Poli bukan pasien demo
 
     def test_all_general_request_types_are_represented(self):

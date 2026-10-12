@@ -1,0 +1,3 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<h1>{% ui "forgot_link" %}</h1>
+{% if done %}<div class="panel"><p class="lead">{% ui "forgot_done" %}</p></div>{% else %}<p class="lead">{% ui "forgot_text" %}</p>
+<form class="f" method="post" novalidate>{% csrf_token %}<div class="hp" aria-hidden="true">{{ form.website }}</div>{% include "site/_field.html" with f=form.email %}<button class="btn" type="submit">{% ui "send" %}</button></form>{% endif %}{% endblock %}

@@ -12,3 +12,9 @@ PY=/path/venv/bin/python
 20 0 * * * cd $HRIS && $PY manage.py apply_separations
 # 1 Januari 00:30 — jatah cuti tahunan
 30 0 1 1 * cd $HRIS && $PY manage.py grant_annual_leave
+# 00:30 — olah rekap absensi harian dari log mesin (3 hari terakhir; idempoten)
+30 0 * * * cd $HRIS && $PY manage.py process_attendance
+# 00:10 — (opsional) impor otomatis semua berkas Fingerspot baru dari folder bersama (yang sudah pernah diimpor dilewati)
+10 0 * * * cd $HRIS && $PY manage.py import_attendance /data/fingerspot/ --commit
+# 02:00 — retensi data pelamar (UU PDP): anonimkan lamaran lewat masa simpan & yang tak pernah diverifikasi (jalankan di host/aplikasi yang memegang database lamaran)
+0 2 * * * cd $HRIS && $PY manage.py purge_applicants

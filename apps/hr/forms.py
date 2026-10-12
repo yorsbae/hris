@@ -2,6 +2,7 @@
 from django import forms
 from django.utils import timezone
 from apps.core.models import Role
+from apps.core.scope import DEPT_ACTORS
 from . import leave, schedule
 from .models import ChangeRequest, Department, Employee, Position, Shift
 
@@ -39,7 +40,7 @@ ACTIVE = ("submitted", "pending", "approved", "executed")
 
 
 def allowed_types(user):
-    return [t for t in ChangeRequest.TYPES if user.role != Role.DEPT_ADMIN or t not in HRD_ONLY_TYPES]
+    return [t for t in ChangeRequest.TYPES if user.role not in DEPT_ACTORS or t not in HRD_ONLY_TYPES]
 
 
 class RequestForm(forms.Form):
@@ -75,7 +76,7 @@ class RequestForm(forms.Form):
             if f in OPTIONAL_FIELDS or (f == "shift" and t == "tukar_shift" and has_partner): continue
             if d.get(f) in (None, ""): self.add_error(f, "Wajib diisi.")
         emp_qs = Employee.objects.select_related("department").filter(nik=d.get("nik", "").strip(), status="aktif")
-        if self.user.role == Role.DEPT_ADMIN: emp_qs = emp_qs.filter(department_id=self.user.department_id)
+        if self.user.role in DEPT_ACTORS: emp_qs = emp_qs.filter(department_id=self.user.department_id)
         self.employee = emp_qs.first()  # di luar scope = "tidak ditemukan" (tidak membocorkan keberadaan)
         if not self.employee:
             self.add_error("nik", "Karyawan aktif dengan NIK ini tidak ditemukan.")
@@ -90,7 +91,7 @@ class RequestForm(forms.Form):
         self.partner = None
         if has_partner:  # rekan tukar: karyawan aktif lain; Admin Departemen hanya rekan dari departemennya (di luar scope = "tidak ditemukan")
             pq = Employee.objects.select_related("department").filter(nik=d["partner_nik"].strip(), status="aktif")
-            if self.user.role == Role.DEPT_ADMIN: pq = pq.filter(department_id=self.user.department_id)
+            if self.user.role in DEPT_ACTORS: pq = pq.filter(department_id=self.user.department_id)
             self.partner = pq.first()
             if not self.partner: self.add_error("partner_nik", "Rekan tukar (karyawan aktif dengan NIK ini) tidak ditemukan.")
             elif self.partner.pk == self.employee.pk: self.add_error("partner_nik", "Rekan tukar harus karyawan lain; untuk menukar liburmu sendiri kosongkan kolom ini."); self.partner = None

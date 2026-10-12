@@ -29,7 +29,7 @@ Database tidak pernah di komputer client.
 | Superadmin | Semua: user, role, permission, master, konfigurasi sistem, audit, backup, pengaturan perusahaan (nama, logo, alamat, kontak, tahun berjalan) |
 | HRD | Dashboard HRD, karyawan, struktur organisasi, departemen, jabatan, grade, status kepegawaian, shift, kontrak, mutasi/promosi, tukar shift, izin/cuti/libur, absensi, **surat peringatan**, BPJS (**submenu Ketenagakerjaan/Kesehatan + rekap potongan**), **seragam**, **validasi kehadiran**, **recruitment**, informasi, laporan, monitoring pengajuan, **halaman Operasional HRD** (bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS) |
 | Admin Departemen (±20) | Hanya departemennya: lihat karyawan, konfirmasi absensi (**atas permintaan HRD**, lihat "Validasi kehadiran"), **mengajukan** mutasi/izin/cuti/tukar shift/tukar libur/**administrasi**/**stand by & lembur**, memantau status & riwayat pengajuan, terima informasi HRD. Tanpa CRUD master, data sensitif, data medis, tanpa approve, tanpa mengubah BPJS bebas |
-| Poli (Medis) | Identitas minimum karyawan + seluruh modul poliklinik (pemeriksaan, rekam medis, diagnosis, tindakan, obat, stok, MCU, laporan medis, **tagihan mitra**) |
+| Poli (Medis) | Identitas minimum karyawan + seluruh modul poliklinik (pemeriksaan, rekam medis, diagnosis, tindakan, obat, stok, MCU, laporan medis, **tagihan mitra**). **Sejak putaran 48 akun Poli = juga Admin Departemen Poli** (satu akun, tidak ada akun admin dept Poli terpisah): terikat ke departemen Poli dan punya menu **Pengajuan Departemen** (submenu Izin & Cuti, Mutasi, Shift & Tukar Jadwal, Stand By & Lembur, Validasi Kehadiran) — **hanya untuk karyawan departemen Poli** |
 | Employee | **Bukan role/login.** Data dikelola HRD; pengajuan lewat Admin Departemen **[BARU, dikonfirmasi]** |
 
 > **Role tambahan (Payroll, IT)**: mungkin diterapkan, mungkin tidak — lihat "[BARU] Kemungkinan / belum diputuskan". Desain role harus tetap memungkinkan penambahan tanpa mengubah struktur data.
@@ -163,7 +163,7 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 4. **Informasi**: notifikasi, pengumuman, peraturan, read/unread. **[BARU]** reminder (cuti, SP, kontrak, stok menipis, obat mendekati kedaluwarsa, sinkronisasi absensi)
 5. **Poli**: **rekap visit pasien** (rawat jalan / sakit / kunjungan rumah; putaran 46), rekam medis (form menyesuaikan jenis kunjungan; **pemeriksa = karyawan departemen Poli** dipilih lewat NIK, **dokter = bukan karyawan**, hanya nama — putaran 34), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat keterangan (istirahat/cuti — pulang hari itu juga atau beberapa hari — dan cuti hamil; putaran 47), riwayat poli di detail karyawan untuk user Poli
 5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis, **tagihan mitra (rekap tagihan, identitas karyawan, total)** — **✅ putaran 24**
-6. **Absensi**: integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran, **validasi kehadiran HRD → Admin Departemen** (kerangka alurnya boleh dikerjakan lebih dulu, tanpa mesin)
+6. **Absensi** — **✅ putaran 48** (impor Fingerspot, pemetaan PIN, rekap harian/bulanan, terhubung ke jadwal, pengajuan, validasi, dasbor): integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran, **validasi kehadiran HRD → Admin Departemen** (kerangka alurnya boleh dikerjakan lebih dulu, tanpa mesin)
 7. **Payroll** — *tetap dalam visi, dikerjakan paling akhir (belum diproses sekarang)*: komponen gaji, tunjangan, potongan, BPJS, periode, slip gaji. Data payroll tetap di tabel terpisah dari karyawan.
 8. **[BARU] Laporan & Ekspor**: laporan HR, Poli, Meal; ekspor Excel/PDF/cetak; pencarian global
 9. **[BARU] Recruitment**: lowongan, kandidat, lamaran, screening, interview, seleksi, laporan; Career Portal publik dikerjakan di **Tahap 11**
@@ -204,7 +204,7 @@ Aturan: Admin Departemen hanya karyawan departemennya (di luar itu "tidak ditemu
 Hasil disimpan di tabel pengajuan yang sama (tanpa upah) sehingga Absensi (Tahap 6) dapat mencocokkannya dengan jam nyata dan Payroll (Tahap 7) dapat membaca durasi disetujui sebagai dasar upah lembur tanpa mencampurnya ke tabel karyawan.
 
 ## [BARU] Company Profile & Lamar Kerja (Tahap 11 — tahap terakhir)
-> **Status: ⏳ belum dikerjakan (perencanaan putaran 30).** Dikerjakan **setelah** sisa keamanan (Tahap 10: CSP nonce, 2FA, ClamAV, Redis, antrean) dan Recruitment internal (Tahap 9) siap. Tidak boleh membuka aplikasi internal LAN ke internet.
+> **Status: ◐ fondasi dikerjakan (putaran 48).** Sudah: situs publik dwibahasa (ID/EN), backend kontrol HRD (produk, artikel, halaman, toko, FAQ, pengaturan, pesan), lowongan + formulir lamar aman + lacak status + papan pelamar HRD + retensi data. **Belum:** host dan basis data publik terpisah dengan sinkronisasi satu arah (kini satu DB, user DB terbatas, URLconf publik tanpa rute internal), CAPTCHA, 2FA, konversi pelamar → karyawan, templat pesan, uji penetrasi. Tidak boleh membuka aplikasi internal LAN ke internet: situs publik berjalan dengan `SITE_MODE=public` (`docs/DEPLOY-PUBLIK.md`).
 
 Perluasan scope: perusahaan memiliki **situs publik** berisi **profil perusahaan** dan **lowongan + formulir lamar kerja**; lamaran mengalir ke modul Recruitment HRD. Prinsip dan syarat:
 
@@ -299,6 +299,19 @@ Pencatatan pembelian **seragam** karyawan **beserta ukuran** (hanya seragam, buk
 - **Rekap**: per periode, per departemen, per karyawan, dan per **ukuran × jenis kelamin** (untuk pesanan ke vendor); total pcs dan total potongan.
 - **Ekspor XLSX** untuk rekap dan rincian (+ template impor XLSX opsional dengan aturan impor yang sama).
 - Data di tabel sendiri, menjadi sumber komponen Potongan → Seragam di Payroll. Perubahan tercatat audit; koreksi lewat pembatalan beralasan (baris pembalik), bukan hapus diam-diam.
+
+## [BARU] Absensi / Fingerspot (Tahap 6) — ✅ putaran 48
+Tujuan: data scan mesin menjadi **rekap kehadiran yang bisa dipercaya** dan terhubung ke semua modul, tanpa mesin memutuskan hal yang seharusnya diputuskan manusia.
+**Alur**: HRD mengekspor dari Fingerspot Personnel (atau flashdisk mesin) → unggah di `/absensi/impor/` → **pratinjau** (format & kolom terdeteksi; PIN belum dikenal; baris tak terbaca) → Impor → rekap harian terhitung → hari kerja **tanpa scan / satu scan** diminta validasi ke Admin Departemen → hasil terverifikasi menjadi status akhir → rekap bulanan/ekspor → (Tahap 7) Payroll.
+**Prinsip**
+- Log mesin **mentah, tak berubah, idempoten** (impor ulang aman); rekap harian **tabel terhitung** yang boleh dihitung ulang.
+- **Format tidak dikunci**: xlsx · xls · csv · txt · dat; deteksi otomatis + pemetaan manual.
+- **Mesin tidak memutuskan alfa**; alfa lahir dari Validasi Kehadiran terverifikasi. Urutan status: validasi terverifikasi › pengajuan Dilaksanakan › cuti hamil › hari libur › jadwal libur › hadir/tanpa_scan.
+- **Lembur resmi = disetujui × terbukti scan** (stand by tidak diverifikasi mesin).
+- Sumber jadwal = `effective_schedule` (rotasi + tukar shift/libur); Karyawan Keluar menghentikan rekap; hari libur nasional dapat berlaku untuk semua atau hanya non-rotasi.
+- Admin Departemen: hanya rekap departemennya, **tanpa log scan mentah**; Poli tidak punya akses; isi baris scan tidak pernah masuk audit.
+- Skala: bulk insert + upsert, hitung per kelompok karyawan dengan jumlah query tetap, baris tak berubah tidak ditulis; berkas/olah besar lewat perintah server (`import_attendance`, `process_attendance`).
+**Belum**: partisi & retensi log, antrean, notifikasi data basi, jam istirahat/jam kerja bersih, laporan per shift, hari libur → saldo cuti, Payroll.
 
 ## [BARU] Validasi kehadiran (HRD → Admin Departemen)
 > **Status (putaran 26): ✅ ada** di `/validasi/` (permintaan per NIK/departemen/rentang, dugaan awal dari pengajuan *Executed* dan jadwal efektif, jawaban Admin, verifikasi terima/kembalikan/ubah, kunci + koreksi append-only, terlambat dihitung, konflik alfa ditandai, ekspor XLSX/CSV, notifikasi, audit tanpa isi catatan). Putaran 27: pengingat otomatis (`remind_attendance_checks`) + kartu dashboard. **Belum**: eskalasi bertingkat, lampiran, pengalihan bila Admin cuti, dugaan awal dari mesin (Tahap 6), pemakaian hasil oleh Absensi/Payroll. Batas menjawab bawaan 2 hari kerja (A70).
@@ -468,3 +481,28 @@ Sumber: foto formulir kertas Poli (Surat Keterangan Istirahat/Cuti, Surat Ketera
 - **Rujukan lengkap** (cetak satu halaman): jenis (kontrol / berobat / tes lab / rujukan spesialis), data karyawan, **no. BPJS Kesehatan (K) dan Ketenagakerjaan (TK)**, **tanggal kejadian/keluhan** (bawaan tanggal kunjungan; kecelakaan kerja memuat lokasi, kronologi, bagian tubuh), keluhan dan catatan klinis. **Tanpa diagnosa.** Nomor BPJS tampil hanya di surat cetak untuk Poli; tidak masuk audit.
 - **Tanda tangan mengikuti pemeriksa saat itu juga**: semua surat Poli ditandatangani pemeriksa pada rekam medis (dokter yang diisi → pemeriksa karyawan Poli → petugas pembuat), **disalin ke surat saat dibuat** sehingga tidak berubah bila data karyawan berubah. `POLI_DOCTOR_NAME` kini hanya isian awal form, bukan penanda tangan tetap.
 - **Umur** dicetak dari **tanggal lahir karyawan** (kolom baru, opsional; diisi lewat form/impor, tergolong data sensitif: tidak masuk audit; kosong → "-"). Kota di baris tanggal surat dari `COMPANY_CITY`.
+
+
+## Pembaruan putaran 48 — akun Poli = Admin Departemen Poli
+Permintaan pemilik produk: akun "admin dept Poli" dan akun Poli **dijadikan satu** karena akun Poli sudah mewakili departemen Poli. **Status: ✅ putaran 48.**
+- **Satu akun**: role Poli kini **wajib punya departemen** (form Pengguna menolak tanpa departemen; pesan: akun Poli mewakili departemen Poli). Departemen Poli tidak perlu Admin Dept terpisah; peringatan "departemen tanpa admin" menganggap akun Poli sebagai adminnya.
+- **Menu "Pengajuan Departemen"** (induk + submenu) untuk akun Poli: Izin & Cuti, Mutasi & Promosi, Shift & Tukar Jadwal, Stand By & Lembur (+ Rekap), **Validasi Kehadiran** (menjawab permintaan HRD untuk karyawan Poli). Perubahan Status tetap hanya HRD.
+- **Batas keras di server (bukan hanya menu)**: pengajuan, daftar, detail, aksi, rekap lembur, dan validasi kehadiran memakai scope departemen ketat (`scope_dept_only`); karyawan/rekan/URL di luar departemen Poli = "tidak ditemukan"/404. **Akun Poli tanpa departemen gagal tertutup** (tidak melihat/mengajukan apa pun). Keputusan (setujui/tolak/laksanakan) tetap HRD saja.
+- **Data pasien tidak berubah**: Poli tetap melihat identitas minimum semua karyawan di Data Karyawan dan modul medis; hanya modul pengajuan/absensi yang dibatasi ke departemen sendiri.
+
+## Pembaruan putaran 49 — satu akun Poli untuk tiga perawat
+Konfirmasi pemilik produk: **akun Poli hanya satu** dan mewakili **3 perawat (karyawan departemen Poli)**. **Status: ✅ putaran 49.**
+- Hanya satu akun Poli aktif (ditegakkan di manajemen Pengguna). Pemisahan dokter/perawat/apoteker per akun **tidak** diperlukan; pelaku pemeriksaan dicatat lewat isian *Pemeriksa* (karyawan Poli) di rekam medis.
+- Dashboard Poli menampilkan tugas departemennya: pengajuan menunggu HRD dan validasi kehadiran yang menunggu jawaban.
+
+## Pembaruan putaran 48 — Absensi Fingerspot
+Lihat bagian "Absensi / Fingerspot (Tahap 6)" di atas dan `docs/PROGRESS.md` → putaran 48 (A100–A110). Validasi Kehadiran kini mendapat *dugaan awal dari mesin* dan hasil terverifikasinya mengalir balik ke rekap harian.
+
+## Pembaruan putaran 48 — Company Profile & backend kontrol (Tahap 11, fondasi)
+- **Isi situs dikelola, bukan dikodekan**: HRD/Superadmin mengatur di menu **Situs & Rekrutmen**: Pengaturan situs (identitas, kontak, WhatsApp, medsos, pita pengumuman), **Produk** (kategori, galeri, unggulan, harga tampil/sembunyi, Draf/Terbit), Artikel (+ arsip bulanan), Halaman (Tentang Kami), Lokasi Toko, FAQ, Pesan Masuk. Konten Draf tidak tampil di situs; pratinjau di `/situs/`.
+- **Dua bahasa**: Indonesia wajib, Inggris opsional per kolom (kosong → Indonesia); teks antarmuka di `apps/company/i18n.py`.
+- **Teks bukan HTML**: editor menerima teks terstruktur (`## judul`, `- daftar`, `**tebal**`); semua di-escape. Gambar situs hanya JPG/PNG/WebP (bukan SVG) dan isinya diperiksa.
+- **Lamar kerja tanpa akun**: email + tautan pribadi untuk verifikasi, lacak, unduh/batalkan/hapus data. Lowongan punya pertanyaan tambahan sendiri. HRD memindah tahap (pelamar menerima email + pesan), massal ≤ 100, catatan internal, unduh CV tercatat.
+- **Perlindungan data pelamar (UU PDP)**: persetujuan eksplisit + talent pool opsional; kolom pribadi terenkripsi; CV terenkripsi di penyimpanan privat; retensi otomatis (12 bulan, ×2 talent pool); audit tanpa data pribadi; akses HRD tercatat.
+- **Keputusan baru**: (25) situs publik dan aplikasi internal memakai kode yang sama tetapi **URLconf berbeda** (`SITE_MODE`), sehingga proses publik tidak memiliki rute internal; pemisahan host+DB penuh tetap tujuan (Versi 2 di `docs/DEPLOY-PUBLIK.md`). (26) Verifikasi email wajib sebelum lamaran terlihat HRD (dapat dimatikan `CAREER_REQUIRE_EMAIL_VERIFY`). (27) Harga produk tidak tampil kecuali dicentang per produk.
+

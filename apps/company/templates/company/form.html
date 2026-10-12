@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}{{ title }}{% endblock %}{% block content %}
+<p class="back"><a href="{{ back }}">‹ Kembali</a></p>
+<h2>{{ title }}</h2>
+<form method="post" enctype="multipart/form-data" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+{% if groups %}{% for gtitle, fields in groups %}<fieldset style="border:0;padding:0;margin:0 0 10px"><legend><b>{{ gtitle }}</b></legend>{% for f in fields %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}</fieldset>{% endfor %}
+{% else %}{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}{% endif %}
+<p><button>Simpan</button>{% if c and not obj %} <button name="again" value="1" class="secondary">Simpan &amp; tambah lagi</button>{% endif %}</p></form>
+{% if c and obj and c.key == "products" %}<div class="card"><h3>Galeri foto <small style="color:var(--mu)">(maks 8; JPG/PNG/WebP ≤ 3 MB)</small></h3>
+<div class="bar">{% for g in gallery %}<form method="post" action="/company/products/{{ obj.pk }}/images/{{ g.pk }}/delete/">{% csrf_token %}<img src="{% url 'company_media' g.image.name %}" alt="" height="64" style="border-radius:6px"> <button class="sm danger">Hapus</button></form>{% empty %}<span class="hint">Belum ada foto tambahan.</span>{% endfor %}</div>
+<form method="post" enctype="multipart/form-data" action="/company/products/{{ obj.pk }}/images/add/" class="bar">{% csrf_token %}{{ gallery_form.image }}{{ gallery_form.caption_id }}<button class="secondary">+ Tambah foto</button></form></div>{% endif %}
+{% if c and obj and c.can_delete %}<form method="post" action="{{ c.base }}{{ obj.pk }}/delete/" class="bar">{% csrf_token %}<button class="danger" title="Hapus permanen">Hapus {{ c.title|lower }} ini</button></form>{% endif %}
+{% endblock %}

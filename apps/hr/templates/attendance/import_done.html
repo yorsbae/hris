@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Impor selesai{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'att_import' %}">‹ Impor Fingerspot</a></p>
+<h2>Impor {{ i.get_state_display|lower }} — {{ i.original_name }}</h2>
+{% if i.state == "selesai" %}<div class="sepkpi"><span><b>{{ i.taps_new }}</b> scan baru</span><span><b>{{ i.taps_duplicate }}</b> sudah ada</span><span><b>{{ i.pins_total }}</b> PIN</span><a{% if i.pins_unmapped %} class="warn"{% endif %} href="{% url 'att_pins' %}"><b>{{ i.pins_unmapped }}</b> PIN belum dipetakan ({{ i.taps_unmapped }} scan)</a></div>
+<p class="hint flow">Rentang scan: {{ i.date_min|date:"d M Y" }} – {{ i.date_max|date:"d M Y" }}. Rekap harian terhitung ulang untuk rentang ini (hari ini &amp; masa depan menunggu hari berakhir).{% if i.pins_unmapped %} <b>Petakan PIN yang belum dikenal</b> agar scannya masuk rekap.{% endif %}</p>
+<p><a class="btn" style="margin-left:0" href="/absensi/?from={{ i.date_min|date:'Y-m-d' }}&amp;to={{ i.date_max|date:'Y-m-d' }}">Lihat rekap harian</a>{% if i.pins_unmapped %} <a class="btn" href="{% url 'att_pins' %}">Petakan PIN</a>{% endif %}</p>{% else %}<p class="empty">Impor ini dibatalkan.{% if i.note %} {{ i.note }}{% endif %}</p>{% endif %}
+{% endblock %}

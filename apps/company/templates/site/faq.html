@@ -1,0 +1,2 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<h1>{% ui "faq" %}</h1>
+{% for f in faqs %}<details class="faq"><summary>{% t f "question" %}</summary><div class="a prose">{% t f "answer" as ans %}{{ ans|rich }}</div></details>{% empty %}<p>{% ui "no_results" %}</p>{% endfor %}{% endblock %}

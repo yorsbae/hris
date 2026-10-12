@@ -110,8 +110,9 @@ class CreateTests(Base):
 
     def test_dept_admin_requires_department_and_others_must_not_have_one(self):
         self.assertContains(self.post(username="x1", role=Role.DEPT_ADMIN), "wajib punya departemen")
-        self.assertContains(self.client.post("/users/new/", self.create_payload(username="x2", role=Role.POLI, department=self.d1.pk)), "hanya untuk Admin Departemen")
-        self.assertEqual(User.objects.filter(username__in=("x1", "x2")).count(), 0)
+        self.assertContains(self.client.post("/users/new/", self.create_payload(username="x2", role=Role.HRD, department=self.d1.pk)), "hanya untuk Admin Departemen dan akun Poli")
+        self.assertContains(self.post(username="x4", role=Role.POLI), "mewakili departemen Poli")  # putaran 48: Poli wajib departemen
+        self.assertEqual(User.objects.filter(username__in=("x1", "x2", "x4")).count(), 0)
         self.client.post("/users/new/", self.create_payload(username="x3", role=Role.DEPT_ADMIN, department=self.d2.pk))
         self.assertEqual(User.objects.get(username="x3").department, self.d2)
 
@@ -242,7 +243,8 @@ class ResetPasswordTests(Base):
         self.assertRedirects(r, "/password/change/", fetch_redirect_response=False); self.assertTrue(User.objects.get(username="su").check_password(PW))
 
     def test_full_onboarding_flow(self):
-        self.login(); self.client.post("/users/new/", self.create_payload(username="karyawan1", role=Role.POLI))
+        self.login(); User.objects.filter(role=Role.POLI).update(is_active=False)  # putaran 49: hanya satu akun Poli aktif
+        self.client.post("/users/new/", self.create_payload(username="karyawan1", role=Role.POLI, department=self.d1.pk))
         c = Client(); self.assertTrue(c.login(username="karyawan1", password=TEMP))
         self.assertEqual(c.get("/poli/")["Location"], "/password/change/")                              # belum boleh ke mana pun
         c.post("/password/change/", {"old_password": TEMP, "new_password1": NEW, "new_password2": NEW})

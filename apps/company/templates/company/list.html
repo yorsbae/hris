@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}{{ c.plural }}{% endblock %}{% block content %}
+<p class="back"><a href="{{ back }}">‹ {% if c.key == "jobs" %}Rekrutmen{% else %}Company Profile{% endif %}</a></p>
+<h2>{{ c.plural }}</h2>{% if c.hint %}<p class="hint">{{ c.hint }}</p>{% endif %}
+<form method="get" data-fbar class="bar"><a class="btn" href="{{ c.base }}new/">+ Tambah</a><input name="q" value="{{ f.q }}" placeholder="Cari {{ c.plural|lower }}">
+{% if c.status_choices %}<select name="status"><option value="">Semua status</option>{% for k, v in c.status_choices %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>{% endif %}<button>Filter</button></form>
+<div class="wrap"><table class="sepfit"><thead><tr>{% for h, css, fn in c.columns %}<th class="{{ css }}">{{ h }}</th>{% endfor %}</tr></thead><tbody>
+{% for r in rows %}<tr>{% for cell in r.cells %}<td{% if forloop.first %} class="fill"{% endif %}>{% if forloop.first %}<a href="{{ r.edit }}">{{ cell }}</a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>
+{% empty %}<tr><td class="empty" colspan="{{ c.columns|length }}">Belum ada data.</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% endblock %}

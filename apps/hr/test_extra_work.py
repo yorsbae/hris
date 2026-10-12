@@ -43,8 +43,8 @@ class ExtraWorkTests(ExtraWorkBase):
     def test_hrd_may_cross_departments_via_extra_niks(self):
         self.post(self.hrd, niks=[], extra_niks="001, 003"); self.assertEqual(ChangeRequest.objects.count(), 2)
 
-    def test_poli_forbidden(self):
-        self.client.force_login(self.poli); self.assertEqual(self.client.get("/requests/g/lembur/new/").status_code, 403)
+    def test_poli_without_department_cannot_submit(self):  # putaran 48: tanpa departemen = tidak ada karyawan dalam scope
+        r = self.post(self.poli); self.assertEqual(r.status_code, 200); self.assertEqual(ChangeRequest.objects.count(), 0)
 
     def test_duration_limits_and_midnight(self):
         self.assertEqual(minutes_between(time(22, 0), time(2, 0)), 240); self.assertEqual(minutes_between(time(8, 0), time(8, 0)), 1440)
@@ -125,7 +125,7 @@ class ExtraWorkUndoRecapTests(ExtraWorkBase):
         self.client.force_login(self.hrd); r = self.client.get(f"/requests/g/lembur/rekap/?month={m}")
         self.assertContains(r, "Emp 001"); self.assertEqual(r.context["totals"], {"lembur": 240, "standby": 0, "total": 240})
         self.client.force_login(self.adm2); self.assertNotContains(self.client.get(f"/requests/g/lembur/rekap/?month={m}"), "Emp 001")
-        self.client.force_login(self.poli); self.assertEqual(self.client.get("/requests/g/lembur/rekap/").status_code, 403)
+        self.client.force_login(self.poli); self.assertNotContains(self.client.get(f"/requests/g/lembur/rekap/?month={m}"), "Emp 001")
 
     def test_recap_excludes_cancelled_and_exports(self):
         self.approved(); r = ChangeRequest.objects.filter(type="lembur", employee=self.a).first()

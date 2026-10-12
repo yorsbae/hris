@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Rekap Bulanan Absensi{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
+<h2>Rekap bulanan — {{ mlabel }}</h2>
+<p class="sub">Per karyawan. Sumber angka untuk Payroll (Tahap 7): hari kerja, hadir, terlambat, alfa, izin/sakit/cuti, lembur terbukti scan, stand by.</p>
+<div class="sepkpi"><span><b>{{ tot.hadir }}</b> hari hadir</span><span><b>{{ tot.terlambat }}</b> kali terlambat</span><span><b>{{ tot.alfa }}</b> alfa</span><span{% if tot.perlu_tinjau %} class="warn"{% endif %}><b>{{ tot.perlu_tinjau }}</b> perlu ditinjau</span></div>
+<div class="tools"><details class="more"><summary>Ekspor ▾</summary><div><div class="xrow"><span>Rekap bulanan</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a></div></div></details></div>
+<form method="get" data-fbar class="bar"><input type="month" name="month" value="{{ month }}" aria-label="Bulan">{% if not is_admin %}<select name="dept" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if dept == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}</form>
+{% if page %}<div class="wrap"><table class="sepfit"><thead><tr><th>Karyawan</th><th>Hari kerja</th><th>Hadir</th><th>Terlambat</th><th>Alfa</th><th>Izin/Sakit/Cuti</th><th>Tanpa scan</th><th>Lembur (mnt)</th></tr></thead><tbody>
+{% for r in page %}<tr><td><a href="{% url 'att_employee' r.employee_id %}?month={{ month }}">{{ r.employee__name }}</a><small>{{ r.employee__nik }} · {{ r.department__name|default:"—" }}</small></td><td class="num">{{ r.hari }}</td><td class="num">{{ r.hadir }}</td><td class="num">{{ r.terlambat }}{% if r.terlambat_menit %} <small>({{ r.terlambat_menit }} mnt)</small>{% endif %}</td><td class="num">{{ r.alfa }}</td><td class="num">{{ r.izin }}/{{ r.sakit }}/{{ r.cuti|add:r.cuti_hamil }}</td><td class="num">{% if r.tanpa_scan %}<span class="pill rejected">{{ r.tanpa_scan }}</span>{% else %}0{% endif %}</td><td class="num">{{ r.lembur }}</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}{% else %}<p class="empty">Belum ada rekap untuk {{ mlabel }}.</p>{% endif %}
+{% endblock %}

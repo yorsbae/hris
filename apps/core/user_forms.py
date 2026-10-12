@@ -5,6 +5,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.core.exceptions import ValidationError
 from apps.hr.models import Department
 from .models import Role, User
+from .user_services import other_active_poli
 
 
 class _RoleDeptMixin:
@@ -13,7 +14,10 @@ class _RoleDeptMixin:
         d = super().clean()
         role, dept = d.get("role"), d.get("department")
         if role == Role.DEPT_ADMIN and not dept: self.add_error("department", "Admin Departemen wajib punya departemen.")
-        elif role and role != Role.DEPT_ADMIN and dept: self.add_error("department", "Departemen hanya untuk Admin Departemen; kosongkan untuk role ini.")
+        elif role == Role.POLI and not dept: self.add_error("department", "Akun Poli mewakili departemen Poli: pilih departemennya (hanya itu yang bisa diajukan).")
+        if role == Role.POLI and (o := other_active_poli(getattr(self.instance, "pk", None))):
+            self.add_error("role", f"Hanya boleh satu akun Poli aktif (sudah ada: {o.get_username()}); akun itu mewakili semua perawat. Nonaktifkan dulu bila ingin menggantinya.")
+        if role and role not in (Role.DEPT_ADMIN, Role.POLI) and dept: self.add_error("department", "Departemen hanya untuk Admin Departemen dan akun Poli; kosongkan untuk role ini.")
         return d
 
 

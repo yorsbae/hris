@@ -51,12 +51,13 @@ class CreateTests(Base):
 
 
 class AccessTests(Base):
-    def test_poli_and_anonymous_blocked_everywhere(self):
+    def test_poli_without_department_and_anonymous_blocked_everywhere(self):  # putaran 48: Poli tanpa departemen = gagal tertutup
         a = self.make(); self.client.logout()
         for url in (reverse("attcheck_list"), reverse("attcheck_new"), reverse("attcheck_detail", args=[a.pk])): self.assertIn(self.client.get(url).status_code, (401, 302), url)
         self.login("poli")
-        for url in (reverse("attcheck_list"), reverse("attcheck_new"), reverse("attcheck_detail", args=[a.pk])): self.assertEqual(self.client.get(url).status_code, 403, url)
-        for route in ("attcheck_answer", "attcheck_verify", "attcheck_cancel", "attcheck_correct"): self.assertEqual(self.client.post(reverse(route, args=[a.pk])).status_code, 403, route)
+        self.assertNotContains(self.client.get(reverse("attcheck_list")), a.employee.nik); self.assertEqual(self.client.get(reverse("attcheck_new")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("attcheck_detail", args=[a.pk])).status_code, 404)
+        for route in ("attcheck_answer", "attcheck_verify", "attcheck_cancel", "attcheck_correct"): self.assertIn(self.client.post(reverse(route, args=[a.pk])).status_code, (403, 404), route)
 
     def test_dept_admin_cannot_create_verify_cancel_correct(self):
         a = self.make(); self.login("adm"); self.assertEqual(self.client.get(reverse("attcheck_new")).status_code, 403)
@@ -74,8 +75,8 @@ class AccessTests(Base):
         self.make("001"); self.login("adm"); r = self.client.get(reverse("attcheck_list")); self.assertContains(r, "Budi")
         x = self.client.get(reverse("attcheck_list"), {"export": "csv"}); self.assertIn("text/html", x["Content-Type"])  # ekspor hanya HRD
 
-    def test_menu_entry_for_hrd_and_dept_admin_not_poli(self):
-        for who, yes in (("hrd", True), ("adm", True), ("su", True), ("poli", False)):
+    def test_menu_entry_for_hrd_dept_admin_and_poli(self):
+        for who, yes in (("hrd", True), ("adm", True), ("su", True), ("poli", True)):  # putaran 48: Poli = admin dept Poli
             self.login(who); self.assertEqual('href="/validasi/"' in self.client.get("/").content.decode(), yes, who)
 
 

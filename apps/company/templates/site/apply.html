@@ -1,0 +1,10 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<p><a href="{% purl 'job' j.slug %}">‹ {{ j.title }}</a></p><h1>{{ j.title }}</h1>
+<ol class="steps"><li><a href="#s1">{% ui "step1" %}</a></li><li><a href="#s2">{% ui "step2" %}</a></li><li><a href="#s3">{% ui "step3" %}</a></li></ol>
+<form class="f" id="applyform" data-job="{{ j.slug }}" method="post" enctype="multipart/form-data" novalidate>{% csrf_token %}
+{% if form.errors %}<div class="errsum" role="alert">{% if lang == "en" %}Please check the highlighted fields.{% else %}Periksa isian yang bertanda galat di bawah.{% endif %}{{ form.non_field_errors }}</div>{% endif %}
+<div class="hp" aria-hidden="true">{{ form.website }}</div>{{ form.ts }}{{ form.idem }}
+<fieldset id="s1"><legend>1. {% ui "step1" %}</legend>{% for f in form %}{% if f.name in "full_name email phone birth_date city" %}{% include "site/_field.html" %}{% endif %}{% endfor %}</fieldset>
+<fieldset id="s2"><legend>2. {% ui "step2" %}</legend>{% for f in form %}{% if f.name in "education institution experience_years last_position expected_salary cover_letter" %}{% include "site/_field.html" %}{% endif %}{% endfor %}
+{% for f in form %}{% if f.name|slice:":2" == "q_" %}{% include "site/_field.html" %}{% endif %}{% endfor %}</fieldset>
+<fieldset id="s3"><legend>3. {% ui "step3" %}</legend>{% include "site/_field.html" with f=form.cv %}<p class="notice">{{ consent }}</p>{% include "site/_field.html" with f=form.consent %}{% include "site/_field.html" with f=form.talent_pool %}</fieldset>
+<button class="btn" type="submit">{% ui "submit_app" %}</button> <a id="cleardraft" class="meta" href="#">{% if lang == "en" %}Clear saved draft{% else %}Hapus draf tersimpan{% endif %}</a></form>{% endblock %}

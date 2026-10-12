@@ -232,20 +232,95 @@ class LeaveLedger(models.Model):
     def delete(self, *a, **k): raise PermissionError("Kartu saldo cuti tidak boleh dihapus")
 
 
-# ---- Struktur siap Absensi/Payroll (belum ada logikanya) ----
-class AttendanceRaw(models.Model):  # log mentah mesin fingerprint; immutable
-    employee = models.ForeignKey(Employee, on_delete=models.PROTECT)
+# ---- Absensi (Tahap 6, putaran 48) ----
+class AttendanceImport(models.Model):
+    """Satu kali impor file mesin absensi (Fingerspot Personnel / .xlsx / .xls / .csv / .txt / .dat). Alur: draft (file diperiksa, belum disimpan)
+    → selesai (log mentah tersimpan, idempoten) | dibatalkan. Isi baris TIDAK masuk audit; hanya ringkasan. File sementara dihapus setelah selesai/dibatalkan."""
+    STATES = [("draft", "Draft (belum diimpor)"), ("selesai", "Selesai"), ("dibatalkan", "Dibatalkan")]
+    original_name = models.CharField(max_length=200); sha256 = models.CharField(max_length=64, db_index=True); size = models.PositiveIntegerField()
+    staged_name = models.CharField(max_length=80, blank=True)           # nama berkas sementara di media/attendance_stage/ (uuid); kosong setelah selesai
+    layout = models.CharField(max_length=10, blank=True)                # log (satu baris = satu scan) | harian (satu baris = satu karyawan-tanggal, kolom jam)
+    mapping = models.JSONField(default=dict)                            # pemetaan kolom yang dipakai (indeks kolom)
+    state = models.CharField(max_length=12, choices=STATES, default="draft", db_index=True)
+    rows_total = models.PositiveIntegerField(default=0); rows_invalid = models.PositiveIntegerField(default=0)
+    taps_valid = models.PositiveIntegerField(default=0); taps_new = models.PositiveIntegerField(default=0); taps_duplicate = models.PositiveIntegerField(default=0)
+    pins_total = models.PositiveIntegerField(default=0); pins_unmapped = models.PositiveIntegerField(default=0); taps_unmapped = models.PositiveIntegerField(default=0)
+    date_min = models.DateField(null=True, blank=True); date_max = models.DateField(null=True, blank=True)
+    note = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True); committed_at = models.DateTimeField(null=True, blank=True)
+    class Meta: ordering = ["-id"]
+
+
+class AttendancePin(models.Model):
+    """Pemetaan PIN mesin (ID di Fingerspot) → karyawan. Satu PIN = satu karyawan. Dibuat otomatis bila PIN sama dengan NIK induk (sumber 'nik'),
+    lewat halaman pemetaan / impor CSV ('manual'). Memindahkan PIN ke karyawan lain hanya lewat aksi khusus beralasan (log mentah ikut dipindah)."""
+    SOURCES = [("nik", "Otomatis (PIN = NIK)"), ("manual", "Manual"), ("impor", "Impor CSV")]
+    pin = models.CharField(max_length=40, unique=True)
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="pins")
+    source = models.CharField(max_length=8, choices=SOURCES, default="manual")
+    note = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self): return f"{self.pin} → {self.employee.nik}"
+
+
+class Holiday(models.Model):
+    """Hari libur nasional / cuti bersama / libur perusahaan. `applies`: 'all' = semua karyawan libur; 'non_rotation' = hanya karyawan non-rotasi
+    (karyawan kelompok shift tetap mengikuti jadwal rotasi karena pabrik berjalan terus). Dipakai Absensi (tanpa scan di hari libur ≠ alfa)."""
+    KINDS = [("nasional", "Libur nasional"), ("cuti_bersama", "Cuti bersama"), ("perusahaan", "Libur perusahaan")]
+    APPLIES = [("non_rotation", "Karyawan non-rotasi (shift bergilir tetap jalan)"), ("all", "Semua karyawan")]
+    date = models.DateField(unique=True); name = models.CharField(max_length=100)
+    kind = models.CharField(max_length=14, choices=KINDS, default="nasional")
+    applies = models.CharField(max_length=14, choices=APPLIES, default="non_rotation")
+    active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    class Meta: ordering = ["date"]
+    def __str__(self): return f"{self.date:%d-%m-%Y} {self.name}"
+
+
+class AttendanceRaw(models.Model):
+    """Log mentah mesin (satu baris = satu scan). Tidak diubah/dihapus; hanya `employee` yang boleh diisi kemudian (saat PIN dipetakan, lewat servis).
+    Kunci idempotensi: (pin, device_id, punched_at) → mengimpor ulang file yang sama tidak menggandakan."""
+    employee = models.ForeignKey(Employee, null=True, blank=True, on_delete=models.PROTECT, related_name="scans")  # kosong = PIN belum dipetakan
+    pin = models.CharField(max_length=40, default="")
     device_id = models.CharField(max_length=40); punched_at = models.DateTimeField()
+    batch = models.ForeignKey(AttendanceImport, null=True, blank=True, on_delete=models.SET_NULL, related_name="scans")
     class Meta:
-        unique_together = ("employee", "device_id", "punched_at")
-        indexes = [models.Index(fields=["employee", "punched_at"])]
-class AttendanceDaily(models.Model):  # hasil olah: rekap harian, terlambat, lembur, alpa
+        constraints = [models.UniqueConstraint(fields=["pin", "device_id", "punched_at"], name="uniq_att_raw_pin_device_time")]
+        indexes = [models.Index(fields=["employee", "punched_at"]), models.Index(fields=["pin", "punched_at"]), models.Index(fields=["punched_at"])]
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Log mesin tidak boleh diubah")
+        super().save(*a, **k)
+    def delete(self, *a, **k): raise PermissionError("Log mesin tidak boleh dihapus")
+
+
+class AttendanceDaily(models.Model):
+    """Rekap harian hasil olah (tabel terhitung; boleh dihitung ulang kapan saja dari log mentah + jadwal + pengajuan + validasi).
+    Status: hadir · libur · libur_nasional · cuti · cuti_hamil · izin · sakit · alfa · tanpa_scan (hari kerja tanpa scan; belum jelas → minta validasi).
+    Bendera: incomplete (hanya satu scan), conflict (butuh perhatian HRD), notes (keterangan)."""
+    STATUSES = [("hadir", "Hadir"), ("libur", "Libur"), ("libur_nasional", "Libur nasional"), ("cuti", "Cuti"), ("cuti_hamil", "Cuti hamil"), ("izin", "Izin"),
+                ("sakit", "Sakit"), ("alfa", "Alfa"), ("tanpa_scan", "Tanpa scan")]
     employee = models.ForeignKey(Employee, on_delete=models.PROTECT); date = models.DateField()
+    department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # snapshot saat dihitung (scope & agregat cepat)
     shift = models.ForeignKey(Shift, null=True, on_delete=models.SET_NULL)
-    status = models.CharField(max_length=20)  # hadir/alpa/izin/sakit/cuti
-    late_minutes = models.PositiveIntegerField(default=0); overtime_minutes = models.PositiveIntegerField(default=0)
-    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
-    class Meta: unique_together = ("employee", "date")
+    status = models.CharField(max_length=20, choices=STATUSES)
+    source = models.CharField(max_length=12, default="mesin")   # mesin | pengajuan | validasi | jadwal | libur
+    first_in = models.DateTimeField(null=True, blank=True); last_out = models.DateTimeField(null=True, blank=True)
+    scan_count = models.PositiveSmallIntegerField(default=0); incomplete = models.BooleanField(default=False)
+    late_minutes = models.PositiveIntegerField(default=0); early_minutes = models.PositiveIntegerField(default=0)
+    overtime_minutes = models.PositiveIntegerField(default=0)           # lembur yang DISETUJUI dan terbukti oleh scan (irisan jam pengajuan × jam scan)
+    overtime_approved_minutes = models.PositiveIntegerField(default=0)  # total lembur disetujui (pengajuan Dilaksanakan) pada tanggal ini
+    standby_minutes = models.PositiveIntegerField(default=0)            # total stand by disetujui (tidak diverifikasi mesin)
+    extra_minutes = models.PositiveIntegerField(default=0)              # kelebihan jam menurut mesin di luar shift (untuk membandingkan dengan lembur disetujui)
+    conflict = models.CharField(max_length=200, blank=True); notes = models.CharField(max_length=200, blank=True)
+    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)  # (lama, tidak dipakai; hasil validasi lewat AttendanceCheck)
+    computed_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        unique_together = ("employee", "date")
+        indexes = [models.Index(fields=["date", "status"]), models.Index(fields=["department", "date"])]
+    @property
+    def needs_review(self): return self.status == "tanpa_scan" or self.incomplete or bool(self.conflict)
 
 
 class AttendanceCheck(models.Model):

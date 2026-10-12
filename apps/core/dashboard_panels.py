@@ -48,6 +48,15 @@ def visits_by_month(today):
            .annotate(m=TruncMonth("visit_at")).values("m").annotate(n=Count("id")).values("m", "n")}
     return {"labels": [MON[b - 1] for _, b in ms], "values": [got.get(k, 0) for k in ms]}
 
+def _attendance_panel(u):
+    from apps.hr import attendance_calc as calc
+    last = calc.latest_date()
+    ov = calc.day_overview(last, u.department_id if u.role == Role.DEPT_ADMIN else None) if last else None
+    if not ov: return None
+    items = [("Hadir", "ok", ov["hadir"]), ("Izin/Sakit/Cuti", "wn", ov["izin"]), ("Alfa / tanpa scan", "er", ov["alfa"] + ov["tanpa_scan"])]
+    return {"label": _dm(last), "total": sum(i[2] for i in items), "items": [{"label": l, "tone": t, "n": n} for l, t, n in items], "link": f"/absensi/?date={last.isoformat()}"}
+
+
 @require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
 def panels(request):
     from apps.hr.forms import LABELS
@@ -60,7 +69,7 @@ def panels(request):
     reqs = ChangeRequest.objects.all()
     if u.role == Role.DEPT_ADMIN: reqs = reqs.filter(department=u.department_id)
     if hr_side:
-        out["attendance"] = None  # Tahap 6 belum ada → keadaan kosong jujur
+        out["attendance"] = _attendance_panel(u)  # Tahap 6: tanggal terakhir yang sudah diolah; None = belum ada data (keadaan kosong jujur)
         a, b, label = leave_range(request.GET.get("leave", "month"), today)
         by = {r["status"]: r["n"] for r in reqs.filter(type="cuti", created_at__date__gte=a, created_at__date__lte=b).values("status").annotate(n=Count("id"))}
         items = [("Disetujui", "ok", sum(by.get(s, 0) for s in APPROVED)), ("Menunggu", "wn", sum(by.get(s, 0) for s in WAITING)),

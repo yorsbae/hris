@@ -1,5 +1,6 @@
 from django.db import transaction
 from apps.core.models import Notification, User, Role
+from apps.core.scope import DEPT_ACTORS
 from . import leave, schedule
 from .models import ChangeRequest, EmployeeHistory, Department, Position, Shift
 
@@ -14,7 +15,7 @@ def transition(req: ChangeRequest, to: str, user, note: str = "", notify: bool =
         raise ValueError(f"Transisi {req.status}→{to} tidak valid")
     if to in HRD_ONLY and user.role not in (Role.HRD, Role.SUPERADMIN):
         raise PermissionError("Hanya HRD yang dapat memutuskan")
-    if user.role == Role.DEPT_ADMIN and (req.department_id != user.department_id or req.requested_by_id != user.id):
+    if user.role in DEPT_ACTORS and (req.department_id != user.department_id or req.requested_by_id != user.id):
         raise PermissionError("Di luar scope")
     if to == "cancelled":
         hrd = user.role in (Role.HRD, Role.SUPERADMIN)
@@ -43,7 +44,7 @@ def _notify_swap(req):
     Notification.objects.create(user=req.requested_by, kind="approval", title=f"Tukar jadwal {req.employee.name} sudah dilaksanakan", link=f"/requests/{req.pk}")
     p = schedule.partner_of(req)
     if p:
-        for u in User.objects.filter(role=Role.DEPT_ADMIN, department_id=p.department_id, is_active=True).exclude(pk=req.requested_by_id):
+        for u in User.objects.filter(role__in=DEPT_ACTORS, department_id=p.department_id, is_active=True).exclude(pk=req.requested_by_id):
             Notification.objects.create(user=u, kind="approval", title=f"Jadwal {p.name} berubah: tukar dengan {req.employee.name}", link=f"/employees/{p.pk}/")
 
 

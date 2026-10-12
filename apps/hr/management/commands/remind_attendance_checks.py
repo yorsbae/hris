@@ -18,7 +18,7 @@ def run(today=None):
     for dept_id in set(open_.filter(due_date__lte=today + timedelta(days=1)).values_list("department_id", flat=True)):
         soon = open_.filter(department_id=dept_id, due_date=today + timedelta(days=1)).count()
         late = open_.filter(department_id=dept_id, due_date__lt=today).count()
-        for u in User.objects.filter(role=Role.DEPT_ADMIN, department_id=dept_id, is_active=True):
+        for u in User.objects.filter(role__in=(Role.DEPT_ADMIN, Role.POLI), department_id=dept_id, is_active=True):
             if late: sent += _once(u, f"Validasi kehadiran: {late} permintaan TERLAMBAT dijawab")
             elif soon: sent += _once(u, f"Validasi kehadiran: {soon} permintaan jatuh tempo besok")
     late_by = {}

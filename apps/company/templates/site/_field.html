@@ -1,0 +1,4 @@
+<div class="fld{% if f.field.widget.input_type == 'checkbox' %} chk{% endif %}">
+{% if f.field.widget.input_type == 'checkbox' %}<label for="{{ f.id_for_label }}">{{ f }}<span>{{ f.label }}</span></label>
+{% else %}<label for="{{ f.id_for_label }}">{{ f.label }}{% if not f.field.required %} <span class="meta">(opsional)</span>{% endif %}</label>{{ f }}{% endif %}
+{% if f.help_text %}<small>{{ f.help_text }}</small>{% endif %}{% if f.errors %}<ul class="err" role="alert">{% for e in f.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</div>

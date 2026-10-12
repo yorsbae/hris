@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Absensi {{ e.nik }}{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a> · <a href="{% url 'employee_detail_page' e.pk %}">Detail karyawan</a></p>
+<h2>{{ e.name }} — {{ mlabel }}</h2>
+<p class="sub">{{ e.nik }} · {{ e.department.name }}{% if e.shift %} · {{ e.shift.name }}{% endif %}{% if pins %} · PIN mesin: {% for p in pins %}{{ p.pin }}{% if not forloop.last %}, {% endif %}{% endfor %}{% elif full %} · <b>belum ada PIN mesin</b> (<a href="{% url 'att_pins' %}">petakan</a>){% endif %}</p>
+<div class="tools"><a class="btn ghost" style="margin-left:0" href="?month={{ prev }}">‹ Bulan lalu</a><a class="btn ghost" href="?month={{ nxt }}">Bulan depan ›</a></div>
+{% if s %}<div class="sepkpi"><span><b>{{ s.hadir }}</b> hadir</span><span><b>{{ s.terlambat }}</b> terlambat ({{ s.terlambat_menit }} mnt)</span><span><b>{{ s.alfa }}</b> alfa</span><span><b>{{ s.izin }}/{{ s.sakit }}/{{ s.cuti|add:s.cuti_hamil }}</b> izin/sakit/cuti</span><span><b>{{ s.lembur }}</b> mnt lembur</span></div>{% endif %}
+<div class="wrap"><table class="sepfit"><thead><tr><th>Tanggal</th><th>Shift</th><th>Masuk</th><th>Pulang</th>{% if full %}<th>Semua scan</th>{% endif %}<th>Status</th><th>Keterangan</th></tr></thead><tbody>
+{% for a in days %}<tr><td class="nw">{{ a.date|date:"D d M" }}</td><td>{% if a.shift %}{{ a.shift.code|default:a.shift.name }}{% else %}—{% endif %}</td><td>{{ a.fi|default:"—" }}{% if a.late_minutes %} <span class="pill rejected">+{{ a.late_minutes }}m</span>{% endif %}</td><td>{{ a.lo|default:"—" }}{% if a.early_minutes %} <span class="pill rejected">−{{ a.early_minutes }}m</span>{% endif %}</td>{% if full %}<td>{{ a.scans|default:"—" }}</td>{% endif %}
+<td><span class="pill {{ a.pill }}">{{ a.get_status_display }}</span>{% if a.incomplete %} <span class="pill pending">1 scan</span>{% endif %}{% if a.overtime_minutes %} <span class="pill approved">Lembur {{ a.overtime_minutes }}m</span>{% endif %}</td><td>{{ a.conflict|default:a.notes }}</td></tr>
+{% empty %}<tr><td class="empty" colspan="7">Belum ada rekap bulan ini.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

@@ -59,6 +59,9 @@ def employee_detail_page(request, pk):
         ctx["leave_year"] = today.year
         ctx["leave_balance"], ctx["leave_available"] = leave.balance(e, today.year), leave.available(e, today.year)
         ctx["schedule_days"] = schedule.schedule_range(e, today, 14)  # jadwal efektif 14 hari ke depan (rotasi/shift tetap + penyesuaian tukar)
+        from . import attendance_calc as _calc
+        from .models import AttendanceDaily as _AD
+        ctx["att"] = (_calc.summary(_AD.objects.filter(employee=e, date__year=today.year, date__month=today.month)) or [None])[0]  # rekap absensi bulan ini (Tahap 6)
         ctx["schedule_rows"] = ShiftAssignment.objects.filter(employee=e, date__gte=today - timedelta(days=7)).select_related("shift").order_by("date")[:30]
     if request.user.role in (Role.POLI, Role.SUPERADMIN):  # riwayat Poli hanya untuk Poli (Superadmin lolos seperti di /poli/); akses tercatat, isi medis tidak masuk audit
         from apps.poli.pages import medical_summary

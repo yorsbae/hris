@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from apps.core.audit import log
 from apps.core.models import Notification, Role, User
-from apps.core.scope import require_roles
+from apps.core.scope import DEPT_ACTORS, require_roles
 from . import services
 from .forms import ACTIVE, RANGE_TYPES
 from .models import ChangeRequest, Department, Employee
@@ -84,7 +84,7 @@ class ExtraWorkForm(forms.Form):
         if not niks: raise forms.ValidationError("Pilih minimal satu karyawan.")
         if len(niks) > MAX_PEOPLE: raise forms.ValidationError(f"Maksimal {MAX_PEOPLE} karyawan per pengajuan.")
         qs = Employee.objects.select_related("department").filter(nik__in=niks, status="aktif")
-        if self.user.role == Role.DEPT_ADMIN: qs = qs.filter(department_id=self.user.department_id)  # di luar scope = "tidak ditemukan"
+        if self.user.role in DEPT_ACTORS: qs = qs.filter(department_id=self.user.department_id)  # di luar scope = "tidak ditemukan"
         found = {e.nik: e for e in qs}
         missing = [n for n in niks if n not in found]
         if missing: raise forms.ValidationError("NIK tidak ditemukan / bukan karyawan aktif di departemen Anda: " + ", ".join(missing[:10]) + (" …" if len(missing) > 10 else ""))
@@ -100,12 +100,12 @@ class ExtraWorkForm(forms.Form):
 
 def roster_department(request):
     """Departemen yang daftar karyawannya ditampilkan: Admin Dept = departemennya sendiri; HRD/Superadmin memilih lewat ?department=."""
-    if request.user.role == Role.DEPT_ADMIN: return request.user.department
+    if request.user.role in DEPT_ACTORS: return request.user.department
     return Department.objects.filter(pk=request.GET.get("department") or 0).first()
 
 
 @login_required
-@require_roles(Role.HRD, Role.DEPT_ADMIN)
+@require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
 def extra_work_new(request):
     dept = roster_department(request)
     form = ExtraWorkForm(request.POST or None, user=request.user, initial={"kind": request.GET.get("kind") or "lembur", "date": timezone.localdate()})
@@ -126,7 +126,7 @@ def extra_work_new(request):
     roster = Employee.objects.filter(department=dept, status="aktif").select_related("position").order_by("name") if dept else []
     picked = set(request.POST.getlist("niks")) if request.method == "POST" else set()
     past, fut = window()
-    return render(request, "extra_work_form.html", {"form": form, "dept": dept, "roster": roster, "picked": picked, "depts": Department.objects.order_by("name") if request.user.role != Role.DEPT_ADMIN else [],
+    return render(request, "extra_work_form.html", {"form": form, "dept": dept, "roster": roster, "picked": picked, "depts": Department.objects.order_by("name") if request.user.role not in DEPT_ACTORS else [],
                                                     "limits": {"lembur": limit("lembur"), "standby": limit("standby")}, "past": past, "fut": fut, "help": KIND_HELP})
 
 
@@ -153,17 +153,17 @@ def batch_action(request, batch, action):
 
 
 @login_required
-@require_roles(Role.HRD, Role.DEPT_ADMIN)
+@require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
 def extra_work_recap(request):
     """Rekap bulanan lembur & stand by per karyawan (putaran 31). Hanya yang final (Dilaksanakan); yang dibatalkan tidak dihitung.
     Admin Departemen hanya melihat departemennya (scope). `?fmt=xlsx|csv` = ekspor dengan angka sungguhan."""
     from collections import defaultdict
     from django.http import HttpResponse
     from apps.core import tabular
-    from apps.core.scope import scope_by_department
+    from apps.core.scope import scope_dept_only
     m = request.GET.get("month") or timezone.localdate().strftime("%Y-%m")
     if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", m): m = timezone.localdate().strftime("%Y-%m")
-    qs = scope_by_department(request.user, ChangeRequest.objects.filter(type__in=("standby", "lembur"), status="executed", payload__date__startswith=m).select_related("employee__department"))
+    qs = scope_dept_only(request.user, ChangeRequest.objects.filter(type__in=("standby", "lembur"), status="executed", payload__date__startswith=m).select_related("employee__department"))
     agg = defaultdict(lambda: {"lembur": 0, "standby": 0, "n": 0})
     for r in qs:
         a = agg[r.employee]; a[r.type] += int(r.payload.get("minutes", 0)); a["n"] += 1

@@ -1,0 +1,2 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<h1>{% ui "archive" %}</h1><p class="lead">{% ui "archive_text" %}</p>
+{% for year, items in groups.items %}<h2>{{ year }}</h2><ul>{% for i in items %}<li><a href="{% purl 'articles' %}?y={{ i.y }}&amp;m={{ i.m }}">{{ i.name }} {{ i.y }}</a> <span class="meta">({{ i.n }})</span></li>{% endfor %}</ul>{% empty %}<p>{% ui "no_results" %}</p>{% endfor %}{% endblock %}

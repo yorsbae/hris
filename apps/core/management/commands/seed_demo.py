@@ -22,7 +22,7 @@ LAST = ["Santoso", "Rahmawati", "Pratama", "Amelia", "Lestari", "Wijaya", "Kusum
 DEPTS = [("PRD", "Produksi", 0.34), ("GDG", "Gudang", 0.14), ("QC", "Quality Control", 0.12), ("PKG", "Packaging", 0.14), ("MTC", "Maintenance", 0.09),
          ("HRD", "HRD", 0.04), ("FIN", "Finance", 0.05), ("POL", "Poliklinik", 0.03), ("GA", "General Affair", 0.05)]
 POS = [("Staf", 1), ("Operator", 1), ("Teknisi", 2), ("Leader", 3), ("Supervisor", 4), ("Manager", 5), ("Perawat", 2), ("Bidan", 2)]
-POLI_STAFF = [("Perawat", "L"), ("Bidan", "P"), ("Perawat", "P"), ("Perawat", "L")]  # karyawan departemen Poli (dipakai sebagai "Pemeriksa" di rekam medis); dokter BUKAN karyawan
+POLI_STAFF = [("Perawat", "L"), ("Perawat", "P"), ("Perawat", "P")]  # tiga perawat = karyawan departemen Poli (dipakai sebagai "Pemeriksa"); SATU akun Poli mewakili ketiganya (putaran 49); dokter BUKAN karyawan
 DOCTORS = ["dr. Anisa Rahayu", "dr. Bambang Wicaksono, Sp.PD"]
 DIAG = [("J00", "Nasofaringitis akut (common cold)"), ("J06.9", "Infeksi saluran napas atas akut"), ("A09", "Diare dan gastroenteritis"), ("K29.7", "Gastritis"),
         ("R51", "Sakit kepala"), ("M54.5", "Nyeri punggung bawah"), ("I10", "Hipertensi esensial"), ("L30.9", "Dermatitis"), ("S61.9", "Luka terbuka pergelangan/tangan"), ("Z00.0", "Pemeriksaan kesehatan umum")]
@@ -43,7 +43,7 @@ INCIDENTS = [("Area mesin press", "Tangan terjepit saat mengganti cetakan; mesin
              ("Gudang rak B", "Terpeleset saat membawa kardus di lantai licin.", "Pergelangan kaki", "terkilir", 2),
              ("Lini packaging", "Jari tergores pisau pemotong lakban.", "Jari tangan kiri", "luka_robek", 1),
              ("Area bongkar muat", "Tertimpa kardus dari tumpukan teratas.", "Bahu kiri", "memar", 1)]
-DEPT_ADMINS = [("PRD", "Budi"), ("GDG", "Andi"), ("QC", "Rina"), ("PKG", "Siti"), ("MTC", "Joko"), ("FIN", "Dewi"), ("GA", "Agus"), ("HRD", "Eko"), ("POL", "Maya")]  # tiap departemen punya admin (A74)
+DEPT_ADMINS = [("PRD", "Budi"), ("GDG", "Andi"), ("QC", "Rina"), ("PKG", "Siti"), ("MTC", "Joko"), ("FIN", "Dewi"), ("GA", "Agus"), ("HRD", "Eko")]  # departemen Poli (POL) tidak punya Admin Dept: akun Poli = adminnya (putaran 48)  # tiap departemen punya admin (A74)
 
 
 class Command(BaseCommand):
@@ -62,7 +62,9 @@ class Command(BaseCommand):
         self.r, self.pw, self.today = random.Random(o["seed"]), o["password"], timezone.localdate()
         n = max(20, min(o["employees"], 1500))
         self.users(); self.master(); self.employees(n); self.requests(); self.history(); self.swaps(); self.leave(); self.info()
-        self.extra_work(); self.attendance(); self.hrd_ops(); self.poli(); self.separations(); self.audit()
+        self.extra_work(); self.attendance(); self.machine_scans(); self.hrd_ops(); self.poli(); self.separations(); self.audit()
+        from django.core.management import call_command
+        call_command("seed_company", stdout=self.stdout)   # putaran 48: situs publik (profil, produk, artikel, toko, FAQ, lowongan contoh)
         s = self.stat
         self.stdout.write(self.style.SUCCESS(f"Data demo selesai: {s}"))
         self.stdout.write("Akun demo (sandi sama untuk semuanya): " + o["password"])
@@ -93,6 +95,7 @@ class Command(BaseCommand):
         self.groups = {hr.ShiftGroup.P2: [hr.ShiftGroup.objects.create(code=rt.group_code(l, hr.ShiftGroup.P2), pattern=hr.ShiftGroup.P2) for l in GROUP_LETTERS],
                        hr.ShiftGroup.P3: [hr.ShiftGroup.objects.create(code=rt.group_code(l, hr.ShiftGroup.P3), pattern=hr.ShiftGroup.P3) for l in GROUP_LETTERS]}
         self.rotation()
+        self.poli_u.department = self.depts["POL"]; self.poli_u.save(update_fields=["department"])  # akun Poli = admin departemen Poli (putaran 48)
         for c, nm in DEPT_ADMINS:  # satu Admin Departemen per departemen → Validasi Kehadiran bisa menanyakan karyawan mana pun, tanpa banner "belum ada admin"
             self.mk(f"admin_{c.lower()}", nm, f"Admin {self.depts[c].name}", Role.DEPT_ADMIN, self.depts[c])
 
@@ -114,10 +117,10 @@ class Command(BaseCommand):
     # ---------- karyawan + kontrak + BPJS
     def employees(self, n):
         r, today = self.r, self.today
-        codes = [c for c, _, _ in DEPTS]; weights = [w for _, _, w in DEPTS]
+        codes = [c for c, _, _ in DEPTS if c != "POL"]; weights = [w for c, _, w in DEPTS if c != "POL"]  # departemen Poli = tepat 3 perawat (putaran 49)
         self.emps, used = [], set()
         for i in range(1, n + 1):
-            staff = POLI_STAFF[i - 1] if i <= len(POLI_STAFF) else None  # empat karyawan pertama = staf Poli (selalu aktif)
+            staff = POLI_STAFF[i - 1] if i <= len(POLI_STAFF) else None  # tiga karyawan pertama = perawat Poli (selalu aktif)
             c = "POL" if staff else r.choices(codes, weights)[0]; d = self.depts[c]
             g = staff[1] if staff else r.choice("LP"); name = f"{r.choice(FIRST)} {r.choice(LAST)}"
             while name in used: name = f"{r.choice(FIRST)} {r.choice(LAST)} {r.choice(LAST)}"
@@ -377,6 +380,31 @@ class Command(BaseCommand):
                     break
         remind_attendance_checks.run(today)  # pengingat yang sama dengan `manage.py remind_attendance_checks`
         self.stat += f", {made} validasi kehadiran"
+
+    # ---------- absensi mesin (Tahap 6, putaran 48)
+    def machine_scans(self):
+        """Scan Fingerspot 14 hari terakhir lewat importer yang SAMA dengan UI (PIN = NIK, tanggal DD/MM/YYYY), lalu rekap diolah. Mayoritas tepat waktu; ada yang
+        terlambat, hanya satu scan, tidak ada scan, dan dua PIN yang belum dipetakan (mewakili antrean pemetaan)."""
+        import io
+        from apps.hr import attendance_calc as calc, attendance_import as imp
+        r, today = self.r, self.today; lines = ["PIN,Nama,Tanggal Scan,Mesin"]
+        for e in self.active:
+            for k in range(14, 0, -1):
+                d = today - timedelta(days=k); c = schedule.effective_schedule(e, d)
+                if c["off"] or not c["shift"]: continue
+                roll = r.random()
+                if roll < 0.04: continue                                    # tidak ada scan → tanpa_scan (bahan validasi)
+                st, en = datetime.combine(d, c["shift"].start), datetime.combine(d, c["shift"].end)
+                if c["shift"].crosses_midnight or en <= st: en += timedelta(days=1)
+                tin = st + timedelta(minutes=r.randint(-12, 3) if roll > 0.12 else r.randint(6, 40)); tout = en + timedelta(minutes=r.randint(-2, 14))
+                lines.append(f"{e.nik},{e.name},{tin:%d/%m/%Y %H:%M:%S},FP-1")
+                if roll > 0.16: lines.append(f"{e.nik},{e.name},{tout:%d/%m/%Y %H:%M:%S},FP-1")   # sisanya hanya scan masuk
+        lines += [f"9901,Tamu Mesin,{today - timedelta(days=1):%d/%m/%Y} 07:01:00,FP-1", f"9902,Magang Baru,{today - timedelta(days=1):%d/%m/%Y} 07:05:00,FP-1"]
+        raw = ("\n".join(lines) + "\n").encode()
+        f = io.BytesIO(raw); f.name = "demo-scan-fingerspot.csv"
+        i = imp.stage_upload(f, self.hrd_u); imp.analyze(i); imp.commit(i, self.hrd_u)
+        res = calc.process(today - timedelta(days=15), today - timedelta(days=1))
+        self.stat += f", {i.taps_new} scan mesin ({res['rows']} baris rekap)"
 
     # ---------- operasional HRD
     def hrd_ops(self):

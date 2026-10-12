@@ -12,7 +12,7 @@ from .models import AuditLog, Role, User
 from . import user_services
 from .scope import superadmin_only
 from .user_forms import DeactivateForm, ResetPasswordForm, SelfPasswordChangeForm, UserCreateForm, UserEditForm
-from .user_services import UserRuleError, guard
+from .user_services import UserRuleError, guard, other_active_poli
 
 PER_PAGE = 50
 EDIT_FIELDS = ["first_name", "last_name", "email", "role", "department"]  # save terbatas: tidak menimpa password/is_active/last_login yang bisa berubah di proses lain
@@ -156,6 +156,8 @@ def user_activate(request, pk):
         cur = guard(request.user.pk, pk, User.objects.get(pk=pk).role, True)
         if cur.is_active:
             messages.info(request, "User sudah aktif."); return redirect("user_detail", pk=pk)
+        if cur.role == Role.POLI and other_active_poli(cur.pk):
+            messages.error(request, "Hanya boleh satu akun Poli aktif; nonaktifkan akun Poli yang lain dulu."); return redirect("user_detail", pk=pk)
         cur.is_active = True; cur.save(update_fields=["is_active"])
         log(request, "users", "user_activate", cur, before={"is_active": False}, after={"is_active": True})
     messages.success(request, "User diaktifkan kembali.")

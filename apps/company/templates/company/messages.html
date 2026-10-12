@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Pesan masuk{% endblock %}{% block content %}
+<p class="back"><a href="/company/">‹ Company Profile</a></p><h2>Pesan masuk dari situs</h2>
+<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari nama / perihal"><select name="status"><option value="">Semua status</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Masuk</th><th class="fill">Pengirim</th><th class="nw">Status</th></tr></thead><tbody>
+{% for m in page %}<tr><td class="nw">{{ m.created_at|date:"d M Y H:i" }}</td><td class="fill"><a href="/company/messages/{{ m.pk }}/">{{ m.name }}</a><small>{{ m.subject|default:"(tanpa perihal)" }}</small></td><td class="nw"><span class="pill {{ m.status }}">{{ m.get_status_display }}</span></td></tr>
+{% empty %}<tr><td class="empty" colspan="3">Belum ada pesan.</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}{% endblock %}

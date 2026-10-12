@@ -26,6 +26,21 @@ def scope_by_department(user, qs, field="department"):
     if user.role == Role.POLI: return qs  # tampilan dibatasi ke identitas minimum
     return qs.none()
 
-def get_scoped_or_404(user, qs, pk, field="department"):
-    try: return scope_by_department(user, qs, field).get(pk=pk)
+# Putaran 48: akun Poli = admin departemen Poli. Untuk modul PENGAJUAN/ABSENSI, Poli dibatasi ke departemennya sendiri (seperti Admin Dept);
+# untuk data pasien/karyawan (daftar karyawan, rekam medis) Poli tetap melihat identitas minimum semua karyawan.
+DEPT_ACTORS = (Role.DEPT_ADMIN, Role.POLI)
+
+def is_dept_actor(user):
+    """Pengaju tingkat departemen: Admin Departemen atau akun Poli (mewakili departemen Poli)."""
+    return getattr(user, "role", None) in DEPT_ACTORS
+
+def scope_dept_only(user, qs, field="department"):
+    """Scope ketat untuk pengajuan/absensi: HRD & Superadmin semua; Admin Dept & Poli hanya departemennya.
+    Akun Poli tanpa departemen = tidak melihat apa pun (gagal tertutup)."""
+    if user.role in (Role.SUPERADMIN, Role.HRD): return qs
+    if user.role in DEPT_ACTORS: return qs.filter(**{field: user.department_id}) if user.department_id else qs.none()
+    return qs.none()
+
+def get_scoped_or_404(user, qs, pk, field="department", strict=False):
+    try: return (scope_dept_only if strict else scope_by_department)(user, qs, field).get(pk=pk)
     except qs.model.DoesNotExist: raise Http404  # 404 agar tidak membocorkan keberadaan data

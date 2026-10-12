@@ -40,6 +40,10 @@ def dashboard(request):
              "accidents_month": MedicalRecord.objects.filter(kind="kecelakaan_kerja", visit_at__year=today.year, visit_at__month=today.month).count(),
              "open_referrals": Referral.objects.exclude(status__in=("selesai", "batal")).count(),
              "low_stock": Medicine.objects.filter(stock__lte=F("min_stock")).count()}
+        if u.department_id:  # putaran 48/49: akun Poli = admin departemen Poli → tugas pengajuan & validasi kehadiran departemennya (hanya angka)
+            from apps.hr.models import AttendanceCheck as AC
+            d["dept_req_pending"] = ChangeRequest.objects.filter(department=u.department_id, status__in=("submitted", "pending")).count()
+            d["attcheck_todo"] = AC.objects.filter(department=u.department_id, status__in=("diminta", "dikembalikan")).count()
     if u.role in (Role.SUPERADMIN, Role.HRD, Role.DEPT_ADMIN):  # putaran 27: tugas P7 Validasi kehadiran (hanya angka; scope departemen untuk Admin)
         from apps.hr.models import AttendanceCheck as AC
         from .scope import scope_by_department
@@ -47,6 +51,13 @@ def dashboard(request):
         if u.role == Role.DEPT_ADMIN: d["attcheck_todo"] = open_.count()
         else: d["attcheck_to_verify"] = q.filter(status="dijawab").count()
         d["attcheck_late"] = open_.filter(due_date__lt=today).count()
+        from apps.hr.models import AttendanceDaily as AD, AttendanceRaw
+        from django.db.models import Q
+        rv = scope_by_department(u, AD.objects.filter(date__gte=today - timedelta(days=7))).filter(Q(status="tanpa_scan") | Q(incomplete=True) | ~Q(conflict="")).count()  # Tahap 6
+        if rv: d["att_review"] = rv
+        if u.role != Role.DEPT_ADMIN:
+            n = AttendanceRaw.objects.filter(employee__isnull=True).values("pin").distinct().count()
+            if n: d["att_unmapped"] = n
     return JsonResponse({"role": u.role, "unread_notifications": notif, **d})
 
 from django.contrib.auth.decorators import login_required

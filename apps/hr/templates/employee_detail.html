@@ -12,6 +12,8 @@
 <section class="tabpane" data-tab="jadwal" data-label="Jadwal &amp; cuti">
 <h3>Saldo cuti {{ leave_year }} {% if full %}<a class="btn" href="{% url 'leave_detail' e.pk %}">Kartu saldo</a>{% endif %}</h3>
 <div class="card"><table><tr><th>Saldo</th><td>{{ leave_balance }} hari</td></tr><tr><th>Tersedia (setelah pengajuan berjalan)</th><td>{{ leave_available }} hari</td></tr></table></div>
+<h3>Absensi bulan ini</h3>
+<div class="card"><table><tr><th>Rekap</th><td>{% if att %}{{ att.hadir }} hadir · {{ att.terlambat }} terlambat · {{ att.alfa }} alfa · {{ att.izin }} izin · {{ att.sakit }} sakit · {{ att.cuti|add:att.cuti_hamil }} cuti · {{ att.lembur }} mnt lembur{% if att.tanpa_scan %} · <b>{{ att.tanpa_scan }} hari tanpa scan</b>{% endif %}{% else %}Belum ada rekap bulan ini.{% endif %}</td></tr><tr><th></th><td><a href="{% url 'att_employee' e.pk %}">Lihat rekap harian &amp; scan ›</a></td></tr></table></div>
 <h3>Jadwal 14 hari ke depan</h3>
 <div class="wrap"><table><thead><tr><th>Tanggal</th><th>Jadwal</th><th>Sumber</th></tr></thead><tbody>
 {% for x in schedule_days %}<tr><td>{{ x.date|date:"D, d M Y" }}</td><td>{% if x.off %}<span class="pill">Libur</span>{% elif x.shift %}{{ x.shift.name }} ({{ x.shift.start|time:"H:i" }}–{{ x.shift.end|time:"H:i" }}){% else %}—{% endif %}</td><td>{% if x.source == "override" %}<a href="{% url 'request_detail' x.request_id %}">Tukar #{{ x.request_id }}</a>{% elif x.via == "rotation" %}Rotasi kelompok{% else %}Shift tetap{% endif %}</td></tr>{% endfor %}</tbody></table></div>

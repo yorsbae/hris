@@ -8,3 +8,4 @@ cryptography>=42.0
 whitenoise>=6.6
 openpyxl>=3.1
 redis>=5.0
+xlrd>=2.0.1   # baca .xls lama dari Fingerspot Personnel (opsional; tanpa ini .xls ditolak dengan pesan jelas)

@@ -15,7 +15,8 @@ from apps.core.scope import get_scoped_or_404, require_roles, scope_by_departmen
 from . import attendance_check as svc
 from .models import AttendanceCheck as AC, Department, Employee
 
-both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))
+both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)(fn))
+from apps.core.scope import DEPT_ACTORS, scope_dept_only
 hrd = lambda fn: login_required(require_roles(Role.HRD)(fn))
 STATUS_PILL = {"diminta": "pending", "dijawab": "pending", "dikembalikan": "rejected", "diverifikasi": "approved", "dibatalkan": "nonaktif"}
 
@@ -27,13 +28,13 @@ def _date(s, default=None):
 
 def _get(request, pk):
     # Admin Dept: hanya departemennya (404 di luar). HRD/Superadmin: semua. Poli tidak sampai sini (403 dari dekorator).
-    return get_scoped_or_404(request.user, AC.objects.select_related("employee", "department", "answered_by", "verified_by", "requested_by"), pk)
+    return get_scoped_or_404(request.user, AC.objects.select_related("employee", "department", "answered_by", "verified_by", "requested_by"), pk, strict=True)
 
 
 @both
 def check_list(request):
-    qs = scope_by_department(request.user, AC.objects.select_related("employee", "department")).order_by("-date", "employee__name")
-    g, is_admin = request.GET, request.user.role == Role.DEPT_ADMIN
+    qs = scope_dept_only(request.user, AC.objects.select_related("employee", "department")).order_by("-date", "employee__name")
+    g, is_admin = request.GET, request.user.role in DEPT_ACTORS
     status = g.get("status", "todo" if is_admin else "")
     if status == "todo": qs = qs.filter(status__in=("diminta", "dikembalikan"))
     elif status == "late": qs = qs.filter(status__in=("diminta", "dikembalikan"), due_date__lt=date.today())
@@ -49,7 +50,7 @@ def check_list(request):
         return tabular.export_response("validasi-kehadiran", ["nik", "nama", "departemen", "tanggal", "status", "dugaan_awal", "jawaban_admin", "keterangan_admin", "hasil_terverifikasi", "catatan_hrd", "konflik"], rows, request, sheet="Validasi")
     page = Paginator(qs, 50).get_page(g.get("page", 1)); today = date.today()
     for a in page: a.late = a.is_late(today); a.pill = STATUS_PILL[a.status]
-    base = scope_by_department(request.user, AC.objects.all())
+    base = scope_dept_only(request.user, AC.objects.all())
     counts = {"todo": base.filter(status__in=("diminta", "dikembalikan")).count(), "late": base.filter(status__in=("diminta", "dikembalikan"), due_date__lt=today).count(),
               "answered": base.filter(status="dijawab").count()}
     qd = g.copy(); qd.pop("page", None)
@@ -128,7 +129,7 @@ def turn_text(a, is_admin):
 @both
 def check_detail(request, pk):
     a = _get(request, pk); log(request, "hr", "attendance_check_view", a)
-    is_admin = request.user.role == Role.DEPT_ADMIN
+    is_admin = request.user.role in DEPT_ACTORS
     return render(request, "hr/attendance_check_detail.html", {"a": a, "events": a.events.select_related("user"), "answers": AC.ANSWERS, "pill": STATUS_PILL[a.status], "late": a.is_late(),
                   "is_admin": is_admin, "result": a.result, "result_label": dict(AC.ANSWERS).get(a.result, ""), "steps": flow_steps(a.status), "turn": turn_text(a, is_admin)})
 
@@ -144,7 +145,7 @@ def _act(request, pk, fn, ok_msg, audit):
 @both
 @require_POST
 def check_answer(request, pk):
-    if request.user.role != Role.DEPT_ADMIN: raise Http404  # Admin Departemen = perantara yang menjawab (A41); HRD/Superadmin memverifikasi
+    if request.user.role not in DEPT_ACTORS: raise Http404  # Admin Departemen = perantara yang menjawab (A41); HRD/Superadmin memverifikasi
     p = request.POST
     return _act(request, pk, lambda a: svc.answer(request.user, pk, p.get("answer", ""), p.get("note", "")), "Jawaban terkirim ke HRD.", "attendance_check_answer")
 
