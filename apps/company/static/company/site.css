@@ -238,3 +238,51 @@ main.wide{background:none}
 .scard .map,.cinfo .map{position:relative}.map>svg.ill{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.map .gmap{position:absolute;inset:0;width:100%;height:100%;z-index:1}
 /* putaran 54b: sisi halaman Tentang */
 .aboutside{display:grid;gap:18px;align-content:start}.aboutside .cinfo h3{margin:.1em 0 .3em}.aboutside .art{max-width:none}
+
+/* ======================= Putaran 55 — merek Wadimor: logo bening di header/hero/footer, favicon, judul tab ======================= */
+.vh{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.brand img.wordmark{height:40px;width:auto;max-width:200px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.5))}
+.hero3 .hlogo.big{max-height:none;width:min(78vw,340px);height:auto;margin:0 auto 18px;filter:drop-shadow(0 8px 28px rgba(217,189,69,.28))}
+.flogo img{max-width:190px}
+@media(max-width:520px){.brand img.wordmark{height:34px}}
+/* ---- kategori per kelompok (Bawahan / Atasan / Aksesoris) ---- */
+.tags.center{justify-content:center}
+.tags a.lk{border-color:var(--maroon);color:var(--maroon);background:transparent;font-weight:600}.tags a.lk:hover{background:var(--maroon);color:#fff}
+.tags.sub{margin:2px 0 14px}.tags.sub a{font-size:13px;padding:3px 11px;background:transparent;border-style:dashed}.tags.sub a[aria-current=true]{border-style:solid}
+.catsec{margin:30px 0 8px}.catsec .sh.left{text-align:left;margin:0 0 14px;max-width:none;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:2px solid var(--gold);padding-bottom:6px}
+.catsec .sh.left h2{margin:0}.catsec .sh.left p{margin:0}
+.pimg .motif.koko,.pimg .motif.pants,.pimg .motif.peci,.pimg .motif.surban,.pdet .main svg.motif.koko{object-fit:contain}
+/* ---- foto produk / dipakai model (tanpa JS: dua radio + label) ---- */
+.pview{position:relative}.pview input{position:absolute;opacity:0;pointer-events:none}
+.pview .seg{display:inline-flex;border:1px solid var(--brown2);border-radius:20px;overflow:hidden;margin-bottom:10px;background:#fffbe6}
+.pview .seg label{padding:6px 16px;font-size:14px;cursor:pointer;color:var(--brown)}
+#pv-m:checked ~ .seg label[for=pv-m],#pv-p:checked ~ .seg label[for=pv-p]{background:var(--brown);color:var(--gold2)}
+#pv-m:focus-visible ~ .seg label[for=pv-m],#pv-p:focus-visible ~ .seg label[for=pv-p]{outline:3px solid var(--focus);outline-offset:-3px}
+.pview .main{position:relative}.pview .m-prod{display:none}#pv-p:checked ~ .m-prod{display:block}#pv-p:checked ~ .m-model{display:none}
+.pview .m-model{aspect-ratio:4/5}.pview .m-model img{object-fit:cover}
+.pview .mcap{position:absolute;left:0;right:0;bottom:0;margin:0;padding:26px 16px 12px;color:#fff6d5;font-size:14px;background:linear-gradient(180deg,transparent,rgba(11,22,38,.82))}
+/* ---- Lookbook: foto model di kiri, daftar detail produk di kanan (bergantian) ---- */
+.looks{display:grid;gap:34px;margin:10px 0 30px}
+.look{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:34px;align-items:stretch;background:rgba(255,253,242,.92);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;position:relative}
+.look:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;z-index:2;background:linear-gradient(90deg,var(--maroon),var(--gold),var(--maroon))}
+.look.flip .lphoto{order:2}
+.lphoto{margin:0;position:relative;min-height:380px;background:linear-gradient(135deg,#e8d57c,#c9ad3b)}
+.lphoto img,.lphoto svg.motif.model{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.lphoto .chip{position:absolute;left:14px;top:18px;z-index:2}
+.lphoto .ph{position:absolute;left:0;right:0;bottom:0;z-index:2;aspect-ratio:auto;width:auto;padding:22px 14px 10px;font-size:12.5px;letter-spacing:.04em;text-align:center;color:#fff6d5;background:linear-gradient(180deg,transparent,rgba(11,22,38,.7))}
+.linfo{padding:26px 28px 26px 4px}.look.flip .linfo{padding:26px 4px 26px 28px}
+.linfo h2{margin:.35em 0 0;font-size:clamp(22px,3.2vw,32px)}.orn.l{margin:6px 0 12px;justify-content:flex-start;max-width:200px}.orn.l:before{display:none}
+.linfo .prose{color:var(--mut);margin:0 0 6px}.linfo .prose p{margin:.3em 0}
+.lh{font:600 15px "Palatino Linotype",Palatino,Georgia,serif;font-variant:small-caps;letter-spacing:.12em;color:var(--maroon);margin:14px 0 8px;border-top:1px dashed var(--gold4);padding-top:12px}.lh small{font-variant:normal;letter-spacing:0;color:var(--mut);font-family:system-ui,sans-serif;font-weight:400}
+.litems{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.litems a{display:grid;grid-template-columns:72px 1fr auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdf2;text-decoration:none;color:inherit;transition:box-shadow .15s,transform .15s}
+.litems a:hover{box-shadow:var(--shadow2);transform:translateY(-2px)}.litems a:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.litems .th{width:72px;height:72px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--gold3);display:block}.litems .th img,.litems .th svg{width:100%;height:100%;object-fit:cover;display:block}
+.litems .tx{display:flex;flex-direction:column;min-width:0}.litems .tx small{font-size:12px;color:var(--maroon);letter-spacing:.06em;text-transform:uppercase}.litems .tx b{font:700 17px Georgia,serif;color:var(--brown)}
+.litems .tx em{font-style:normal;font-size:13.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.litems .tx i{font-style:normal;font-size:12.5px;color:var(--brown2)}
+.litems .pr{display:flex;align-items:center;gap:10px;font:700 15px Georgia,serif;color:var(--maroon);text-align:right}.litems .go{width:24px;height:24px;border-radius:50%;border:1px solid var(--gold4);display:inline-flex;align-items:center;justify-content:center;color:var(--brown2)}
+.looks.compact{gap:22px}.lookband{background:linear-gradient(180deg,rgba(246,236,184,.45),transparent)}
+@media(max-width:860px){.look{grid-template-columns:1fr;gap:0}.look.flip .lphoto{order:0}.lphoto{min-height:0;aspect-ratio:4/5;max-height:520px}.linfo,.look.flip .linfo{padding:20px 18px 22px}
+ .litems a{grid-template-columns:60px 1fr;gap:12px}.litems .th{width:60px;height:60px}.litems .pr{grid-column:2;justify-content:space-between;text-align:left}}
+@media(prefers-reduced-motion:reduce){.litems a{transition:none}.litems a:hover{transform:none}}
+.lphoto .chip{background:rgba(255,253,242,.94);color:var(--brown);border:1px solid var(--gold4);border-radius:16px;padding:3px 12px;font-size:13px;font-weight:600;box-shadow:var(--shadow)}

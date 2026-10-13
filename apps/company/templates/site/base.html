@@ -1,8 +1,10 @@
 {% load static site_tags %}<!doctype html>
 <html lang="{{ lang }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{% if title %}{{ title }} — {% endif %}{{ S.brand_name }}</title>
+<title>{% if title %}{{ title }} — {{ S.brand_name }}{% else %}{{ S.brand_name }}{% t S "tagline" as tg %}{% if tg %} — {{ tg }}{% endif %}{% endif %}</title>
 {% if description %}<meta name="description" content="{{ description }}">{% endif %}
-<meta name="theme-color" content="#d9bd45">
+<meta name="theme-color" content="#0b1626">
+<link rel="icon" href="{% static 'company/favicon.ico' %}" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="{% static 'company/favicon-32.png' %}">
+<link rel="apple-touch-icon" href="{% static 'company/apple-touch-icon.png' %}"><meta property="og:site_name" content="{{ S.brand_name }}"><meta property="og:image" content="{{ base }}{% static 'company/icon-192.png' %}">
 {% if base %}<link rel="canonical" href="{{ base }}{{ page_path }}"><link rel="alternate" hreflang="{{ alt_lang }}" href="{{ base }}{{ alt_url }}">{% endif %}
 <link rel="stylesheet" href="{% static 'company/site.css' %}"><script src="{% static 'company/site.js' %}" defer></script>
 {% block head %}{% endblock %}</head>
@@ -11,10 +13,10 @@
 {% if preview %}<div class="prev" role="note">{% ui "preview" %}</div>{% endif %}
 {% if S.banner_active %}<div class="pbanner" role="note"><b>{% t S "banner" %}</b></div>{% endif %}
 <header class="top"><div class="bar">
-<a class="brand" href="{% purl 'home' %}" aria-label="{{ S.brand_name }}">{% if S.logo %}<img src="{{ S.logo|media }}" alt="{{ S.brand_name }}" height="46">{% else %}<img class="wordmark" src="{% static 'company/logo.svg' %}" alt="{{ S.brand_name }}" width="251" height="55">{% endif %}</a>
+<a class="brand" href="{% purl 'home' %}" aria-label="{{ S.brand_name }}">{% if S.logo %}<img src="{{ S.logo|media }}" alt="{{ S.brand_name }}" height="46">{% else %}<img class="wordmark" src="{% static 'company/wadimor-wordmark.png' %}" alt="{{ S.brand_name }}" width="179" height="40">{% endif %}</a>
 <input type="checkbox" id="navtoggle" class="navtoggle" aria-label="{% ui 'menu' %}"><label for="navtoggle" class="navbtn">☰ {% ui "menu" %}</label>
 <nav class="main" aria-label="{% ui 'menu' %}">
-<a href="{% purl 'home' %}">{% ui "home" %}</a><a href="{% purl 'products' %}">{% ui "products" %}</a><a href="{% purl 'about' %}">{% ui "about" %}</a>
+<a href="{% purl 'home' %}">{% ui "home" %}</a><a href="{% purl 'products' %}">{% ui "products" %}</a><a href="{% purl 'looks' %}">{% ui "lookbook" %}</a><a href="{% purl 'about' %}">{% ui "about" %}</a>
 <a href="{% purl 'stores' %}">{% ui "stores" %}</a><a href="{% purl 'articles' %}">{% ui "articles" %}</a>{% if open_jobs %}<a href="{% purl 'careers' %}">{% ui "careers" %}</a>{% endif %}
 <a href="{% purl 'contact' %}">{% ui "contact" %}</a><a href="{% purl 'faq' %}">{% ui "faq" %}</a><a href="{% purl 'archive' %}">{% ui "archive" %}</a>
 {% for p in menu_pages %}{% if p.slug != "tentang-kami" %}<a href="{% purl 'page' p.slug %}">{% t p "title" %}</a>{% endif %}{% endfor %}
@@ -26,7 +28,7 @@
 {% if S.whatsapp %}<a class="wa-fab" href="{{ S.whatsapp|wa_link }}" rel="noopener" target="_blank">WhatsApp</a>{% endif %}
 <div class="tumpal" aria-hidden="true"></div>
 <footer class="foot"><div class="in">
-<div><a class="flogo" href="{% purl 'home' %}">{% if S.logo %}<img src="{{ S.logo|media }}" alt="{{ S.brand_name }}" height="46">{% else %}<img src="{% static 'company/logo.svg' %}" alt="{{ S.brand_name }}" width="251" height="55" loading="lazy">{% endif %}</a><p>{% t S "tagline" %}</p>{% if S.address %}<ul class="rows"><li>{% icon "pin" %}<span>{{ S.address|linebreaksbr }}</span></li></ul>{% endif %}</div>
+<div><a class="flogo" href="{% purl 'home' %}">{% if S.logo %}<img src="{{ S.logo|media }}" alt="{{ S.brand_name }}" height="46">{% else %}<img src="{% static 'company/wadimor-logo.png' %}" alt="{{ S.brand_name }}" width="190" height="163" loading="lazy">{% endif %}</a><p>{% t S "tagline" %}</p>{% if S.address %}<ul class="rows"><li>{% icon "pin" %}<span>{{ S.address|linebreaksbr }}</span></li></ul>{% endif %}</div>
 <div><h4>{% ui "contact" %}</h4><ul class="rows">{% if S.phone %}<li>{% icon "phone" %}<span>{{ S.phone }}</span></li>{% endif %}{% if S.email %}<li>{% icon "mail" %}<a href="mailto:{{ S.email }}">{{ S.email }}</a></li>{% endif %}{% if S.hours_id %}<li>{% icon "clock" %}<span>{% t S "hours" %}</span></li>{% endif %}</ul></div>
 <div><h4>{% ui "menu" %}</h4><ul><li><a href="{% purl 'products' %}">{% ui "products" %}</a></li><li><a href="{% purl 'about' %}">{% ui "about" %}</a></li><li><a href="{% purl 'stores' %}">{% ui "stores" %}</a></li><li><a href="{% purl 'faq' %}">{% ui "faq" %}</a></li>{% if open_jobs %}<li><a href="{% purl 'careers' %}">{% ui "careers" %}</a></li>{% endif %}</ul></div>
 <div><h4>{% ui "visit_us" %}</h4><div class="soc">{% if S.instagram %}<a href="{{ S.instagram }}" rel="noopener" target="_blank">Instagram</a>{% endif %}{% if S.facebook %}<a href="{{ S.facebook }}" rel="noopener" target="_blank">Facebook</a>{% endif %}{% if S.tiktok %}<a href="{{ S.tiktok }}" rel="noopener" target="_blank">TikTok</a>{% endif %}{% if S.marketplace_url %}<a href="{{ S.marketplace_url }}" rel="noopener" target="_blank">Marketplace</a>{% endif %}{% if S.maps_url %}<a href="{{ S.maps_url }}" rel="noopener" target="_blank">{% ui "map" %}</a>{% endif %}</div></div>

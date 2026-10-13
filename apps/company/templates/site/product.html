@@ -1,11 +1,14 @@
 {% extends "site/base.html" %}{% load site_tags %}{% block content %}
 <p class="crumb"><a href="{% purl 'products' %}">‹ {% ui "products" %}</a></p>
-<div class="pdet"><div><div class="main">{% if p.image %}<img src="{{ p.image|media }}" alt="{{ p.name }}">{% else %}{% motif p %}{% endif %}</div>
+<div class="pdet"><div>{% if p.model_image %}<div class="pview"><input type="radio" name="pv" id="pv-m" checked><input type="radio" name="pv" id="pv-p"><div class="seg" role="group"><label for="pv-m">{% ui "view_model" %}</label><label for="pv-p">{% ui "view_product" %}</label></div>
+<div class="main m-model"><img src="{{ p.model_image|media }}" alt="{% t p 'model_caption' as mc %}{% if mc %}{{ mc }}{% else %}{{ p.name }}{% endif %}">{% t p "model_caption" as mc %}{% if mc %}<p class="mcap">{{ mc }}</p>{% endif %}</div>
+<div class="main m-prod">{% if p.image %}<img src="{{ p.image|media }}" alt="{{ p.name }}">{% else %}{% motif p %}{% endif %}</div></div>{% else %}<div class="main">{% if p.image %}<img src="{{ p.image|media }}" alt="{{ p.name }}">{% else %}{% motif p %}{% endif %}</div>{% endif %}
 {% if gallery %}<div class="grid thumbs">{% for g in gallery %}<img src="{{ g.image|media }}" alt="{% t g 'caption' %}" loading="lazy" width="160" height="120">{% endfor %}</div>{% endif %}</div>
-<div>{% if p.category %}<span class="eyebrow">{% t p.category "name" %}</span>{% endif %}<h1>{{ p.name }}</h1><span class="orn" aria-hidden="true"><i></i></span><p class="lead">{% t p "summary" %}</p>
+<div>{% if p.category %}<span class="eyebrow">{% if p.category.parent %}{% t p.category.parent "name" %} › {% endif %}{% t p.category "name" %}</span>{% endif %}<h1>{{ p.name }}</h1><span class="orn" aria-hidden="true"><i></i></span><p class="lead">{% t p "summary" %}</p>
 {% if p.show_price and p.price %}<p class="price">{{ p.price|rp }}</p>{% endif %}
 <dl class="kv">{% if p.material %}<dt>{% ui "material" %}</dt><dd>{{ p.material }}</dd>{% endif %}{% if p.size %}<dt>{% ui "size" %}</dt><dd>{{ p.size }}</dd>{% endif %}{% if p.motif %}<dt>{% ui "motif" %}</dt><dd>{{ p.motif }}</dd>{% endif %}{% if p.colors %}<dt>{% ui "colors" %}</dt><dd>{{ p.colors }}</dd>{% endif %}
 <dt>{% ui "price" %}</dt><dd>{% if p.show_price and p.price %}{{ p.price|rp }}{% else %}{% ui "price_ask" %}{% endif %}</dd></dl>
 {% if S.whatsapp %}<p><a class="btn wa lg" href="{{ S.whatsapp|wa_link }}" rel="noopener" target="_blank">{% ui "order_wa" %}</a></p>{% endif %}</div></div>
+{% if looks %}<div class="sh sub2"><h2>{% ui "worn_in" %}</h2><span class="orn" aria-hidden="true"><i></i></span></div><div class="looks compact">{% for lk in looks %}{% include "site/_look.html" with flip=forloop.counter0|divisibleby:2|yesno:",1" %}{% endfor %}</div>{% endif %}
 {% t p "description" as d %}{% if d %}<div class="panel prose">{{ d|rich }}</div>{% endif %}
 {% if related %}<div class="sh"><h2>{% ui "products" %}</h2><span class="orn" aria-hidden="true"><i></i></span></div><div class="grid">{% for p in related %}{% include "site/_product_card.html" %}{% endfor %}</div>{% endif %}{% endblock %}

@@ -6,6 +6,7 @@ patterns = [
     path("", v.home, name="home"),
     path("produk/", v.products, name="products"),
     path("produk/<slug:slug>/", v.product, name="product"),
+    path("lookbook/", v.lookbook, name="looks"),
     path("tentang-kami/", v.about, name="about"),
     path("halaman/<slug:slug>/", v.page, name="page"),
     path("lokasi-toko/", v.stores, name="stores"),
@@ -27,6 +28,7 @@ patterns = [
 
 urlpatterns = [
     path("media/<path:name>", v.media_file, name="company_media"),
+    path("favicon.ico", v.favicon),
     path("robots.txt", v.robots),
     path("sitemap.xml", v.sitemap),
     path("healthz", v.healthz),

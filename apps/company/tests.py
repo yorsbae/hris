@@ -15,7 +15,7 @@ from apps.core.models import AuditLog, Notification, Role, User
 from apps.hr.models import Department
 from . import careers, safe_upload
 from .forms import stamp
-from .models import (Application, ApplicationEvent, Article, ContactMessage, Faq, Job, Page, Product, ProductCategory, SiteSetting, Stage, StoreLocation, hash_email)
+from .models import (Application, ApplicationEvent, Article, ContactMessage, Faq, Job, Look, Page, Product, ProductCategory, SiteSetting, Stage, StoreLocation, hash_email)
 from .templatetags.site_tags import rich
 
 KEY = Fernet.generate_key().decode()
@@ -472,7 +472,7 @@ class Putaran53VisualTests(Base):
         self.assertContains(self.client.get("/lokasi-toko/"), "google.com/maps"); self.assertContains(self.client.get("/kontak/"), "Ilustrasi surat")
 
     def test_product_without_photo_gets_motif_not_blank_placeholder(self):
-        r = self.client.get("/produk/"); self.assertContains(r, "class=\"motif\""); self.assertNotContains(r, "class=\"ph\"")
+        r = self.client.get("/produk/"); self.assertContains(r, "class=\"motif "); self.assertNotContains(r, "class=\"ph\"")
         p = Product.objects.get(slug="sarung-wadimor-songket"); self.assertContains(self.client.get(f"/produk/{p.slug}/"), "Rp 325.000")
 
     def test_store_card_has_directions_and_phone_link(self):
@@ -498,7 +498,7 @@ class Putaran54Tests(Base):
     def test_header_logo_and_language_icon(self):
         h = self.client.get("/").content.decode()
         head = h[h.index("<header"):h.index("</header>")]
-        self.assertIn("company/logo.svg", head); self.assertNotIn("<span>PT", head)
+        self.assertIn("company/wadimor-wordmark.png", head); self.assertNotIn("<span>PT", head)
         self.assertIn('class="lang"', head); self.assertIn("<svg", head[head.index('class="lang"'):])
         self.assertLess(head.index("</nav>"), head.index('class="lang"'))  # ikon bahasa setelah menu = pojok kanan
         self.assertIn("/en/", head)
@@ -533,7 +533,7 @@ class Putaran54Tests(Base):
 
     def test_seed_makes_a_complete_looking_site(self):
         s = SiteSetting.get()
-        self.assertEqual(s.brand_name, "PT SUKORINTEX")
+        self.assertEqual(s.brand_name, "Wadimor")
         for k in ("instagram", "facebook", "tiktok", "marketplace_url", "whatsapp", "email", "address", "phone"): self.assertTrue(getattr(s, k), k)
         self.assertGreaterEqual(Job.objects.filter(status="open").count(), 6)
         html = self.client.get("/").content.decode(); foot = html[html.index("<footer"):]
@@ -541,6 +541,155 @@ class Putaran54Tests(Base):
         self.assertContains(self.client.get("/tentang-kami/"), 'class="aboutside"')
 
     def test_seed_keeps_brand_renamed_by_hrd_and_is_idempotent(self):
-        s = SiteSetting.get(); s.brand_name = "Wadimor"; s.save(); n = Job.objects.count()
+        s = SiteSetting.get(); s.brand_name = "Wadimor Jaya"; s.save(); n = Job.objects.count()
         call_command("seed_company", stdout=io.StringIO())
-        self.assertEqual(SiteSetting.get().brand_name, "Wadimor"); self.assertEqual(Job.objects.count(), n)
+        self.assertEqual(SiteSetting.get().brand_name, "Wadimor Jaya"); self.assertEqual(Job.objects.count(), n)
+
+
+@ov(public=True)
+class Putaran55Tests(Base):
+    """Putaran 55: merek Wadimor (logo, favicon, judul tab), kategori Bawahan/Atasan/Aksesoris, foto model + Lookbook."""
+    def setUp(self):
+        super().setUp(); call_command("seed_company", stdout=io.StringIO())
+
+    # --- merek
+    def test_brand_logo_favicon_and_title(self):
+        h = self.client.get("/").content.decode()
+        self.assertIn("<title>Wadimor — Tentu Sarung Kita!</title>", h)
+        for f in ("favicon.ico", "favicon-32.png", "apple-touch-icon.png"): self.assertIn(f"company/{f}", h)
+        self.assertIn("company/wadimor-wordmark.png", h[h.index("<header"):h.index("</header>")])
+        hero = h[h.index('class="hero3"'):]; self.assertIn("company/wadimor-logo.png", hero[:hero.index("</section>")])
+        self.assertIn("company/wadimor-logo.png", h[h.index("<footer"):]); self.assertNotIn("Sukorintex", h.title()); self.assertNotIn("logo.svg", h)
+        self.assertIn("<title>Produk — Wadimor</title>", self.client.get("/produk/").content.decode())
+        self.assertIn("<title>Sarung Wadimor Klasik — Wadimor</title>", self.client.get("/produk/sarung-wadimor-klasik/").content.decode())
+
+    def test_favicon_route_and_static_files_exist(self):
+        r = self.client.get("/favicon.ico"); self.assertEqual(r.status_code, 200); self.assertEqual(r["Content-Type"], "image/x-icon")
+        self.assertTrue(b"".join(r.streaming_content)[:4] == b"\x00\x00\x01\x00")   # ICO sungguhan
+        d = Path(__file__).parent / "static" / "company"
+        for f in ("wadimor-logo.png", "wadimor-wordmark.png", "favicon-32.png", "apple-touch-icon.png", "icon-192.png"): self.assertTrue((d / f).read_bytes().startswith(b"\x89PNG"), f)
+        self.assertFalse((d / "logo.svg").exists())
+
+    def test_seed_upgrades_old_demo_brand_but_not_hrd_name(self):
+        s = SiteSetting.get(); s.brand_name = "PT SUKORINTEX"; s.tagline_id = "Tenun Sarung Kita"; s.email = "info@sukorintex.example"; s.save()
+        call_command("seed_company", stdout=io.StringIO()); s = SiteSetting.get()
+        self.assertEqual((s.brand_name, s.tagline_id, s.email), ("Wadimor", "Tentu Sarung Kita!", "info@wadimor.example"))
+        s.brand_name = "PT Lain"; s.tagline_id = "Slogan HRD"; s.save(); call_command("seed_company", stdout=io.StringIO())
+        self.assertEqual((SiteSetting.get().brand_name, SiteSetting.get().tagline_id), ("PT Lain", "Slogan HRD"))
+
+    # --- kategori
+    def test_seed_builds_two_level_categories_and_is_idempotent(self):
+        g = {c.slug: c for c in ProductCategory.objects.filter(parent__isnull=True)}
+        self.assertEqual(set(g), {"bawahan", "atasan", "aksesoris"})
+        self.assertEqual({c.name_id for c in g["bawahan"].children.all()}, {"Sarung Tenun", "Sarung Ibadah", "Sarung Anak", "Celana Sarung"})
+        self.assertEqual({c.name_id for c in g["atasan"].children.all()}, {"Baju Koko", "Kemeja Muslim"}); self.assertEqual({c.name_id for c in g["aksesoris"].children.all()}, {"Peci", "Surban"})
+        self.assertIn("celana sarung", g["bawahan"].hint_id.lower()); self.assertIn("surban", g["aksesoris"].hint_id.lower())
+        n = (ProductCategory.objects.count(), Product.objects.count(), Look.objects.count()); call_command("seed_company", stdout=io.StringIO())
+        self.assertEqual(n, (ProductCategory.objects.count(), Product.objects.count(), Look.objects.count()))
+        self.assertFalse(Product.objects.filter(category__isnull=True).exists())
+
+    def test_old_flat_demo_categories_move_under_bawahan(self):
+        ProductCategory.objects.all().update(parent=None); ProductCategory.objects.filter(parent__isnull=True, slug__in=("bawahan", "atasan", "aksesoris")).delete()
+        ProductCategory.objects.exclude(slug__in=("sarung-tenun", "sarung-ibadah", "sarung-anak")).delete()
+        call_command("seed_company", stdout=io.StringIO())
+        self.assertEqual(ProductCategory.objects.get(slug="sarung-tenun").parent.slug, "bawahan"); self.assertEqual(ProductCategory.objects.filter(name_id="Sarung Tenun").count(), 1)
+
+    def test_products_all_view_is_sectioned_per_group(self):
+        h = self.client.get("/produk/").content.decode()
+        for t in ("Bawahan", "Atasan", "Aksesoris"): self.assertIn(f"<h2>{t}</h2>", h)
+        self.assertIn("Sarung, celana sarung, dan bawahan lainnya.", h); self.assertIn("?c=atasan", h); self.assertIn("/lookbook/", h)
+
+    def test_group_filter_includes_children_and_shows_sub_chips(self):
+        h = self.client.get("/produk/?c=atasan").content.decode()
+        self.assertIn("Baju Koko Putih Bordir", h); self.assertIn("Kemeja Muslim Lengan Panjang", h); self.assertNotIn("Sarung Wadimor Klasik", h)
+        self.assertIn("?c=baju-koko", h); self.assertIn("?c=kemeja-muslim", h); self.assertIn("<title>Atasan — Wadimor</title>", h)
+        sub = self.client.get("/produk/?c=peci").content.decode(); self.assertIn("Peci Hitam Beludru", sub); self.assertNotIn("Surban Putih Polos", sub); self.assertIn("Aksesoris", sub)
+
+    def test_unknown_category_shows_empty_not_everything(self):
+        r = self.client.get("/produk/?c=tidak-ada"); self.assertEqual(r.status_code, 200); self.assertNotContains(r, "Sarung Wadimor Klasik")
+
+    def test_product_page_shows_group_path_and_related_fills_from_group(self):
+        h = self.client.get("/produk/peci-hitam-beludru/").content.decode()
+        self.assertIn("Aksesoris › Peci", h); self.assertIn("Surban Putih Polos", h)   # peci hanya 2 → dilengkapi dari kelompok
+
+    def test_placeholder_shape_follows_category(self):
+        self.assertIn('class="motif koko"', self.client.get("/produk/?c=baju-koko").content.decode())
+        self.assertIn('class="motif peci"', self.client.get("/produk/?c=peci").content.decode())
+        self.assertIn('class="motif pants"', self.client.get("/produk/?c=celana-sarung").content.decode())
+        self.assertIn('class="motif sarung"', self.client.get("/produk/?c=sarung-tenun").content.decode())
+
+    def test_category_model_rejects_three_levels_and_self_parent(self):
+        from django.core.exceptions import ValidationError
+        g = ProductCategory.objects.get(slug="bawahan"); sub = ProductCategory.objects.get(slug="sarung-tenun")
+        with self.assertRaises(ValidationError): ProductCategory(name_id="X", parent=sub).clean()
+        g.parent = g
+        with self.assertRaises(ValidationError): g.clean()
+        g2 = ProductCategory.objects.get(slug="bawahan"); g2.parent = ProductCategory.objects.get(slug="atasan")
+        with self.assertRaises(ValidationError): g2.clean()   # kelompok yang punya anak tidak boleh jadi anak
+
+    # --- foto model & lookbook
+    def test_product_with_model_photo_has_toggle_without_js(self):
+        p = Product.objects.get(slug="baju-koko-putih-bordir"); p.model_image = "company/product/m.png"; p.model_caption_id = "Dipadukan dengan sarung klasik."; p.save()
+        h = self.client.get(f"/produk/{p.slug}/").content.decode()
+        self.assertIn('id="pv-m"', h); self.assertIn("Dipakai model", h); self.assertIn("Dipadukan dengan sarung klasik.", h); self.assertNotIn("style=", h)
+        self.assertNotIn('id="pv-m"', self.client.get("/produk/peci-hitam-beludru/").content.decode())
+
+    def test_lookbook_page_lists_outfits_with_item_details(self):
+        h = self.client.get("/lookbook/").content.decode()
+        for t in ("Salat Jumat", "Lebaran Bersama Keluarga", "Pengajian Malam"): self.assertIn(t, h)
+        self.assertIn("Baju Koko Putih Bordir", h); self.assertIn("Rp 165.000", h); self.assertIn('class="motif model"', h); self.assertIn("Ilustrasi — foto model menyusul", h)
+        self.assertNotRegex(h, r'\sstyle=|<style|\son\w+='); self.assertIn("Look" if False else "Lookbook", h)
+        self.assertIn("Friday Prayer", self.client.get("/en/lookbook/").content.decode())
+
+    def test_home_shows_featured_look_and_product_page_lists_looks_wearing_it(self):
+        h = self.client.get("/").content.decode(); self.assertIn('class="look', h); self.assertIn("Salat Jumat", h); self.assertNotIn("Pengajian Malam", h)
+        self.assertIn("Dipakai dalam setelan", self.client.get("/produk/peci-hitam-beludru/").content.decode())
+        self.assertNotIn("Dipakai dalam setelan", self.client.get("/produk/sarung-poleng-hitam/").content.decode())
+
+    def test_draft_look_and_draft_item_hidden_from_public(self):
+        Look.objects.filter(slug="salat-jumat").update(status="draft"); Product.objects.filter(slug="peci-hitam-beludru").update(status="draft")
+        self.assertNotIn("Salat Jumat", self.client.get("/lookbook/").content.decode())
+        h = self.client.get("/lookbook/").content.decode(); self.assertNotIn("Peci Hitam Beludru", h)
+
+    def test_lookbook_in_sitemap_and_uploaded_photo_is_used(self):
+        self.assertIn("/lookbook/", self.client.get("/sitemap.xml").content.decode())
+        Look.objects.filter(slug="salat-jumat").update(photo="company/look/x.jpg"); h = self.client.get("/lookbook/").content.decode()
+        self.assertIn("/media/company/look/x.jpg", h)
+
+    def test_search_finds_products_by_category_name(self):
+        self.assertContains(self.client.get("/cari/?q=Surban"), "Surban Putih Polos")
+
+
+@ov()
+class Putaran55BackendTests(Base):
+    def setUp(self):
+        super().setUp(); call_command("seed_company", stdout=io.StringIO())
+
+    def test_hrd_manages_looks_and_categories(self):
+        self.login("hrd")
+        self.assertContains(self.client.get("/company/looks/"), "Salat Jumat"); self.assertContains(self.client.get("/company/"), "Lookbook")
+        ids = list(Product.objects.filter(slug__in=("sarung-wadimor-klasik", "peci-hitam-beludru")).values_list("pk", flat=True))
+        r = self.client.post("/company/looks/new/", {"title_id": "Setelan Baru", "title_en": "", "story_id": "x", "story_en": "", "occasion_id": "Kondangan", "occasion_en": "", "products": ids, "status": "published", "order": 5})
+        self.assertEqual(r.status_code, 302); lk = Look.objects.get(title_id="Setelan Baru"); self.assertEqual(lk.slug, "setelan-baru"); self.assertEqual(lk.products.count(), 2)
+        self.assertTrue(AuditLog.objects.filter(module="company", action="create").exists())
+        g = ProductCategory.objects.get(slug="bawahan")
+        r = self.client.post("/company/categories/new/", {"parent": g.pk, "name_id": "Sarung Pesta", "name_en": "", "hint_id": "", "hint_en": "", "order": 50, "active": "on"})
+        self.assertEqual(r.status_code, 302); self.assertEqual(ProductCategory.objects.get(name_id="Sarung Pesta").parent, g)
+        sub = ProductCategory.objects.get(slug="sarung-tenun")   # tiga tingkat ditolak di form
+        r = self.client.post("/company/categories/new/", {"parent": sub.pk, "name_id": "Cucu", "order": 1, "active": "on"}); self.assertEqual(r.status_code, 200)
+        self.assertFalse(ProductCategory.objects.filter(name_id="Cucu").exists())
+
+    def test_product_form_lists_categories_grouped_and_has_model_photo_field(self):
+        self.login("hrd"); h = self.client.get("/company/products/new/").content.decode()
+        self.assertIn("Bawahan › Sarung Tenun", h); self.assertIn("Atasan › Baju Koko", h); self.assertIn('name="model_image"', h); self.assertIn("model_caption_id", h)
+        self.assertLess(h.index(">Bawahan<"), h.index("Atasan › Baju Koko"))
+
+    def test_other_roles_cannot_open_looks_backend(self):
+        for u in ("adm", "poli"):
+            self.client.logout(); self.login(u); self.assertEqual(self.client.get("/company/looks/").status_code, 403, u)
+            self.assertEqual(self.client.post("/company/looks/new/", {"title_id": "x"}).status_code, 403, u)
+
+    def test_deleting_a_group_keeps_its_subcategories(self):
+        self.login("hrd"); g = ProductCategory.objects.get(slug="atasan"); n = ProductCategory.objects.filter(parent=g).count(); self.assertEqual(n, 2)
+        self.assertEqual(self.client.post(f"/company/categories/{g.pk}/delete/").status_code, 302)
+        self.assertEqual(ProductCategory.objects.filter(name_id__in=("Baju Koko", "Kemeja Muslim"), parent__isnull=True).count(), 2)

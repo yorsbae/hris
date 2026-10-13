@@ -1,0 +1,3 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}<div class="sh"><h1>{% ui "lookbook" %}</h1><span class="orn" aria-hidden="true"><i></i></span><p>{% ui "lookbook_intro" %}</p></div>
+<div class="looks">{% for lk in looks %}{% include "site/_look.html" with flip=forloop.counter0|divisibleby:2|yesno:",1" %}{% empty %}<div class="empty">{% include "site/ill/empty.html" %}<p>{% ui "no_results" %}</p></div>{% endfor %}</div>
+<p class="center"><a class="btn alt" href="{% purl 'products' %}">‹ {% ui "products" %}</a></p>{% endblock %}

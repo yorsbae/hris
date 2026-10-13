@@ -8,7 +8,7 @@ from django.conf import settings
 from django.core import signing
 from django.core.exceptions import ValidationError
 from . import safe_upload
-from .models import (EDUCATION, Article, ContactMessage, Faq, Job, Page, Product, ProductCategory, ProductImage, SiteSetting, StoreLocation)
+from .models import (EDUCATION, Article, ContactMessage, Faq, Job, Look, Page, Product, ProductCategory, ProductImage, SiteSetting, StoreLocation)
 
 MAX_QUESTIONS = 8
 HP = re.compile(r"^[0-9+()\-\s]{6,25}$")
@@ -49,20 +49,56 @@ class PageForm(forms.ModelForm):
 
 
 class CategoryForm(forms.ModelForm):
-    class Meta: model = ProductCategory; fields = ["name_id", "name_en", "order", "active"]
+    class Meta: model = ProductCategory; fields = ["parent", "name_id", "name_en", "hint_id", "hint_en", "order", "active"]
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        qs = ProductCategory.objects.filter(parent__isnull=True)   # induk hanya boleh sebuah kelompok (dua tingkat)
+        if self.instance.pk: qs = qs.exclude(pk=self.instance.pk)
+        self.fields["parent"].queryset = qs
+        self.fields["parent"].empty_label = "— (ini sebuah kelompok, mis. Bawahan) —"
+
+
+def category_choices():
+    """Pilihan kategori produk berurutan per kelompok: “Bawahan”, “Bawahan › Sarung Tenun”, … (urutan tidak bergantung pada perilaku NULL basis data)."""
+    out = [("", "---------")]
+    groups = list(ProductCategory.objects.filter(parent__isnull=True))
+    kids = {}
+    for c in ProductCategory.objects.filter(parent__isnull=False): kids.setdefault(c.parent_id, []).append(c)
+    for g in groups:
+        out.append((g.pk, g.name_id))
+        out += [(c.pk, f"{g.name_id} › {c.name_id}") for c in kids.get(g.pk, [])]
+    out += [(c.pk, c.name_id) for pid, cs in kids.items() for c in cs if pid not in {g.pk for g in groups}]   # anak yatim (induk terhapus) tetap bisa dipilih
+    return out
 
 
 class ProductForm(ImageMixin, forms.ModelForm):
-    image_fields = ("image",)
+    image_fields = ("image", "model_image")
     class Meta:
         model = Product
         exclude = ("created_at", "updated_at", "updated_by", "slug")
         widgets = {"description_id": forms.Textarea(attrs={"rows": 6}), "description_en": forms.Textarea(attrs={"rows": 6})}
 
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.fields["category"].choices = category_choices()
+
     def clean(self):
         d = super().clean()
         if d.get("show_price") and not d.get("price"): self.add_error("price", "Isi harga atau matikan 'Tampilkan harga'.")
         return d
+
+
+class LookForm(ImageMixin, forms.ModelForm):
+    image_fields = ("photo",)
+    class Meta:
+        model = Look
+        exclude = ("created_at", "updated_at", "updated_by", "slug")
+        widgets = {"story_id": forms.Textarea(attrs={"rows": 4}), "story_en": forms.Textarea(attrs={"rows": 4}), "products": forms.CheckboxSelectMultiple}
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.fields["products"].queryset = Product.objects.select_related("category__parent").order_by("category__parent__order", "category__order", "order", "name")
 
 
 class ProductImageForm(ImageMixin, forms.ModelForm):

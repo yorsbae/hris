@@ -26,6 +26,7 @@ def _name(kind, filename):
 def upload_brand(instance, filename): return _name("brand", filename)
 def upload_product(instance, filename): return _name("product", filename)
 def upload_article(instance, filename): return _name("article", filename)
+def upload_look(instance, filename): return _name("look", filename)
 
 
 def unique_slug(model, text, instance=None, field="slug", fallback="item"):
@@ -115,17 +116,39 @@ class Page(Stamped):
 
 # ------------------------------------------------------------------ Produk
 class ProductCategory(Stamped):
+    """Dua tingkat: KELOMPOK (parent kosong: Bawahan / Atasan / Aksesoris / …) dan SUBKATEGORI di bawahnya (Sarung, Celana Sarung, Baju Koko, Peci, …).
+    Produk boleh ditaruh di subkategori atau langsung di kelompok; menyaring kelompok = semua subkategorinya."""
     slug = models.SlugField(max_length=60, unique=True, blank=True)
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children", verbose_name="Kelompok induk",
+                               help_text="Kosong = ini sebuah kelompok (mis. Bawahan). Isi = subkategori di dalam kelompok itu.")
     name_id = models.CharField("Nama (ID)", max_length=100)
     name_en = models.CharField("Nama (EN)", max_length=100, blank=True)
+    hint_id = models.CharField("Contoh isi (ID)", max_length=160, blank=True, help_text="Satu kalimat di bawah judul kelompok, mis. “Sarung, celana sarung, dan bawahan lainnya.”")
+    hint_en = models.CharField("Contoh isi (EN)", max_length=160, blank=True)
     order = models.PositiveIntegerField("Urutan", default=100)
     active = models.BooleanField("Aktif", default=True)
 
     class Meta: ordering = ["order", "name_id"]; verbose_name_plural = "product categories"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.parent_id:
+            if self.pk and self.parent_id == self.pk: raise ValidationError({"parent": "Kategori tidak bisa menjadi induk dirinya sendiri."})
+            if self.parent.parent_id: raise ValidationError({"parent": "Hanya dua tingkat: pilih sebuah kelompok (bukan subkategori) sebagai induk."})
+            if self.pk and self.children.exists(): raise ValidationError({"parent": "Kategori ini punya subkategori; pindahkan dulu subkategorinya."})
+
     def save(self, *a, **k):
         if not self.slug: self.slug = unique_slug(ProductCategory, self.name_id, self, fallback="kategori")
         super().save(*a, **k)
-    def __str__(self): return self.name_id
+
+    @property
+    def group(self): return self.parent if self.parent_id else self
+
+    def tree_slugs(self):
+        """Slug kategori ini + semua subkategorinya (untuk menyaring produk per kelompok)."""
+        return [self.slug] + list(self.children.values_list("slug", flat=True))
+
+    def __str__(self): return f"{self.parent.name_id} › {self.name_id}" if self.parent_id else self.name_id
 
 
 class Product(Stamped):
@@ -143,6 +166,9 @@ class Product(Stamped):
     price = models.DecimalField("Harga (Rp)", max_digits=12, decimal_places=0, null=True, blank=True)
     show_price = models.BooleanField("Tampilkan harga di situs", default=False)
     image = models.FileField("Foto utama", upload_to=upload_product, blank=True)
+    model_image = models.FileField("Foto model (memakai produk ini)", upload_to=upload_product, blank=True, help_text="Foto orang yang memakai produk; tampil berdampingan dengan detail produk.")
+    model_caption_id = models.CharField("Keterangan foto model (ID)", max_length=200, blank=True, help_text="Mis. “Dipadukan dengan baju koko putih dan peci hitam.”")
+    model_caption_en = models.CharField("Keterangan foto model (EN)", max_length=200, blank=True)
     featured = models.BooleanField("Unggulan (tampil di beranda)", default=False)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
     order = models.PositiveIntegerField("Urutan", default=100)
@@ -162,6 +188,29 @@ class ProductImage(models.Model):
     order = models.PositiveIntegerField(default=100)
 
     class Meta: ordering = ["order", "id"]
+
+
+# ------------------------------------------------------------------ Lookbook: foto model memakai satu setelan + daftar produk yang dipakai
+class Look(Stamped):
+    """Satu “setelan” (mis. sarung + baju koko + peci) difoto pada model; di sebelahnya daftar produk yang dipakai (gaya halaman “Shop your style”)."""
+    slug = models.SlugField(max_length=80, unique=True, blank=True)
+    title_id = models.CharField("Judul (ID)", max_length=140)
+    title_en = models.CharField("Judul (EN)", max_length=140, blank=True)
+    story_id = models.TextField("Cerita singkat (ID)", blank=True)
+    story_en = models.TextField("Cerita singkat (EN)", blank=True)
+    occasion_id = models.CharField("Untuk acara (ID)", max_length=80, blank=True, help_text="Mis. Salat Jumat, Lebaran, Pernikahan")
+    occasion_en = models.CharField("Untuk acara (EN)", max_length=80, blank=True)
+    photo = models.FileField("Foto model", upload_to=upload_look, blank=True)
+    products = models.ManyToManyField(Product, blank=True, related_name="looks", verbose_name="Produk yang dipakai")
+    featured = models.BooleanField("Tampil di beranda", default=False)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    order = models.PositiveIntegerField("Urutan", default=100)
+
+    class Meta: ordering = ["order", "-id"]; indexes = [models.Index(fields=["status", "order"])]
+    def save(self, *a, **k):
+        if not self.slug: self.slug = unique_slug(Look, self.title_id, self, fallback="lookbook")
+        super().save(*a, **k)
+    def __str__(self): return self.title_id
 
 
 # ------------------------------------------------------------------ Artikel (+ arsip per bulan)

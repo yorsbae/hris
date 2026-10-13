@@ -9,7 +9,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.db.models.functions import TruncMonth
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -24,7 +24,7 @@ from apps.core.net import client_ip
 from . import careers, safe_upload
 from .forms import ApplyForm, ContactForm, LookupForm, stamp
 from .i18n import CONSENT_EN, CONSENT_ID, UI
-from .models import (Application, Article, ContactMessage, Faq, Job, JobStatus, Page, Product, ProductCategory, SiteSetting, StoreLocation, Stage, Status,
+from .models import (Application, Article, ContactMessage, Faq, Job, JobStatus, Look, Page, Product, ProductCategory, SiteSetting, StoreLocation, Stage, Status,
                      hash_ip, STAGE_PUBLIC)
 
 MONTHS = {"id": ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"],
@@ -104,30 +104,72 @@ def marquee(prods):
 
 
 def home(request):
-    prods = list(pub(Product.objects.filter(featured=True), request).select_related("category")[:12])
-    if len(prods) < 4: prods = list(pub(Product.objects.all(), request).select_related("category")[:12])  # belum cukup "unggulan": tampilkan produk terbaru
+    prods = list(pub(Product.objects.filter(featured=True), request).select_related("category__parent")[:12])
+    if len(prods) < 4: prods = list(pub(Product.objects.all(), request).select_related("category__parent")[:12])  # belum cukup "unggulan": tampilkan produk terbaru
     mq, mqc = marquee(prods)
     arts = pub(Article.objects.all(), request)[:3]
     stores = StoreLocation.objects.filter(active=True)[:3]
     jobs = pub(Job.objects.all(), request, "status", JobStatus.OPEN)[:3]
-    return respond(request, "site/home.html", ctx(request, featured=prods, mq=mq, mqc=mqc, articles=arts, stores=stores, jobs=jobs))
+    looks = list(look_qs(request).filter(featured=True)[:1]) or list(look_qs(request)[:1])
+    return respond(request, "site/home.html", ctx(request, featured=prods, mq=mq, mqc=mqc, articles=arts, stores=stores, jobs=jobs, looks=looks))
+
+
+def look_qs(request):
+    """Setelan terbit (draf ikut tampil di pratinjau) beserta produknya, siap dirender tanpa query tambahan per baris."""
+    prod = pub(Product.objects.select_related("category__parent"), request)
+    return pub(Look.objects.all(), request).prefetch_related(Prefetch("products", queryset=prod))
+
+
+def _tree(request):
+    """Kelompok kategori aktif (+ subkategori aktif) untuk filter & bagian per kelompok."""
+    subs = ProductCategory.objects.filter(active=True, parent__isnull=False)
+    return list(ProductCategory.objects.filter(active=True, parent__isnull=True).prefetch_related(Prefetch("children", queryset=subs)))
 
 
 def products(request):
     lang = lang_of(request)
-    cats = ProductCategory.objects.filter(active=True)
-    qs = pub(Product.objects.select_related("category"), request)
+    groups = _tree(request)
+    qs = pub(Product.objects.select_related("category__parent"), request)
     cur = request.GET.get("c", "")
-    if cur: qs = qs.filter(category__slug=cur)
-    page = Paginator(qs, 12).get_page(request.GET.get("page", 1))
-    mq, mqc = marquee(list(qs[:24]))
-    return respond(request, "site/products.html", ctx(request, cats=cats, page=page, cur=cur, mq=mq, mqc=mqc, title=ui(lang, "products")))
+    cur_cat = next((c for g in groups for c in [g, *g.children.all()] if c.slug == cur), None)
+    cur_group = cur_cat.group if cur_cat else None
+    page = sections = None
+    if cur_cat:
+        qs = qs.filter(category__slug__in=cur_cat.tree_slugs()) if cur_cat.parent_id is None else qs.filter(category=cur_cat)
+        page = Paginator(qs, 12).get_page(request.GET.get("page", 1))
+        mq, mqc = [], ""
+    else:
+        if cur: qs = qs.none()   # ?c= tak dikenal → kosong (bukan semua), agar tautan lama tidak menyesatkan
+        allp = list(qs)
+        mq, mqc = marquee(allp[:24])
+        if cur: sections = []
+        else:   # “Semua” = per kelompok: beberapa produk tiap kelompok + tautan ke kelompoknya
+            sections = []
+            for g in groups:
+                ids = {g.pk, *(c.pk for c in g.children.all())}
+                items = [p for p in allp if p.category_id in ids]
+                if items: sections.append({"g": g, "items": items[:4], "n": len(items)})
+            rest = [p for p in allp if p.category_id is None or p.category_id not in {c.pk for g in groups for c in [g, *g.children.all()]}]
+            if rest: sections.append({"g": None, "items": rest[:4], "n": len(rest)})
+    return respond(request, "site/products.html", ctx(request, groups=groups, page=page, sections=sections, cur=cur if cur_cat else "", cur_cat=cur_cat, cur_group=cur_group,
+                                                      mq=mq, mqc=mqc, unknown_cat=bool(cur and not cur_cat), title=(cur_cat.name_en if lang == "en" and cur_cat and cur_cat.name_en else cur_cat.name_id) if cur_cat else ui(lang, "products")))
 
 
 def product(request, slug):
-    p = get_object_or_404(pub(Product.objects.select_related("category"), request), slug=slug)
-    rel = pub(Product.objects.exclude(pk=p.pk).filter(category=p.category), request)[:3] if p.category_id else []
-    return respond(request, "site/product.html", ctx(request, p=p, related=rel, gallery=p.images.all()))
+    p = get_object_or_404(pub(Product.objects.select_related("category__parent"), request), slug=slug)
+    rel = []
+    if p.category_id:
+        rel = list(pub(Product.objects.exclude(pk=p.pk).filter(category=p.category), request).select_related("category__parent")[:3])
+        if len(rel) < 3 and p.category.parent_id:   # kurang? lengkapi dari kelompok yang sama
+            more = pub(Product.objects.exclude(pk__in=[p.pk, *(r.pk for r in rel)]).filter(category__parent_id=p.category.parent_id), request).select_related("category__parent")
+            rel += list(more[:3 - len(rel)])
+    looks = list(look_qs(request).filter(products=p)[:3])
+    return respond(request, "site/product.html", ctx(request, p=p, related=rel, gallery=p.images.all(), looks=looks, title=p.name))
+
+
+def lookbook(request):
+    lang = lang_of(request)
+    return respond(request, "site/looks.html", ctx(request, looks=list(look_qs(request)), title=ui(lang, "lookbook")))
 
 
 def page(request, slug):
@@ -182,7 +224,7 @@ def search(request):
     if q:
         if throttled(request, "search"): return too_many(request)
         f = Q(name__icontains=q) | Q(summary_id__icontains=q) | Q(summary_en__icontains=q) | Q(motif__icontains=q)
-        prods = list(pub(Product.objects.filter(f), request)[:12])
+        prods = list(pub(Product.objects.filter(f | Q(category__name_id__icontains=q) | Q(category__name_en__icontains=q)).select_related("category__parent"), request)[:12])
         arts = list(pub(Article.objects.filter(Q(title_id__icontains=q) | Q(title_en__icontains=q) | Q(excerpt_id__icontains=q) | Q(excerpt_en__icontains=q)), request)[:12])
     return respond(request, "site/search.html", ctx(request, q=q, prods=prods, arts=arts, title=ui(lang, "search")), cache=False, noindex=True)
 
@@ -342,7 +384,7 @@ def robots(request):
 
 def sitemap(request):
     base = settings.PUBLIC_BASE_URL.rstrip("/") or f"{request.scheme}://{request.get_host()}"
-    urls = ["/", "/produk/", "/tentang-kami/", "/lokasi-toko/", "/artikel/", "/arsip/", "/kontak/", "/faq/", "/karir/"]
+    urls = ["/", "/produk/", "/lookbook/", "/tentang-kami/", "/lokasi-toko/", "/artikel/", "/arsip/", "/kontak/", "/faq/", "/karir/"]
     urls += [f"/produk/{p.slug}/" for p in Product.objects.filter(status=Status.PUBLISHED)]
     urls += [f"/artikel/{a.slug}/" for a in Article.objects.filter(status=Status.PUBLISHED)]
     urls += [f"/karir/{j.slug}/" for j in Job.objects.filter(status=JobStatus.OPEN) if j.is_open]
@@ -356,3 +398,10 @@ def healthz(request):
     from django.db import connection
     with connection.cursor() as c: c.execute("SELECT 1")
     return HttpResponse("ok", content_type="text/plain")
+
+
+def favicon(request):
+    """/favicon.ico di akar host (peramban memintanya otomatis); berkas yang sama dengan <link rel=icon>."""
+    r = FileResponse(open(Path(__file__).parent / "static" / "company" / "favicon.ico", "rb"), content_type="image/x-icon")
+    patch_cache_control(r, public=True, max_age=86400)
+    return r
