@@ -237,7 +237,9 @@ class Command(BaseCommand):
         tenun, printing = cats["Sarung Tenun"], cats["Sarung Printing"]
         series = {}
         for i, (nm, hid, hen) in enumerate(MOTIFS):
-            series[nm] = Motif.objects.filter(name_id=nm).first() or Motif.objects.create(name_id=nm, name_en=nm, hint_id=hid, hint_en=hen, category=printing if nm in PRINTING else tenun, order=(i + 1) * 10)
+            m = Motif.objects.filter(name_id=nm).first() or Motif.objects.create(name_id=nm, name_en=nm, hint_id=hid, hint_en=hen, category=printing if nm in PRINTING else tenun, order=(i + 1) * 10)
+            if m.category_id is None: m.category = printing if nm in PRINTING else tenun; m.save(update_fields=["category"])   # subkategori pernah dihapus (SET_NULL) → pasang kembali agar menu & produk contoh tidak patah
+            series[nm] = m
         for slug, nm in SERIES_OF.items():
             p = Product.objects.filter(slug=slug, series__isnull=True).first()
             if p: p.series = series[nm]; p.save(update_fields=["series"])

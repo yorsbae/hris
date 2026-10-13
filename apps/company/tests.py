@@ -726,10 +726,10 @@ class Putaran56Tests(Base):
         self.assertEqual(n, (Motif.objects.count(), Product.objects.count()))
 
     def test_nav_dropdown_groups_motifs_by_kind_on_every_page(self):
-        for url in ("/", "/kontak/", "/en/"):
+        for url, tenun, printing in (("/", "Sarung Tenun", "Sarung Printing"), ("/kontak/", "Sarung Tenun", "Sarung Printing"), ("/en/", "Woven Sarong", "Printed Sarong")):   # nama jenis mengikuti bahasa halaman
             h = self.client.get(url).content.decode(); head = h[h.index("<header"):h.index("</header>")]
             self.assertIn('class="ddp"', head); self.assertIn("/motif/grandmaster/", head); self.assertIn("/motif/balimoon/", head)
-            self.assertLess(head.index("Sarung Tenun"), head.index("/motif/grandmaster/")); self.assertLess(head.index("/motif/grandmaster/"), head.index("Sarung Printing")); self.assertLess(head.index("Sarung Printing"), head.index("/motif/balimoon/"))
+            self.assertLess(head.index(tenun), head.index("/motif/grandmaster/")); self.assertLess(head.index("/motif/grandmaster/"), head.index(printing)); self.assertLess(head.index(printing), head.index("/motif/balimoon/"))
             self.assertNotIn("style=", h)
         self.assertIn("Lihat semua produk", self.client.get("/").content.decode()); self.assertIn("View all products", self.client.get("/en/").content.decode())
 
