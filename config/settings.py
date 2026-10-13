@@ -22,7 +22,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 INSTALLED_APPS = [
     "apps.core.admin_config.HrisAdminConfig", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "apps.core", "apps.hr.apps.HrConfig", "apps.poli.apps.PoliConfig", "apps.hrd", "apps.company",
+    "apps.core", "apps.hr.apps.HrConfig", "apps.poli.apps.PoliConfig", "apps.hrd", "apps.company", "apps.payroll.apps.PayrollConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

@@ -40,12 +40,20 @@ def _company():
             ("Pengaturan Situs", "/company/settings/", "sliders", True),
             ("Rekrutmen", "/recruitment/", "users"), ("Lowongan", "/recruitment/jobs/", "clipboard", True), ("Pelamar", "/recruitment/applicants/", "users", True)]
 
+def _payroll(full):
+    """Menu Payroll (Tahap 7, putaran 57). Payroll & Superadmin: semua; HRD: hanya Run Gaji (periksa, setujui/kembalikan)."""
+    if not full: return [("Payroll (persetujuan)", "/payroll/runs/", "briefcase")]
+    return [("Payroll", "/payroll/", "briefcase"), ("Run Gaji (per periode)", "/payroll/runs/", "calendar", True), ("Profil Gaji Karyawan", "/payroll/profiles/", "users", True),
+            ("Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("Parameter & Komponen", "/payroll/params/", "sliders", True),
+            ("Penyesuaian (insentif/potongan)", "/payroll/adjustments/", "clipboard", True), ("Tali Asih", "/payroll/tali-asih/", "clipboard", True)]
+
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 
 def _groups(role):
     if role == Role.SUPERADMIN:
         return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True),
                            *_ophrd(), *_bpjs(), *_validasi()]),
+                ("Payroll", _payroll(True)),
                 ("Situs & Rekrutmen", _company()),
                 ("Poliklinik", _poli(True)),
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
@@ -53,7 +61,10 @@ def _groups(role):
     if role == Role.HRD:
         return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True),
                         *_ophrd(), *_bpjs(), *_validasi(), ("Master Data", "/master/department/", "sliders")]),
+                ("Payroll", _payroll(False)),
                 ("Situs & Rekrutmen", _company()), _INFO]
+    if role == Role.PAYROLL:
+        return [("Payroll", _payroll(True))]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
                                       *_req("Pengajuan & Monitoring", False), *_absensi(False), *_validasi()]), _INFO]

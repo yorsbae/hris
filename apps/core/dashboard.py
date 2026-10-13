@@ -64,6 +64,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 @login_required
 def home(request):
+    if request.user.role == Role.PAYROLL: return redirect("/payroll/")   # putaran 57: beranda akun Payroll = ringkasan Payroll
     if request.user.role not in (Role.SUPERADMIN, Role.HRD, Role.DEPT_ADMIN, Role.POLI):
         return redirect("/admin/")
     return render(request, "home.html")

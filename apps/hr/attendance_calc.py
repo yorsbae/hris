@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 LEAVE_TYPES = {"cuti": "cuti", "sakit": "sakit", "izin": "izin", "izin_khusus": "izin"}   # jenis pengajuan → status rekap
 LEAVE_LABEL = {"cuti": "cuti", "sakit": "sakit", "izin": "izin", "izin_khusus": "izin khusus"}
 PARTIAL = ("izin_terlambat", "izin_pulang")
+HOLIDAY_WORK_NOTE = "Masuk di hari libur"   # penanda di `notes` untuk hari hadir pada hari libur; DIBACA Payroll (Hari Libur) → jangan diubah tanpa menyesuaikan apps/payroll/engine.py
 SIG = ("department_id", "shift_id", "status", "source", "first_in", "last_out", "scan_count", "incomplete", "late_minutes", "early_minutes", "overtime_minutes",
        "overtime_approved_minutes", "standby_minutes", "extra_minutes", "conflict", "notes")   # tanda tangan isi baris: dibandingkan agar baris tak berubah tidak ditulis ulang
 FIELDS = ["department", "shift", "status", "source", "first_in", "last_out", "scan_count", "incomplete", "late_minutes", "early_minutes", "overtime_minutes",
@@ -206,10 +207,10 @@ def _row(e, d, cell, taps, check, leave, partial, windows, standby, maternity, h
         if has_scan: conflict = "Ada scan pada masa cuti hamil"
     elif holiday and (holiday.applies == "all" or not e.shift_group_id):
         status, source = ("hadir", "mesin") if has_scan else ("libur_nasional", "libur")
-        if has_scan: notes.append(f"Masuk di hari libur: {holiday.name}")
+        if has_scan: notes.append(f"{HOLIDAY_WORK_NOTE}: {holiday.name}")
     elif off:
         status, source = ("hadir", "mesin") if has_scan else ("libur", "jadwal")
-        if has_scan: notes.append("Masuk di hari libur jadwal")
+        if has_scan: notes.append(f"{HOLIDAY_WORK_NOTE} jadwal")
     else:
         status, source = ("hadir", "mesin") if has_scan else ("tanpa_scan", "mesin")
         if not shift: notes.append("Karyawan belum punya shift: terlambat tidak dihitung")

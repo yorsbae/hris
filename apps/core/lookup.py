@@ -25,7 +25,7 @@ def _q(request):
 def _flag(request, key): return request.GET.get(key, "") in ("1", "true", "yes")
 
 
-@require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
+@require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI, Role.PAYROLL)
 @require_GET
 def employees(request):
     """?q=NIK/nama &gender=P|L &department=<id> &exclude=<nik>. Hanya karyawan aktif yang belum dihapus (soft delete tersaring manager)."""
@@ -35,7 +35,8 @@ def employees(request):
     base = Employee.objects.filter(status="aktif")
     # Putaran 52: gagal tertutup. Hanya akun Poli yang boleh meminta scope=all (pasien di form klinis); selain itu ketat per departemen.
     wide = request.user.role == Role.POLI and request.GET.get("scope") == "all"
-    qs = scope_by_department(request.user, base) if wide else scope_dept_only(request.user, base)
+    if request.user.role == Role.PAYROLL: qs = base   # putaran 57: Payroll menggaji semua karyawan; hasil tetap identitas minimum (nik, nama, departemen, jabatan)
+    else: qs = scope_by_department(request.user, base) if wide else scope_dept_only(request.user, base)
     qs = qs.filter(Q(nik__istartswith=q) | Q(name__icontains=q))
     g = request.GET.get("gender", "")
     if g in ("L", "P"): qs = qs.filter(gender=g)

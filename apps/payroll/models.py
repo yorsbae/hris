@@ -1,0 +1,248 @@
+"""Payroll (Tahap 7, putaran 57). SEMUA data upah ada di tabel sendiri — tidak ada nominal gaji di `Employee` (prinsip VISION: "data payroll tidak dicampur ke tabel karyawan").
+
+Prinsip yang diwarisi dari modul lain:
+  • master berlaku-sejak bersifat APPEND-ONLY: perubahan = baris baru bertanggal; salah ketik = dibatalkan beralasan (`voided_*`), bukan diubah/dihapus;
+  • data historis DISALIN saat dicatat (slip membawa nama, jabatan, grade, upah harian, parameter) → slip lama tidak bergeser bila master berubah;
+  • transaksi uang tidak dihapus; run yang sudah dibayar terkunci, koreksi lewat penyesuaian di periode berikutnya.
+Asumsi bisnis (belum dikonfirmasi pemilik produk) dicatat di docs/PROGRESS.md putaran 57 (A120–A135)."""
+from django.conf import settings
+from django.db import models
+
+from apps.hr.models import Employee
+from apps.hrd.models import Separation
+from . import params as P
+
+USER = settings.AUTH_USER_MODEL
+
+
+class Voidable(models.Model):
+    """Dasar master/transaksi yang tidak dihapus: dibatalkan dengan alasan; baris batal diabaikan (dan tidak menghalangi baris pengganti)."""
+    created_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    void_reason = models.CharField(max_length=300, blank=True)
+
+    class Meta: abstract = True
+
+    @property
+    def is_void(self): return self.voided_at is not None
+
+    def delete(self, *a, **k): raise PermissionError("Data payroll tidak boleh dihapus; batalkan dengan alasan.")
+
+
+# ---------------------------------------------------------------- master
+class PayParam(Voidable):
+    """Nilai parameter hitung berlaku-sejak (lihat params.py untuk daftar kunci dan nilai bawaan)."""
+    key = models.CharField(max_length=30, choices=P.CHOICES)
+    value = models.DecimalField(max_digits=14, decimal_places=4)
+    effective_from = models.DateField()
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["key", "-effective_from", "-id"]
+        constraints = [models.UniqueConstraint(fields=["key", "effective_from"], condition=models.Q(voided_at__isnull=True), name="uniq_payparam_active"),
+                       models.CheckConstraint(condition=models.Q(value__gte=0), name="payparam_nonneg")]
+
+
+class WageScale(Voidable):
+    """Skala GAJI HARIAN per grade + sub-grade (mis. grade 9, tingkat A) berlaku-sejak. Boleh berdesimal: slip contoh Rp 2.534.426 ÷ 30 = Rp 84.480,87 per hari."""
+    grade = models.PositiveSmallIntegerField()
+    tier = models.CharField(max_length=2)
+    daily_wage = models.DecimalField(max_digits=14, decimal_places=2)
+    effective_from = models.DateField()
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["grade", "tier", "-effective_from", "-id"]
+        constraints = [models.UniqueConstraint(fields=["grade", "tier", "effective_from"], condition=models.Q(voided_at__isnull=True), name="uniq_wagescale_active"),
+                       models.CheckConstraint(condition=models.Q(daily_wage__gt=0), name="wagescale_positive")]
+
+    @property
+    def label(self): return f"{self.grade} {self.tier}"
+
+
+class PayProfile(Voidable):
+    """Profil gaji karyawan berlaku-sejak: grade + sub-grade (upah harian dari skala) atau upah harian khusus, tunjangan tetap, hak uang makan.
+    Yang berlaku pada periode = baris tidak batal dengan `effective_from` terbesar ≤ akhir periode."""
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="pay_profiles")
+    effective_from = models.DateField()
+    grade = models.PositiveSmallIntegerField(null=True, blank=True)
+    tier = models.CharField(max_length=2, blank=True)
+    wage_override = models.DecimalField("Upah harian khusus", max_digits=14, decimal_places=2, null=True, blank=True)
+    allowance_position = models.DecimalField(max_digits=14, decimal_places=0, default=0)    # T Jabatan (per bulan penuh)
+    allowance_education = models.DecimalField(max_digits=14, decimal_places=0, default=0)   # T Pendidikan
+    allowance_special = models.DecimalField(max_digits=14, decimal_places=0, default=0)     # T Khusus
+    allowance_other = models.DecimalField(max_digits=14, decimal_places=0, default=0)       # T Lain-lain
+    meal_allowance = models.BooleanField("Dibayar uang makan", default=False)
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-effective_from", "-id"]
+        constraints = [models.UniqueConstraint(fields=["employee", "effective_from"], condition=models.Q(voided_at__isnull=True), name="uniq_payprofile_active"),
+                       models.CheckConstraint(condition=models.Q(allowance_position__gte=0, allowance_education__gte=0, allowance_special__gte=0, allowance_other__gte=0), name="payprofile_allowance_nonneg"),
+                       models.CheckConstraint(condition=models.Q(grade__isnull=False) & ~models.Q(tier="") | models.Q(wage_override__isnull=False), name="payprofile_has_wage_source")]
+        indexes = [models.Index(fields=["employee", "effective_from"])]
+
+    @property
+    def grade_label(self): return f"{self.grade} {self.tier}".strip() if self.grade is not None else "khusus"
+
+
+class PayComponent(models.Model):
+    """Komponen baris slip. `auto` dihitung mesin (kode menentukan rumus); `manual` diisi lewat Penyesuaian (insentif, pinjaman, dll.).
+    Komponen tidak dihapus, hanya dinonaktifkan: slip lama menyalin kode/label/urutan."""
+    SECTIONS = [("pokok", "I. Gaji Pokok"), ("tunjangan", "II. Tunjangan"), ("premi", "III. Premi Produksi"), ("lembur", "IV. Lembur"), ("makan", "V. Uang Makan"),
+                ("lain", "VI. Lain-lain"), ("potongan", "VII. Potongan")]
+    KINDS = [("auto", "Dihitung otomatis"), ("manual", "Diisi manual (Penyesuaian)")]
+    code = models.SlugField(max_length=30, unique=True)
+    label = models.CharField(max_length=60)
+    section = models.CharField(max_length=10, choices=SECTIONS)
+    kind = models.CharField(max_length=6, choices=KINDS, default="manual")
+    order = models.PositiveSmallIntegerField(default=100)
+    signed = models.BooleanField("Boleh negatif", default=False, help_text="Hanya untuk koreksi pembayaran (mis. kelebihan bayar bulan lalu).")
+    active = models.BooleanField(default=True)
+
+    class Meta: ordering = ["order", "id"]
+
+    def __str__(self): return self.label
+
+    @property
+    def is_deduction(self): return self.section == "potongan"
+
+    def delete(self, *a, **k): raise PermissionError("Komponen payroll tidak boleh dihapus; nonaktifkan.")
+
+
+class PayAdjustment(Voidable):
+    """Isian manual per karyawan per periode untuk komponen `manual` (insentif, premi produksi, pinjaman, pengobatan, materai, dll.).
+    Satu baris aktif per karyawan+periode+komponen; hanya boleh diubah/ditambah selama run periode itu belum disetujui."""
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="pay_adjustments")
+    period = models.CharField(max_length=7, help_text="YYYY-MM")
+    component = models.ForeignKey(PayComponent, on_delete=models.PROTECT, related_name="adjustments")
+    amount = models.DecimalField(max_digits=14, decimal_places=0)
+    qty = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-period", "component__order", "employee_id"]
+        constraints = [models.UniqueConstraint(fields=["employee", "period", "component"], condition=models.Q(voided_at__isnull=True), name="uniq_payadjustment_active")]
+        indexes = [models.Index(fields=["period"])]
+
+
+class TaliAsihRule(Voidable):
+    """Dasar USULAN tali asih per jenis keluar, berlaku-sejak: tali asih = min(masa kerja penuh × hari upah per tahun, batas hari) × upah harian.
+    Hanya usulan — nominal resmi tetap ditetapkan di Karyawan Keluar (tali asih) dan baru dibayar lewat run gaji."""
+    kind = models.CharField(max_length=15, choices=Separation.Kind.choices)
+    min_years = models.PositiveSmallIntegerField("Masa kerja minimum (tahun)", default=0)
+    days_per_year = models.DecimalField("Hari upah per tahun masa kerja", max_digits=6, decimal_places=2)
+    max_days = models.DecimalField("Batas hari upah", max_digits=7, decimal_places=2, null=True, blank=True)
+    effective_from = models.DateField()
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["kind", "-effective_from", "-id"]
+        constraints = [models.UniqueConstraint(fields=["kind", "effective_from"], condition=models.Q(voided_at__isnull=True), name="uniq_taliasihrule_active"),
+                       models.CheckConstraint(condition=models.Q(days_per_year__gte=0), name="taliasihrule_nonneg")]
+
+
+# ---------------------------------------------------------------- run gaji
+class PayrollRun(models.Model):
+    """Satu run gaji per periode (bulan). Alur: draft → dihitung → diajukan (Payroll) → disetujui (HRD) → dibayar (Payroll; terkunci); dibatalkan sebelum dibayar.
+    `params` = salinan parameter yang dipakai saat dihitung (slip lama tidak bergeser bila parameter diubah kemudian)."""
+    DRAFT, CALCULATED, SUBMITTED, APPROVED, PAID, CANCELLED = "draft", "dihitung", "diajukan", "disetujui", "dibayar", "dibatalkan"
+    STATUSES = [(DRAFT, "Draft"), (CALCULATED, "Sudah dihitung"), (SUBMITTED, "Menunggu persetujuan HRD"), (APPROVED, "Disetujui HRD"), (PAID, "Sudah dibayar"), (CANCELLED, "Dibatalkan")]
+    LOCKED = (APPROVED, PAID)
+    period = models.CharField(max_length=7, db_index=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT, db_index=True)
+    pay_date = models.DateField("Tanggal bayar (rencana)", null=True, blank=True)
+    note = models.CharField(max_length=300, blank=True)
+    params = models.JSONField(default=dict, blank=True)
+    warnings = models.JSONField(default=list, blank=True)
+    n_slips = models.PositiveIntegerField(default=0)
+    total_gross = models.DecimalField(max_digits=16, decimal_places=0, default=0)
+    total_deductions = models.DecimalField(max_digits=16, decimal_places=0, default=0)
+    total_net = models.DecimalField(max_digits=16, decimal_places=0, default=0)
+    calc_at = models.DateTimeField(null=True, blank=True); calc_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    submitted_at = models.DateTimeField(null=True, blank=True); submitted_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    approved_at = models.DateTimeField(null=True, blank=True); approved_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    paid_at = models.DateTimeField(null=True, blank=True); paid_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    paid_on = models.DateField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True); cancelled_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    cancel_reason = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-period", "-id"]
+        constraints = [models.UniqueConstraint(fields=["period"], condition=~models.Q(status="dibatalkan"), name="uniq_payrollrun_period_live")]
+
+    def __str__(self): return f"Run gaji {self.period}"
+
+    @property
+    def locked(self): return self.status in self.LOCKED or self.status == self.CANCELLED
+    @property
+    def editable(self): return self.status in (self.DRAFT, self.CALCULATED, self.SUBMITTED)
+
+    def delete(self, *a, **k): raise PermissionError("Run gaji tidak boleh dihapus; batalkan dengan alasan.")
+
+
+class PayrollRunEvent(models.Model):
+    """Jejak alur run (append-only)."""
+    run = models.ForeignKey(PayrollRun, on_delete=models.PROTECT, related_name="events")
+    action = models.CharField(max_length=20)
+    by = models.ForeignKey(USER, null=True, on_delete=models.SET_NULL, related_name="+")
+    at = models.DateTimeField(auto_now_add=True)
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta: ordering = ["id"]
+
+    def save(self, *a, **k):
+        if self.pk: raise PermissionError("Jejak run tidak boleh diubah")
+        super().save(*a, **k)
+
+    def delete(self, *a, **k): raise PermissionError("Jejak run tidak boleh dihapus")
+
+
+class Payslip(models.Model):
+    """Slip gaji satu karyawan dalam satu run. Identitas, grade, upah harian, dan parameter DISALIN saat dihitung."""
+    run = models.ForeignKey(PayrollRun, on_delete=models.PROTECT, related_name="slips")
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="payslips")
+    nik = models.CharField(max_length=20); emp_name = models.CharField(max_length=150)
+    department_name = models.CharField(max_length=100); position_name = models.CharField(max_length=100, blank=True)
+    grade_label = models.CharField(max_length=20, blank=True); education = models.CharField(max_length=30, blank=True)
+    join_date = models.DateField(); service_years = models.PositiveSmallIntegerField(default=0)
+    daily_wage = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    paid_days = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    total_earnings = models.DecimalField(max_digits=14, decimal_places=0, default=0)
+    total_deductions = models.DecimalField(max_digits=14, decimal_places=0, default=0)
+    net_pay = models.DecimalField(max_digits=14, decimal_places=0, default=0)
+    flags = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["department_name", "emp_name", "id"]
+        constraints = [models.UniqueConstraint(fields=["run", "employee"], name="uniq_payslip_run_employee")]
+        indexes = [models.Index(fields=["run", "department_name"])]
+
+    @property
+    def needs_review(self): return bool(self.flags)
+
+    def delete(self, *a, **k):
+        if self.run.status not in (PayrollRun.DRAFT, PayrollRun.CALCULATED, PayrollRun.SUBMITTED): raise PermissionError("Slip pada run yang sudah disetujui/dibayar tidak boleh dihapus.")
+        return super().delete(*a, **k)
+
+
+class PayslipItem(models.Model):
+    """Satu baris slip. Kode/label/bagian/urutan disalin dari komponen saat dihitung. `refs` = id sumber (mis. pembelian seragam, catatan keluar) untuk penandaan saat dibayar."""
+    slip = models.ForeignKey(Payslip, on_delete=models.CASCADE, related_name="items")
+    component = models.ForeignKey(PayComponent, on_delete=models.PROTECT, related_name="+")
+    code = models.CharField(max_length=30); label = models.CharField(max_length=60)
+    section = models.CharField(max_length=10); order = models.PositiveSmallIntegerField(default=100)
+    qty = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    rate = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    amount = models.DecimalField(max_digits=14, decimal_places=0)
+    source = models.CharField(max_length=12, blank=True)   # profil · hitung · absensi · bpjs · seragam · keluar · manual
+    note = models.CharField(max_length=200, blank=True)
+    refs = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [models.UniqueConstraint(fields=["slip", "component"], name="uniq_payslipitem_slip_component")]

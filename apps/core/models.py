@@ -3,6 +3,7 @@ from django.db import models
 
 class Role(models.TextChoices):
     SUPERADMIN = "superadmin"; HRD = "hrd"; DEPT_ADMIN = "dept_admin"; POLI = "poli"
+    PAYROLL = "payroll"  # putaran 57: menyiapkan gaji (master gaji harian, run per periode, slip); HRD menyetujui. Tanpa akses HR Core/Poli/Pengajuan
 
 class AppUserManager(UserManager):
     def create_superuser(self, username, email=None, password=None, **extra):
