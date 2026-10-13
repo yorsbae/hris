@@ -15,7 +15,7 @@ from apps.core.models import AuditLog, Notification, Role, User
 from apps.hr.models import Department
 from . import careers, safe_upload
 from .forms import stamp
-from .models import (Application, ApplicationEvent, Article, ContactMessage, Faq, Job, Look, Page, Product, ProductCategory, SiteSetting, Stage, StoreLocation, hash_email)
+from .models import (Application, ApplicationEvent, Article, ContactMessage, Faq, Job, Look, Motif, Page, Product, ProductCategory, ProductColor, SiteSetting, Stage, StoreLocation, hash_email)
 from .templatetags.site_tags import rich
 
 KEY = Fernet.generate_key().decode()
@@ -498,7 +498,7 @@ class Putaran54Tests(Base):
     def test_header_logo_and_language_icon(self):
         h = self.client.get("/").content.decode()
         head = h[h.index("<header"):h.index("</header>")]
-        self.assertIn("company/wadimor-wordmark.png", head); self.assertNotIn("<span>PT", head)
+        self.assertIn("company/wadimor-logo.png", head); self.assertNotIn("<span>PT", head)
         self.assertIn('class="lang"', head); self.assertIn("<svg", head[head.index('class="lang"'):])
         self.assertLess(head.index("</nav>"), head.index('class="lang"'))  # ikon bahasa setelah menu = pojok kanan
         self.assertIn("/en/", head)
@@ -508,8 +508,8 @@ class Putaran54Tests(Base):
         self.assertIn('class="hero3"', h); self.assertIn('class="marq', h); self.assertEqual(h.count("mset"), 2)
         self.assertIn('inert aria-hidden="true"', h); self.assertNotIn("style=", h)
 
-    def test_products_page_marquee_only_without_filter(self):
-        self.assertContains(self.client.get("/produk/"), 'class="marq')
+    def test_products_page_has_no_duplicate_marquee(self):   # putaran 56: bagian per kelompok menggantikan pita (tampil ganda)
+        self.assertNotContains(self.client.get("/produk/"), 'class="marq')
 
     def test_google_map_embed_and_csp(self):
         r = self.client.get("/lokasi-toko/")
@@ -557,7 +557,7 @@ class Putaran55Tests(Base):
         h = self.client.get("/").content.decode()
         self.assertIn("<title>Wadimor — Tentu Sarung Kita!</title>", h)
         for f in ("favicon.ico", "favicon-32.png", "apple-touch-icon.png"): self.assertIn(f"company/{f}", h)
-        self.assertIn("company/wadimor-wordmark.png", h[h.index("<header"):h.index("</header>")])
+        self.assertIn("company/wadimor-logo.png", h[h.index("<header"):h.index("</header>")])
         hero = h[h.index('class="hero3"'):]; self.assertIn("company/wadimor-logo.png", hero[:hero.index("</section>")])
         self.assertIn("company/wadimor-logo.png", h[h.index("<footer"):]); self.assertNotIn("Sukorintex", h.title()); self.assertNotIn("logo.svg", h)
         self.assertIn("<title>Produk — Wadimor</title>", self.client.get("/produk/").content.decode())
@@ -581,7 +581,7 @@ class Putaran55Tests(Base):
     def test_seed_builds_two_level_categories_and_is_idempotent(self):
         g = {c.slug: c for c in ProductCategory.objects.filter(parent__isnull=True)}
         self.assertEqual(set(g), {"bawahan", "atasan", "aksesoris"})
-        self.assertEqual({c.name_id for c in g["bawahan"].children.all()}, {"Sarung Tenun", "Sarung Ibadah", "Sarung Anak", "Celana Sarung"})
+        self.assertEqual({c.name_id for c in g["bawahan"].children.all()}, {"Sarung Tenun", "Sarung Printing", "Sarung Ibadah", "Sarung Anak", "Celana Sarung"})
         self.assertEqual({c.name_id for c in g["atasan"].children.all()}, {"Baju Koko", "Kemeja Muslim"}); self.assertEqual({c.name_id for c in g["aksesoris"].children.all()}, {"Peci", "Surban"})
         self.assertIn("celana sarung", g["bawahan"].hint_id.lower()); self.assertIn("surban", g["aksesoris"].hint_id.lower())
         n = (ProductCategory.objects.count(), Product.objects.count(), Look.objects.count()); call_command("seed_company", stdout=io.StringIO())
@@ -693,3 +693,156 @@ class Putaran55BackendTests(Base):
         self.login("hrd"); g = ProductCategory.objects.get(slug="atasan"); n = ProductCategory.objects.filter(parent=g).count(); self.assertEqual(n, 2)
         self.assertEqual(self.client.post(f"/company/categories/{g.pk}/delete/").status_code, 302)
         self.assertEqual(ProductCategory.objects.filter(name_id__in=("Baju Koko", "Kemeja Muslim"), parent__isnull=True).count(), 2)
+
+
+def main_of(r):
+    h = r.content.decode(); return h[h.index("<main"):h.index("</main>")]
+
+
+@ov(public=True)
+class Putaran56Tests(Base):
+    """Putaran 56 (gabungan): menu Produk bertingkat Jenis → Motif/seri, halaman motif, pilihan warna (foto berganti saat diklik), seed Grandmaster, logo header & ikon tab."""
+    def setUp(self):
+        super().setUp(); call_command("seed_company", stdout=io.StringIO())
+        self.gm = Motif.objects.get(slug="grandmaster")
+
+    def test_seed_motifs_and_grandmaster_with_colours_idempotent(self):
+        self.assertEqual(self.gm.category.name_id, "Sarung Tenun")
+        names = list(self.gm.products.order_by("order").values_list("name", flat=True))
+        self.assertEqual(names, ["Grandmaster", "Grandmaster SGE", "Grandmaster SJL", "Grandmaster SEI", "Grandmaster Jacquard Batik"])
+        for p in self.gm.products.all(): self.assertGreaterEqual(p.color_options.count(), 4)
+        n = (Motif.objects.count(), Product.objects.count(), ProductColor.objects.count()); call_command("seed_company", stdout=io.StringIO())
+        self.assertEqual(n, (Motif.objects.count(), Product.objects.count(), ProductColor.objects.count()))
+        self.assertGreaterEqual(Motif.objects.count(), 20)
+
+    def test_seed_kinds_and_every_menu_motif_has_a_product(self):
+        self.assertEqual(Motif.objects.get(slug="balimoon").category.name_id, "Sarung Printing"); self.assertEqual(Motif.objects.get(slug="primer").category.name_id, "Sarung Tenun")
+        for nm in ("Primer", "Viscose", "Jacquard", "Songket", "Balimoon", "Bali", "Kembang", "Tumpal Kembang", "Gerimis 777", "Timbul", "Sulam", "Pen Mode Sutra"):
+            self.assertTrue(Motif.objects.get(name_id=nm).products.filter(status="published").exists(), nm)
+
+    def test_seed_idempotent_even_if_hrd_renames(self):
+        n = (Motif.objects.count(), Product.objects.count())
+        Product.objects.update(name="Diubah"); call_command("seed_company", stdout=io.StringIO())
+        self.assertEqual(n, (Motif.objects.count(), Product.objects.count()))
+
+    def test_nav_dropdown_groups_motifs_by_kind_on_every_page(self):
+        for url in ("/", "/kontak/", "/en/"):
+            h = self.client.get(url).content.decode(); head = h[h.index("<header"):h.index("</header>")]
+            self.assertIn('class="ddp"', head); self.assertIn("/motif/grandmaster/", head); self.assertIn("/motif/balimoon/", head)
+            self.assertLess(head.index("Sarung Tenun"), head.index("/motif/grandmaster/")); self.assertLess(head.index("/motif/grandmaster/"), head.index("Sarung Printing")); self.assertLess(head.index("Sarung Printing"), head.index("/motif/balimoon/"))
+            self.assertNotIn("style=", h)
+        self.assertIn("Lihat semua produk", self.client.get("/").content.decode()); self.assertIn("View all products", self.client.get("/en/").content.decode())
+
+    def test_nav_hides_inactive_and_unpublished_and_follows_order(self):
+        Motif.objects.filter(slug="primer").update(active=False); Motif.objects.get(slug="balimoon").products.update(status="draft")
+        h = self.client.get("/").content.decode(); head = h[h.index("<header"):h.index("</header>")]
+        self.assertNotIn("/motif/primer/", head); self.assertNotIn("/motif/balimoon/", head); self.assertIn("/motif/grandmaster/", head)
+        self.assertLess(head.index("/motif/grandmaster/"), head.index("/motif/viscose/"))
+        self.assertEqual(self.client.get("/motif/primer/").status_code, 404)
+        self.assertNotIn("/produk/grandmaster-sei/", head)   # produk sendiri tidak ada di menu (hanya jenis → motif)
+
+    def test_nav_costs_one_query(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from .public_views import nav_kinds
+        class R: user = None
+        with CaptureQueriesContext(connection) as c: nav_kinds(R())
+        self.assertLessEqual(len(c), 1)
+
+    def test_motif_page_lists_products_with_colour_dots(self):
+        r = self.client.get("/motif/grandmaster/"); self.assertEqual(r.status_code, 200); h = main_of(r)
+        for n in ("Grandmaster SGE", "Grandmaster SJL", "Grandmaster SEI", "Grandmaster Jacquard Batik"): self.assertIn(n, h)
+        self.assertIn("cdots", h); self.assertIn("Sarung Tenun", h); self.assertIn("<title>Grandmaster — Wadimor</title>", r.content.decode())
+        self.assertNotIn("Baju Koko Putih Bordir", h); self.assertEqual(self.client.get("/motif/tidak-ada/").status_code, 404)
+        self.assertEqual(self.client.get("/en/motif/grandmaster/").status_code, 200)
+        self.assertIn("/motif/viscose/", h)   # "Motif lainnya"
+        kosong = Motif.objects.create(name_id="Kosong", category=self.gm.category); self.assertIn("Belum ada produk", main_of(self.client.get(f"/motif/{kosong.slug}/")))
+
+    def test_product_colour_picker_swaps_photo(self):
+        p = Product.objects.get(slug="grandmaster-sge"); ks = list(p.color_options.all())
+        r = self.client.get("/produk/grandmaster-sge/"); self.assertEqual(r.status_code, 200); h = main_of(r)
+        self.assertEqual(h.count('class="cr"'), len(ks)); self.assertEqual(h.count('<div class="cp cp-'), len(ks))
+        self.assertIn('id="cv-1"', h); self.assertIn(" checked>", h); self.assertIn('for="cv-2"', h); self.assertIn(ks[1].hex, h); self.assertIn('class="tint"', h)
+        self.assertIn("/motif/grandmaster/", h)   # jalur: Produk · Bawahan › Sarung Tenun · Grandmaster
+        css = (Path(__file__).parent / "static/company/site.css").read_text()
+        self.assertIn("input#cv-1:checked ~ .pview .cp-1", css); self.assertIn("input#cv-12:checked ~ .main .cp-12", css)
+
+    def test_colour_with_own_photo_uses_it_and_product_without_colours_unchanged(self):
+        p = Product.objects.get(slug="grandmaster"); k = p.color_options.first(); k.image.name = "company/product/abc.png"; k.save()
+        self.assertIn("/media/company/product/abc.png", main_of(self.client.get("/produk/grandmaster/")))
+        h = main_of(self.client.get("/produk/sarung-wadimor-klasik/")); self.assertNotIn('class="cr"', h); self.assertNotIn("csw", h)
+
+    def test_model_view_defaults_to_product_photo_when_colours_exist(self):
+        p = Product.objects.get(slug="grandmaster"); p.model_image.name = "company/product/model.png"; p.save()
+        h = main_of(self.client.get("/produk/grandmaster/")); self.assertIn('id="pv-p" checked', h); self.assertNotIn('id="pv-m" checked', h)
+
+    def test_products_page_tabs_and_motif_chips_and_card_label(self):
+        h = self.client.get("/produk/").content.decode(); main = h[h.index("<main"):h.index("</main>")]
+        self.assertIn('class="ptabs"', main); self.assertIn('class="pseries"', main); self.assertIn('aria-current="page"', main); self.assertIn("/motif/grandmaster/", main); self.assertIn('class="ser"', main)
+        self.assertNotIn('class="marq', h)
+        self.assertIn("Browse by motif / series", self.client.get("/en/produk/").content.decode())
+
+    def test_products_filter_by_kind_and_legacy_series_link_redirects(self):
+        r = self.client.get("/produk/?c=sarung-printing"); self.assertContains(r, "Sarung Wadimor Balimoon"); self.assertNotContains(r, "Grandmaster SGE"); self.assertContains(r, "produk")
+        r = self.client.get("/produk/?s=grandmaster"); self.assertEqual(r.status_code, 302); self.assertEqual(r["Location"], "/motif/grandmaster/")
+        r = self.client.get("/en/produk/?s=grandmaster"); self.assertEqual(r.status_code, 302); self.assertEqual(r["Location"], "/en/motif/grandmaster/")
+        self.assertEqual(self.client.get("/produk/?s=tidak-ada").status_code, 200)
+
+    def test_header_uses_center_logo_and_tab_icon_is_square(self):
+        from PIL import Image
+        h = self.client.get("/").content.decode(); head = h[h.index("<header"):h.index("</header>")]
+        self.assertIn("company/wadimor-logo.png", head); self.assertNotIn("wordmark", head)
+        d = Path(__file__).parent / "static" / "company"
+        for f in ("favicon-32.png", "icon-192.png", "apple-touch-icon.png"):
+            w, hh = Image.open(d / f).size; self.assertEqual(w, hh, f)
+
+    def test_public_html_has_no_inline_style_or_script(self):
+        for url in ("/produk/grandmaster/", "/motif/grandmaster/", "/produk/", "/"):
+            h = self.client.get(url).content.decode(); self.assertNotRegex(h, r"\sstyle=|<script(?![^>]*src=)"); self.assertIn("script-src 'self'", self.client.get(url)["Content-Security-Policy"])
+
+    def test_sitemap_has_motif_urls(self):
+        self.assertIn("/motif/grandmaster/", self.client.get("/sitemap.xml").content.decode())
+
+
+@ov()
+class Putaran56BackendTests(Base):
+    def setUp(self):
+        super().setUp(); call_command("seed_company", stdout=io.StringIO()); self.p = Product.objects.get(slug="grandmaster")
+
+    def test_roles(self):
+        self.client.logout(); self.assertNotEqual(self.client.get("/company/motifs/").status_code, 200)   # anonim tidak masuk
+        for name in ("adm", "poli"):
+            self.client.logout(); self.login(name)
+            for u in ("/company/motifs/", "/company/motifs/new/"): self.assertEqual(self.client.get(u).status_code, 403)
+            self.assertEqual(self.client.post(f"/company/products/{self.p.pk}/colors/add/", {"name_id": "X", "hex": "#112233"}).status_code, 403)
+
+    def test_hrd_manages_motifs(self):
+        self.login("hrd"); r = self.client.get("/company/motifs/"); self.assertContains(r, "Grandmaster"); self.assertContains(self.client.get("/company/"), "Motif / seri")
+        cat = ProductCategory.objects.get(slug="sarung-printing")
+        r = self.client.post("/company/motifs/new/", {"category": cat.pk, "name_id": "Kotak Baru", "name_en": "New Check", "hint_id": "", "hint_en": "", "order": 5, "active": "on"}); self.assertEqual(r.status_code, 302)
+        m = Motif.objects.get(name_id="Kotak Baru"); self.assertEqual(m.slug, "kotak-baru"); self.assertEqual(m.category, cat)
+        self.assertTrue(AuditLog.objects.filter(module="company", action="create").exists())
+        self.assertEqual(self.client.post(f"/company/motifs/{m.pk}/delete/").status_code, 302); self.assertFalse(Motif.objects.filter(pk=m.pk).exists())
+
+    def test_deleting_motif_keeps_products(self):
+        self.login("hrd"); self.client.post(f"/company/motifs/{Motif.objects.get(slug='grandmaster').pk}/delete/"); self.p.refresh_from_db(); self.assertIsNone(self.p.series_id)
+
+    def test_product_form_has_series_and_edit_page_shows_colours(self):
+        self.login("hrd"); r = self.client.get(f"/company/products/{self.p.pk}/"); self.assertContains(r, "Motif / seri (menu Produk)"); self.assertContains(r, "Pilihan warna"); self.assertContains(r, "Marun")
+        r = self.client.get("/company/products/"); self.assertContains(r, "Grandmaster SGE"); self.assertContains(r, "Motif / seri")
+
+    def test_add_and_delete_colour_with_validation(self):
+        self.login("hrd"); n = self.p.color_options.count(); url = f"/company/products/{self.p.pk}/colors/add/"
+        self.client.post(url, {"name_id": "Merah Bata", "name_en": "Brick", "hex": "#B5472F", "order": 5}); self.assertEqual(self.p.color_options.count(), n + 1)
+        self.assertEqual(self.p.color_options.get(name_id="Merah Bata").hex, "#b5472f")
+        for bad in ("red", "#12", "javascript:1", "#12345g", '"><script>'):
+            self.client.post(url, {"name_id": "Salah", "hex": bad}); self.assertFalse(self.p.color_options.filter(name_id="Salah").exists())
+        k = self.p.color_options.get(name_id="Merah Bata"); self.client.post(f"/company/products/{self.p.pk}/colors/{k.pk}/delete/"); self.assertEqual(self.p.color_options.count(), n)
+        self.assertEqual(self.client.post(f"/company/products/{Product.objects.exclude(pk=self.p.pk).first().pk}/colors/{k.pk}/delete/").status_code, 404)
+
+    def test_colour_limit_12_and_bad_image_rejected(self):
+        self.login("hrd"); url = f"/company/products/{self.p.pk}/colors/add/"
+        for i in range(12): ProductColor.objects.get_or_create(product=self.p, name_id=f"W{i}", defaults={"hex": "#101010"})
+        self.client.post(url, {"name_id": "Ke-13", "hex": "#202020"}); self.assertFalse(self.p.color_options.filter(name_id="Ke-13").exists())
+        ProductColor.objects.filter(product=self.p, name_id__startswith="W").delete()
+        self.client.post(url, {"name_id": "Palsu", "hex": "#202020", "image": SimpleUploadedFile("x.png", b"<script>alert(1)</script>", content_type="image/png")}); self.assertFalse(self.p.color_options.filter(name_id="Palsu").exists())

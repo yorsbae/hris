@@ -286,3 +286,59 @@ main.wide{background:none}
  .litems a{grid-template-columns:60px 1fr;gap:12px}.litems .th{width:60px;height:60px}.litems .pr{grid-column:2;justify-content:space-between;text-align:left}}
 @media(prefers-reduced-motion:reduce){.litems a{transition:none}.litems a:hover{transform:none}}
 .lphoto .chip{background:rgba(255,253,242,.94);color:var(--brown);border:1px solid var(--gold4);border-radius:16px;padding:3px 12px;font-size:13px;font-weight:600;box-shadow:var(--shadow)}
+
+/* ======================= Putaran 56 — halaman motif, bulatan warna di kartu, pilihan warna (foto berganti saat diklik) ======================= */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mcover img{width:100%;height:auto;max-height:330px;object-fit:cover;border-radius:14px;border:1px solid var(--line);margin:0 0 18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.chipl{display:inline-block;padding:6px 14px;border:1px solid var(--brown2);border-radius:20px;color:var(--brown);text-decoration:none;background:#fffbe6;font-size:14px}.chipl:hover{background:var(--brown);color:var(--gold2)}
+.cdots{display:inline-flex;gap:3px;align-items:center;margin:.4em .6em 0 0;vertical-align:middle}
+/* pilihan warna: tanpa JS — radio tersembunyi + label bulat; panel foto ditampilkan menurut radio terpilih */
+.cpick>input.cr{position:absolute;opacity:0;pointer-events:none}
+.cpick .main{position:relative}.cstage{position:absolute;inset:0}.cp{display:none;position:absolute;inset:0}.cp>img,.cp>svg.motif{width:100%;height:100%;object-fit:cover;display:block}
+.cp .tint{position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:multiply;opacity:.42;pointer-events:none}
+.csw{margin:12px 0 4px}.csw .cl{margin:0 0 6px;font-size:14px;color:var(--brown)}.csw .cn{display:none}
+.swl{display:flex;flex-wrap:wrap;gap:8px}.swl label{display:inline-flex;border-radius:50%;cursor:pointer;padding:3px;border:2px solid transparent;transition:transform .12s}.swl label:hover{transform:scale(1.08)}
+.cpick input#cv-1:checked ~ .pview .cp-1,.cpick input#cv-1:checked ~ .main .cp-1{display:block}.cpick input#cv-1:checked ~ .csw .cn-1{display:inline}.cpick input#cv-1:checked ~ .csw label[for=cv-1]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-1:focus-visible ~ .csw label[for=cv-1]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-2:checked ~ .pview .cp-2,.cpick input#cv-2:checked ~ .main .cp-2{display:block}.cpick input#cv-2:checked ~ .csw .cn-2{display:inline}.cpick input#cv-2:checked ~ .csw label[for=cv-2]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-2:focus-visible ~ .csw label[for=cv-2]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-3:checked ~ .pview .cp-3,.cpick input#cv-3:checked ~ .main .cp-3{display:block}.cpick input#cv-3:checked ~ .csw .cn-3{display:inline}.cpick input#cv-3:checked ~ .csw label[for=cv-3]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-3:focus-visible ~ .csw label[for=cv-3]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-4:checked ~ .pview .cp-4,.cpick input#cv-4:checked ~ .main .cp-4{display:block}.cpick input#cv-4:checked ~ .csw .cn-4{display:inline}.cpick input#cv-4:checked ~ .csw label[for=cv-4]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-4:focus-visible ~ .csw label[for=cv-4]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-5:checked ~ .pview .cp-5,.cpick input#cv-5:checked ~ .main .cp-5{display:block}.cpick input#cv-5:checked ~ .csw .cn-5{display:inline}.cpick input#cv-5:checked ~ .csw label[for=cv-5]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-5:focus-visible ~ .csw label[for=cv-5]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-6:checked ~ .pview .cp-6,.cpick input#cv-6:checked ~ .main .cp-6{display:block}.cpick input#cv-6:checked ~ .csw .cn-6{display:inline}.cpick input#cv-6:checked ~ .csw label[for=cv-6]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-6:focus-visible ~ .csw label[for=cv-6]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-7:checked ~ .pview .cp-7,.cpick input#cv-7:checked ~ .main .cp-7{display:block}.cpick input#cv-7:checked ~ .csw .cn-7{display:inline}.cpick input#cv-7:checked ~ .csw label[for=cv-7]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-7:focus-visible ~ .csw label[for=cv-7]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-8:checked ~ .pview .cp-8,.cpick input#cv-8:checked ~ .main .cp-8{display:block}.cpick input#cv-8:checked ~ .csw .cn-8{display:inline}.cpick input#cv-8:checked ~ .csw label[for=cv-8]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-8:focus-visible ~ .csw label[for=cv-8]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-9:checked ~ .pview .cp-9,.cpick input#cv-9:checked ~ .main .cp-9{display:block}.cpick input#cv-9:checked ~ .csw .cn-9{display:inline}.cpick input#cv-9:checked ~ .csw label[for=cv-9]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-9:focus-visible ~ .csw label[for=cv-9]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-10:checked ~ .pview .cp-10,.cpick input#cv-10:checked ~ .main .cp-10{display:block}.cpick input#cv-10:checked ~ .csw .cn-10{display:inline}.cpick input#cv-10:checked ~ .csw label[for=cv-10]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-10:focus-visible ~ .csw label[for=cv-10]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-11:checked ~ .pview .cp-11,.cpick input#cv-11:checked ~ .main .cp-11{display:block}.cpick input#cv-11:checked ~ .csw .cn-11{display:inline}.cpick input#cv-11:checked ~ .csw label[for=cv-11]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-11:focus-visible ~ .csw label[for=cv-11]{outline:3px solid var(--focus);outline-offset:2px}
+.cpick input#cv-12:checked ~ .pview .cp-12,.cpick input#cv-12:checked ~ .main .cp-12{display:block}.cpick input#cv-12:checked ~ .csw .cn-12{display:inline}.cpick input#cv-12:checked ~ .csw label[for=cv-12]{border-color:var(--maroon);box-shadow:0 0 0 2px #fff6d5 inset}.cpick input#cv-12:focus-visible ~ .csw label[for=cv-12]{outline:3px solid var(--focus);outline-offset:2px}
+
+/* ---- putaran 56: logo berlian di header, menu Produk bertingkat (Jenis → Motif/Seri), tab/jenis/motif di halaman Produk, kartu sejajar ---- */
+.brand img.hlogo{height:66px;width:auto;max-width:none;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
+@media(max-width:520px){.brand img.hlogo{height:54px}}
+header.top .bar{position:relative}
+nav.main .dd{position:static;display:flex;align-items:center}
+nav.main .ddt i{font-style:normal;font-size:11px;opacity:.8;margin-left:2px}
+.ddp{display:none;position:absolute;top:100%;left:18px;right:18px;max-width:780px;margin:0 auto;background:linear-gradient(180deg,#14253d,#0b1626);border:1px solid var(--gold4);border-top:2px solid var(--gold);border-radius:0 0 14px 14px;box-shadow:0 18px 40px rgba(0,0,0,.45);padding:18px 20px 12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 28px;z-index:30}
+.ddp:before{content:"";position:absolute;left:0;right:0;top:-16px;height:16px}
+nav.main .dd.has:hover .ddp,nav.main .dd.has:focus-within .ddp{display:grid}
+.ddc ul{list-style:none;margin:0;padding:0;columns:2;column-gap:14px}.ddc li{break-inside:avoid}
+nav.main .ddp a{display:block;font:500 14px/1.3 system-ui,"Segoe UI",sans-serif;font-variant:normal;letter-spacing:0;text-transform:none;color:#efe3b0;padding:6px 8px;border-radius:6px;background:none}
+nav.main .ddp a:hover,nav.main .ddp a:focus-visible{background:rgba(217,189,69,.2);color:#fff}nav.main .ddp a:hover:after{display:none}
+nav.main .ddp a.ddh{font:700 14px Georgia,serif;font-variant:small-caps;letter-spacing:.08em;color:var(--gold2);border-bottom:1px solid rgba(217,189,69,.35);border-radius:0;margin-bottom:6px;padding:4px 8px 7px;display:flex;justify-content:space-between;align-items:baseline}
+.ddh small{font:600 11px system-ui,sans-serif;opacity:.7;letter-spacing:0}
+nav.main .ddp a.ddall{grid-column:1/-1;text-align:center;border-top:1px solid rgba(217,189,69,.25);border-radius:0;margin-top:6px;padding-top:10px;color:var(--gold2);font-weight:700}
+@media(max-width:860px){nav.main .dd{display:block;width:100%}.ddp{position:static;display:block;max-width:none;margin:0 0 6px 10px;padding:4px 8px 6px;background:rgba(255,255,255,.05);border:0;border-left:2px solid var(--gold4);border-radius:0;box-shadow:none}.ddp:before{display:none}.ddc ul{columns:2}nav.main .dd.has:hover .ddp{display:block}}
+/* tab kelompok, jenis, seri */
+.ptabs{display:flex;justify-content:center;gap:4px;margin:14px 0 4px;border-bottom:2px solid var(--gold);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.ptabs::-webkit-scrollbar{display:none}
+.ptabs a{flex:none;padding:10px 22px;font:600 15px Georgia,serif;font-variant:small-caps;letter-spacing:.07em;color:var(--brown2);text-decoration:none;border:2px solid transparent;border-bottom:0;border-radius:10px 10px 0 0;margin-bottom:-2px;white-space:nowrap}
+.ptabs a:hover{background:rgba(217,189,69,.22);color:var(--brown)}.ptabs a[aria-current=page]{background:var(--brown);color:#fff;border-color:var(--brown)}
+.ptabs a.lk{margin-left:auto;color:var(--maroon)}
+.psub{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin:14px 0 4px}.psub .lbl,.pseries .lbl{font:700 12px system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:0}
+.psub a,.pseries a{border:1px solid var(--brown2);color:var(--brown);padding:4px 14px;border-radius:16px;text-decoration:none;font-size:14px;background:#fffbe6;transition:background .15s}
+.psub a:hover,.pseries a:hover{background:var(--gold2)}.psub a[aria-current=true],.pseries a[aria-current=true]{background:var(--brown);color:#fff;border-color:var(--brown)}
+.pseries{margin:14px auto 6px;max-width:980px;background:rgba(255,251,230,.7);border:1px solid var(--line);border-radius:14px;padding:12px 16px}
+.pseries .srow{display:grid;grid-template-columns:130px 1fr;gap:6px 14px;align-items:baseline;padding:8px 0;border-top:1px dashed var(--line)}.pseries .lbl+.srow{border-top:0}
+.pseries .srow b{font:700 14px Georgia,serif;color:var(--brown)}.pseries .srow div{display:flex;gap:6px 8px;flex-wrap:wrap}.pseries a{padding:3px 12px;font-size:13.5px}
+@media(max-width:600px){.pseries .srow{grid-template-columns:1fr}.ptabs{justify-content:flex-start}.ptabs a{padding:9px 15px}.ptabs a.lk{margin-left:0}}
+.pcount{margin:18px 0 8px;color:var(--mut);font-size:14px}
+.card .ser{display:block;min-height:1.3em;font:700 11px system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--maroon);margin-bottom:2px}
+.card h3{min-height:2.5em;line-height:1.25}.card .in>p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

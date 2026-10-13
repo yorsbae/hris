@@ -26,3 +26,10 @@
     try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf("draft:") === 0) localStorage.removeItem(k); }); } catch (e) { }
   }
 })();
+
+// pilihan warna: memilih warna otomatis beralih ke tampilan “Foto produk” (bila ada tombol Dipakai model | Foto produk). Tanpa JS tetap berfungsi lewat CSS.
+(function () {
+  Array.prototype.forEach.call(document.querySelectorAll(".cpick input.cr"), function (r) {
+    r.addEventListener("change", function () { var pp = document.getElementById("pv-p"); if (pp && !pp.checked) pp.checked = true; });
+  });
+})();

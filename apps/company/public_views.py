@@ -24,7 +24,7 @@ from apps.core.net import client_ip
 from . import careers, safe_upload
 from .forms import ApplyForm, ContactForm, LookupForm, stamp
 from .i18n import CONSENT_EN, CONSENT_ID, UI
-from .models import (Application, Article, ContactMessage, Faq, Job, JobStatus, Look, Page, Product, ProductCategory, SiteSetting, StoreLocation, Stage, Status,
+from .models import (Application, Article, ContactMessage, Faq, Job, JobStatus, Look, Motif, Page, Product, ProductCategory, SiteSetting, StoreLocation, Stage, Status,
                      hash_ip, STAGE_PUBLIC)
 
 MONTHS = {"id": ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"],
@@ -57,13 +57,22 @@ def _alt_url(request, lang):
 def ui(lang, key): return UI.get(key, {}).get(lang) or UI.get(key, {}).get("id", key)
 
 
+def nav_kinds(request):
+    """Isi menu Produk: JENIS (Sarung Tenun, Sarung Printing, …) → MOTIF/SERI (Grandmaster, Primer, …) yang punya produk tayang (pratinjau HRD: yang punya produk apa pun). Satu query; urut menurut urutan jenis lalu motif."""
+    pubf = Q(products__isnull=False) if is_preview(request) else Q(products__status=Status.PUBLISHED)
+    rows = Motif.objects.filter(active=True, category__isnull=False, category__active=True).filter(pubf).select_related("category").annotate(n=Count("products", filter=pubf, distinct=True)).order_by("category__parent__order", "category__order", "order", "name_id")
+    kinds = {}
+    for r in rows: kinds.setdefault(r.category_id, {"kind": r.category, "series": [], "n": 0}); kinds[r.category_id]["series"].append(r); kinds[r.category_id]["n"] += r.n
+    return list(kinds.values())
+
+
 def ctx(request, **extra):
     lang = lang_of(request); s = SiteSetting.get()
     menu = list(pub(Page.objects.filter(show_in_menu=True), request))
     base = {"lang": lang, "S": s, "menu_pages": menu, "alt_url": _alt_url(request, lang), "alt_lang": "id" if lang == "en" else "en", "preview": is_preview(request),
             "open_jobs": Job.objects.filter(status=JobStatus.OPEN).count() if not is_preview(request) else Job.objects.exclude(status=JobStatus.CLOSED).count(),
             "title": "", "description": s.meta_description_en if lang == "en" and s.meta_description_en else s.meta_description_id,
-            "base": settings.PUBLIC_BASE_URL.rstrip("/"), "page_path": request.path, "now": timezone.now(), "month_names": MONTHS[lang]}
+            "nav_kinds": nav_kinds(request), "base": settings.PUBLIC_BASE_URL.rstrip("/"), "page_path": request.path, "now": timezone.now(), "month_names": MONTHS[lang]}
     base.update(extra)
     return base
 
@@ -134,6 +143,11 @@ def products(request):
     cur_cat = next((c for g in groups for c in [g, *g.children.all()] if c.slug == cur), None)
     cur_group = cur_cat.group if cur_cat else None
     page = sections = None
+    if request.GET.get("s"):   # tautan lama ?s=<motif> → halaman motif (satu halaman resmi per motif)
+        from django.shortcuts import redirect
+        m = Motif.objects.filter(slug=request.GET["s"], active=True).first()
+        if m: return redirect(request.path.replace("/produk/", f"/motif/{m.slug}/", 1))
+    qs = qs.select_related("series")   # kartu menampilkan nama motif tanpa query per produk
     if cur_cat:
         qs = qs.filter(category__slug__in=cur_cat.tree_slugs()) if cur_cat.parent_id is None else qs.filter(category=cur_cat)
         page = Paginator(qs, 12).get_page(request.GET.get("page", 1))
@@ -151,8 +165,11 @@ def products(request):
                 if items: sections.append({"g": g, "items": items[:4], "n": len(items)})
             rest = [p for p in allp if p.category_id is None or p.category_id not in {c.pk for g in groups for c in [g, *g.children.all()]}]
             if rest: sections.append({"g": None, "items": rest[:4], "n": len(rest)})
-    return respond(request, "site/products.html", ctx(request, groups=groups, page=page, sections=sections, cur=cur if cur_cat else "", cur_cat=cur_cat, cur_group=cur_group,
-                                                      mq=mq, mqc=mqc, unknown_cat=bool(cur and not cur_cat), title=(cur_cat.name_en if lang == "en" and cur_cat and cur_cat.name_en else cur_cat.name_id) if cur_cat else ui(lang, "products")))
+    c = ctx(request, groups=groups, page=page, sections=sections, cur=cur if cur_cat else "", cur_cat=cur_cat, cur_group=cur_group,
+            mq=mq, mqc=mqc, unknown_cat=bool(cur and not cur_cat), title=(cur_cat.name_en if lang == "en" and cur_cat and cur_cat.name_en else cur_cat.name_id) if cur_cat else ui(lang, "products"))
+    nk = c["nav_kinds"]   # chip motif: semua jenis; bila kelompok/jenis dipilih, hanya jenis di dalamnya (tanpa query tambahan)
+    c["series_chips"] = [k for k in nk if k["kind"].pk == cur_cat.pk or k["kind"].parent_id == cur_cat.pk] if cur_cat else nk
+    return respond(request, "site/products.html", c)
 
 
 def product(request, slug):
@@ -164,7 +181,17 @@ def product(request, slug):
             more = pub(Product.objects.exclude(pk__in=[p.pk, *(r.pk for r in rel)]).filter(category__parent_id=p.category.parent_id), request).select_related("category__parent")
             rel += list(more[:3 - len(rel)])
     looks = list(look_qs(request).filter(products=p)[:3])
-    return respond(request, "site/product.html", ctx(request, p=p, related=rel, gallery=p.images.all(), looks=looks, title=p.name))
+    return respond(request, "site/product.html", ctx(request, p=p, related=rel, gallery=p.images.all(), looks=looks, colors=list(p.color_options.all()), title=p.name))
+
+
+def motif_page(request, slug):
+    """Halaman satu motif/seri (mis. Grandmaster): semua produknya, tiap kartu dengan bulatan pilihan warna."""
+    m = get_object_or_404(Motif.objects.filter(active=True).select_related("category__parent"), slug=slug)
+    items = list(pub(Product.objects.filter(series=m), request).select_related("category__parent").prefetch_related("color_options"))
+    for p in items: p.series = m   # semua satu motif: kartu tak perlu query lagi
+    c = ctx(request, m=m, items=items, title=m.name_en if lang_of(request) == "en" and m.name_en else m.name_id)
+    c["others"] = [r for k in c["nav_kinds"] for r in k["series"] if r.pk != m.pk]
+    return respond(request, "site/motif.html", c)
 
 
 def lookbook(request):
@@ -385,6 +412,7 @@ def robots(request):
 def sitemap(request):
     base = settings.PUBLIC_BASE_URL.rstrip("/") or f"{request.scheme}://{request.get_host()}"
     urls = ["/", "/produk/", "/lookbook/", "/tentang-kami/", "/lokasi-toko/", "/artikel/", "/arsip/", "/kontak/", "/faq/", "/karir/"]
+    urls += [f"/motif/{m.slug}/" for m in Motif.objects.filter(active=True)]
     urls += [f"/produk/{p.slug}/" for p in Product.objects.filter(status=Status.PUBLISHED)]
     urls += [f"/artikel/{a.slug}/" for a in Article.objects.filter(status=Status.PUBLISHED)]
     urls += [f"/karir/{j.slug}/" for j in Job.objects.filter(status=JobStatus.OPEN) if j.is_open]

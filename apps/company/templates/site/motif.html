@@ -1,0 +1,6 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block content %}
+<p class="crumb"><a href="{% purl 'products' %}">‹ {% ui "products" %}</a>{% if m.category %} · {% if m.category.parent %}{% t m.category.parent "name" %} › {% endif %}{% t m.category "name" %}{% endif %}</p>
+<div class="sh"><span class="eyebrow">{% ui "series" %}</span><h1>{% t m "name" %}</h1><span class="orn" aria-hidden="true"><i></i></span>{% t m "hint" as h %}{% if h %}<p class="lead">{{ h }}</p>{% endif %}</div>
+{% if m.cover %}<div class="mcover"><img src="{{ m.cover|media }}" alt="{% t m 'name' %}" width="1100" height="330"></div>{% endif %}
+{% if items %}<div class="grid">{% for p in items %}{% include "site/_product_card.html" with dots=1 %}{% endfor %}</div>{% else %}<p class="panel">{% ui "no_series_products" %}</p>{% endif %}
+{% if others %}<div class="sh sub2"><h2>{% ui "other_series" %}</h2><span class="orn" aria-hidden="true"><i></i></span></div><p class="chips">{% for r in others %}<a class="chipl" href="{% purl 'motif' r.slug %}">{% t r "name" %}</a>{% endfor %}</p>{% endif %}{% endblock %}

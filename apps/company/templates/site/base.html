@@ -13,10 +13,10 @@
 {% if preview %}<div class="prev" role="note">{% ui "preview" %}</div>{% endif %}
 {% if S.banner_active %}<div class="pbanner" role="note"><b>{% t S "banner" %}</b></div>{% endif %}
 <header class="top"><div class="bar">
-<a class="brand" href="{% purl 'home' %}" aria-label="{{ S.brand_name }}">{% if S.logo %}<img src="{{ S.logo|media }}" alt="{{ S.brand_name }}" height="46">{% else %}<img class="wordmark" src="{% static 'company/wadimor-wordmark.png' %}" alt="{{ S.brand_name }}" width="179" height="40">{% endif %}</a>
+<a class="brand" href="{% purl 'home' %}" aria-label="{{ S.brand_name }}">{% if S.logo %}<img src="{{ S.logo|media }}" alt="{{ S.brand_name }}" height="46">{% else %}<img class="hlogo" src="{% static 'company/wadimor-logo.png' %}" alt="{{ S.brand_name }}" width="77" height="66">{% endif %}</a>
 <input type="checkbox" id="navtoggle" class="navtoggle" aria-label="{% ui 'menu' %}"><label for="navtoggle" class="navbtn">☰ {% ui "menu" %}</label>
 <nav class="main" aria-label="{% ui 'menu' %}">
-<a href="{% purl 'home' %}">{% ui "home" %}</a><a href="{% purl 'products' %}">{% ui "products" %}</a><a href="{% purl 'looks' %}">{% ui "lookbook" %}</a><a href="{% purl 'about' %}">{% ui "about" %}</a>
+<a href="{% purl 'home' %}">{% ui "home" %}</a><div class="dd{% if nav_kinds %} has{% endif %}"><a class="ddt" href="{% purl 'products' %}">{% ui "products" %}{% if nav_kinds %} <i aria-hidden="true">▾</i>{% endif %}</a>{% if nav_kinds %}<div class="ddp" role="group" aria-label="{% ui 'menu_products' %}">{% for k in nav_kinds %}<div class="ddc"><a class="ddh" href="{% purl 'products' %}?c={{ k.kind.slug }}">{% t k.kind "name" %}<small>{{ k.n }}</small></a><ul>{% for r in k.series %}<li><a href="{% purl 'motif' r.slug %}">{% t r "name" %}</a></li>{% endfor %}</ul></div>{% endfor %}<a class="ddall" href="{% purl 'products' %}">{% ui "view_all_products" %} ›</a></div>{% endif %}</div><a href="{% purl 'looks' %}">{% ui "lookbook" %}</a><a href="{% purl 'about' %}">{% ui "about" %}</a>
 <a href="{% purl 'stores' %}">{% ui "stores" %}</a><a href="{% purl 'articles' %}">{% ui "articles" %}</a>{% if open_jobs %}<a href="{% purl 'careers' %}">{% ui "careers" %}</a>{% endif %}
 <a href="{% purl 'contact' %}">{% ui "contact" %}</a><a href="{% purl 'faq' %}">{% ui "faq" %}</a><a href="{% purl 'archive' %}">{% ui "archive" %}</a>
 {% for p in menu_pages %}{% if p.slug != "tentang-kami" %}<a href="{% purl 'page' p.slug %}">{% t p "title" %}</a>{% endif %}{% endfor %}

@@ -5,6 +5,7 @@ Data pribadi pelamar/pengirim pesan (email, telepon, tgl lahir, surat lamaran, j
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import uuid
 from datetime import timedelta
@@ -27,6 +28,7 @@ def upload_brand(instance, filename): return _name("brand", filename)
 def upload_product(instance, filename): return _name("product", filename)
 def upload_article(instance, filename): return _name("article", filename)
 def upload_look(instance, filename): return _name("look", filename)
+def upload_motif(instance, filename): return _name("motif", filename)
 
 
 def unique_slug(model, text, instance=None, field="slug", fallback="item"):
@@ -151,8 +153,33 @@ class ProductCategory(Stamped):
     def __str__(self): return f"{self.parent.name_id} › {self.name_id}" if self.parent_id else self.name_id
 
 
+class Motif(Stamped):
+    """SERI / MOTIF sarung (Grandmaster, Primer, Viscose, Jacquard, …): tingkat di antara subkategori (mis. Sarung Tenun) dan produk.
+    Jalur situs: Produk → Sarung Tenun → motif Grandmaster → produk Grandmaster SGE → pilihan warna. Menu Produk menampilkan daftar motif di kiri dan produk motif yang disorot di kanan."""
+    slug = models.SlugField(max_length=60, unique=True, blank=True)
+    category = models.ForeignKey(ProductCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="motifs", verbose_name="Subkategori",
+                                 help_text="Mis. Sarung Tenun. Dipakai untuk rute “Produk › Sarung Tenun › Motif”.")
+    name_id = models.CharField("Nama motif (ID)", max_length=100)
+    name_en = models.CharField("Nama motif (EN)", max_length=100, blank=True)
+    hint_id = models.CharField("Keterangan singkat (ID)", max_length=200, blank=True)
+    hint_en = models.CharField("Keterangan singkat (EN)", max_length=200, blank=True)
+    cover = models.FileField("Foto sampul motif", upload_to=upload_motif, blank=True)
+    order = models.PositiveIntegerField("Urutan", default=100)
+    active = models.BooleanField("Tampil di menu & situs", default=True)
+
+    class Meta: ordering = ["order", "name_id"]; verbose_name_plural = "motifs"
+
+    def save(self, *a, **k):
+        if not self.slug: self.slug = unique_slug(Motif, self.name_id, self, fallback="motif")
+        super().save(*a, **k)
+
+    def __str__(self): return self.name_id
+
+
 class Product(Stamped):
     category = models.ForeignKey(ProductCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="products")
+    series = models.ForeignKey(Motif, null=True, blank=True, on_delete=models.SET_NULL, related_name="products", verbose_name="Motif / seri (menu Produk)",
+                               help_text="Mis. Grandmaster. Produk tampil di bawah motif ini pada menu Produk dan halaman motif.")
     slug = models.SlugField(max_length=80, unique=True, blank=True)
     name = models.CharField("Nama produk", max_length=140)
     summary_id = models.CharField("Ringkasan (ID)", max_length=240, blank=True)
@@ -178,6 +205,38 @@ class Product(Stamped):
         if not self.slug: self.slug = unique_slug(Product, self.name, self, fallback="produk")
         super().save(*a, **k)
     def __str__(self): return self.name
+
+
+HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+class ProductColor(models.Model):
+    """Pilihan warna satu produk. Di halaman produk tiap warna = satu tombol bulat; diklik → foto berganti ke foto warna itu
+    (tanpa foto → ilustrasi motif berwarna sesuai kode warna). Berfungsi tanpa JavaScript."""
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="color_options")
+    name_id = models.CharField("Nama warna (ID)", max_length=60)
+    name_en = models.CharField("Nama warna (EN)", max_length=60, blank=True)
+    hex = models.CharField("Kode warna", max_length=7, default="#8b1e2d", help_text="Format #RRGGBB, mis. #8b1e2d. Dipakai untuk bulatan warna.")
+    image = models.FileField("Foto warna ini", upload_to=upload_product, blank=True, help_text="Foto produk dalam warna ini (JPG/PNG/WebP ≤ 3 MB). Kosong = ilustrasi otomatis.")
+    order = models.PositiveIntegerField("Urutan", default=100)
+
+    class Meta: ordering = ["order", "id"]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if not HEX_RE.match(self.hex or ""): raise ValidationError({"hex": "Kode warna harus berbentuk #RRGGBB, mis. #8b1e2d."})
+
+    # sifat tiruan agar ilustrasi motif (tag `motif`) menghasilkan gambar khas warna ini
+    @property
+    def name(self): return f"{self.product.name} {self.name_id}"
+    @property
+    def motif(self): return self.product.motif
+    @property
+    def colors(self): return self.name_id
+    @property
+    def category(self): return self.product.category
+
+    def __str__(self): return f"{self.product.name} — {self.name_id}"
 
 
 class ProductImage(models.Model):

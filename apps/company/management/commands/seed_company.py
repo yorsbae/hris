@@ -3,7 +3,8 @@ Aman dijalankan ulang (tidak menimpa isi yang sudah diubah HRD; hanya membuat bi
 `--force` tidak ada: hapus/ubah lewat backend."""
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from apps.company.models import Article, Faq, Job, Look, Page, Product, ProductCategory, SiteSetting, StoreLocation
+from django.utils.text import slugify
+from apps.company.models import Article, Faq, Job, Look, Motif, Page, Product, ProductCategory, ProductColor, SiteSetting, StoreLocation
 
 OLD_ABOUT_ID = """## Apa itu sarung?
 Sarung adalah kain tradisional Indonesia berbentuk tabung yang menjadi bagian dari budaya dan kehidupan sehari-hari. Selain sebagai pakaian, sarung adalah lambang identitas budaya, status sosial, dan warisan leluhur yang diwariskan turun-temurun.
@@ -102,7 +103,7 @@ GROUPS = (  # slug, nama id/en, contoh isi id/en, urutan
     ("aksesoris", "Aksesoris", "Accessories", "Surban, peci, dan aksesoris lainnya.", "Turbans, caps and other accessories.", 30),
 )
 SUBS = (  # kelompok, nama id/en, urutan
-    ("bawahan", "Sarung Tenun", "Woven Sarong", 10), ("bawahan", "Sarung Ibadah", "Worship Sarong", 20), ("bawahan", "Sarung Anak", "Kids' Sarong", 30), ("bawahan", "Celana Sarung", "Sarong Trousers", 40),
+    ("bawahan", "Sarung Tenun", "Woven Sarong", 10), ("bawahan", "Sarung Printing", "Printed Sarong", 15), ("bawahan", "Sarung Ibadah", "Worship Sarong", 20), ("bawahan", "Sarung Anak", "Kids' Sarong", 30), ("bawahan", "Celana Sarung", "Sarong Trousers", 40),
     ("atasan", "Baju Koko", "Koko Shirt", 10), ("atasan", "Kemeja Muslim", "Muslim Shirt", 20),
     ("aksesoris", "Peci", "Peci Cap", 10), ("aksesoris", "Surban", "Turban", 20),
 )
@@ -157,6 +158,33 @@ JOBS = (  # judul, divisi, lokasi, jenis, jumlah, ringkasan, tugas, syarat, bene
 )
 
 
+MOTIFS = (  # nama motif/seri sarung tenun (urutan = urutan di menu Produk), keterangan id/en
+    ("Grandmaster", "Seri unggulan: tenunan rapat, warna pekat, tampil berwibawa.", "Flagship series: dense weave, rich colours, a dignified look."),
+    ("Primer", "Sarung harian bermutu dengan harga bersahabat.", "Good everyday sarongs at a friendly price."),
+    ("Viscose", "Serat viscose yang jatuh lembut dan adem.", "Viscose fibre that drapes softly and stays cool."),
+    ("Dobby Special", "Tenunan dobby dengan pola timbul halus.", "Dobby weave with a subtle raised pattern."),
+    ("Jacquard", "Pola jacquard rumit pada seluruh badan kain.", "Intricate jacquard patterns across the whole cloth."),
+    ("Mercerized", "Benang mercerized: mengilap, kuat, dan awet warna.", "Mercerized yarn: lustrous, strong and colour-fast."),
+    ("Balimoon", "", ""), ("Bali", "", ""), ("Songket", "Benang metalik bermotif songket untuk acara istimewa.", "Metallic songket threads for special occasions."),
+    ("Kembang", "", ""), ("Tumpal Kembang", "Kepala tumpal berpadu motif bunga.", "Tumpal head panel with floral motifs."), ("Gerimis 777", "", ""), ("Pen Mode Sutra", "", ""),
+    ("Timbul", "", ""), ("Sulam", "", ""), ("Dobby Excellent Oriental", "", ""), ("Batik", "", ""), ("Viscose (GMC & BMC)", "", ""), ("Junior", "", ""),
+    ("Sarung Celana & Subaiyah", "", ""), ("Best Seller", "Pilihan pelanggan paling laris.", "Our customers' all-time favourites."),
+)
+PRINTING = {"Balimoon", "Bali", "Kembang", "Tumpal Kembang", "Gerimis 777", "Timbul", "Sulam"}   # jenis Sarung Printing; selebihnya Sarung Tenun — pengelompokan ini ASUMSI awal, ubah di menu Motif / seri
+PLACEHOLDERS = ("Primer", "Viscose", "Dobby Special", "Jacquard", "Mercerized", "Songket", "Dobby Excellent Oriental", "Pen Mode Sutra", "Balimoon", "Bali", "Kembang", "Tumpal Kembang", "Gerimis 777", "Timbul", "Sulam")
+SERIES_OF = {"sarung-wadimor-klasik": "Primer", "sarung-wadimor-songket": "Songket", "sarung-tumpal-premium": "Tumpal Kembang", "sarung-jacquard-eksklusif": "Jacquard"}
+C = {  # palet warna contoh: nama id, nama en, kode warna
+    "marun": ("Marun", "Maroon", "#7a1f2b"), "navy": ("Biru Navy", "Navy", "#1c2f55"), "hijau": ("Hijau Botol", "Bottle Green", "#1f5a3d"), "hitam": ("Hitam", "Black", "#1b1b1f"),
+    "cokelat": ("Cokelat", "Brown", "#6b4423"), "abu": ("Abu-abu", "Grey", "#6c7077"), "ungu": ("Ungu", "Purple", "#5b2f7a"), "emas": ("Emas", "Gold", "#c9a227"),
+    "teal": ("Hijau Tosca", "Teal", "#1d6f72"), "krem": ("Krem", "Cream", "#d8c79b"),
+}
+GRANDMASTER = (  # slug, nama, motif teks, bahan, harga, ringkasan id/en, warna
+    ("grandmaster", "Grandmaster", "Kotak grandmaster", "Katun mercerized premium", 265000, "Seri induk Grandmaster: tenunan padat dengan kilau halus.", "The original Grandmaster: dense weave with a soft sheen.", ("marun", "navy", "hijau", "hitam", "cokelat")),
+    ("grandmaster-sge", "Grandmaster SGE", "Kotak SGE", "Katun mercerized", 275000, "Varian SGE dengan garis emas tipis di sepanjang kain.", "SGE variant with fine gold lines along the cloth.", ("navy", "marun", "hijau", "abu")),
+    ("grandmaster-sjl", "Grandmaster SJL", "Kotak SJL", "Katun mercerized", 275000, "Varian SJL dengan lajur tegas, tampil rapi untuk salat Jumat.", "SJL variant with bold stripes, neat for Friday prayers.", ("hitam", "navy", "cokelat", "ungu")),
+    ("grandmaster-sei", "Grandmaster SEI", "Kotak SEI", "Katun mercerized", 285000, "Varian SEI berkesan elegan dengan kombinasi dua warna.", "Elegant SEI variant with a two-tone combination.", ("hijau", "teal", "marun", "hitam", "abu")),
+    ("grandmaster-jacquard-batik", "Grandmaster Jacquard Batik", "Jacquard batik", "Viscose jacquard", 345000, "Jacquard bermotif batik pada seluruh badan kain.", "Batik-pattern jacquard across the whole cloth.", ("cokelat", "navy", "ungu", "emas")),
+)
 class Command(BaseCommand):
     help = "Isi awal situs publik dengan konten contoh (tidak menimpa data yang sudah ada)."
 
@@ -205,6 +233,29 @@ class Command(BaseCommand):
             if p.price is None and price is not None: p.price, p.show_price, ch = price, True, True
             if p.category_id is None: p.category, ch = cats[cat], True
             if ch: p.save()
+        # motif/seri sarung tenun (menu Produk) + produk Grandmaster berpilihan warna; hanya dibuat bila belum ada, tidak menimpa suntingan HRD
+        tenun, printing = cats["Sarung Tenun"], cats["Sarung Printing"]
+        series = {}
+        for i, (nm, hid, hen) in enumerate(MOTIFS):
+            series[nm] = Motif.objects.filter(name_id=nm).first() or Motif.objects.create(name_id=nm, name_en=nm, hint_id=hid, hint_en=hen, category=printing if nm in PRINTING else tenun, order=(i + 1) * 10)
+        for slug, nm in SERIES_OF.items():
+            p = Product.objects.filter(slug=slug, series__isnull=True).first()
+            if p: p.series = series[nm]; p.save(update_fields=["series"])
+        old = timezone.make_aware(datetime.datetime(2025, 10, 8, 9, 0))
+        for n, (slug, name, mt, material, price, sid, sen, cols) in enumerate(GRANDMASTER):
+            p = Product.objects.filter(slug=slug).first()
+            if p is None:
+                size = "115 x 220 cm"; names = ", ".join(C[k][0] for k in cols)
+                p = Product.objects.create(slug=slug, name=name, category=tenun, series=series["Grandmaster"], motif=mt, colors=names, material=material, size=size, price=price, show_price=True, status="published",
+                                           order=100 + n, summary_id=sid, summary_en=sen, description_id=f"{sid}\n\n- Bahan: {material}\n- Ukuran: {size}\n- Warna: {names}", description_en=f"{sen}\n\n- Material: {material}\n- Size: {size}\n- Colours: {', '.join(C[k][1] for k in cols)}")
+                Product.objects.filter(pk=p.pk).update(created_at=old)   # tanggal contoh seperti di menu referensi
+            if not p.color_options.exists():
+                for j, k in enumerate(cols): ProductColor.objects.create(product=p, name_id=C[k][0], name_en=C[k][1], hex=C[k][2], order=(j + 1) * 10)
+        for i, nm in enumerate(PLACEHOLDERS):   # satu produk contoh untuk motif yang belum punya produk, agar menu Produk tidak berisi motif kosong; kunci = slug (nama boleh diubah HRD tanpa membuat duplikat)
+            m = series[nm]; name = f"Sarung Wadimor {nm}"; slug = slugify(name); kind = m.category.name_id.lower()
+            if m.products.exists() or Product.objects.filter(slug=slug).exists(): continue
+            Product.objects.create(slug=slug, name=name, category=m.category, series=m, motif=nm, status="published", order=200 + i,
+                                   summary_id=f"Seri {nm} dari Wadimor — {kind} untuk keseharian dan acara istimewa.", summary_en=f"The {nm} series by Wadimor — {kind.replace('sarung', 'sarong')} for daily wear and special occasions.")
         for slug, tid, ten, oid, oen, sid, sen, items, feat, order in LOOKS:   # lookbook: dibuat bila belum ada; setelan yang sudah disunting HRD tidak disentuh
             if not Look.objects.filter(slug=slug).exists():
                 lk = Look.objects.create(slug=slug, title_id=tid, title_en=ten, occasion_id=oid, occasion_en=oen, story_id=sid, story_en=sen, featured=feat, order=order, status="published")

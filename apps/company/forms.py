@@ -8,7 +8,7 @@ from django.conf import settings
 from django.core import signing
 from django.core.exceptions import ValidationError
 from . import safe_upload
-from .models import (EDUCATION, Article, ContactMessage, Faq, Job, Look, Page, Product, ProductCategory, ProductImage, SiteSetting, StoreLocation)
+from .models import (EDUCATION, HEX_RE, Article, ContactMessage, Faq, Job, Look, Motif, Page, Product, ProductCategory, ProductColor, ProductImage, SiteSetting, StoreLocation)
 
 MAX_QUESTIONS = 8
 HP = re.compile(r"^[0-9+()\-\s]{6,25}$")
@@ -82,6 +82,8 @@ class ProductForm(ImageMixin, forms.ModelForm):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         self.fields["category"].choices = category_choices()
+        self.fields["series"].queryset = Motif.objects.select_related("category").order_by("order", "name_id")
+        self.fields["series"].empty_label = "— (tanpa motif) —"
 
     def clean(self):
         d = super().clean()
@@ -99,6 +101,32 @@ class LookForm(ImageMixin, forms.ModelForm):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         self.fields["products"].queryset = Product.objects.select_related("category__parent").order_by("category__parent__order", "category__order", "order", "name")
+
+
+class MotifForm(ImageMixin, forms.ModelForm):
+    image_fields = ("cover",)
+    class Meta:
+        model = Motif
+        exclude = ("created_at", "updated_at", "updated_by", "slug")
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.fields["category"].choices = category_choices()
+
+
+class ProductColorForm(ImageMixin, forms.ModelForm):
+    image_fields = ("image",)
+    hex = forms.CharField(label="Kode warna", max_length=7, initial="#8b1e2d", widget=forms.TextInput(attrs={"type": "color"}), help_text="Pilih warna atau ketik #RRGGBB.")
+    class Meta: model = ProductColor; fields = ["name_id", "name_en", "hex", "image", "order"]
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        for f, ph in (("name_id", "Nama warna (ID), mis. Marun"), ("name_en", "Nama warna (EN)"), ("order", "Urutan")): self.fields[f].widget.attrs["placeholder"] = ph
+
+    def clean_hex(self):
+        v = (self.cleaned_data.get("hex") or "").strip().lower()
+        if not HEX_RE.match(v): raise ValidationError("Kode warna harus berbentuk #RRGGBB, mis. #8b1e2d.")
+        return v
 
 
 class ProductImageForm(ImageMixin, forms.ModelForm):

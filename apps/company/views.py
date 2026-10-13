@@ -20,8 +20,8 @@ from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles
 from . import careers, safe_upload
-from .forms import (ArticleForm, CategoryForm, FaqForm, JobForm, LookForm, MoveForm, PageForm, ProductForm, ProductImageForm, SiteSettingForm, StoreForm)
-from .models import (ACTIVE_STAGES, Application, Article, ContactMessage, Faq, Job, JobStatus, Look, MessageStatus, Page, Product, ProductCategory, ProductImage, SiteSetting,
+from .forms import (ArticleForm, CategoryForm, FaqForm, JobForm, LookForm, MotifForm, MoveForm, PageForm, ProductColorForm, ProductForm, ProductImageForm, SiteSettingForm, StoreForm)
+from .models import (ACTIVE_STAGES, Application, Article, ContactMessage, Faq, Job, JobStatus, Look, MessageStatus, Motif, Page, Product, ProductCategory, ProductColor, ProductImage, SiteSetting,
                      Stage, StoreLocation, Status)
 
 PER_PAGE = 30
@@ -112,7 +112,7 @@ class Crud:
         obj = get_object_or_404(self.model, pk=pk)
         if not self.can_delete: raise Http404
         files = [getattr(obj, f).name for f in self.files if getattr(obj, f, None)]
-        if isinstance(obj, Product): files += [i.image.name for i in obj.images.all() if i.image]
+        if isinstance(obj, Product): files += [i.image.name for i in obj.images.all() if i.image] + [c.image.name for c in obj.color_options.all() if c.image]
         name = str(obj)[:80]
         log(request, "company", "delete", obj, before={"title": name})
         obj.delete()
@@ -129,15 +129,21 @@ def _remove_file(name):
 
 class ProductCrud(Crud):
     def extra_context(self, request, obj):
-        return {"gallery": obj.images.all() if obj else [], "gallery_form": ProductImageForm() if obj else None}
+        return {"gallery": obj.images.all() if obj else [], "gallery_form": ProductImageForm() if obj else None,
+                "colors": obj.color_options.all() if obj else [], "color_form": ProductColorForm() if obj else None}
 
 
 PUB = [(Status.DRAFT.value, "Draf"), (Status.PUBLISHED.value, "Terbit")]
 OPEN = [(JobStatus.DRAFT.value, "Draf"), (JobStatus.OPEN.value, "Dibuka"), (JobStatus.CLOSED.value, "Ditutup")]
 CRUDS = {
     "products": ProductCrud("products", Product, ProductForm, "Produk", "Produk",
-        [("Produk", "fill", lambda o: _two(o.name, o.summary_id)), ("Kategori", "nw", lambda o: o.category or "—"), ("Foto model", "nw", lambda o: "Ada" if o.model_image else "—"), ("Harga", "num nw", lambda o: _rupiah(o.price) if o.show_price else "disembunyikan"),
-         ("Status", "nw", lambda o: _pill(o.status, o.get_status_display() + (" ★" if o.featured else "")))], search=("name", "summary_id", "motif"), status_choices=PUB, files=("image", "model_image"), order=("order", "name")),
+        [("Produk", "fill", lambda o: _two(o.name, o.summary_id)), ("Kategori", "nw", lambda o: o.category or "—"), ("Motif / seri", "nw", lambda o: o.series or "—"), ("Foto model", "nw", lambda o: "Ada" if o.model_image else "—"), ("Harga", "num nw", lambda o: _rupiah(o.price) if o.show_price else "disembunyikan"),
+         ("Status", "nw", lambda o: _pill(o.status, o.get_status_display() + (" ★" if o.featured else "")))], search=("name", "summary_id", "motif"), status_choices=PUB, files=("image", "model_image"), order=("order", "name"), qs=lambda q: q.select_related("category__parent", "series")),
+    "motifs": Crud("motifs", Motif, MotifForm, "Motif / seri", "Motif / seri",
+        [("Motif", "fill", lambda o: _two(o.name_id, o.hint_id or o.name_en)), ("Subkategori", "nw", lambda o: o.category or "—"), ("Produk", "num nw", lambda o: o.n_products),
+         ("Urutan", "num nw", lambda o: o.order), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Tampil" if o.active else "Disembunyikan"))],
+        search=("name_id", "name_en", "hint_id"), files=("cover",), qs=lambda q: q.select_related("category__parent").annotate(n_products=Count("products")), order=("order", "name_id"),
+        hint="Motif = seri sarung (Grandmaster, Primer, Viscose, …). Urutan di sini = urutan di menu Produk. Produk dimasukkan ke motif lewat kolom “Motif / seri” pada formulir Produk; warna tiap produk diatur di bagian “Pilihan warna” pada halaman ubah produk."),
     "looks": Crud("looks", Look, LookForm, "Lookbook", "Lookbook",
         [("Setelan", "fill", lambda o: _two(o.title_id, o.occasion_id or o.story_id[:70])), ("Produk", "num nw", lambda o: o.n_items), ("Foto", "nw", lambda o: "Ada" if o.photo else "Belum"),
          ("Status", "nw", lambda o: _pill(o.status, o.get_status_display() + (" ★" if o.featured else "")))], search=("title_id", "title_en", "occasion_id"), status_choices=PUB,
@@ -210,6 +216,31 @@ def product_image_delete(request, pk, image_id):
     return redirect(f"/company/products/{pk}/")
 
 
+# ------------------------------------------------------------------ Pilihan warna produk
+@hrd_only
+@require_POST
+def product_color_add(request, pk):
+    p = get_object_or_404(Product, pk=pk)
+    if p.color_options.count() >= 12:
+        messages.error(request, "Maksimal 12 pilihan warna per produk."); return redirect(f"/company/products/{p.pk}/")
+    form = ProductColorForm(request.POST, request.FILES)
+    if form.is_valid():
+        c = form.save(commit=False); c.product = p; c.save()
+        log(request, "company", "update", p, after={"fields": ["warna"]}); messages.success(request, f"Warna “{c.name_id}” ditambahkan.")
+    else:
+        messages.error(request, "Warna tidak dapat disimpan: " + "; ".join(sum((list(e) for e in form.errors.values()), [])))
+    return redirect(f"/company/products/{p.pk}/")
+
+
+@hrd_only
+@require_POST
+def product_color_delete(request, pk, color_id):
+    c = get_object_or_404(ProductColor, pk=color_id, product_id=pk)
+    name = c.image.name if c.image else ""; c.delete(); _remove_file(name)
+    log(request, "company", "update", c.product, after={"fields": ["warna"]}); messages.success(request, "Warna dihapus.")
+    return redirect(f"/company/products/{pk}/")
+
+
 # ================================================================ Hub & pengaturan
 SETTING_GROUPS = [
     ("Identitas", ["brand_name", "logo", "tagline_id", "tagline_en"]),
@@ -226,6 +257,7 @@ def hub(request):
     new_apps = Application.objects.filter(stage=Stage.NEW, anonymized_at__isnull=True).count()
     cards = [
         ("Produk", "/company/products/", Product.objects.filter(status="published").count(), f"terbit dari {Product.objects.count()} produk"),
+        ("Motif / seri", "/company/motifs/", Motif.objects.filter(active=True).count(), "motif tampil di menu Produk"),
         ("Lookbook", "/company/looks/", Look.objects.filter(status="published").count(), f"setelan terbit dari {Look.objects.count()} (foto model + daftar produk)"),
         ("Artikel", "/company/articles/", Article.objects.filter(status="published").count(), f"terbit dari {Article.objects.count()} artikel"),
         ("Lokasi toko", "/company/stores/", StoreLocation.objects.filter(active=True).count(), "toko tampil di situs"),
