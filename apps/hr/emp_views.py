@@ -6,9 +6,10 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from apps.core.audit import log
 from apps.core.models import Role
-from apps.core.scope import get_scoped_or_404, require_roles
-from .emp_forms import MASTERS, ContractForm, EmployeeForm
-from datetime import timedelta
+from apps.core.scope import get_scoped_or_404, require_roles, scope_by_department
+from .emp_forms import MASTERS, STATUSES, ContractForm, EmployeeForm
+from .views import BULK_MAX
+from datetime import date, timedelta
 from django.utils import timezone
 from . import leave, schedule
 from .models import ChangeRequest, Contract, Employee, EmployeeHistory, ShiftAssignment
@@ -126,6 +127,100 @@ def employee_delete(request, pk):
             messages.success(request, f"{e.nik} dihapus (soft delete; dapat dipulihkan Superadmin).")
             return redirect("/employees/")
     return render(request, "employee_delete.html", {"e": e, "blockers": blockers, "err": err})
+
+
+# ---- Aksi massal (checkbox di daftar karyawan): hapus (soft delete) & ubah status. Dua langkah: pratinjau + konfirmasi, lalu eksekusi. ----
+BULK_ACTIONS = {"delete": "Hapus karyawan", "status": "Ubah status karyawan"}
+BULK_PREVIEW = 100  # baris pratinjau di halaman konfirmasi (sisanya hanya dihitung)
+BULK_SKIP_NIKS = 10  # NIK yang disebut di pesan "dilewati"
+
+
+def _chunks(seq, n=500):
+    """Potong daftar agar query `IN (...)` aman di SQLite maupun PostgreSQL."""
+    for i in range(0, len(seq), n): yield seq[i:i + n]
+
+
+def _parse_ids(raw):
+    """'3,1,3,x' -> [3, 1]: unik, urutan dipertahankan, token bukan angka ASCII dibuang."""
+    out, seen = [], set()
+    for t in (raw or "").split(","):
+        t = t.strip()
+        if t.isascii() and t.isdigit() and int(t) not in seen: seen.add(int(t)); out.append(int(t))
+    return out
+
+
+def _bulk_load(user, ids, lock=False):
+    """Karyawan terpilih (hanya yang masih ada & terjangkau scope) + himpunan id yang masih punya pengajuan berjalan."""
+    emps = []
+    for part in _chunks(ids):
+        qs = scope_by_department(user, Employee.objects.select_related("department", "position")).filter(pk__in=part)
+        emps += list(qs.select_for_update(of=("self",)) if lock else qs)
+    emps.sort(key=lambda e: (e.name.lower(), e.pk))
+    busy = set()
+    for part in _chunks([e.pk for e in emps]):
+        busy.update(ChangeRequest.objects.filter(employee_id__in=part, status__in=ACTIVE_REQ).values_list("employee_id", flat=True))
+    return emps, busy
+
+
+def _niks(emps):
+    """'A1, A2, … (+N lagi)' untuk pesan ringkas."""
+    s = ", ".join(e.nik for e in emps[:BULK_SKIP_NIKS])
+    return s + (f", … (+{len(emps) - BULK_SKIP_NIKS} lagi)" if len(emps) > BULK_SKIP_NIKS else "")
+
+
+@login_required
+@require_roles(*HRD_ROLES)
+def employee_bulk(request):
+    """POST saja. Tanpa `confirm`: tampilkan pratinjau (siapa yang kena, siapa yang dilewati) + isian alasan/status. Dengan `confirm`: validasi ulang di server
+    lalu eksekusi dalam satu transaksi; yang tidak memenuhi syarat DILEWATI (dilaporkan), bukan menggagalkan seluruh aksi. Hasil per karyawan masuk audit + riwayat."""
+    if request.method != "POST": return redirect("/employees/")
+    action = request.POST.get("action", "")
+    ids = _parse_ids(request.POST.get("ids"))
+    if action not in BULK_ACTIONS: messages.error(request, "Aksi massal tidak dikenal."); return redirect("/employees/")
+    if not ids: messages.error(request, "Pilih minimal satu karyawan dulu."); return redirect("/employees/")
+    if len(ids) > BULK_MAX: messages.error(request, f"Terlalu banyak karyawan terpilih ({len(ids)}); maksimal {BULK_MAX} per aksi. Persempit dengan filter."); return redirect("/employees/")
+    reason = request.POST.get("reason", "").strip()
+    status = request.POST.get("status", "")
+    eff_raw = request.POST.get("effective_date", "")
+    err = ""
+    if request.POST.get("confirm"):
+        eff = date.today()
+        if action == "delete" and not reason: err = "Alasan wajib diisi."
+        if action == "status":
+            if status not in dict(STATUSES): err = "Pilih status tujuan."
+            try: eff = date.fromisoformat(eff_raw) if eff_raw else date.today()
+            except ValueError: err = "Tanggal efektif tidak valid."
+        if not err:
+            with transaction.atomic():
+                emps, busy = _bulk_load(request.user, ids, lock=True)  # dihitung ulang di dalam transaksi + baris dikunci
+                missing = len(ids) - len(emps)
+                if action == "delete":
+                    targets, skipped = [e for e in emps if e.pk not in busy], [e for e in emps if e.pk in busy]
+                    for e in targets:
+                        e.soft_delete(request.user, reason)
+                        log(request, "hr", "employee_delete", e, {"deleted": False}, {"deleted": True, "reason": reason[:300], "bulk": True})
+                    done_msg = f"{len(targets)} karyawan dihapus (soft delete; dapat dipulihkan Superadmin)."
+                    skip_msg = f"{len(skipped)} dilewati karena masih ada pengajuan berjalan: {_niks(skipped)}." if skipped else ""
+                else:
+                    targets, skipped = [e for e in emps if e.status != status], [e for e in emps if e.status == status]
+                    for e in targets:
+                        old, e.status = e.status, status
+                        e.save(update_fields=["status"])
+                        EmployeeHistory.objects.create(employee=e, field="status", old_value=old, new_value=status, effective_date=eff, changed_by=request.user)
+                        log(request, "hr", "employee_update", e, {"status": old}, {"status": status, "bulk": True})
+                    done_msg = f"Status {len(targets)} karyawan diubah menjadi {status}."
+                    skip_msg = f"{len(skipped)} dilewati karena sudah berstatus {status}: {_niks(skipped)}." if skipped else ""
+                log(request, "hr", "employee_bulk", None, None, {"action": action, "requested": len(ids), "done": len(targets), "skipped": len(skipped), "missing": missing})
+            if targets: messages.success(request, done_msg)
+            else: messages.warning(request, "Tidak ada karyawan yang diubah.")
+            if skip_msg: messages.warning(request, skip_msg)
+            if missing: messages.warning(request, f"{missing} karyawan terpilih sudah tidak ada/sudah dihapus.")
+            return redirect("/employees/")
+    emps, busy = _bulk_load(request.user, ids)
+    ctx = {"action": action, "title": BULK_ACTIONS[action], "ids": ",".join(str(e.pk) for e in emps), "total": len(emps), "missing": len(ids) - len(emps),
+           "preview": emps[:BULK_PREVIEW], "more": max(len(emps) - BULK_PREVIEW, 0), "busy": busy, "blocked": len(busy) if action == "delete" else 0,
+           "err": err, "reason": reason, "status": status, "statuses": STATUSES, "effective_date": eff_raw or date.today().isoformat()}
+    return render(request, "employee_bulk.html", ctx)
 
 
 @login_required

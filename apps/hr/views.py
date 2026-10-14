@@ -83,6 +83,18 @@ def employee_list(request):
     if grouped: cols = cols + ("grp",)
     return JsonResponse({"count": page.paginator.count, "page": page.number, "results": list(page.object_list.values(*cols))})
 
+BULK_MAX = 5000  # batas ID per aksi massal: cukup untuk ±3.000 karyawan, tetap melindungi dari POST/IN-query yang terlalu besar
+
+
+@require_roles(Role.HRD)
+def employee_ids(request):
+    """ID SEMUA karyawan yang cocok dengan filter yang sama seperti daftar (bukan hanya satu halaman) untuk 'Pilih semua hasil filter' di aksi massal.
+    Hanya HRD/Superadmin (hanya mereka yang boleh aksi massal). Dibatasi BULK_MAX; `truncated` memberi tahu UI bila hasil melebihi batas."""
+    qs, _g = order_employees(_employee_qs(request), request.GET.get("sort", ""), request.GET.get("group", ""))
+    total = qs.count()
+    return JsonResponse({"count": total, "ids": list(qs.values_list("pk", flat=True)[:BULK_MAX]), "limit": BULK_MAX, "truncated": total > BULK_MAX})
+
+
 @require_roles(Role.HRD)
 def employee_detail(request, pk):
     emp = get_scoped_or_404(request.user, Employee.objects.all(), pk)

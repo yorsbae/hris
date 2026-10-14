@@ -8,18 +8,30 @@
 <select id="sort" aria-label="Urutkan"><option value="">Urutan bawaan (nama A→Z)</option><option value="name">Nama (A→Z)</option><option value="-name">Nama (Z→A)</option><option value="nik">NIK (kecil→besar)</option><option value="-nik">NIK (besar→kecil)</option>{% if departments %}<option value="department">Departemen (A→Z)</option><option value="-department">Departemen (Z→A)</option>{% endif %}<option value="position">Jabatan (A→Z)</option><option value="-position">Jabatan (Z→A)</option><option value="status">Status (A→Z)</option><option value="-status">Status (Z→A)</option>{% if hrd %}<option value="join_date">Tanggal masuk (terlama)</option><option value="-join_date">Tanggal masuk (terbaru)</option>{% endif %}</select>
 <select id="group" aria-label="Kelompokkan"><option value="">Tanpa pengelompokan</option>{% if departments %}<option value="department">Departemen</option>{% endif %}<option value="position">Jabatan</option><option value="status">Status</option><option value="shift">Shift (A7 / A7 Pack / GS)</option></select>
 {% if hrd %}<select id="contract" aria-label="Kontrak"><option value="">Semua kontrak</option><option value="aktif">Kontrak aktif</option><option value="expiring">Habis ≤ 30 hari</option><option value="expired">Sudah lewat</option><option value="none">Tanpa kontrak aktif</option></select>{% endif %}<button type="button" class="ghost" id="reset">Reset</button></div>
-<div class="wrap"><table><thead><tr><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th><th>Status</th></tr></thead><tbody id="rows" aria-live="polite"></tbody></table></div>
+{% if hrd %}<style>
+.bulkbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 10px;padding:8px 12px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r)}
+.bulkbar .cnt{font-weight:600}.bulkbar .act{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto}
+th.selcol,td.selcol{width:1%;white-space:nowrap}tr.sel{background:var(--hov)}
+@media(max-width:600px){table.cards td.selcol::before{display:none}}
+</style>
+<form id="bulk" method="post" action="/employees/bulk/" hidden>{% csrf_token %}<input type="hidden" name="action"><input type="hidden" name="ids"></form>
+<div class="bulkbar" role="region" aria-label="Aksi massal"><label class="chk"><input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini"> Pilih semua di halaman ini</label>
+<span class="cnt" id="selcnt" aria-live="polite"></span><button type="button" class="ghost sm" id="selmatch" hidden></button>
+<span class="act" id="bulkact" hidden><button type="button" class="sm" data-bact="status">Ubah status…</button><button type="button" class="sm danger" data-bact="delete">Hapus…</button><button type="button" class="ghost sm" id="selclear">Batal pilih</button></span></div>{% endif %}
+<div class="wrap"><table><thead><tr>{% if hrd %}<th class="selcol"><label class="chk"><input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini"> Pilih</label></th>{% endif %}<th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th><th>Status</th></tr></thead><tbody id="rows" aria-live="polite"></tbody></table></div>
 <nav class="pager" aria-label="Halaman"><button type="button" class="ghost" id="prev">‹ Sebelumnya</button> <span id="info"></span> <button type="button" class="ghost" id="next">Berikutnya ›</button></nav>
 <script>
 function expLinks(){const p=new URLSearchParams();for(const k of ["q","st","department","position","shift","contract","sort","group"]){const e=document.getElementById(k);if(e&&e.value)p.set(k==="st"?"status":k,e.value)}for(const [id,f] of [["export-csv","csv"],["export-xlsx","xlsx"]]){const a=document.getElementById(id);if(a){p.set("format",f);a.href="/api/employees/export/?"+p}}}
 document.addEventListener("change",expLinks);document.addEventListener("input",expLinks);document.addEventListener("DOMContentLoaded",expLinks);
-let page=1,total=1,t,seq=0;const $=i=>document.getElementById(i),F=["department","position","shift","contract","sort","group"],ALL=["q","st",...F];
+let page=1,total=1,t,seq=0,count=0;const $=i=>document.getElementById(i),F=["department","position","shift","contract","sort","group"],ALL=["q","st",...F];
+const HRD={{ hrd|yesno:"true,false" }},COLS=HRD?6:5,sel=new Set();  // sel = id karyawan terpilih; bertahan antar halaman, dikosongkan saat filter berubah
 function row(cells){const tr=document.createElement("tr");cells.forEach(c=>tr.append(c));return tr}
-function rowOf(r){const cells=[r.nik,r.name,r.department__name,r.position__name||"-",r.status].map((v,i)=>{const td=document.createElement("td");
+function rowOf(r){const tr=baseRow(r);if(HRD){const td=document.createElement("td"),c=document.createElement("input");td.className="selcol";c.type="checkbox";c.className="rsel";c.value=r.id;c.setAttribute("aria-label","Pilih "+r.nik);td.append(c);tr.prepend(td)}return tr}
+function baseRow(r){const cells=[r.nik,r.name,r.department__name,r.position__name||"-",r.status].map((v,i)=>{const td=document.createElement("td");
 if(i===0){const a=document.createElement("a");a.href="/employees/"+encodeURIComponent(r.id)+"/";a.textContent=v;td.append(a)}
 else if(i===4){const s=document.createElement("span");s.className="pill "+(v==="aktif"?"aktif":v==="nonaktif"?"nonaktif":"");s.textContent=v;td.append(s)}
 else td.textContent=v;return td});return row(cells)}
-function msgRow(text,cls){const td=document.createElement("td");td.colSpan=5;td.className="empty"+(cls?" "+cls:"");td.textContent=text;return row([td])}
+function msgRow(text,cls){const td=document.createElement("td");td.colSpan=COLS;td.className="empty"+(cls?" "+cls:"");td.textContent=text;return row([td])}
 function restore(){const u=new URLSearchParams(location.search);ALL.forEach(k=>{const el=$(k),v=u.get(k==="st"?"status":k);if(el&&v!==null)el.value=v});page=parseInt(u.get("page"))||1}
 function params(){const p=new URLSearchParams({q:$("q").value,status:$("st").value,page});F.forEach(k=>{const el=$(k);if(el&&el.value)p.set(k,el.value)});return p}
 async function load(){const my=++seq,p=params();history.replaceState(null,"","?"+p);
@@ -27,12 +39,31 @@ $("rows").replaceChildren(msgRow("Memuat…"));$("prev").disabled=$("next").disa
 try{const r=await fetch("/api/employees/?"+p);if(!r.ok)throw new Error(r.status);const d=await r.json();if(my!==seq)return;
 total=Math.ceil(d.count/50)||1;
 if(!d.results.length){$("rows").replaceChildren(msgRow("Tidak ada karyawan yang cocok dengan filter."))}
-else{let last;const out=[];d.results.forEach(r=>{if("grp" in r&&r.grp!==last){last=r.grp;const td=document.createElement("td");td.colSpan=5;td.textContent=r.grp||"(kosong)";const g=row([td]);g.className="grow";out.push(g)}out.push(rowOf(r))});$("rows").replaceChildren(...out)}
-$("info").textContent=`Halaman ${d.page} / ${total} · ${d.count} data`;page=d.page;
+else{let last;const out=[];d.results.forEach(r=>{if("grp" in r&&r.grp!==last){last=r.grp;const td=document.createElement("td");td.colSpan=COLS;td.textContent=r.grp||"(kosong)";const g=row([td]);g.className="grow";out.push(g)}out.push(rowOf(r))});$("rows").replaceChildren(...out)}
+$("info").textContent=`Halaman ${d.page} / ${total} · ${d.count} data`;page=d.page;count=d.count;
 }catch(e){if(my!==seq)return;$("rows").replaceChildren(msgRow("Gagal memuat data. Periksa koneksi lalu coba lagi.","bad"));$("info").textContent=""}
-$("prev").disabled=page<=1;$("next").disabled=page>=total}
-$("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;load()},300)};
-["st",...F].forEach(k=>{const el=$(k);if(el)el.onchange=()=>{page=1;load()}});
-$("reset").onclick=()=>{ALL.forEach(k=>{const el=$(k);if(el)el.value=""});page=1;load()};
+syncSel();$("prev").disabled=page<=1;$("next").disabled=page>=total}
+/* ---- Aksi massal (HRD/Superadmin): checkbox per baris + pilih semua di halaman + pilih semua hasil filter ---- */
+function syncSel(){if(!HRD)return;const bx=[...document.querySelectorAll("#rows input.rsel")];
+bx.forEach(b=>{b.checked=sel.has(+b.value);b.closest("tr").classList.toggle("sel",b.checked)});
+const n=bx.filter(b=>b.checked).length,all=bx.length>0&&n===bx.length;
+document.querySelectorAll(".selall").forEach(c=>{c.checked=all;c.indeterminate=n>0&&!all;c.disabled=!bx.length});
+if(!selNote)$("selcnt").textContent=sel.size?`${sel.size} karyawan dipilih`:"";$("bulkact").hidden=!sel.size;
+const m=$("selmatch"),can=all&&count>sel.size;m.hidden=!can;if(can)m.textContent=`Pilih semua ${count} karyawan yang cocok filter`}
+let selNote="";
+function clearSel(){sel.clear();selNote="";syncSel()}
+if(HRD){
+document.addEventListener("change",e=>{const c=e.target;if(!c.classList)return;
+if(c.classList.contains("rsel")){c.checked?sel.add(+c.value):sel.delete(+c.value);selNote="";syncSel()}
+else if(c.classList.contains("selall")){document.querySelectorAll("#rows input.rsel").forEach(b=>{c.checked?sel.add(+b.value):sel.delete(+b.value)});selNote="";syncSel()}});
+$("selclear").onclick=clearSel;
+$("selmatch").onclick=async()=>{const b=$("selmatch");b.disabled=true;
+try{const p=params();p.delete("page");const r=await fetch("/api/employees/ids/?"+p);if(!r.ok)throw new Error(r.status);const d=await r.json();
+sel.clear();d.ids.forEach(i=>sel.add(i));selNote=d.truncated?`${d.ids.length} dari ${d.count} karyawan dipilih (batas ${d.limit} per aksi; persempit dengan filter)`:`Semua ${d.count} karyawan yang cocok filter dipilih`;$("selcnt").textContent=selNote;syncSel()}
+catch(e){selNote="Gagal memilih semua hasil filter. Coba lagi.";$("selcnt").textContent=selNote}finally{b.disabled=false}};
+document.querySelectorAll("[data-bact]").forEach(b=>b.onclick=()=>{if(!sel.size)return;const f=$("bulk");f.querySelector("[name=action]").value=b.dataset.bact;f.querySelector("[name=ids]").value=[...sel].join(",");f.submit()})}
+$("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;clearSel();load()},300)};
+["st",...F].forEach(k=>{const el=$(k);if(el)el.onchange=()=>{page=1;if(k!=="sort"&&k!=="group")clearSel();load()}});
+$("reset").onclick=()=>{ALL.forEach(k=>{const el=$(k);if(el)el.value=""});page=1;clearSel();load()};
 $("prev").onclick=()=>{if(page>1){page--;load()}};$("next").onclick=()=>{if(page<total){page++;load()}};restore();load();
 </script>{% endblock %}
