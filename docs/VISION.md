@@ -30,9 +30,10 @@ Database tidak pernah di komputer client.
 | HRD | Dashboard HRD, karyawan, struktur organisasi, departemen, jabatan, grade, status kepegawaian, shift, kontrak, mutasi/promosi, tukar shift, izin/cuti/libur, absensi, **surat peringatan**, BPJS (**submenu Ketenagakerjaan/Kesehatan + rekap potongan**), **seragam**, **validasi kehadiran**, **recruitment**, informasi, laporan, monitoring pengajuan, **halaman Operasional HRD** (bantuan, cuti hamil, kerja harian proyek, katering/meal, status BPJS) |
 | Admin Departemen (±20) | Hanya departemennya: lihat karyawan, konfirmasi absensi (**atas permintaan HRD**, lihat "Validasi kehadiran"), **mengajukan** mutasi/izin/cuti/tukar shift/tukar libur/**administrasi**/**stand by & lembur**, memantau status & riwayat pengajuan, terima informasi HRD. Tanpa CRUD master, data sensitif, data medis, tanpa approve, tanpa mengubah BPJS bebas |
 | Poli (Medis) | Identitas minimum karyawan + seluruh modul poliklinik (pemeriksaan, rekam medis, diagnosis, tindakan, obat, stok, MCU, laporan medis, **tagihan mitra**). **Sejak putaran 48 akun Poli = juga Admin Departemen Poli** (satu akun, tidak ada akun admin dept Poli terpisah): terikat ke departemen Poli dan punya menu **Pengajuan Departemen** (submenu Izin & Cuti, Mutasi, Shift & Tukar Jadwal, Stand By & Lembur, Validasi Kehadiran) — **hanya untuk karyawan departemen Poli** |
+| Payroll | **[BARU, putaran 57]** Master gaji (skala upah harian, profil gaji, parameter, aturan tali asih), isian manual per periode, menghitung & mengajukan run gaji, mencetak slip, mencatat pembayaran. Tidak menyetujui run sendiri (HRD yang menyetujui). Tidak mengubah data karyawan/absensi |
 | Employee | **Bukan role/login.** Data dikelola HRD; pengajuan lewat Admin Departemen **[BARU, dikonfirmasi]** |
 
-> **Role tambahan (Payroll, IT)**: mungkin diterapkan, mungkin tidak — lihat "[BARU] Kemungkinan / belum diputuskan". Desain role harus tetap memungkinkan penambahan tanpa mengubah struktur data.
+> **Role tambahan (IT)**: mungkin diterapkan, mungkin tidak (Payroll sudah diterapkan di putaran 57) — lihat "[BARU] Kemungkinan / belum diputuskan". Desain role harus tetap memungkinkan penambahan tanpa mengubah struktur data.
 
 ## Keamanan
 RBAC + **department scope di backend/query** (ubah ID di URL → 404). Data sensitif/medis hanya role berwenang.
@@ -164,7 +165,7 @@ Payroll tetap bagian dari visi walau belum diproses/dikerjakan sekarang, supaya 
 5. **Poli**: **rekap visit pasien** (rawat jalan / sakit / kunjungan rumah; putaran 46), rekam medis (form menyesuaikan jenis kunjungan; **pemeriksa = karyawan departemen Poli** dipilih lewat NIK, **dokter = bukan karyawan**, hanya nama — putaran 34), obat, diagnosa, kecelakaan kerja, kehamilan (HPHT/HPL/GPA), pemeriksaan, rujukan, surat keterangan (istirahat/cuti — pulang hari itu juga atau beberapa hari — dan cuti hamil; putaran 47), riwayat poli di detail karyawan untuk user Poli
 5b. **[BARU] Poli Lanjutan**: MCU (jenis, hasil, status kesehatan, follow-up, dokumen), master tindakan medis, stock opname, kedaluwarsa/lot, laporan medis, **tagihan mitra (rekap tagihan, identitas karyawan, total)** — **✅ putaran 24**
 6. **Absensi** — **✅ putaran 48** (impor Fingerspot, pemetaan PIN, rekap harian/bulanan, terhubung ke jadwal, pengajuan, validasi, dasbor): integrasi mesin **Fingerspot** (impor, sinkronisasi, mapping NIK↔mesin, log/riwayat sinkronisasi), jam masuk/keluar, terlambat, pulang cepat, lembur, rekap (per karyawan/departemen/bulan), monitoring kehadiran, **validasi kehadiran HRD → Admin Departemen** (kerangka alurnya boleh dikerjakan lebih dulu, tanpa mesin)
-7. **Payroll** — *tetap dalam visi, dikerjakan paling akhir (belum diproses sekarang)*: komponen gaji, tunjangan, potongan, BPJS, periode, slip gaji. Data payroll tetap di tabel terpisah dari karyawan.
+7. **Payroll** — **✅ putaran 57** (lihat "Payroll" di bawah; sisa: ekspor transfer bank, slip untuk karyawan, PPh 21): komponen gaji, tunjangan, potongan, BPJS, periode, slip gaji. Data payroll tetap di tabel terpisah dari karyawan.
 8. **[BARU] Laporan & Ekspor**: laporan HR, Poli, Meal; ekspor Excel/PDF/cetak; pencarian global
 9. **[BARU] Recruitment**: lowongan, kandidat, lamaran, screening, interview, seleksi, laporan; Career Portal publik dikerjakan di **Tahap 11**
 10. **[BARU] Penguatan keamanan & skalabilitas** (lintas tahap): pertahanan berlapis dan strategi skalabilitas di bagian Keamanan/Performa; komponen baru (Redis, antrean, PgBouncer, 2FA, ClamAV, fail2ban) **disetujui pemilik produk (8 Okt 2026)** dan masuk bertahap menurut urutan prioritas.
@@ -531,3 +532,11 @@ Status: ✅ putaran 56fix, gabungan putaran 56 dan 56b (lihat `docs/PROGRESS.md`
 - **Pilihan warna**: tiap warna = bulatan berkode `#RRGGBB`; klik → foto berganti (foto asli per warna bila ada; bila belum, ilustrasi bertinta agar tidak ada kotak kosong). Foto model tetap berdampingan lewat tombol “Dipakai model | Foto produk”.
 - **Merek konsisten**: logo berlian WADIMOR yang sama dipakai di hero, header, dan ikon tab.
 - **Berikutnya**: foto asli per warna & foto kecil produk, ketuk-untuk-buka menu di layar sentuh, halaman motif dengan cerita/banner, motif di Lookbook & pencarian, stok/ketersediaan per warna (hanya bila dibutuhkan), tautan warna langsung ke pesanan WhatsApp.
+
+
+## Pembaruan putaran 57 — Payroll (Tahap 7)
+- **Prinsip**: data gaji terpisah dari tabel karyawan; master berlaku-sejak & append-only (batal beralasan, tidak dihapus); slip adalah **salinan beku** saat dihitung; parameter bertanggal (tarif/pengali bisa diubah tanpa kode dan tanpa menggeser slip lama).
+- **Format**: slip gaji harian — Gaji Pokok, tunjangan (Jabatan, Masa Kerja, Pendidikan, Khusus, Lain), premi, lembur (Otomatis, Stanby, Overtime, Hari Libur), Uang Makan, Insentif, Tali Asih; potongan (Jamsostek, BPJS, Pinjaman, Pengobatan, Materai, Seragam, Grade D, Lain2, Absensi); total, potongan, **gaji bersih**.
+- **Alur**: Payroll menghitung dari Absensi + Operasional HRD (BPJS, seragam, karyawan keluar/tali asih) → mengajukan → **HRD menyetujui** (atau mengembalikan dengan alasan) → Payroll mencatat pembayaran → terkunci. Pemisahan tugas dan jejak peristiwa wajib.
+- **Master data**: skala upah harian per grade+sub-grade, profil gaji karyawan, parameter hitung, aturan usulan tali asih, isian manual per periode.
+- Asumsi bisnis dan sisa pekerjaan: docs/PROGRESS.md putaran 57 (A122–A137).

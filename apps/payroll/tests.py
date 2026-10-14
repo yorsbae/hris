@@ -3,6 +3,7 @@ import datetime
 from decimal import Decimal as D
 
 from django.test import TestCase
+from django.urls import reverse
 
 from apps.core.models import Role, User
 from apps.hr.models import AttendanceDaily, Department, Employee, Position
@@ -315,3 +316,54 @@ class RunWorkflowTests(Base):
         from apps.core.models import Notification
         self.to_submitted(); self.assertTrue(Notification.objects.filter(user=self.hrd, kind="payroll").exists()); self.assertFalse(Notification.objects.filter(user=self.payroll).exists())
         services.approve_run(self.run.pk, self.hrd); self.assertTrue(Notification.objects.filter(user=self.payroll, kind="payroll").exists())
+
+
+class ViewAccessTests(Base):
+    """Tes tampilan + RBAC: Payroll/Superadmin penuh; HRD hanya lihat + setujui; peran lain 403."""
+    def setUp(self):
+        self.e = self.emp(); self.scale(); self.profile(self.e); self.att(self.e, D1(2025, 10, 1), ot=60)
+        self.run = PayrollRun.objects.create(period=PERIOD); services.calculate_run(self.run.pk, self.payroll)
+        self.slip = self.run.slips.first()
+        self.dept_admin = make_user("da", Role.DEPT_ADMIN, department=self.dept); self.poli = make_user("pl", Role.POLI)
+        self.pages = ["pay_home", "pay_runs", "pay_profiles", "pay_profile_new", "pay_scale", "pay_scale_new", "pay_params", "pay_param_new", "pay_adjustments", "pay_adjustment_new", "pay_tali", "pay_tali_rule_new"]
+
+    def get(self, user, name, *a, **kw):
+        self.client.force_login(user); return self.client.get(reverse(name, args=a), **kw)
+
+    def test_payroll_and_superadmin_open_every_page(self):
+        for u in (self.payroll, self.root):
+            for n in self.pages: self.assertEqual(self.get(u, n).status_code, 200, (u.username, n))
+            for n, a in [("pay_run", (self.run.pk,)), ("pay_slip", (self.slip.pk,)), ("pay_slip_pdf", (self.slip.pk,)), ("pay_run_pdf", (self.run.pk,)), ("pay_profile_detail", (PayProfile.objects.first().pk,))]:
+                self.assertEqual(self.get(u, n, *a).status_code, 200, (u.username, n))
+
+    def test_run_exports(self):
+        for fmt in ("xlsx", "csv"): self.assertEqual(self.get(self.payroll, "pay_run", self.run.pk, data={"export": fmt}).status_code, 200)
+        self.assertEqual(self.get(self.payroll, "pay_slip_pdf", self.slip.pk)["Content-Type"], "application/pdf")
+
+    def test_hrd_views_runs_and_slips_only(self):
+        for n in ("pay_runs", "pay_tali"): self.assertEqual(self.get(self.hrd, n).status_code, 200, n)
+        self.assertEqual(self.get(self.hrd, "pay_run", self.run.pk).status_code, 200)
+        self.assertEqual(self.get(self.hrd, "pay_slip", self.slip.pk).status_code, 200)
+        for n in ("pay_profiles", "pay_scale", "pay_params", "pay_adjustments", "pay_profile_new", "pay_scale_new"): self.assertEqual(self.get(self.hrd, n).status_code, 403, n)
+
+    def test_other_roles_denied_everywhere(self):
+        for u in (self.dept_admin, self.poli):
+            for n in self.pages: self.assertEqual(self.get(u, n).status_code, 403, (u.username, n))
+            self.assertEqual(self.get(u, "pay_run", self.run.pk).status_code, 403); self.assertEqual(self.get(u, "pay_slip", self.slip.pk).status_code, 403)
+
+    def test_anonymous_redirected(self):
+        self.client.logout(); self.assertEqual(self.client.get(reverse("pay_runs")).status_code, 302)
+
+    def test_workflow_through_http(self):
+        self.client.force_login(self.payroll)
+        self.assertEqual(self.client.post(reverse("pay_run_action", args=[self.run.pk, "submit"])).status_code, 302)
+        self.assertEqual(PayrollRun.objects.get(pk=self.run.pk).status, "diajukan")
+        self.client.force_login(self.payroll); self.client.post(reverse("pay_run_action", args=[self.run.pk, "approve"]))      # pemisahan tugas
+        self.assertEqual(PayrollRun.objects.get(pk=self.run.pk).status, "diajukan")
+        self.client.force_login(self.hrd); self.client.post(reverse("pay_run_action", args=[self.run.pk, "approve"]))
+        self.assertEqual(PayrollRun.objects.get(pk=self.run.pk).status, "disetujui")
+        self.client.force_login(self.hrd); self.client.post(reverse("pay_run_action", args=[self.run.pk, "pay"]), {"paid_on": "2025-11-01"})   # HRD tak boleh membayar
+        self.assertEqual(PayrollRun.objects.get(pk=self.run.pk).status, "disetujui")
+
+    def test_get_does_not_mutate(self):
+        self.get(self.payroll, "pay_run_action", self.run.pk, "submit"); self.assertEqual(PayrollRun.objects.get(pk=self.run.pk).status, "dihitung")

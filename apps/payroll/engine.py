@@ -193,7 +193,7 @@ def persist(run, built):
         e = s["employee"]
         slips.append(Payslip(run=run, employee=e, nik=e.nik, emp_name=e.name, department_name=e.department.name, position_name=e.position.name if e.position_id else "",
                              grade_label=s["grade"], education=e.education, join_date=e.join_date, service_years=s["years"], daily_wage=s["daily"], paid_days=s["days"],
-                             total_earnings=s["earn"], total_deductions=s["ded"], net_pay=s["net"], flags=s["flags"]))
+                             total_earnings=s["earn"], total_deductions=s["ded"], net_pay=s["net"], flags=s["flags"], flagged=bool(s["flags"])))
     Payslip.objects.bulk_create(slips, batch_size=500)
     by_emp = {p.employee_id: p.pk for p in Payslip.objects.filter(run=run).only("pk", "employee_id")}
     rows = []

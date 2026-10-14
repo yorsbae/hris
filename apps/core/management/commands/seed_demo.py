@@ -62,7 +62,7 @@ class Command(BaseCommand):
         self.r, self.pw, self.today = random.Random(o["seed"]), o["password"], timezone.localdate()
         n = max(20, min(o["employees"], 1500))
         self.users(); self.master(); self.employees(n); self.requests(); self.history(); self.swaps(); self.leave(); self.info()
-        self.extra_work(); self.attendance(); self.machine_scans(); self.hrd_ops(); self.poli(); self.separations(); self.audit()
+        self.extra_work(); self.attendance(); self.machine_scans(); self.hrd_ops(); self.poli(); self.separations(); self.payroll(); self.audit()
         from django.core.management import call_command
         call_command("seed_company", stdout=self.stdout)   # putaran 48: situs publik (profil, produk, artikel, toko, FAQ, lowongan contoh)
         s = self.stat
@@ -84,6 +84,7 @@ class Command(BaseCommand):
         self.root = mk("superadmin", "Super", "Admin", Role.SUPERADMIN, is_staff=True, is_superuser=True)
         self.hrd_u = mk("hrd", "Yordan", "Abdillah", Role.HRD)
         self.poli_u = mk("poli", "Dr. Anisa", "Rahayu", Role.POLI)
+        self.payroll_u = mk("payroll", "Rahmat", "Payroll", Role.PAYROLL)   # putaran 57
 
     # ---------- master
     def master(self):
@@ -601,6 +602,38 @@ class Command(BaseCommand):
             if i % 3 == 1: ps.visit_transition(v.pk, "selesai", self.poli_u, "Sembuh, kembali bekerja (demo)")
             elif i % 4 == 3: ps.visit_transition(v.pk, "batal", self.poli_u, "Salah catat (demo)")
         self.stat += f", {len(recs)} kunjungan poli ({len(preg_recs)} kehamilan), {self.letters} surat Poli, {len(meds)} obat, 6 tagihan mitra, 9 visit pasien"
+
+    # ---------- payroll (putaran 57): skala upah harian, profil, isian manual, run bulan lalu (dibayar) + bulan ini (dihitung)
+    def payroll(self):
+        from apps.payroll import services as ps_, models as pm
+        from apps.hrd.models import Separation
+        today, pu = self.today, self.payroll_u
+        since = date(today.year - 6, 1, 1)
+        grade_of = {"Operator": 3, "Staf": 5, "Teknisi": 6, "Leader": 7, "Supervisor": 8, "Manager": 9, "Perawat": 6, "Bidan": 6}
+        for g in range(3, 10):
+            for t, plus in (("A", 0), ("B", 2500)):
+                pm.WageScale.objects.create(grade=g, tier=t, daily_wage=Decimal(60000 + (g - 3) * 4200 + plus) + Decimal("0.87") * (g % 2), effective_from=since, created_by=pu)
+        pm.TaliAsihRule.objects.create(kind=Separation.Kind.RESIGN, min_years=3, days_per_year=Decimal("5"), max_days=Decimal("60"), effective_from=since, note="Contoh aturan demo — sesuaikan dengan kebijakan perusahaan", created_by=pu)
+        n = 0
+        for e in self.emps:
+            if e.status != "aktif": continue
+            g = grade_of.get(e.position.name, 4)
+            tn = "A" if (e.id % 3) else "B"
+            pm.PayProfile.objects.create(employee=e, effective_from=since, grade=g, tier=tn, allowance_position=(g - 5) * 50000 if g > 5 else 0, allowance_education=60000 if e.education in ("D3", "S1") else 0,
+                                         meal_allowance=e.department.code in ("PRD", "PKG", "GDG"), created_by=pu); n += 1
+        prev = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m"); cur = today.strftime("%Y-%m")
+        manual = {c.code: c for c in pm.PayComponent.objects.filter(kind="manual")}
+        active = [e for e in self.emps if e.status == "aktif"]
+        for per in (prev, cur):
+            for e in self.r.sample(active, min(8, len(active))):
+                if "insentif" in manual: ps_.save_adjustment(e, per, manual["insentif"], self.r.choice([50000, 75000, 100000, 150000]), None, "Insentif contoh", pu)
+            for e in self.r.sample(active, min(4, len(active))):
+                if "pot_lain" in manual: ps_.save_adjustment(e, per, manual["pot_lain"], self.r.choice([25000, 42240, 60000]), None, "Potongan contoh", pu)
+        try:
+            run = ps_.create_run(prev, pu); ps_.calculate_run(run.pk, pu); ps_.submit_run(run.pk, pu); ps_.approve_run(run.pk, self.hrd_u); ps_.pay_run(run.pk, today, pu)
+            run2 = ps_.create_run(cur, pu); ps_.calculate_run(run2.pk, pu)
+            self.stat += f", payroll: {n} profil gaji, run {prev} dibayar + run {cur} dihitung"
+        except ValueError as ex: self.stat += f", payroll: run tidak dibuat ({ex})"
 
     # ---------- audit contoh
     def audit(self):

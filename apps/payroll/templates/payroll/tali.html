@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Tali Asih{% endblock %}{% block content %}
+<p class="back"><a href="{% if is_payroll %}{% url 'pay_home' %}{% else %}{% url 'pay_runs' %}{% endif %}">‹ Payroll</a></p>
+<h2>Tali Asih</h2>
+<p class="sub">Nominal resmi ditetapkan HRD di <a href="{% url 'hrd_separations' %}">Karyawan Keluar</a>. Tali asih yang sudah ditetapkan dibayar lewat run gaji dan ditandai dibayar otomatis. Kolom usulan hanya saran dari aturan di bawah.</p>
+<h3>Menunggu dibayar ({{ pending|length }})</h3>
+<div class="wrap"><table><thead><tr><th class="fill">Karyawan</th><th class="nw">Keluar</th><th class="num">Ditetapkan</th><th class="num">Usulan aturan</th></tr></thead><tbody>
+{% for s in pending %}<tr><td class="fill"><a href="{% url 'hrd_separation_detail' s.pk %}">{{ s.emp_name }}</a><small>{{ s.employee.nik }} · {{ s.department_name }}</small></td><td class="nw">{{ s.last_date|date:"d-m-Y" }}<small>{{ s.get_kind_display }}</small></td><td class="num nw">{{ s.tali_asih|rupiah }}</td><td class="num">{% if s.suggest is not None %}{{ s.suggest|rupiah }}<small>{{ s.basis }}</small>{% else %}<small>{{ s.basis }}</small>{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="4">Tidak ada tali asih yang menunggu dibayar.</td></tr>{% endfor %}</tbody></table></div>
+<h3>Keluar 120 hari terakhir tanpa tali asih ({{ recent|length }})</h3>
+<div class="wrap"><table><thead><tr><th class="fill">Karyawan</th><th class="nw">Keluar</th><th class="num">Usulan aturan</th></tr></thead><tbody>
+{% for s in recent %}<tr><td class="fill"><a href="{% url 'hrd_separation_detail' s.pk %}">{{ s.emp_name }}</a><small>{{ s.employee.nik }} · {{ s.department_name }}</small></td><td class="nw">{{ s.last_date|date:"d-m-Y" }}<small>{{ s.get_kind_display }}</small></td><td class="num">{% if s.suggest is not None %}{{ s.suggest|rupiah }}<small>{{ s.basis }}</small>{% else %}<small>{{ s.basis }}</small>{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="3">Tidak ada.</td></tr>{% endfor %}</tbody></table></div>
+<h3>Aturan usulan</h3>
+{% if is_payroll %}<div class="tools"><a class="btn ghost" href="{% url 'pay_tali_rule_new' %}">+ Tambah aturan</a></div>{% endif %}
+<div class="wrap"><table><thead><tr><th class="nw">Jenis</th><th class="num">Hari / tahun</th><th class="num">Batas hari</th><th class="nw">Min. masa kerja</th><th class="nw">Sejak</th>{% if is_payroll %}<th class="acts"></th>{% endif %}</tr></thead><tbody>
+{% for r in rules %}<tr><td class="nw">{{ r.get_kind_display }}</td><td class="num">{{ r.days_per_year|floatformat:"-2" }}</td><td class="num">{{ r.max_days|floatformat:"-2"|default:"—" }}</td><td class="nw">{{ r.min_years }} th</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td>
+{% if is_payroll %}<td class="acts"><form method="post" action="{% url 'pay_void' 'rule' r.pk %}" class="inline">{% csrf_token %}<input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">Batalkan</button></form></td>{% endif %}</tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada aturan usulan.{% if is_payroll %} Klik <b>+ Tambah aturan</b> bila kebijakan perusahaan sudah ada.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

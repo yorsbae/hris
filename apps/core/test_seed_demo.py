@@ -21,6 +21,13 @@ class SeedDemoTests(TestCase):
         self.assertTrue(ChangeRequest.objects.filter(status="pending").exists())
         self.assertIn("Demo#HRIS-2026", self.out.getvalue())
 
+    def test_payroll_seeded(self):
+        from apps.payroll.models import PayrollRun, PayProfile, Payslip
+        self.assertTrue(User.objects.filter(role=Role.PAYROLL).exists())
+        self.assertEqual(sorted(PayrollRun.objects.values_list("status", flat=True)), ["dibayar", "dihitung"])
+        paid = PayrollRun.objects.get(status="dibayar"); self.assertTrue(paid.locked); self.assertTrue(Payslip.objects.filter(run=paid).exists())
+        self.assertTrue(PayProfile.objects.exists())
+
     def test_stock_never_negative_and_ledger_consistent(self):
         self.assertFalse(Medicine.objects.filter(stock__lt=0).exists())
         for m in Medicine.objects.all(): self.assertEqual(m.stock, sum(x.qty for x in m.movements.all()))

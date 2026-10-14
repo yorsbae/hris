@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Skala Gaji Harian{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>Skala Gaji Harian</h2>
+<p class="sub">Upah per hari untuk tiap grade + sub-grade, dengan tanggal berlaku. Perubahan = baris baru bertanggal; riwayat tidak ditimpa.</p>
+<div class="tools"><a class="btn" href="{% url 'pay_scale_new' %}">+ Tambah / ubah upah harian</a>
+<details class="more"><summary>Lainnya ▾</summary><div><small>Data massal</small><a href="{% url 'pay_scale_import' %}">Impor skala dari CSV/XLSX</a></div></details></div>
+<div class="wrap"><table id="scale"><thead><tr><th class="nw">Grade</th><th class="num">Upah harian<small>berlaku sekarang</small></th><th class="fill">Riwayat</th><th class="acts"></th></tr></thead><tbody>
+{% for r in table %}<tr><td class="nw"><b>{{ r.label }}</b></td><td class="num nw">{% if r.current %}{{ r.current|rupiah }}{% else %}<span class="pill pending">belum berlaku</span>{% endif %}</td>
+<td class="fill">{% for x in r.rows %}<form method="post" action="{% url 'pay_void' 'scale' x.pk %}" class="inline" style="display:inline-flex;gap:4px;margin:0 8px 4px 0;align-items:center"><small>{{ x.daily_wage|rupiah }} sejak {{ x.effective_from|date:"d-m-Y" }}</small><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form>{% endfor %}</td>
+<td class="acts"><a class="btn sm ghost" href="{% url 'pay_scale_new' %}?grade={{ r.rows.0.grade }}&amp;tier={{ r.rows.0.tier }}">Ubah</a></td></tr>
+{% empty %}<tr><td class="empty" colspan="4">Belum ada skala. Klik <b>+ Tambah / ubah upah harian</b> atau impor dari CSV/XLSX.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

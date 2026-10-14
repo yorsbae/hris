@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Penyesuaian Gaji{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>Penyesuaian Gaji — {{ f.period }}</h2>
+<p class="sub">Isian manual per karyawan per periode: insentif, premi produksi, koreksi, pinjaman, pengobatan, materai, dst.</p>
+<div class="tools"><a class="btn" href="{% url 'pay_adjustment_new' %}?period={{ f.period }}">+ Tambah penyesuaian</a>
+<details class="more"><summary>Lainnya ▾</summary><div><small>Data massal</small><a href="{% url 'pay_adjustment_import' %}">Impor penyesuaian dari CSV/XLSX</a></div></details></div>
+{% if not open %}<p class="note wait">Run gaji periode ini sudah <b>{{ run.get_status_display|lower }}</b>; penyesuaian terkunci. Tarik atau batalkan run dulu bila perlu mengubah.</p>{% elif run %}<p class="note wait">Run {{ f.period }} berstatus {{ run.get_status_display|lower }} — hitung ulang setelah mengubah penyesuaian.</p>{% endif %}
+<div class="sepkpi"><span><b>{{ tot.n }}</b> baris</span><span><b>{{ tot.plus|rupiah }}</b> tambahan</span><span><b>{{ tot.minus|rupiah }}</b> potongan</span></div>
+<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama"><input type="month" name="period" value="{{ f.period }}" aria-label="Periode">
+<select name="component" aria-label="Komponen"><option value="">Semua komponen</option>{% for c in comps %}<option value="{{ c.pk }}"{% if f.component == c.pk|stringformat:"s" %} selected{% endif %}>{{ c.label }}</option>{% endfor %}</select><button>Terapkan</button>{% if f.q or f.component %}<a class="chip" href="?period={{ f.period }}">Reset</a>{% endif %}</form>
+<div class="wrap"><table id="adjustments"><thead><tr><th class="fill">Karyawan</th><th class="nw">Komponen</th><th class="num">Nominal</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
+{% for a in page %}<tr><td class="fill">{{ a.employee.name }}<small>{{ a.employee.nik }} · {{ a.employee.department.name }}</small></td><td class="nw">{{ a.component.label }}{% if a.component.section == 'potongan' %}<small>potongan</small>{% endif %}</td><td class="num nw">{{ a.amount|rupiah }}</td><td class="fill">{{ a.note }}{% if a.qty %}<small>jumlah {{ a.qty|floatformat:"-2" }}</small>{% endif %}</td>
+<td class="acts">{% if open %}<form method="post" action="{% url 'pay_void' 'adjustment' a.pk %}" class="inline">{% csrf_token %}<input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">Batalkan</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="5">{% if f.q or f.component %}Tidak ada yang cocok. <a href="?period={{ f.period }}">Reset filter</a>{% else %}Belum ada penyesuaian untuk periode ini. Klik <b>+ Tambah penyesuaian</b> atau impor.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% endblock %}

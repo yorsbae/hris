@@ -90,6 +90,7 @@ LOGIN_LOCK_RESET_HOURS = 24                                         # hitungan g
 SESSION_IDLE_TIMEOUT = env.int("SESSION_IDLE_MINUTES", 30) * 60     # 0 = nonaktif
 THROTTLE_ZONES = {"api": (240, 60), "export": (20, 60), "upload": (30, 60)}  # {zona: (jumlah, detik)} per user+IP
 REQUEST_ATTACH_MAX_MB = env.int("REQUEST_ATTACH_MAX_MB", default=50)  # bukti pengajuan (foto/berkas): ukuran per berkas; ekstensi bebas (putaran 50)
+PAYROLL_ALLOW_SELF_APPROVE = env.bool("PAYROLL_ALLOW_SELF_APPROVE", default=False)  # darurat: izinkan pengaju run gaji menyetujui sendiri (putaran 57); bawaan mati = pemisahan tugas
 REQUEST_ATTACH_MAX_FILES = env.int("REQUEST_ATTACH_MAX_FILES", default=10)  # jumlah berkas per pengajuan
 import sys
 if "test" in sys.argv: THROTTLE_ZONES = {}  # cache LocMem dipakai bersama antartes (IP & pk user sama) → tes zona memakai override_settings

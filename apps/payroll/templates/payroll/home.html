@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Payroll{% endblock %}{% block content %}
+<h2>Payroll</h2>
+<p class="sub">Gaji harian karyawan: skala gaji → profil karyawan → penyesuaian → run per periode → persetujuan HRD → dibayar → slip.</p>
+{% if not steps.skala %}{% flow_steps "Skala gaji harian|Upah per grade|/payroll/scale/" "Profil karyawan|Grade & tunjangan|/payroll/profiles/" "Penyesuaian|Insentif, potongan|/payroll/adjustments/" "Run gaji|Hitung → bayar|/payroll/runs/" now=1 note="Mulai dengan mengisi Skala Gaji Harian (atau impor dari CSV/XLSX). Parameter hitung (lembur, tunjangan masa kerja, Jamsostek, BPJS) sudah terisi nilai bawaan dari slip contoh — periksa di Parameter & Komponen." %}
+{% elif no_profile %}{% flow_steps "Skala gaji harian|Upah per grade|/payroll/scale/" "Profil karyawan|Grade & tunjangan|/payroll/profiles/" "Penyesuaian|Insentif, potongan|/payroll/adjustments/" "Run gaji|Hitung → bayar|/payroll/runs/" now=2 note="Masih ada karyawan aktif tanpa profil gaji — mereka tidak ikut run sampai profilnya diisi." %}
+{% else %}{% flow_steps "Skala gaji harian|Upah per grade|/payroll/scale/" "Profil karyawan|Grade & tunjangan|/payroll/profiles/" "Penyesuaian|Insentif, potongan|/payroll/adjustments/" "Run gaji|Hitung → bayar|/payroll/runs/" now=4 %}{% endif %}
+<div class="sepkpi">
+{% if run %}<a href="{% url 'pay_run' run.pk %}"{% if run.status == 'disetujui' %} class="warn"{% endif %}><b>{{ cur }}</b> <span class="pill {{ run.status }}">{{ run.get_status_display }}</span></a>
+{% else %}<a class="warn" href="{% url 'pay_runs' %}"><b>{{ cur }}</b> belum ada run gaji</a>{% endif %}
+<a{% if no_profile %} class="warn"{% endif %} href="{% url 'pay_profiles' %}?state=tanpa"><b>{{ no_profile }}</b> karyawan aktif tanpa profil gaji <small>({{ with_profile }} sudah)</small></a>
+<a{% if tali_n %} class="warn"{% endif %} href="{% url 'pay_tali' %}"><b>{{ tali_n }}</b> tali asih menunggu dibayar</a>
+</div>
+{% if stale %}<p class="note wait">Ada perubahan data setelah run {{ cur }} terakhir dihitung — hitung ulang sebelum diajukan.</p>{% endif %}
+{% if waiting_pay %}<p class="note now"><b>{{ waiting_pay }}</b> run sudah disetujui HRD dan siap dibayar. <a href="{% url 'pay_runs' %}">Buka daftar run</a></p>{% endif %}
+{% if returned %}<p class="note now"><b>{{ returned }}</b> run dikembalikan HRD dan menunggu perbaikan. <a href="{% url 'pay_runs' %}">Buka daftar run</a></p>{% endif %}
+<h3>Run terakhir</h3>
+<div class="wrap"><table><thead><tr><th class="nw">Periode</th><th class="nw">Status</th><th class="num">Slip</th><th class="num">Total bersih</th><th class="acts"></th></tr></thead><tbody>
+{% for r in runs %}<tr><td class="nw">{{ r.period }}</td><td class="nw"><span class="pill {{ r.status }}">{{ r.get_status_display }}</span></td><td class="num">{{ r.n_slips }}</td><td class="num nw">{{ r.total_net|rupiah }}</td><td class="acts"><a class="btn sm ghost" href="{% url 'pay_run' r.pk %}">Buka</a></td></tr>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada run gaji. Mulai di <a href="{% url 'pay_runs' %}">Run Gaji</a> setelah skala dan profil siap.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

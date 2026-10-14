@@ -4,7 +4,7 @@ Prinsip yang diwarisi dari modul lain:
   • master berlaku-sejak bersifat APPEND-ONLY: perubahan = baris baru bertanggal; salah ketik = dibatalkan beralasan (`voided_*`), bukan diubah/dihapus;
   • data historis DISALIN saat dicatat (slip membawa nama, jabatan, grade, upah harian, parameter) → slip lama tidak bergeser bila master berubah;
   • transaksi uang tidak dihapus; run yang sudah dibayar terkunci, koreksi lewat penyesuaian di periode berikutnya.
-Asumsi bisnis (belum dikonfirmasi pemilik produk) dicatat di docs/PROGRESS.md putaran 57 (A120–A135)."""
+Asumsi bisnis (belum dikonfirmasi pemilik produk) dicatat di docs/PROGRESS.md putaran 57 (A122–A137)."""
 from django.conf import settings
 from django.db import models
 
@@ -216,6 +216,7 @@ class Payslip(models.Model):
     total_deductions = models.DecimalField(max_digits=14, decimal_places=0, default=0)
     net_pay = models.DecimalField(max_digits=14, decimal_places=0, default=0)
     flags = models.JSONField(default=list, blank=True)
+    flagged = models.BooleanField(default=False, db_index=True)   # = ada flag; kolom sendiri agar filter "perlu ditinjau" tidak membandingkan JSON
 
     class Meta:
         ordering = ["department_name", "emp_name", "id"]
@@ -223,7 +224,7 @@ class Payslip(models.Model):
         indexes = [models.Index(fields=["run", "department_name"])]
 
     @property
-    def needs_review(self): return bool(self.flags)
+    def needs_review(self): return self.flagged
 
     def delete(self, *a, **k):
         if self.run.status not in (PayrollRun.DRAFT, PayrollRun.CALCULATED, PayrollRun.SUBMITTED): raise PermissionError("Slip pada run yang sudah disetujui/dibayar tidak boleh dihapus.")

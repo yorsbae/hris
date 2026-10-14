@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Parameter & Komponen{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>Parameter hitung gaji</h2>
+<p class="sub">Nilai bawaan diturunkan dari slip contoh dan <b>perlu dikonfirmasi</b>. Mengubah nilai = menambah baris berlaku-sejak; run yang sudah dihitung perlu dihitung ulang.</p>
+<div class="wrap"><table id="params"><thead><tr><th class="fill">Parameter</th><th class="num">Bawaan</th><th class="num">Berlaku sekarang</th><th class="fill">Perubahan</th><th class="acts"></th></tr></thead><tbody>
+{% for r in rows %}<tr><td class="fill"><b>{{ r.label }}</b>{% if r.unit %} <small>({{ r.unit }})</small>{% endif %}<small>{{ r.help }}</small></td><td class="num nw">{{ r.default|floatformat:"-4" }}</td><td class="num nw">{% if r.changed %}<b>{{ r.current|floatformat:"-4" }}</b>{% else %}{{ r.current|floatformat:"-4" }}{% endif %}</td>
+<td class="fill">{% for x in r.rows %}<form method="post" action="{% url 'pay_void' 'param' x.pk %}" class="inline" style="display:inline-flex;gap:4px;margin:0 8px 4px 0;align-items:center"><small>{{ x.value|floatformat:"-4" }} sejak {{ x.effective_from|date:"d-m-Y" }}</small><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form>{% endfor %}</td>
+<td class="acts"><a class="btn sm ghost" href="{% url 'pay_param_new' %}?key={{ r.key }}">Ubah</a></td></tr>{% endfor %}</tbody></table></div>
+<h3>Komponen slip</h3><p class="help">Urutan dan nama mengikuti slip contoh. Komponen <i>otomatis</i> dihitung mesin; komponen <i>manual</i> diisi lewat Penyesuaian. Komponen tambahan dapat ditambah di <a href="/admin/payroll/paycomponent/">Administrasi data</a> (Superadmin).</p>
+<div class="wrap"><table><thead><tr><th class="nw">Bagian</th><th>Komponen</th><th class="nw">Jenis</th><th class="nw">Aktif</th></tr></thead><tbody>{% for c in components %}<tr><td class="nw">{{ c.get_section_display }}</td><td>{{ c.label }} <small>{{ c.code }}</small></td><td class="nw">{{ c.get_kind_display }}</td><td class="nw">{% if c.active %}ya{% else %}tidak{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

@@ -1,6 +1,6 @@
 """Parameter hitung gaji (putaran 57). Nilai BAWAAN ada di sini (supaya sistem langsung bisa menghitung dan tes bisa mengukur terhadap slip contoh);
 nilai yang dipakai = baris `PayParam` berlaku-sejak terbaru ≤ akhir periode, bila ada. Mengubah angka = menambah baris baru bertanggal (riwayat tidak ditimpa).
-Angka bawaan diturunkan dari slip contoh Okt-2025 (lihat docs/PROGRESS.md putaran 57, A120–A135) dan WAJIB dikonfirmasi pemilik produk."""
+Angka bawaan diturunkan dari slip contoh Okt-2025 (lihat docs/PROGRESS.md putaran 57, A122–A137) dan WAJIB dikonfirmasi pemilik produk."""
 from decimal import Decimal as D
 
 # kunci → (label, bawaan, satuan, penjelasan)

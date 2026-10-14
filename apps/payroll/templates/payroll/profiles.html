@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Profil Gaji Karyawan{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>Profil Gaji Karyawan</h2>
+<p class="sub">Grade + sub-grade (upah mengikuti Skala Gaji Harian) atau upah harian khusus, tunjangan tetap, dan hak uang makan. Karyawan tanpa profil tidak ikut run gaji.</p>
+<div class="tools"><a class="btn" href="{% url 'pay_profile_new' %}">+ Atur profil gaji</a>
+<details class="more"><summary>Lainnya ▾</summary><div><small>Data massal</small><a href="{% url 'pay_profile_import' %}">Impor profil dari CSV/XLSX</a></div></details></div>
+<div class="sepkpi"><a{% if n_no %} class="warn"{% endif %} href="?state=tanpa"><b>{{ n_no }}</b> karyawan aktif tanpa profil</a>{% if miss %}<span class="bad"><b>{{ miss }}</b> profil di halaman ini tanpa skala gaji</span>{% endif %}</div>
+<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama">
+<select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<select name="state" aria-label="Status profil"><option value="">Semua</option><option value="tanpa"{% if f.state == 'tanpa' %} selected{% endif %}>Belum punya profil</option><option value="ada"{% if f.state == 'ada' %} selected{% endif %}>Sudah punya profil</option></select>
+<button>Terapkan</button>{% if f.q or f.department or f.state %}<a class="chip" href="?">Reset</a>{% endif %}</form>
+<div class="wrap"><table id="profiles"><thead><tr><th class="fill">Karyawan</th><th class="nw">Grade<small>upah harian</small></th><th class="num">Tunjangan tetap<small>/ bulan</small></th><th class="nw">Uang makan</th><th class="nw">Berlaku sejak</th><th class="acts"></th></tr></thead><tbody>
+{% for r in rows %}{% with p=r.p %}<tr><td class="fill">{{ r.e.name }}<small>{{ r.e.nik }} · {{ r.e.department.name }}</small></td>
+{% if p %}<td class="nw">{{ p.grade_label }}<small>{% if r.wage %}{{ r.wage|rupiah }}{% else %}<span class="pill rejected">skala tidak ada</span>{% endif %}</small></td>
+<td class="num nw">{{ p.allowance_position|add:p.allowance_education|add:p.allowance_special|add:p.allowance_other|rupiah }}</td><td class="nw">{% if p.meal_allowance %}ya{% else %}tidak{% endif %}</td><td class="nw">{{ p.effective_from|date:"d-m-Y" }}</td>
+<td class="acts"><a class="btn sm ghost" href="{% url 'pay_profile_detail' r.e.pk %}">Riwayat</a></td>
+{% else %}<td class="nw"><span class="pill pending">belum ada</span></td><td></td><td></td><td></td><td class="acts"><a class="btn sm" href="{% url 'pay_profile_new' %}?nik={{ r.e.nik }}">Atur</a></td>{% endif %}</tr>{% endwith %}
+{% empty %}<tr><td class="empty" colspan="6">{% if f.q or f.department or f.state %}Tidak ada karyawan yang cocok. <a href="?">Reset filter</a>{% else %}Belum ada karyawan aktif.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% endblock %}

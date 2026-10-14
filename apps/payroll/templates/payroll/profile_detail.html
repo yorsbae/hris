@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Profil gaji {{ e.nik }}{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_profiles' %}">‹ Profil Gaji Karyawan</a></p>
+<h2>{{ e.name }} <small style="color:var(--mu)">{{ e.nik }} · {{ e.department.name }}</small></h2>
+<div class="tools"><a class="btn" href="{% url 'pay_profile_new' %}?nik={{ e.nik }}">+ Profil baru (berlaku sejak tanggal)</a></div>
+{% if cur %}<p class="note done">Berlaku sekarang: grade <b>{{ cur.grade_label }}</b>, upah harian <b>{% if wage %}{{ wage|rupiah }}{% else %}— (skala tidak ada){% endif %}</b>, sejak {{ cur.effective_from|date:"d-m-Y" }}.</p>{% else %}<p class="note wait">Belum ada profil yang berlaku — karyawan ini tidak ikut run gaji.</p>{% endif %}
+<div class="wrap"><table><thead><tr><th class="nw">Berlaku sejak</th><th class="nw">Grade / upah</th><th class="num">Tunjangan<small>/ bulan</small></th><th class="nw">Uang makan</th><th>Status</th></tr></thead><tbody>
+{% for p in rows %}<tr{% if p.is_void %} style="opacity:.55;text-decoration:line-through"{% endif %}><td class="nw">{{ p.effective_from|date:"d-m-Y" }}</td>
+<td class="nw">{% if p.wage_override %}khusus {{ p.wage_override|rupiah }}{% else %}{{ p.grade_label }}{% endif %}</td>
+<td class="num nw">{{ p.allowance_position|add:p.allowance_education|add:p.allowance_special|add:p.allowance_other|rupiah }}</td><td class="nw">{% if p.meal_allowance %}ya{% else %}tidak{% endif %}</td>
+<td>{% if p.is_void %}dibatalkan — {{ p.void_reason }}{% else %}<form method="post" action="{% url 'pay_void' 'profile' p.pk %}" class="inline">{% csrf_token %}<input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal"><button class="danger sm">Batalkan</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada riwayat profil.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}
