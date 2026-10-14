@@ -1,8 +1,8 @@
 """Impor karyawan dari CSV atau XLSX. Semua-atau-tidak-sama-sekali: satu baris salah → tidak ada yang tersimpan.
 Memakai ulang EmployeeForm agar aturan validasi identik dengan input manual."""
 from apps.core import tabular
-from django.db import transaction
-from .emp_forms import EmployeeForm
+from django.db import IntegrityError, transaction
+from .emp_forms import EmployeeForm, IDENT_FIELDS, identifier_owners, norm_ident
 from .models import Department, Employee, Position, Shift, ShiftGroup
 
 COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "status", "marital_status", "education",
@@ -32,6 +32,7 @@ def run(raw, commit, filename=""):
     groups = {g.code.lower(): g for g in ShiftGroup.objects.all()}
     db_niks = set(Employee.all_objects.values_list("nik", flat=True)); file_niks = {r.get("nik", "") for r in rows}
     seen, errors, valid = set(), [], []
+    owners = identifier_owners(); file_ident = {f: {} for f in IDENT_FIELDS}  # pengenal pribadi yang sudah dipakai: di DB (semua karyawan, termasuk terhapus) dan di baris file sebelumnya
     for i, r in enumerate(rows, start=2):  # baris 1 = header
         errs = []
         for k, v in r.items():
@@ -48,16 +49,27 @@ def run(raw, commit, filename=""):
         seen.add(nik)
         sup = r.get("supervisor_nik", "")
         if sup and (sup == nik or (sup not in db_niks and sup not in file_niks)): errs.append("Atasan tidak ditemukan / sama dengan karyawan ini.")
+        for f, label in IDENT_FIELDS.items():
+            n = norm_ident(r.get(f))
+            if n and n in file_ident[f] and file_ident[f][n] != nik: errs.append(f"{f}: {label} sama dengan baris NIK {file_ident[f][n]} di file ini (orang yang sama terdaftar dua kali).")
+            elif n: file_ident[f].setdefault(n, nik)
         if not errs:
             form = EmployeeForm({**{c: r.get(c, "") for c in COLUMNS if c not in ("department_code", "position", "shift", "shift_group", "gs_short", "supervisor_nik")},
                                  "shift_group": g.pk if g else "", "gs_short": r.get("gs_short") or "14",
                                  "status": r.get("status") or "aktif", "department": d.pk, "position": p.pk if p else "", "shift": s.pk if s else "",
                                  "supervisor_nik": ""})  # atasan diselesaikan sendiri (bisa menunjuk baris lain di file yang sama)
+            form.owners = owners
             if form.is_valid(): valid.append((form, sup))
             else: errs += [f"{f}: {m}" for f, ms in form.errors.items() for m in ms]
         if errs: errors.append((i, nik, errs))
     res = {"ok": not errors, "errors": errors, "total": len(rows), "created": 0, "fatal": ""}
     if errors or not commit: return res
+    try: return _commit(valid, res)
+    except IntegrityError:  # NIK yang sama disimpan pihak lain di antara pratinjau dan simpan → tolak semuanya, jangan setengah
+        return {**res, "ok": False, "created": 0, "errors": [(0, "", ["Ada NIK yang baru saja terdaftar oleh pengguna lain. Tidak ada yang disimpan; periksa ulang file lalu coba lagi."])]}
+
+
+def _commit(valid, res):
     with transaction.atomic():
         objs = []
         for form, _ in valid:

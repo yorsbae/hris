@@ -29,7 +29,7 @@ from .models import PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRu
 
 EXPORT_MAX = 20000
 PDF_MAX = 400
-STATUS_STEP = {"draft": 1, "dihitung": 2, "diajukan": 3, "disetujui": 4, "dibayar": 5}
+STATUS_STEP = {"draft": 1, "diserahkan": 2, "dihitung": 3, "ditetapkan": 4, "dibayar": 5}
 
 
 def payroll_only(fn):
@@ -85,10 +85,11 @@ def home(request):
     no_profile = Employee.objects.filter(status="aktif").exclude(Exists(PayProfile.objects.filter(employee_id=OuterRef("pk"), voided_at__isnull=True, effective_from__lte=today))).count()
     with_profile = Employee.objects.filter(status="aktif").filter(Exists(PayProfile.objects.filter(employee_id=OuterRef("pk"), voided_at__isnull=True, effective_from__lte=today))).count()
     tali = engine.pending_tali_asih(today + timedelta(days=31))
-    waiting_pay = live.filter(status=PayrollRun.APPROVED).count()
-    returned = PayrollRun.objects.filter(status=PayrollRun.CALCULATED, events__action="kembalikan").distinct().count()
+    waiting_pay = live.filter(status=PayrollRun.FINALIZED).count()
+    waiting_calc = live.filter(status=PayrollRun.HANDED).count()     # sudah diserahkan HRD, menunggu dihitung Payroll
+    returned = 0
     steps = {"profil": no_profile == 0, "skala": WageScale.objects.filter(voided_at__isnull=True).exists(), "run": bool(run)}
-    return render(request, "payroll/home.html", {"cur": cur, "run": run, "no_profile": no_profile, "with_profile": with_profile, "tali_n": len(tali), "waiting_pay": waiting_pay, "returned": returned,
+    return render(request, "payroll/home.html", {"cur": cur, "run": run, "no_profile": no_profile, "with_profile": with_profile, "tali_n": len(tali), "waiting_pay": waiting_pay, "waiting_calc": waiting_calc, "returned": returned,
                                                  "runs": PayrollRun.objects.all()[:6], "steps": steps, "scale_n": WageScale.objects.filter(voided_at__isnull=True).count(),
                                                  "stale": services.run_is_stale(run) if run else False})
 
@@ -98,24 +99,24 @@ def home(request):
 def runs(request):
     form = None
     if request.method == "POST":
-        if not _is_payroll(request.user): return HttpResponse(status=403)
+        if not _is_hrd(request.user): return HttpResponse(status=403)    # alur HRD → Payroll: HRD yang membuka run periode
         form = RunForm(request.POST)
         if form.is_valid():
             try:
                 with transaction.atomic():
                     r = services.create_run(form.cleaned_data["period"], request.user, form.cleaned_data.get("pay_date"), form.cleaned_data.get("note", ""))
                     log(request, "payroll", "run_create", r, None, {"period": r.period})
-                messages.success(request, f"Run gaji {r.period} dibuat. Langkah berikutnya: Hitung."); return redirect("pay_run", pk=r.pk)
+                messages.success(request, f"Run gaji {r.period} dibuat. Langkah berikutnya: pastikan data periode lengkap lalu Serahkan ke Payroll."); return redirect("pay_run", pk=r.pk)
             except ValueError as e: form.add_error("period", str(e))
-    elif _is_payroll(request.user): form = RunForm()
+    elif _is_hrd(request.user): form = RunForm()
     return render(request, "payroll/runs.html", {"page": paginate(request, PayrollRun.objects.all()), "form": form, "qs": ""})
 
 
 def _can(user, run):
     """Aksi yang boleh dilakukan `user` pada `run` saat ini."""
     s, p, h = run.status, _is_payroll(user), _is_hrd(user)
-    return {"calculate": p and s in ("draft", "dihitung", "diajukan"), "submit": p and s == "dihitung", "withdraw": p and s == "diajukan", "approve": h and s == "diajukan",
-            "return": h and s == "diajukan", "pay": p and s == "disetujui", "cancel": (p or h) and s in ("draft", "dihitung", "diajukan", "disetujui")}
+    return {"handover": h and s == "draft", "calculate": p and s in ("diserahkan", "dihitung"), "finalize": p and s == "dihitung", "reopen": p and s == "ditetapkan",
+            "return": p and s in ("diserahkan", "dihitung"), "pay": p and s == "ditetapkan", "cancel": (p or h) and s in ("draft", "diserahkan", "dihitung", "ditetapkan")}
 
 
 def _slip_filters(request):
@@ -169,13 +170,13 @@ def run_action(request, pk, action):
     try:
         if action == "calculate":
             r = services.calculate_run(pk, u); messages.success(request, f"Dihitung: {r.n_slips} slip, total bersih {calc_fmt(r.total_net)}." + (" Ada peringatan — baca di bawah." if r.warnings else ""))
-        elif action == "submit": services.submit_run(pk, u); messages.success(request, "Diajukan ke HRD. Menunggu persetujuan.")
-        elif action == "withdraw": services.withdraw_run(pk, u); messages.success(request, "Pengajuan ditarik. Perbaiki lalu ajukan lagi.")
-        elif action == "approve": services.approve_run(pk, u); messages.success(request, "Run disetujui. Payroll akan membayar dan menandai dibayar.")
+        elif action == "handover": services.hand_over_run(pk, u); messages.success(request, "Data periode diserahkan ke Payroll. Payroll akan menghitung.")
+        elif action == "finalize": services.finalize_run(pk, u); messages.success(request, "Run ditetapkan. Langkah berikutnya: bayar lalu tandai dibayar.")
+        elif action == "reopen": services.reopen_run(pk, u); messages.success(request, "Run dibuka kembali. Perbaiki lalu hitung ulang dan tetapkan lagi.")
         elif action == "return":
             f = ReasonForm(request.POST)
             if not f.is_valid(): raise ValueError("Alasan wajib diisi.")
-            services.return_run(pk, f.cleaned_data["reason"], u); messages.success(request, "Run dikembalikan ke Payroll beserta alasannya.")
+            services.return_to_hrd(pk, f.cleaned_data["reason"], u); messages.success(request, "Run dikembalikan ke HRD beserta alasannya.")
         elif action == "pay":
             f = PayDateForm(request.POST)
             if not f.is_valid(): raise ValueError("Tanggal bayar tidak valid.")

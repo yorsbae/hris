@@ -2,7 +2,7 @@
 <p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
 <h2>Run Gaji</h2>
 <p class="sub">Satu run per bulan: dihitung dari profil, Absensi, BPJS, seragam, tali asih, dan penyesuaian. Diajukan Payroll, disetujui HRD, lalu dibayar.</p>
-{% if form %}<form method="post" class="card form" style="margin-bottom:12px">{% csrf_token %}{{ form.non_field_errors }}<h3 style="margin-top:0">Buat run baru</h3>
+{% if form %}<form method="post" class="card form" style="margin-bottom:12px">{% csrf_token %}{{ form.non_field_errors }}<h3 style="margin-top:0">Buat run baru (HRD)</h3>
 {% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}<p><button>Buat run</button></p></form>{% endif %}
 <div class="wrap"><table id="runs"><thead><tr><th class="nw">Periode</th><th class="nw">Status</th><th class="num">Slip</th><th class="num">Total bersih<small>pendapatan − potongan</small></th><th class="nw">Dibayar</th><th class="acts"></th></tr></thead><tbody>
 {% for r in page %}<tr{% if r.status == 'dibatalkan' %} style="opacity:.55"{% endif %}><td class="nw">{{ r.period }}</td><td class="nw"><span class="pill {{ r.status }}">{{ r.get_status_display }}</span></td><td class="num">{{ r.n_slips }}</td>

@@ -24,13 +24,14 @@ def _bill_to_data(r, ctx):
     if not p: raise ValueError(f"Mitra '{r.get('mitra', '')}' tidak dikenal/nonaktif (lihat Mitra).")
     return {"partner": p.pk, "bill_number": r.get("nomor_tagihan", ""), "bill_date": r.get("tanggal_tagihan", ""), "nik": r.get("nik", ""), "service_date": r.get("tanggal_layanan", ""),
             "service_type": _choice(r.get("jenis_layanan"), PartnerBill.SERVICES), "complaint": r.get("keluhan", ""), "diagnosis_code": r.get("kode_diagnosa", ""),
-            "payer": _choice(r.get("penanggung"), PartnerBill.PAYERS), "total_amount": r.get("total", "")}
+            "payer": _choice(r.get("penanggung"), PartnerBill.PAYERS), "total_amount": r.get("total", ""), "discount_amount": r.get("potongan", "")}
 
 
 BILL = Spec("tagihan-mitra", "poli", "tagihan mitra", "/poli/billing/", None, "key", PartnerBillForm,
-            ["mitra", "nomor_tagihan", "tanggal_tagihan", "nik", "tanggal_layanan", "jenis_layanan", "kode_diagnosa", "penanggung", "total", "keluhan"],
+            ["mitra", "nomor_tagihan", "tanggal_tagihan", "nik", "tanggal_layanan", "jenis_layanan", "kode_diagnosa", "penanggung", "total", "potongan", "keluhan"],
             ["mitra", "nomor_tagihan", "tanggal_tagihan", "nik", "tanggal_layanan", "total"],
-            ["RS Contoh", "INV-001", "2026-10-05", "001", "2026-10-03", "rawat_jalan", "A09", "perusahaan", "450000", ""], _bill_to_data,
+            ["RS Contoh", "INV-001", "2026-10-05", "001", "2026-10-03", "rawat_jalan", "A09", "perusahaan", "450000", "0", ""], _bill_to_data,
             key_fn=lambda r: f"{(r.get('mitra') or '').strip().lower()}|{' '.join((r.get('nomor_tagihan') or '').split()).lower()}",
             hint="Satu baris = satu tagihan (tanpa rincian biaya; rincian diisi lewat form). DATA MEDIS: berkas ini memuat keluhan/diagnosa — perlakukan sebagai rahasia. "
-                 "Hanya MENAMBAH; nomor tagihan yang sudah tercatat dari mitra yang sama ditolak. Jenis layanan: rawat_jalan, rawat_inap, lab, obat, kacamata, lainnya. Penanggung: perusahaan, bpjs, karyawan.")
+                 "Hanya MENAMBAH; nomor tagihan yang sudah tercatat dari mitra yang sama ditolak. Jenis layanan: rawat_jalan, rawat_inap, lab, obat, kacamata, lainnya. Penanggung: perusahaan, bpjs, karyawan. "
+                 "potongan (opsional) = potongan mitra, mis. potongan dokter RS. Beban otomatis: penanggung perusahaan + karyawan ber-BPJS aktif → perusahaan 75% / karyawan 25%; tanpa BPJS → 100% perusahaan.")

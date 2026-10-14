@@ -1,7 +1,7 @@
 # PROGRESS — HRIS & Poliklinik
 
-Terakhir diperbarui: 14 Oktober 2026 (putaran 57 — **Tahap 7 Payroll dikerjakan: akun Payroll, master upah harian/profil/parameter/tali asih, mesin hitung slip, run gaji berjenjang Payroll → HRD → bayar, slip PDF, seed demo**; sebelumnya: putaran 56fix) — riwayat putaran sebelumnya ada di bagian bawah.
-Uji: `python manage.py test --parallel 4` (**putaran 57: 1241 tes lulus di SQLite, 13 dilewati khusus PostgreSQL; `apps.payroll` 52 tes**; butuh `FIELD_ENCRYPTION_KEY` di env). PostgreSQL belum diuji untuk migrasi baru (`core/0005`, `payroll/0001–0002`).
+Terakhir diperbarui: 14 Oktober 2026 (putaran 58 — **exim anti-duplikat, pembagian beban Poli BPJS 75/25 + cetak/rekap, alur run gaji dibalik HRD → Payroll**; sebelumnya: putaran 57 Payroll) — riwayat putaran sebelumnya ada di bagian bawah.
+Uji: `python manage.py test` (**putaran 58: 1274 tes lulus di SQLite, 13 dilewati khusus PostgreSQL; `apps.payroll` 53 tes; mode `--parallel` gagal melaporkan error bila ada tes gagal — jalankan serial untuk melihat pesannya**; butuh `FIELD_ENCRYPTION_KEY` di env). PostgreSQL belum diuji untuk migrasi baru (`core/0005`, `payroll/0001–0002`).
 
 ## 1. Peta kemajuan terhadap VISION
 
@@ -167,7 +167,31 @@ Dasar: VISION → Performa ("jangan kirim 3.000+ data sekaligus"), Keamanan (CSR
 ### Putaran 13a — perbaikan /admin/ (dari riwayat git; dicatat belakangan)
 `/admin/` tampil tanpa CSS karena `DEBUG=False`: ditambah WhiteNoise untuk `/static/`, nama app & judul admin berbahasa Indonesia, dan tes regresi (`apps/core/test_static_admin.py`). Tes 332 → 337.
 
-### Putaran 57 — Tahap 7 Payroll (akun Payroll, upah harian, tali asih, run gaji) ← terbaru
+### Putaran 58 — Exim tanpa duplikasi · Poli BPJS 75/25 + cetak/rekap · Alur run gaji HRD → Payroll ← terbaru
+**Yang dikerjakan**
+1. **Exim tidak duplikat/redundan** (`core/bulk.py`, form Payroll/HRD, `hr/importer.py`, `hr/emp_forms.py`):
+   - Impor ulang file yang **sama** tidak lagi membuat baris kembar: form Payroll (profil, skala, parameter, tali asih, penyesuaian) dan Potongan BPJS membandingkan nilai; identik → **"tidak berubah"** (dilewati, tanpa baris batal+baru dan tanpa jejak audit palsu). Ringkasan impor kini: ditambahkan / diperbarui / tidak berubah.
+   - Impor dikunci per spesifikasi (advisory lock PostgreSQL) dan **divalidasi ulang di dalam transaksi** → dua impor bersamaan, atau impor + input manual, tak bisa sama-sama lolos cek "sudah ada".
+   - **Karyawan**: NIK KTP / No. BPJS Kes / BPJS TK / NPWP tidak boleh terdaftar pada dua karyawan (dibandingkan setelah dinormalkan — spasi/titik/strip diabaikan; termasuk karyawan yang sudah di-soft-delete; kolom terenkripsi dibaca di Python). Berlaku di impor (DB **dan** antar-baris dalam file) dan di form manual. Tabrakan NIK saat simpan (balapan) → seluruh impor ditolak, bukan setengah.
+   - Ekspor: tidak ada pengulangan baris (satu baris per catatan); data Poli (tagihan) memakai kunci mitra+nomor tagihan.
+2. **Poli: pembagian beban tagihan berobat** (`poli/0010_bill_split_bpjs`): karyawan **ber-BPJS Kesehatan aktif** → perusahaan **75%** / karyawan **25%**; **tanpa BPJS → 100% perusahaan** (penanggung "karyawan" → 100% karyawan; "bpjs" → 0/0). Dasar = **tagihan aktif = total − potongan mitra** (kolom baru *Potongan*, mis. "Potongan Dr RS" di formulir). Status BPJS dibaca dari Operasional HRD (Status BPJS); bila belum pernah dicatat, nomor BPJS Kes terisi = punya. Hasil **disalin saat dicatat** (`has_bpjs`, `company_amount`, `employee_amount`) sehingga rekap lama tak bergeser bila status BPJS berubah; sisa pembulatan jatuh ke karyawan (jumlah selalu tepat). Persentase dapat disetel `POLI_BPJS_COMPANY_PCT` (bawaan 75). Migrasi mengisi ulang tagihan lama dengan aturan yang sama.
+   - **Rekap** (`/poli/billing/`): KPI "ditanggung perusahaan / karyawan", kolom Perusahaan & Karyawan per mitra/departemen/karyawan, penanda aturan (BPJS 75/25 vs tanpa BPJS 100%) di daftar dan detail.
+   - **Ekspor**: kolom `potongan`, `tagihan_aktif`, `bpjs_aktif`, `ditanggung_perusahaan`, `ditanggung_karyawan`. **Impor**: kolom opsional `potongan`.
+   - **Cetak PDF** (`?print=1`, tombol "Cetak daftar berobat + rekap"): *Daftar Karyawan Berobat <mitra> Bulan <periode>* (Tgl, NIK, Nama, Jabatan, Dept, Pelayanan, Tagihan RS, Potongan, Tagihan Aktif, Ditanggung Karyawan, Kebijakan Perusahaan, Keterangan aturan) + lembar **REKAP** pembayaran (Hutang Pengobatan ditanggung Karyawan, Pengobatan Kary per departemen, Jumlah, kolom tanda tangan) mengikuti formulir RS QM Agustus 2026. Tanpa keluhan/diagnosa; yang ditolak tidak ikut; tercatat di audit.
+3. **Alur run gaji dibalik: HRD → Payroll** (`payroll/0003_run_flow_hr_to_payroll`): `draft` (HRD membuat run periode) → **HRD menyerahkan** data (`diserahkan`) → **Payroll menghitung** (`dihitung`) → **Payroll menetapkan** (`ditetapkan`) → Payroll membayar (`dibayar`, terkunci). Payroll dapat **mengembalikan ke HRD** (alasan wajib; HRD diberi notifikasi) bila data kurang, dan **membuka kembali** run yang sudah ditetapkan (belum dibayar). Persetujuan HRD *setelah* hitung dan pemisahan pengaju≠penyetuju dihapus (setting `PAYROLL_ALLOW_SELF_APPROVE` dibuang) karena pemisahan kini ada pada peran. Hanya HRD yang membuat run; Payroll tidak menyerahkan; HRD tidak menghitung/menetapkan/membayar. Catatan kesiapan (validasi kehadiran belum diverifikasi) dicatat di jejak saat serah. Migrasi memetakan `diajukan→dihitung`, `disetujui→ditetapkan`, kolom `submitted_*→handed_*`, `approved_*→finalized_*` (dapat dibalik). Seed demo, menu HRD ("Run Gaji (serahkan ke Payroll)"), beranda Payroll, dan tes disesuaikan.
+**Tes**: `core/test_exim_dedupe` (14), `poli/test_p58_bill_split` (18), `payroll` alur baru (+6, beberapa diganti); `hr/test_core` disesuaikan (KTP karyawan baru harus berbeda). Suite penuh 1274 lulus.
+**Asumsi baru (A138–A144; mohon konfirmasi)**
+- **A138.** "Punya BPJS" = BPJS **Kesehatan** aktif (bukan TK). Status HRD menang atas nomor; tanpa catatan status, nomor terisi = punya.
+- **A139.** 75/25 hanya untuk penanggung "perusahaan"; potongan mitra dikurangkan lebih dulu (angka foto: 181.500 − 13.613 = 167.887 → 125.915 / 41.972).
+- **A140.** Bagian karyawan menjadi piutang (baris "Hutang Pengobatan ditanggung Karyawan" di REKAP); **belum** otomatis masuk potongan slip (`pot_pengobatan` tetap diisi lewat Penyesuaian) — keputusan terbuka di bawah.
+- **A141.** Rekap Poli memakai nama pada lembar REKAP: nomor perkiraan (Perk.) tidak diisi; "Kepada Yth/Tgl/No BKK" diisi manual setelah cetak.
+- **A142.** Run gaji: HRD yang membuat; Payroll yang menetapkan; tidak ada persetujuan HRD pasca-hitung. Bila ingin tetap ada pemeriksa independen, tambah langkah "ditinjau" tanpa mengubah data.
+- **A143.** Dua karyawan dengan nomor KTP/BPJS/NPWP yang sama dianggap salah input (bukan keluarga/ganda sah); koreksi lewat edit data lama.
+- **A144.** Impor identik dilewati diam-diam ("tidak berubah"), bukan error.
+**Belum / utang**: potongan otomatis bagian karyawan (25%) ke slip Payroll (`pot_pengobatan` dari Tagihan Mitra); uji PostgreSQL (`poli/0010`, `payroll/0003`, advisory lock); sinkron pengguna lama yang masih memakai alamat `/payroll/runs/<id>/approve/` (kini 403/404); tampilan cetak PDF belum dibandingkan dengan formulir fisik; ekspor transfer bank; PPh 21.
+**Yang akan dilakukan (urut)**: (1) `migrate` lalu periksa Poli → Tagihan Mitra (catat 1 tagihan ber-BPJS & 1 tanpa BPJS) dan cetak PDF; (2) konfirmasi A138–A144; (3) hubungkan bagian karyawan ke slip (`pot_pengobatan` otomatis, idempoten per tagihan); (4) uji PostgreSQL; (5) ekspor transfer bank.
+
+### Putaran 57 — Tahap 7 Payroll (akun Payroll, upah harian, tali asih, run gaji)
 **Yang dikerjakan**
 - **Role Payroll** (migrasi `core/0005`) + app `apps/payroll` (data gaji terpisah dari tabel karyawan). Hak: Payroll & Superadmin penuh; **HRD** hanya melihat run/slip, **menyetujui / mengembalikan / membatalkan**, dan melihat usulan tali asih; Admin Dept & Poli ditolak (403). Lihat slip/cetak/ekspor tercatat di audit.
 - **Master data** (append-only, berlaku-sejak, batal beralasan, tidak pernah dihapus): skala **upah harian per grade+sub-grade** (boleh desimal, mis. 84.480,87), **profil gaji karyawan** (grade/tier atau upah khusus, T Jabatan/Pendidikan/Khusus/Lain, hak uang makan), **parameter hitung** (bertanggal), **isian manual per periode** (premi, insentif, pinjaman, pengobatan, materai, Grade D, koreksi bertanda), **aturan usulan tali asih** per jenis keluar.

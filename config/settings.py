@@ -15,6 +15,9 @@ HRD_SIGNER_NAME = env("HRD_SIGNER_NAME", default="")  # penanda tangan HRD (mis.
 HRD_SIGNER_TITLE = env("HRD_SIGNER_TITLE", default="Manager HRD")
 PERSONALIA_SIGNER_NAME = env("PERSONALIA_SIGNER_NAME", default="")  # persetujuan cuti hamil
 PERSONALIA_SIGNER_TITLE = env("PERSONALIA_SIGNER_TITLE", default="Kabag Personalia")
+# Pembagian beban tagihan berobat (Poli → Tagihan Mitra): karyawan dengan BPJS Kesehatan aktif → perusahaan menanggung PCT% dan karyawan sisanya;
+# karyawan tanpa BPJS → 100% perusahaan. Diubah lewat .env bila kebijakan berubah (tagihan yang sudah dicatat tidak bergeser).
+POLI_BPJS_COMPANY_PCT = env.int("POLI_BPJS_COMPANY_PCT", default=75)
 APP_VERSION = "1.1.0"
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")  # enkripsi kolom sensitif; lihat apps/core/crypto.py
 DEBUG = env.bool("DJANGO_DEBUG", False)
@@ -90,7 +93,6 @@ LOGIN_LOCK_RESET_HOURS = 24                                         # hitungan g
 SESSION_IDLE_TIMEOUT = env.int("SESSION_IDLE_MINUTES", 30) * 60     # 0 = nonaktif
 THROTTLE_ZONES = {"api": (240, 60), "export": (20, 60), "upload": (30, 60)}  # {zona: (jumlah, detik)} per user+IP
 REQUEST_ATTACH_MAX_MB = env.int("REQUEST_ATTACH_MAX_MB", default=50)  # bukti pengajuan (foto/berkas): ukuran per berkas; ekstensi bebas (putaran 50)
-PAYROLL_ALLOW_SELF_APPROVE = env.bool("PAYROLL_ALLOW_SELF_APPROVE", default=False)  # darurat: izinkan pengaju run gaji menyetujui sendiri (putaran 57); bawaan mati = pemisahan tugas
 REQUEST_ATTACH_MAX_FILES = env.int("REQUEST_ATTACH_MAX_FILES", default=10)  # jumlah berkas per pengajuan
 import sys
 if "test" in sys.argv: THROTTLE_ZONES = {}  # cache LocMem dipakai bersama antartes (IP & pk user sama) → tes zona memakai override_settings

@@ -182,7 +182,11 @@ class PartnerBill(models.Model):
     complaint = EncryptedTextField(blank=True)                                   # MEDIS, terenkripsi
     diagnosis = models.ForeignKey(Diagnosis, null=True, blank=True, on_delete=models.PROTECT, related_name="+")  # MEDIS
     payer = models.CharField(max_length=10, choices=PAYERS, default="perusahaan")
-    total_amount = models.DecimalField(max_digits=14, decimal_places=2)          # sesuai tagihan mitra
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2)          # sesuai tagihan mitra (Tagihan RS, sebelum potongan)
+    discount_amount = models.DecimalField("Potongan mitra", max_digits=14, decimal_places=2, default=0)  # mis. "Potongan Dr RS": tagihan aktif = total − potongan
+    has_bpjs = models.BooleanField("BPJS Kesehatan aktif saat dicatat", default=False)  # salinan (snapshot) status BPJS karyawan saat tagihan dicatat; dasar pembagian beban
+    company_amount = models.DecimalField("Ditanggung perusahaan", max_digits=14, decimal_places=2, default=0)   # hasil aturan pembagian (services.split_bill), disimpan agar rekap lama tak bergeser
+    employee_amount = models.DecimalField("Ditanggung karyawan", max_digits=14, decimal_places=2, default=0)
     lines_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)  # jumlah rincian (0 bila tanpa rincian)
     status = models.CharField(max_length=12, choices=STATUSES, default="diterima", db_index=True)
     status_note = models.CharField(max_length=300, blank=True)                   # alasan ditolak
@@ -193,9 +197,13 @@ class PartnerBill(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["partner", "bill_number"], condition=~models.Q(status="ditolak"), name="uniq_partner_bill_number_live"),
-                       models.CheckConstraint(condition=models.Q(total_amount__gt=0, lines_total__gte=0), name="partner_bill_amounts")]
+                       models.CheckConstraint(condition=models.Q(total_amount__gt=0, lines_total__gte=0), name="partner_bill_amounts"),
+                       models.CheckConstraint(condition=models.Q(discount_amount__gte=0, discount_amount__lte=models.F("total_amount"), company_amount__gte=0, employee_amount__gte=0), name="partner_bill_split_sane")]
         indexes = [models.Index(fields=["service_date"]), models.Index(fields=["partner", "status"])]
         ordering = ["-service_date", "-id"]
+
+    @property
+    def net_amount(self): return self.total_amount - self.discount_amount   # tagihan aktif (dasar pembagian)
 
     @property
     def mismatch(self): return bool(self.lines_total) and self.lines_total != self.total_amount

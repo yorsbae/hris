@@ -9,6 +9,27 @@ STATUSES = [("aktif", "aktif"), ("nonaktif", "nonaktif")]
 CONTRACT_KINDS = [("PKWT", "PKWT"), ("PKWTT", "PKWTT / tetap"), ("percobaan", "Percobaan"), ("magang", "Magang")]
 
 
+def norm_ident(v):
+    """Normalisasi pengenal pribadi (KTP/BPJS/NPWP) untuk membandingkan: hanya huruf-angka, huruf kecil."""
+    return re.sub(r"[^0-9a-z]", "", (v or "").lower())
+
+
+IDENT_FIELDS = {"nik_ktp": "NIK KTP", "bpjs_kes": "No. BPJS Kesehatan", "bpjs_tk": "No. BPJS Ketenagakerjaan", "npwp": "NPWP"}
+
+
+def identifier_owners(exclude_pk=None):
+    """{field: {nilai-ternormalisasi: nik}} untuk SEMUA karyawan (termasuk yang di-soft-delete). Kolom terenkripsi tak bisa dicari lewat SQL, jadi dibaca & dibandingkan di Python
+    (satu kali per impor / per simpan form — sekitar ribuan baris, murah)."""
+    out = {f: {} for f in IDENT_FIELDS}
+    qs = Employee.all_objects.all()
+    if exclude_pk: qs = qs.exclude(pk=exclude_pk)
+    for row in qs.values("nik", *IDENT_FIELDS):
+        for f in IDENT_FIELDS:
+            n = norm_ident(row[f])
+            if n: out[f].setdefault(n, row["nik"])
+    return out
+
+
 class EmployeeForm(forms.ModelForm):
     status = forms.ChoiceField(choices=STATUSES)
     supervisor_nik = forms.CharField(label="NIK atasan", max_length=20, required=False,
@@ -61,6 +82,19 @@ class EmployeeForm(forms.ModelForm):
         if v and not re.fullmatch(r"\d{16}", v): raise forms.ValidationError("NIK KTP harus 16 digit angka.")
         return v
 
+    def _owners(self):
+        # Impor massal memberi tabel pemilik siap pakai (`owners`) agar tidak membaca ulang seluruh karyawan per baris.
+        if getattr(self, "owners", None) is None: self.owners = identifier_owners(self.instance.pk)
+        return self.owners
+
+    def _check_identifiers(self, d):
+        for f, label in IDENT_FIELDS.items():
+            n = norm_ident(d.get(f))
+            if not n or f in self.errors: continue
+            other = self._owners()[f].get(n)
+            if other and other != (self.instance.nik if self.instance.pk else None):
+                self.add_error(f, f"{label} ini sudah tercatat pada karyawan lain (NIK {other}). Satu orang tidak boleh terdaftar dua kali.")
+
     def clean_npwp(self):
         v = self.cleaned_data["npwp"].strip()
         if v and not re.fullmatch(r"[\d.\-]{15,25}", v): raise forms.ValidationError("Format NPWP tidak valid (15–16 digit, boleh titik/strip).")
@@ -70,6 +104,7 @@ class EmployeeForm(forms.ModelForm):
         d = super().clean()
         if d.get("shift") and d.get("shift_group"):  # satu sumber jadwal dasar: rotasi kelompok ATAU shift tetap/GS (jadwal efektif tidak ambigu)
             self.add_error("shift_group", "Pilih salah satu: kelompok rotasi atau shift tetap/GS, tidak keduanya.")
+        self._check_identifiers(d)
         return d
 
     def clean_birth_date(self):

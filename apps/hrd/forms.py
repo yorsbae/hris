@@ -75,8 +75,12 @@ class BpjsDeductionForm(forms.Form):
 
     def save(self):
         d = self.cleaned_data
-        obj, _ = BpjsDeduction.objects.update_or_create(employee=self.employee, scheme=d["scheme"], period=d["period"],
+        cur = BpjsDeduction.objects.filter(employee=self.employee, scheme=d["scheme"], period=d["period"]).first()
+        if cur and cur.employee_amount == d["employee_amount"] and cur.employer_amount == (d.get("employer_amount") or 0) and (cur.note or "") == d.get("note", "").strip():
+            self.unchanged = True; return cur  # nilai identik: tidak ada tulis ulang / jejak audit palsu
+        obj, created = BpjsDeduction.objects.update_or_create(employee=self.employee, scheme=d["scheme"], period=d["period"],
             defaults={"employee_amount": d["employee_amount"], "employer_amount": d.get("employer_amount") or 0, "note": d.get("note", "").strip(), "created_by": self.user})
+        self.replaced = not created
         return obj
 
 

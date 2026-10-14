@@ -12,6 +12,7 @@ from .models import ChangeRequest, Contract, Department, Employee, EmployeeHisto
 
 KEY = Fernet.generate_key().decode()
 KTP = "3326010101010001"
+KTP_NEW = "3326010101010002"   # KTP berbeda untuk karyawan baru (putaran 58: KTP ganda ditolak)
 
 
 def raw(emp_id, col):
@@ -84,11 +85,11 @@ class EncryptionTests(CoreBase):
 class EmployeeCrudTests(CoreBase):
     def test_hrd_creates_and_audit_masks_sensitive(self):
         self.login("hrd")
-        r = self.client.post("/employees/new/", self.emp_data(nik_ktp=KTP, bank_account="9988776655"))
+        r = self.client.post("/employees/new/", self.emp_data(nik_ktp=KTP_NEW, bank_account="9988776655"))
         e = Employee.objects.get(nik="100"); self.assertRedirects(r, f"/employees/{e.pk}/")
         self.assertTrue(is_encrypted(raw(e.pk, "nik_ktp")))
         a = AuditLog.objects.get(action="employee_create"); blob = json.dumps(a.after)
-        self.assertNotIn(KTP, blob); self.assertNotIn("9988776655", blob); self.assertEqual(a.after["name"], "Baru")
+        self.assertNotIn(KTP_NEW, blob); self.assertNotIn("9988776655", blob); self.assertEqual(a.after["name"], "Baru")
 
     def test_only_hrd_can_write(self):
         for who in ("adm1", "poli"):

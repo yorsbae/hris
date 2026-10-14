@@ -222,14 +222,42 @@ def unlink_medicine(diagnosis, link_id):
 
 
 # ---------------------------------------------------------------- Tagihan Mitra (putaran 24, P6)
-def create_partner_bill(user, partner, bill_number, bill_date, employee, service_date, service_type, complaint, diagnosis, payer, total, lines=()):
-    """Catat tagihan + rincian (opsional) + jejak awal dalam satu transaksi. `lines` = [(deskripsi, qty, harga_satuan)]."""
+def employee_has_bpjs(employee):
+    """BPJS Kesehatan karyawan: status HRD (Operasional HRD → BPJS) bila ada; bila belum pernah dicatat, nomor BPJS Kes di data karyawan (nomor terisi = punya)."""
+    from apps.hrd.models import BpjsMembership
+    m = BpjsMembership.objects.filter(employee=employee, scheme="kes").values_list("status", flat=True).first()
+    if m is not None: return m == "aktif"
+    return bool((employee.bpjs_kes or "").strip())
+
+
+def split_bill(net, payer, has_bpjs, company_pct=None):
+    """Pembagian beban tagihan aktif (setelah potongan) → (ditanggung perusahaan, ditanggung karyawan), jumlah keduanya SELALU = net.
+    Penanggung 'perusahaan': karyawan ber-BPJS → perusahaan `company_pct`% (bawaan 75) dan karyawan sisanya (25%); tanpa BPJS → 100% perusahaan.
+    Penanggung 'karyawan' → 100% karyawan. Penanggung 'bpjs' (dibayar BPJS) → tidak membebani keduanya (0/0). Sisa pembulatan jatuh ke karyawan agar total tepat."""
+    from decimal import Decimal, ROUND_HALF_UP
+    from django.conf import settings
+    net = Decimal(net)
+    if payer == "karyawan": return Decimal(0), net
+    if payer == "bpjs": return Decimal(0), Decimal(0)
+    if not has_bpjs: return net, Decimal(0)
+    pct = Decimal(settings.POLI_BPJS_COMPANY_PCT if company_pct is None else company_pct)
+    company = (net * pct / 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return company, net - company
+
+
+def create_partner_bill(user, partner, bill_number, bill_date, employee, service_date, service_type, complaint, diagnosis, payer, total, lines=(), discount=0):
+    """Catat tagihan + rincian (opsional) + jejak awal dalam satu transaksi. `lines` = [(deskripsi, qty, harga_satuan)]. `discount` = potongan mitra (mis. potongan dokter RS):
+    beban dibagi dari tagihan aktif = total − potongan (lihat split_bill); status BPJS karyawan disalin saat dicatat."""
     from decimal import Decimal
     from .models import PartnerBill, PartnerBillEvent, PartnerBillLine
+    discount = Decimal(discount or 0)
+    if discount < 0 or discount > Decimal(total): raise ValueError("Potongan tidak boleh negatif atau melebihi total tagihan.")
     with transaction.atomic():
         lines_total = sum((Decimal(q) * Decimal(p) for _, q, p in lines), Decimal(0))
+        has_bpjs = employee_has_bpjs(employee); company, emp = split_bill(Decimal(total) - discount, payer, has_bpjs)
         b = PartnerBill.objects.create(partner=partner, bill_number=bill_number.strip(), bill_date=bill_date, employee=employee, service_date=service_date, service_type=service_type,
-                                       complaint=(complaint or "").strip(), diagnosis=diagnosis, payer=payer, total_amount=total, lines_total=lines_total, created_by=user)
+                                       complaint=(complaint or "").strip(), diagnosis=diagnosis, payer=payer, total_amount=total, lines_total=lines_total, created_by=user,
+                                       discount_amount=discount, has_bpjs=has_bpjs, company_amount=company, employee_amount=emp)
         for desc, q, p in lines: PartnerBillLine.objects.create(bill=b, description=desc.strip(), qty=q, unit_price=p, amount=Decimal(q) * Decimal(p))
         PartnerBillEvent.objects.create(bill=b, from_status="", to_status="diterima", user=user)
         return b

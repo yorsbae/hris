@@ -42,7 +42,7 @@ def _company():
 
 def _payroll(full):
     """Menu Payroll (Tahap 7, putaran 57). Payroll & Superadmin: semua; HRD: hanya Run Gaji (periksa, setujui/kembalikan)."""
-    if not full: return [("Payroll (persetujuan)", "/payroll/runs/", "briefcase"), ("Usulan Tali Asih", "/payroll/tali-asih/", "clipboard", True)]
+    if not full: return [("Run Gaji (serahkan ke Payroll)", "/payroll/runs/", "briefcase"), ("Usulan Tali Asih", "/payroll/tali-asih/", "clipboard", True)]
     return [("Payroll", "/payroll/", "briefcase"), ("Run Gaji (per periode)", "/payroll/runs/", "calendar", True), ("Profil Gaji Karyawan", "/payroll/profiles/", "users", True),
             ("Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("Parameter & Komponen", "/payroll/params/", "sliders", True),
             ("Penyesuaian (insentif/potongan)", "/payroll/adjustments/", "clipboard", True), ("Tali Asih", "/payroll/tali-asih/", "clipboard", True)]

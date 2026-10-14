@@ -302,6 +302,8 @@ class PartnerBillForm(forms.Form):
     diagnosis_code = forms.CharField(label="Kode diagnosa", required=False, max_length=10, help_text="Kode dari Master Diagnosa (mis. A09). Kosong bila belum ada.")
     payer = forms.ChoiceField(label="Penanggung", choices=PartnerBill.PAYERS)
     total_amount = RupiahField(label="Total tagihan (Rp)", min_value=1, max_value=5_000_000_000)
+    discount_amount = RupiahField(label="Potongan mitra (Rp)", required=False, min_value=0, max_value=5_000_000_000,
+                                  help_text="Mis. potongan dokter/RS. Beban perusahaan & karyawan dihitung dari total − potongan. Kosong = 0.")
 
     def __init__(self, *a, instance=None, user=None, **k):
         super().__init__(*a, **k); self.instance, self.user, self.employee, self.diagnosis = instance, user, None, None
@@ -318,6 +320,7 @@ class PartnerBillForm(forms.Form):
         if code:
             self.diagnosis = Diagnosis.objects.filter(code__iexact=code).first()
             if not self.diagnosis: self.add_error("diagnosis_code", "Kode diagnosa tidak ada di Master Diagnosa.")
+        if d.get("discount_amount") and d.get("total_amount") and d["discount_amount"] > d["total_amount"]: self.add_error("discount_amount", "Potongan tidak boleh melebihi total tagihan.")
         sd, bd = d.get("service_date"), d.get("bill_date")
         if sd and bd and bd < sd: self.add_error("bill_date", "Tanggal tagihan tidak boleh sebelum tanggal pelayanan.")
         if bd and bd > date.today(): self.add_error("bill_date", "Tanggal tagihan tidak boleh di masa depan.")   # bersama aturan di atas ⇒ tanggal pelayanan juga tidak di masa depan
@@ -328,7 +331,7 @@ class PartnerBillForm(forms.Form):
     def save(self, lines=()):
         d = self.cleaned_data
         return services.create_partner_bill(self.user, d["partner"], d["bill_number"], d["bill_date"], self.employee, d["service_date"], d["service_type"], d.get("complaint", ""),
-                                            self.diagnosis, d["payer"], d["total_amount"], lines)
+                                            self.diagnosis, d["payer"], d["total_amount"], lines, d.get("discount_amount") or 0)
 
 
 class BillLineForm(forms.Form):

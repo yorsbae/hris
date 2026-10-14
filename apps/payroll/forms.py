@@ -19,6 +19,21 @@ DATE = lambda: forms.DateInput(attrs={"type": "date"})  # noqa: E731
 NIK = lambda: forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…", "autocomplete": "off"})  # noqa: E731
 
 
+def same_values(obj, new):
+    """True bila SEMUA nilai `new` (dict field→nilai) identik dengan `obj` (Decimal/int/str dibandingkan menurut nilai). Dipakai agar menyimpan ulang nilai yang sama
+    (mis. impor ulang file yang sama) tidak membatalkan baris lama lalu membuat baris kembar — riwayat tetap ringkas dan tanpa data berulang."""
+    for k, v in new.items():
+        cur = getattr(obj, k)
+        if isinstance(v, bool) or isinstance(cur, bool):
+            if bool(cur) != bool(v): return False
+        elif isinstance(v, (int, float, D)) or isinstance(cur, (int, float, D)):
+            if cur is None or v is None:
+                if cur is not v: return False
+            elif D(str(cur)) != D(str(v)): return False
+        elif (cur or "") != (v or ""): return False
+    return True
+
+
 class SignedRupiahField(RupiahField):
     """Seperti RupiahField tetapi boleh negatif (hanya komponen 'boleh negatif', mis. koreksi kelebihan bayar)."""
     def to_python(self, value):
@@ -101,7 +116,11 @@ class ProfileForm(ByNik):
     def save(self):
         d = self.cleaned_data
         old = PayProfile.objects.select_for_update().filter(employee=self.employee, effective_from=d["effective_from"], voided_at__isnull=True).first()
-        if old: old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
+        new = {"grade": d.get("grade"), "tier": d.get("tier") or "", "wage_override": d.get("wage_override"), "allowance_position": d.get("allowance_position") or 0,
+               "allowance_education": d.get("allowance_education") or 0, "allowance_special": d.get("allowance_special") or 0, "allowance_other": d.get("allowance_other") or 0,
+               "meal_allowance": bool(d.get("meal_allowance")), "note": d.get("note", "").strip()}
+        if old and same_values(old, new): self.unchanged = True; return old
+        if old: self.replaced = True; old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
         return PayProfile.objects.create(employee=self.employee, effective_from=d["effective_from"], grade=d.get("grade"), tier=d.get("tier") or "", wage_override=d.get("wage_override"),
                                          allowance_position=d.get("allowance_position") or 0, allowance_education=d.get("allowance_education") or 0, allowance_special=d.get("allowance_special") or 0,
                                          allowance_other=d.get("allowance_other") or 0, meal_allowance=bool(d.get("meal_allowance")), note=d.get("note", "").strip(), created_by=self.user)
@@ -127,7 +146,8 @@ class ScaleForm(forms.Form):
     def save(self):
         d = self.cleaned_data
         old = WageScale.objects.select_for_update().filter(grade=d["grade"], tier=d["tier"], effective_from=d["effective_from"], voided_at__isnull=True).first()
-        if old: old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
+        if old and same_values(old, {"daily_wage": d["daily_wage"], "note": d.get("note", "").strip()}): self.unchanged = True; return old
+        if old: self.replaced = True; old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
         return WageScale.objects.create(grade=d["grade"], tier=d["tier"], daily_wage=d["daily_wage"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
 
 
@@ -145,7 +165,8 @@ class ParamForm(forms.Form):
     def save(self):
         d = self.cleaned_data
         old = PayParam.objects.select_for_update().filter(key=d["key"], effective_from=d["effective_from"], voided_at__isnull=True).first()
-        if old: old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
+        if old and same_values(old, {"value": d["value"], "note": d.get("note", "").strip()}): self.unchanged = True; return old
+        if old: self.replaced = True; old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
         return PayParam.objects.create(key=d["key"], value=d["value"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
 
 
@@ -179,7 +200,9 @@ class AdjustmentForm(ByNik):
 
     def save(self):
         d = self.cleaned_data
-        return services.save_adjustment(self.employee, d["period"], d["component"], d["amount"], d.get("qty"), d.get("note", ""), self.user)
+        obj = services.save_adjustment(self.employee, d["period"], d["component"], d["amount"], d.get("qty"), d.get("note", ""), self.user)
+        self.unchanged = bool(getattr(obj, "_unchanged", False)); self.replaced = bool(getattr(obj, "_replaced", False))
+        return obj
 
 
 # ---------------------------------------------------------------- aturan tali asih (usulan)
@@ -198,6 +221,7 @@ class TaliRuleForm(forms.Form):
     def save(self):
         d = self.cleaned_data
         old = TaliAsihRule.objects.select_for_update().filter(kind=d["kind"], effective_from=d["effective_from"], voided_at__isnull=True).first()
-        if old: old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
+        if old and same_values(old, {"min_years": d["min_years"], "days_per_year": d["days_per_year"], "max_days": d.get("max_days"), "note": d.get("note", "").strip()}): self.unchanged = True; return old
+        if old: self.replaced = True; old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
         return TaliAsihRule.objects.create(kind=d["kind"], min_years=d["min_years"], days_per_year=d["days_per_year"], max_days=d.get("max_days"), effective_from=d["effective_from"],
                                            note=d.get("note", "").strip(), created_by=self.user)

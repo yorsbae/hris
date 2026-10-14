@@ -146,11 +146,12 @@ class TaliAsihRule(Voidable):
 
 # ---------------------------------------------------------------- run gaji
 class PayrollRun(models.Model):
-    """Satu run gaji per periode (bulan). Alur: draft → dihitung → diajukan (Payroll) → disetujui (HRD) → dibayar (Payroll; terkunci); dibatalkan sebelum dibayar.
+    """Satu run gaji per periode (bulan). Alur (putaran 58, HRD → Payroll): draft (HRD menyiapkan) → diserahkan (HRD menyerahkan data periode ke Payroll) → dihitung (Payroll)
+    → ditetapkan (Payroll menetapkan hasil) → dibayar (Payroll; terkunci); Payroll boleh mengembalikan ke HRD (alasan wajib) bila data kurang; dibatalkan sebelum dibayar.
     `params` = salinan parameter yang dipakai saat dihitung (slip lama tidak bergeser bila parameter diubah kemudian)."""
-    DRAFT, CALCULATED, SUBMITTED, APPROVED, PAID, CANCELLED = "draft", "dihitung", "diajukan", "disetujui", "dibayar", "dibatalkan"
-    STATUSES = [(DRAFT, "Draft"), (CALCULATED, "Sudah dihitung"), (SUBMITTED, "Menunggu persetujuan HRD"), (APPROVED, "Disetujui HRD"), (PAID, "Sudah dibayar"), (CANCELLED, "Dibatalkan")]
-    LOCKED = (APPROVED, PAID)
+    DRAFT, HANDED, CALCULATED, FINALIZED, PAID, CANCELLED = "draft", "diserahkan", "dihitung", "ditetapkan", "dibayar", "dibatalkan"
+    STATUSES = [(DRAFT, "Draft (disiapkan HRD)"), (HANDED, "Diserahkan HRD ke Payroll"), (CALCULATED, "Sudah dihitung"), (FINALIZED, "Ditetapkan Payroll"), (PAID, "Sudah dibayar"), (CANCELLED, "Dibatalkan")]
+    LOCKED = (FINALIZED, PAID)
     period = models.CharField(max_length=7, db_index=True)
     status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT, db_index=True)
     pay_date = models.DateField("Tanggal bayar (rencana)", null=True, blank=True)
@@ -162,8 +163,8 @@ class PayrollRun(models.Model):
     total_deductions = models.DecimalField(max_digits=16, decimal_places=0, default=0)
     total_net = models.DecimalField(max_digits=16, decimal_places=0, default=0)
     calc_at = models.DateTimeField(null=True, blank=True); calc_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
-    submitted_at = models.DateTimeField(null=True, blank=True); submitted_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
-    approved_at = models.DateTimeField(null=True, blank=True); approved_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    handed_at = models.DateTimeField(null=True, blank=True); handed_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")        # HRD menyerahkan ke Payroll
+    finalized_at = models.DateTimeField(null=True, blank=True); finalized_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # Payroll menetapkan
     paid_at = models.DateTimeField(null=True, blank=True); paid_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     paid_on = models.DateField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True); cancelled_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
@@ -180,7 +181,7 @@ class PayrollRun(models.Model):
     @property
     def locked(self): return self.status in self.LOCKED or self.status == self.CANCELLED
     @property
-    def editable(self): return self.status in (self.DRAFT, self.CALCULATED, self.SUBMITTED)
+    def editable(self): return self.status in (self.DRAFT, self.HANDED, self.CALCULATED)
 
     def delete(self, *a, **k): raise PermissionError("Run gaji tidak boleh dihapus; batalkan dengan alasan.")
 
@@ -227,7 +228,7 @@ class Payslip(models.Model):
     def needs_review(self): return self.flagged
 
     def delete(self, *a, **k):
-        if self.run.status not in (PayrollRun.DRAFT, PayrollRun.CALCULATED, PayrollRun.SUBMITTED): raise PermissionError("Slip pada run yang sudah disetujui/dibayar tidak boleh dihapus.")
+        if self.run.status not in (PayrollRun.DRAFT, PayrollRun.HANDED, PayrollRun.CALCULATED): raise PermissionError("Slip pada run yang sudah ditetapkan/dibayar tidak boleh dihapus.")
         return super().delete(*a, **k)
 
 

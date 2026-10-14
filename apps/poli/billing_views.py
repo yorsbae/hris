@@ -50,13 +50,15 @@ def _qs(f):
     return qs
 
 
-SUMMARY_HEADER = ["mitra", "nomor_tagihan", "tanggal_tagihan", "tanggal_layanan", "nik", "nama", "departemen", "jenis_layanan", "penanggung", "total", "status", "tanggal_bayar", "nomor_bukti"]
+SUMMARY_HEADER = ["mitra", "nomor_tagihan", "tanggal_tagihan", "tanggal_layanan", "nik", "nama", "departemen", "jenis_layanan", "penanggung", "total", "potongan", "tagihan_aktif",
+                  "bpjs_aktif", "ditanggung_perusahaan", "ditanggung_karyawan", "status", "tanggal_bayar", "nomor_bukti"]
+MONEY = ("total", "potongan", "tagihan_aktif", "ditanggung_perusahaan", "ditanggung_karyawan")
 DETAIL_HEADER = SUMMARY_HEADER + ["diagnosa", "keluhan"]
 
 
 def _row(b, medical):
     base = [b.partner.name, b.bill_number, b.bill_date, b.service_date, b.employee.nik, b.employee.name, b.employee.department.name, b.get_service_type_display(), b.get_payer_display(),
-            b.total_amount, b.get_status_display(), b.paid_date or "", b.payment_ref]
+            b.total_amount, b.discount_amount, b.net_amount, "ya" if b.has_bpjs else "tidak", b.company_amount, b.employee_amount, b.get_status_display(), b.paid_date or "", b.payment_ref]
     return base + [str(b.diagnosis) if b.diagnosis else "", b.complaint] if medical else base
 
 
@@ -68,20 +70,37 @@ def bills(request):
         log(request, "poli", "bill_export", None, None, {"kind": "detail" if medical else "summary", "period": f["period"], "rows": qs.count()})   # isi medis tidak masuk audit
         rows = [_row(b, medical) for b in qs.order_by("service_date", "id")[:EXPORT_MAX]]
         return tabular.export_response(f"tagihan-mitra-{f['period'] or 'semua'}" + ("-medis" if medical else ""), DETAIL_HEADER if medical else SUMMARY_HEADER, rows, request,
-                                       sheet="Tagihan Mitra", money_cols=("total",))
+                                       sheet="Tagihan Mitra", money_cols=MONEY)
+    if request.GET.get("print"): return bills_print(request, f, qs)
     live = qs.exclude(status="ditolak")        # rekap uang tidak menghitung yang ditolak
     by_status = OrderedDict((k, {"label": lbl, "n": 0, "total": 0}) for k, lbl in PartnerBill.STATUSES)
-    for r in qs.order_by().values("status").annotate(n=Count("id"), total=Sum("total_amount")): by_status[r["status"]].update(n=r["n"], total=r["total"] or 0)
+    for r in qs.order_by().values("status").annotate(n=Count("id"), total=Sum("total_amount"), company=Sum("company_amount"), employee=Sum("employee_amount")): by_status[r["status"]].update(n=r["n"], total=r["total"] or 0)
     outstanding = live.exclude(status="dibayar").aggregate(t=Sum("total_amount"))["t"] or 0
     ctx = {"page": paginate(request, qs.order_by("-service_date", "-id")), "f": f, "by_status": list(by_status.values()), "outstanding": outstanding,
-           "total_live": live.aggregate(t=Sum("total_amount"))["t"] or 0,
-           "by_partner": list(live.order_by().values("partner__name").annotate(n=Count("id"), total=Sum("total_amount")).order_by("-total")),
-           "by_dept": list(live.order_by().values("employee__department__name").annotate(n=Count("id"), total=Sum("total_amount")).order_by("employee__department__name")),
-           "by_diag": list(live.order_by().values("diagnosis__code", "diagnosis__name").annotate(n=Count("id"), total=Sum("total_amount")).order_by("-total")[:50]),
-           "employees": list(live.order_by().values("employee__nik", "employee__name", "employee__department__name").annotate(n=Count("id"), total=Sum("total_amount")).order_by("-total")[:TOP_EMPLOYEES]),
+           "total_live": live.aggregate(t=Sum("total_amount"))["t"] or 0, "split": live.aggregate(disc=Sum("discount_amount"), company=Sum("company_amount"), employee=Sum("employee_amount")),
+           "by_partner": list(live.order_by().values("partner__name").annotate(n=Count("id"), total=Sum("total_amount"), company=Sum("company_amount"), employee=Sum("employee_amount")).order_by("-total")),
+           "by_dept": list(live.order_by().values("employee__department__name").annotate(n=Count("id"), total=Sum("total_amount"), company=Sum("company_amount"), employee=Sum("employee_amount")).order_by("employee__department__name")),
+           "by_diag": list(live.order_by().values("diagnosis__code", "diagnosis__name").annotate(n=Count("id"), total=Sum("total_amount"), company=Sum("company_amount"), employee=Sum("employee_amount")).order_by("-total")[:50]),
+           "employees": list(live.order_by().values("employee__nik", "employee__name", "employee__department__name").annotate(n=Count("id"), total=Sum("total_amount"), company=Sum("company_amount"), employee=Sum("employee_amount")).order_by("-total")[:TOP_EMPLOYEES]),
            "partners": Partner.objects.order_by("name"), "departments": Department.objects.order_by("name"), "statuses": PartnerBill.STATUSES, "payers": PartnerBill.PAYERS, "services": PartnerBill.SERVICES,
-           "qs": urlencode({k: v for k, v in f.items() if v or k == "period"})}
+           "qs": urlencode({k: v for k, v in f.items() if v or k == "period"}), **_pct()}
     return render(request, "poli/bills.html", ctx)
+
+
+def _pct():
+    from django.conf import settings
+    return {"pct_co": settings.POLI_BPJS_COMPANY_PCT, "pct_emp": 100 - settings.POLI_BPJS_COMPANY_PCT}
+
+
+def bills_print(request, f, qs):
+    """Cetak PDF 'Daftar Karyawan Berobat <mitra> Bulan …' + REKAP pembayaran (format formulir Personalia/Keuangan). Tanpa keluhan/diagnosa; yang ditolak tidak ikut."""
+    from django.http import HttpResponse
+    from . import pdf
+    rows = list(qs.exclude(status="ditolak").select_related("employee__position").order_by("service_date", "employee__name", "id")[:EXPORT_MAX])
+    partner = Partner.objects.filter(pk=_int(f["partner"])).first() if _int(f["partner"]) else None
+    log(request, "poli", "bill_print", None, None, {"period": f["period"], "partner": partner.name if partner else "", "rows": len(rows)})
+    r = HttpResponse(pdf.bills_pdf(rows, f["period"], partner, request.user), content_type="application/pdf")
+    r["Content-Disposition"] = f'inline; filename="daftar-berobat-{f["period"] or "semua"}.pdf"'; return r
 
 
 @poli_only
@@ -96,14 +115,14 @@ def bill_new(request):
             messages.success(request, "Tagihan dicatat." + (" Perhatian: jumlah rincian berbeda dari total tagihan." if b.mismatch else ""))
             return redirect("poli_bill_detail", pk=b.pk)
         except ValueError as e: messages.error(request, str(e))
-    return render(request, "poli/bill_form.html", {"form": form, "fs": fs})
+    return render(request, "poli/bill_form.html", {"form": form, "fs": fs, **_pct()})
 
 
 @poli_only
 def bill_detail(request, pk):
     b = get_object_or_404(PartnerBill.objects.select_related("partner", "employee", "employee__department", "diagnosis", "created_by"), pk=pk)
     log(request, "poli", "bill_view", b)                 # membuka tagihan (memuat keluhan/diagnosa) tercatat; isinya tidak
-    return render(request, "poli/bill_detail.html", {"b": b, "lines": b.lines.all(), "events": b.events.select_related("user"), "next": sorted(PartnerBill.FLOW.get(b.status, ())), "today": date.today()})
+    return render(request, "poli/bill_detail.html", {**_pct(), "b": b, "lines": b.lines.all(), "events": b.events.select_related("user"), "next": sorted(PartnerBill.FLOW.get(b.status, ())), "today": date.today()})
 
 
 @poli_only

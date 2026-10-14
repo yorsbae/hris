@@ -2,6 +2,7 @@
 <p class="back"><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
 <h2>Catat tagihan mitra</h2>
 <p style="color:var(--mu)">Tagihan tidak dapat diubah setelah dicatat. Bila keliru: tolak dengan alasan, lalu catat ulang. Keluhan disimpan terenkripsi.</p>
+<p style="color:var(--mu)">Pembagian beban (otomatis): penanggung <b>Perusahaan</b> + karyawan ber-BPJS Kesehatan aktif → perusahaan {{ pct_co }}% / karyawan {{ pct_emp }}%; karyawan tanpa BPJS → 100% perusahaan. Dasar = total − potongan mitra.</p>
 <form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
 {% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
 <h3>Rincian biaya (opsional)</h3>{{ fs.management_form }}{{ fs.non_form_errors }}

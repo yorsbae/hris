@@ -211,3 +211,105 @@ def referral_pdf(ref):
     _signature(c, W - L - 62 * mm, y - 4 * mm, role, name)
     c.showPage(); c.save()
     return buf.getvalue()
+
+
+# ================================================================ Daftar Karyawan Berobat + REKAP (putaran 58)
+def _rp(n): return "Rp " + f"{int(n):,}".replace(",", ".") if n else "Rp -"
+
+
+def bills_pdf(bills, period, partner, user):
+    """Daftar karyawan berobat per mitra/bulan (A4 lanskap) + lembar REKAP pembayaran, mengikuti formulir Personalia/Keuangan.
+    Kolom: Tgl periksa, NIK, Nama, Jabatan, Dept, Pelayanan, Tagihan RS, Potongan, Tagihan Aktif, Ditanggung Karyawan, Kebijakan Perusahaan, Keterangan (aturan BPJS).
+    Beban: karyawan ber-BPJS aktif → perusahaan 75% / karyawan 25%; tanpa BPJS → 100% perusahaan (services.split_bill). Tanpa keluhan/diagnosa (bukan data medis)."""
+    from collections import OrderedDict
+    from reportlab.lib.pagesizes import landscape
+    from django.conf import settings
+    buf = BytesIO(); W, H = landscape(A4); c = canvas.Canvas(buf, pagesize=(W, H)); L = 12 * mm
+    lh = letterhead.info(user)
+    mitra = partner.name if partner else "Semua Mitra"
+    try: label = f"{MONTHS[int(period[5:]) - 1].upper()} {period[:4]}" if period and len(period) == 7 else "SEMUA PERIODE"
+    except (ValueError, IndexError): label = "SEMUA PERIODE"
+    cols = [("Tgl Periksa", 16), ("NIK", 19), ("Nama Karyawan", 34), ("Jabatan", 26), ("Dept", 20), ("Pelayanan", 18), ("Tagihan RS", 21), ("Potongan", 18), ("Tagihan Aktif", 21),
+            ("Ditanggung Karyawan", 21), ("Kebijakan Perusahaan", 21), ("Keterangan", 0)]
+    fixed = sum(w for _, w in cols) * mm; cols[-1] = ("Keterangan", (W - 2 * L - fixed) / mm)
+    xs = [L]
+    for _, w in cols: xs.append(xs[-1] + w * mm)
+    num = {6, 7, 8, 9, 10}
+    pct = settings.POLI_BPJS_COMPANY_PCT
+
+    def head(first):
+        c.setFont("Helvetica-Bold", 11); y = H - 14 * mm
+        c.drawCentredString(W / 2, y, f"DAFTAR KARYAWAN BEROBAT {mitra.upper()}"); c.drawCentredString(W / 2, y - 5 * mm, f"BULAN {label}")
+        y -= 12 * mm; h = 9 * mm; c.setFillColorRGB(0.93, 0.55, 0.25); c.rect(L, y - h, xs[-1] - L, h, fill=1, stroke=1); c.setFillColorRGB(0, 0, 0); c.setFont("Helvetica-Bold", 6.5)
+        for i, (t, _) in enumerate(cols):
+            for j, part in enumerate(simpleSplit(t, "Helvetica-Bold", 6.5, xs[i + 1] - xs[i] - 2 * mm)[:2]): c.drawCentredString((xs[i] + xs[i + 1]) / 2, y - 3.6 * mm - j * 3 * mm, part)
+        return y - h
+
+    y = head(True); rowh = 6.2 * mm
+    tot = dict(rs=0, disc=0, net=0, emp=0, co=0)
+    c.setFont("Helvetica", 6.8)
+    if not bills:
+        c.drawString(L + 2 * mm, y - 5 * mm, "Tidak ada tagihan pada periode/filter ini."); y -= rowh
+    for b in bills:
+        if y - rowh < 40 * mm:
+            c.showPage(); y = head(False); c.setFont("Helvetica", 6.8)
+        e = b.employee
+        if b.payer == "perusahaan": ket = f"BPJS: prs {pct}% / kry {100 - pct}%" if b.has_bpjs else "Tanpa BPJS: prs 100%"
+        else: ket = {"karyawan": "Ditanggung karyawan 100%", "bpjs": "Dibayar BPJS"}.get(b.payer, "")
+        cells = [_fmt(b.service_date), e.nik, e.name, e.position.name if e.position_id else "-", e.department.name, b.get_service_type_display(), _rp(b.total_amount), _rp(b.discount_amount),
+                 _rp(b.net_amount), _rp(b.employee_amount), _rp(b.company_amount), ket]
+        for i, t in enumerate(cells):
+            t = simpleSplit(str(t), "Helvetica", 6.8, xs[i + 1] - xs[i] - 2 * mm)[0] if t else ""
+            (c.drawRightString(xs[i + 1] - 1.5 * mm, y - 4.3 * mm, t) if i in num else c.drawString(xs[i] + 1.2 * mm, y - 4.3 * mm, t))
+        c.setLineWidth(0.3); c.line(L, y - rowh, xs[-1], y - rowh)
+        for x in xs: c.line(x, y, x, y - rowh)
+        y -= rowh
+        tot["rs"] += b.total_amount; tot["disc"] += b.discount_amount; tot["net"] += b.net_amount; tot["emp"] += b.employee_amount; tot["co"] += b.company_amount
+    c.setFont("Helvetica-Bold", 7.2); c.rect(L, y - rowh, xs[-1] - L, rowh)
+    c.drawString(xs[0] + 2 * mm, y - 4.4 * mm, "Total")
+    for i, k in ((6, "rs"), (7, "disc"), (8, "net"), (9, "emp"), (10, "co")): c.drawRightString(xs[i + 1] - 1.5 * mm, y - 4.4 * mm, _rp(tot[k]))
+    y -= rowh + 8 * mm
+    if y < 55 * mm: c.showPage(); y = H - 25 * mm
+    today = timezone.localdate(); c.setFont("Helvetica", 9)
+    c.drawString(L + 10 * mm, y, "Mengetahui,"); c.drawString(L + 10 * mm, y - 4.5 * mm, lh["pers_title"])
+    c.drawString(L + 10 * mm, y - 24 * mm, f"( {lh['pers_name'] or '........................'} )")
+    c.drawRightString(W - L - 10 * mm, y, f"{lh['city']}, {_id(today)}" if lh["city"] else _id(today)); c.drawRightString(W - L - 10 * mm, y - 4.5 * mm, "Yang Membuat")
+    c.drawRightString(W - L - 10 * mm, y - 24 * mm, f"( {(user.get_full_name() or user.get_username()) if user else '........................'} )")
+    c.showPage()
+    _rekap_page(c, W, H, bills, mitra, label, tot, lh, today)
+    c.save(); return buf.getvalue()
+
+
+def _rekap_page(c, W, H, bills, mitra, label, tot, lh, today):
+    """Lembar REKAP (formulir pembayaran): baris 1 = Hutang Pengobatan ditanggung Karyawan (piutang yang dipotong dari karyawan), lalu satu baris per departemen = beban pengobatan
+    perusahaan. Jumlah = seluruh tagihan aktif yang dibayarkan ke mitra (perusahaan membayar penuh; bagian karyawan menjadi piutang)."""
+    from collections import OrderedDict
+    from django.conf import settings
+    L = 20 * mm; R = W - 20 * mm; y = H - 22 * mm
+    c.setFont("Helvetica-Bold", 16); c.drawCentredString(W / 2, y, "REKAP"); y -= 12 * mm
+    c.setFont("Helvetica", 10)
+    for k, v in (("Kepada Yth", ""), ("Dari / Dept", "Keuangan"), ("Untuk dibayarkan ke", f"{mitra} Sebagai Tagihan Bulan {label.title()}")):
+        c.drawString(L, y, k); c.drawString(L + 42 * mm, y, ": " + v); y -= 6 * mm
+    y -= 3 * mm
+    xs = [L, L + 12 * mm, L + 105 * mm, L + 130 * mm, R]
+    def row(vals, bold=False, h=7 * mm):
+        nonlocal y
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", 9.5)
+        for i, t in enumerate(vals):
+            if i == 3: c.drawRightString(xs[4] - 2 * mm, y - 5 * mm, t)
+            elif i == 2: c.drawCentredString((xs[2] + xs[3]) / 2, y - 5 * mm, t)
+            else: c.drawString(xs[i] + 2 * mm, y - 5 * mm, t)
+        c.rect(L, y - h, R - L, h)
+        for x in xs[1:-1]: c.line(x, y, x, y - h)
+        y -= h
+    row(["No.", "Uraian", "Perk.", "Jumlah (Rp)"], bold=True)
+    by_dept = OrderedDict()
+    for b in bills: by_dept[b.employee.department.name] = by_dept.get(b.employee.department.name, 0) + b.company_amount
+    lines = [("Hutang Pengobatan ditanggung Karyawan", tot["emp"])] + [(f"Pengobatan Kary {d}", v) for d, v in sorted(by_dept.items())]
+    for i, (t, v) in enumerate(lines, 1): row([str(i), t[:52], "", _rp(v)])
+    row(["", "Jumlah", "", _rp(tot["net"])], bold=True)
+    y -= 12 * mm; c.setFont("Helvetica", 9)
+    for i, role in enumerate(("Pembukuan", "Disetujui", "Diketahui", "Pemohon", "Penerima")):
+        x = L + i * ((R - L) / 5); c.drawString(x, y, role); c.drawString(x, y - 20 * mm, "(................)")
+    c.setFont("Helvetica", 7.5); c.drawString(L, y - 30 * mm, f"Dicetak {_id(today)}. Beban: karyawan ber-BPJS aktif perusahaan {settings.POLI_BPJS_COMPANY_PCT}% / karyawan {100 - settings.POLI_BPJS_COMPANY_PCT}%; tanpa BPJS 100% perusahaan.")
+    c.showPage()
