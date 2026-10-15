@@ -13,7 +13,7 @@ class AccessTests(HrdBase):
         self.prj = Project.objects.create(code="P1", name="Gudang baru", start_date=self.days(-30))
         self.plog = ProjectWork.objects.create(project=self.prj, work_date=self.days(-1), worker_name="Slamet", activity="Cor lantai", wage=100000)
         self.sp = WarningLetter.objects.create(employee=self.e1, number="0001/SP-1/HRD/X/2026", level=1, issue_date=self.today(), valid_until=self.days(100), violation="Terlambat")
-        self.cat = CateringOrder.objects.create(date=self.today(), meal="siang", qty_large=5)
+        self.cat = CateringOrder.objects.create(date=self.today(), meal="1200", qty_large=5)
 
     def gets(self):
         return [reverse("hrd_hub"), reverse("hrd_bpjs"), reverse("hrd_bpjs_detail", args=[self.e1.pk]), reverse("hrd_aids"), reverse("hrd_aid_new"),

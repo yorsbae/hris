@@ -1,0 +1,10 @@
+# Putaran 61: lint ringan untuk keterbacaan. Sengaja TIDAK memformat ulang massal (berisiko & membuat diff raksasa);
+# kode baru/yang disentuh sebaiknya <= 160 kolom. Jalankan: ruff check .   (pip install ruff)
+line-length = 160
+target-version = "py312"
+extend-exclude = ["migrations", "venv", ".venv", "staticfiles", "media"]
+
+[lint]
+select = ["E9", "F", "E501"]          # galat sintaks, impor/variabel tak terpakai, baris > line-length
+ignore = ["F401"]                      # re-export di __init__/urls dibiarkan
+per-file-ignores = { "**/test_*.py" = ["E501"], "**/tests.py" = ["E501"] }

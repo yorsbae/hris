@@ -1,0 +1,2 @@
+# Opsional: pelacakan error eksternal (Sentry/GlitchTip). Pasang hanya bila SENTRY_DSN diisi: pip install -r requirements-monitoring.txt
+sentry-sdk>=2.0

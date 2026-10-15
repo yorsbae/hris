@@ -4,7 +4,7 @@ from django.contrib.auth import views as auth
 from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
-from apps.core import lookup, search_views
+from apps.core import health, lookup, search_views
 from apps.hr import saved_filters as sf
 from apps.core.dashboard import dashboard, home
 from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
@@ -26,6 +26,8 @@ urlpatterns = [
     path("api/saved-filters/", sf.saved_filters),
     path("api/saved-filters/<int:pk>/delete/", sf.saved_filter_delete),
     path("search/", search_views.global_search, name="global_search"),
+    path("health/", health.health, name="health"),  # tanpa login; batasi ke LAN/monitor di Nginx
+    path("healthz", health.healthz),
     path("api/employees/<int:pk>/", hr.employee_detail),
     path("api/requests/<int:pk>/<str:to>/", hr.request_transition),
     path("", home),

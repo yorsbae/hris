@@ -93,3 +93,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 static_root/
+ci.sqlite3
+errors.log
+.health_state.json

@@ -338,7 +338,7 @@ class ViewAccessTests(Base):
     def test_payroll_and_superadmin_open_every_page(self):
         for u in (self.payroll, self.root):
             for n in self.pages: self.assertEqual(self.get(u, n).status_code, 200, (u.username, n))
-            for n, a in [("pay_run", (self.run.pk,)), ("pay_slip", (self.slip.pk,)), ("pay_slip_pdf", (self.slip.pk,)), ("pay_run_pdf", (self.run.pk,)), ("pay_profile_detail", (PayProfile.objects.first().pk,))]:
+            for n, a in [("pay_run", (self.run.pk,)), ("pay_slip", (self.slip.pk,)), ("pay_slip_pdf", (self.slip.pk,)), ("pay_run_pdf", (self.run.pk,)), ("pay_profile_detail", (self.e.pk,))]:
                 self.assertEqual(self.get(u, n, *a).status_code, 200, (u.username, n))
 
     def test_run_exports(self):

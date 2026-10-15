@@ -84,7 +84,7 @@ class PatientPanelTests(PoliBase):
     def test_catering_actions_have_visible_labels(self):
         self.login("hrd")
         from apps.hrd.models import CateringOrder
-        CateringOrder.objects.create(date=date(2026, 10, 9), meal="12:00", qty_large=5, qty_small=2)
+        CateringOrder.objects.create(date=date(2026, 10, 9), meal="1200", qty_large=5, qty_small=2)
         h = self.client.get("/hrd/catering/", {"from": "2026-10-01", "to": "2026-10-10"}).content.decode()
         self.assertIn('class="btn sm"', h); self.assertIn('class="sm danger"', h); self.assertNotIn("danger lnk", h)
 

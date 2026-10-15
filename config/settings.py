@@ -108,10 +108,46 @@ if HTTPS:
 REDIS_URL = env("REDIS_URL", default="")
 CACHES = {"default": ({"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL, "KEY_PREFIX": "hris"} if REDIS_URL
                       else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"})}
-LOGGING = {"version": 1, "disable_existing_loggers": False,
-  "formatters": {"std": {"format": "%(asctime)s %(name)s %(levelname)s %(message)s"}},
-  "handlers": {"file": {"class": "logging.handlers.RotatingFileHandler", "filename": BASE_DIR / "app.log", "maxBytes": 10_000_000, "backupCount": 10, "formatter": "std"}},
-  "root": {"handlers": ["file"], "level": "INFO"}}
+# ---- Pemantauan: log, pelacakan error, alarm ----
+# app.log = semua (INFO+); errors.log = HANYA ERROR+ beserta traceback (satu berkas kecil yang layak dipantau/di-tail). Folder lewat LOG_DIR.
+LOG_DIR = Path(env("LOG_DIR", default="") or BASE_DIR)  # kosong di .env = folder aplikasi
+# Traceback 5xx lewat email (opsional): isi ADMIN_EMAILS (butuh EMAIL_* di bawah). Email berisi cuplikan permintaan: jangan aktifkan bila email tidak aman.
+ADMIN_EMAILS = env.list("ADMIN_EMAILS", default=[])
+ADMINS = [("Admin HRIS", e) for e in ADMIN_EMAILS]
+_ROTATING = "logging.handlers.RotatingFileHandler"
+_LOG_HANDLERS = {
+    "file": {"class": _ROTATING, "filename": LOG_DIR / "app.log", "maxBytes": 10_000_000, "backupCount": 10, "formatter": "std"},
+    "errors": {"class": _ROTATING, "filename": LOG_DIR / "errors.log", "maxBytes": 10_000_000, "backupCount": 10, "formatter": "std", "level": "ERROR"},
+}
+if ADMINS:
+    _LOG_HANDLERS["mail_admins"] = {"class": "django.utils.log.AdminEmailHandler", "level": "ERROR", "include_html": False}
+LOGGING = {
+    "version": 1, "disable_existing_loggers": False,
+    "formatters": {"std": {"format": "%(asctime)s %(name)s %(levelname)s %(message)s"}},
+    "handlers": _LOG_HANDLERS,
+    "root": {"handlers": ["file", "errors"], "level": "INFO"},
+    "loggers": {"django.request": {"handlers": ["mail_admins"] if ADMINS else [], "level": "ERROR", "propagate": True}},  # 5xx → file + errors (+ email)
+}
+# Pelacakan error eksternal (opsional, mis. Sentry/GlitchTip self-hosted): pasang `pip install sentry-sdk` lalu isi SENTRY_DSN. Tanpa data pribadi (tanpa badan
+# permintaan, tanpa cookie/header pengguna). Tidak aktif saat menjalankan tes.
+SENTRY_DSN = env("SENTRY_DSN", default="")
+if SENTRY_DSN and "test" not in sys.argv:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=SENTRY_DSN, environment=env("SENTRY_ENVIRONMENT", default="production"), release=APP_VERSION, send_default_pii=False,
+                        max_request_body_size="never", traces_sample_rate=env.float("SENTRY_TRACES_RATE", 0.0))
+    except ImportError:
+        import logging as _logging
+        _logging.getLogger("hris.monitoring").warning("SENTRY_DSN diisi tetapi paket sentry-sdk belum terpasang; pelacakan error eksternal tidak aktif.")
+# Health check & alarm (lihat apps/core/health.py, scripts/cron-hris.example, scripts/backup.sh)
+HEALTH_MIN_FREE_MB = env.int("HEALTH_MIN_FREE_MB", 500)                                   # ruang disk bebas minimum di folder media/
+BACKUP_STATUS_FILE = env("BACKUP_STATUS_FILE", default="/var/backups/hris/status.json")   # ditulis scripts/backup.sh; kosong = pemantauan backup mati
+BACKUP_MAX_AGE_HOURS = env.int("BACKUP_MAX_AGE_HOURS", 26)                                # backup harian: >26 jam = anggap tidak berjalan
+HEALTH_REQUIRE_BACKUP = env.bool("HEALTH_REQUIRE_BACKUP", False)                          # True di produksi: tanpa catatan backup = GAGAL
+HEALTH_STATE_FILE = env("HEALTH_STATE_FILE", default=str(BASE_DIR / ".health_state.json"))  # status alarm terakhir (anti-banjir)
+ALERT_WEBHOOK_URL = env("ALERT_WEBHOOK_URL", default="")                                  # Slack/Mattermost/Discord (JSON {text, content})
+ALERT_EMAILS = env.list("ALERT_EMAILS", default=[])                                       # penerima alarm via email
+ALERT_REPEAT_HOURS = env.int("ALERT_REPEAT_HOURS", 6)                                     # ulangi alarm selama masalah belum teratasi
 LOGIN_URL = "/login/"; LOGIN_REDIRECT_URL = "/"; LOGOUT_REDIRECT_URL = "/login/"
 
 # Kebijakan cuti/jadwal (asumsi bawaan; sesuaikan dengan peraturan perusahaan, lihat docs/PROGRESS.md §4)
@@ -138,6 +174,7 @@ EMAIL_HOST = env("EMAIL_HOST", default="localhost"); EMAIL_PORT = env.int("EMAIL
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default=""); EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", False)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@localhost")
+SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)  # pengirim email traceback (ADMIN_EMAILS) dan alarm
 # CSP situs publik: tanpa 'unsafe-inline' (semua gaya/skrip berupa berkas statis). Diterapkan oleh view publik (apps/company/public_views.py).
 PUBLIC_CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
               "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src https://www.google.com")  # putaran 54: peta Google tersemat, hanya host ini

@@ -25,6 +25,8 @@ server {
 
     location = /login/        { limit_req zone=hris_login burst=5 nodelay;  include /etc/nginx/hris_proxy.conf; }
     location = /admin/login/  { limit_req zone=hris_login burst=5 nodelay;  include /etc/nginx/hris_proxy.conf; }
+    # Health check: hanya dari monitor/LAN (jangan buka ke internet). /healthz = liveness ringan; /health/ = pemeriksaan lengkap (503 bila ada yang gagal)
+    location ~ ^/(health/|healthz)$ { allow 127.0.0.1; allow 192.168.0.0/16; deny all; include /etc/nginx/hris_proxy.conf; }
     location /api/            { limit_req zone=hris_api   burst=40 nodelay; include /etc/nginx/hris_proxy.conf; }
     location /                { limit_req zone=hris_all   burst=60 nodelay; include /etc/nginx/hris_proxy.conf; }
 }

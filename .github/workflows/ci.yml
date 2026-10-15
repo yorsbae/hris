@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Satu run per cabang; run lama dibatalkan saat ada push baru.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-postgres:
+    name: Tes di PostgreSQL 16 (serial)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hris
+          POSTGRES_PASSWORD: hris-ci-password
+          POSTGRES_DB: hris
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hris"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DJANGO_SECRET_KEY: ci-only-secret-key-not-used-anywhere-else-0123456789
+      DATABASE_URL: postgres://hris:hris-ci-password@127.0.0.1:5432/hris
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Buat kunci enkripsi untuk CI
+        run: echo "FIELD_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+      - name: System check
+        run: python manage.py check
+      - name: Tidak boleh ada model yang belum punya migrasi
+        run: python manage.py makemigrations --check --dry-run
+      - name: Migrasi dari nol di PostgreSQL
+        run: python manage.py migrate --noinput
+      # SERIAL (tanpa --parallel): mode paralel menyembunyikan pesan error bila ada tes gagal.
+      - name: Jalankan seluruh tes
+        run: python manage.py test --noinput
+
+  test-sqlite:
+    name: Tes di SQLite (cepat)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DJANGO_SECRET_KEY: ci-only-secret-key-not-used-anywhere-else-0123456789
+      DATABASE_URL: sqlite:///ci.sqlite3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Buat kunci enkripsi untuk CI
+        run: echo "FIELD_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+      - run: python manage.py test --noinput
+
+  lint:                       # informatif (tidak memblokir): ±1.000 baris lama masih > 160 kolom; kode baru sebaiknya bersih
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install ruff && ruff check . --statistics

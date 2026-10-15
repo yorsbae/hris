@@ -18,3 +18,9 @@ PY=/path/venv/bin/python
 10 0 * * * cd $HRIS && $PY manage.py import_attendance /data/fingerspot/ --commit
 # 02:00 — retensi data pelamar (UU PDP): anonimkan lamaran lewat masa simpan & yang tak pernah diverifikasi (jalankan di host/aplikasi yang memegang database lamaran)
 0 2 * * * cd $HRIS && $PY manage.py purge_applicants
+# --- Pemantauan (putaran 61) ---
+# Tiap 10 menit: periksa database, migrasi, cache, disk, kunci enkripsi, dan UMUR BACKUP; kirim alarm (webhook/email di .env) saat gagal/pulih (anti-banjir).
+# Ini juga yang menangkap backup yang tidak berjalan sama sekali (cron/mesin mati): backup.sh sendiri tidak bisa mengabari bila ia tidak jalan.
+*/10 * * * * cd $HRIS && $PY manage.py check_health --notify >/dev/null 2>&1
+# 01:00 — backup harian (menulis /var/backups/hris/status.json; gagal → alarm langsung + kode keluar 1). Sesuaikan HRIS_HOME/PY bila bukan /opt/hris.
+0 1 * * * HRIS_HOME=/opt/hris PY=/opt/hris/venv/bin/python /opt/hris/scripts/backup.sh
