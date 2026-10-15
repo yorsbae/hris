@@ -5,65 +5,143 @@
 {% if departments %}<select id="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}
 <select id="position" aria-label="Jabatan"><option value="">Semua jabatan</option>{% for d in positions %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select>
 <select id="shift" aria-label="Shift"><option value="">Semua shift</option>{% for v, l in shift_filters %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+{% if hrd %}<select id="gender" aria-label="Jenis kelamin"><option value="">Semua jenis kelamin</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></select>
+<select id="education" aria-label="Pendidikan"><option value="">Semua pendidikan</option>{% for e in educations %}<option value="{{ e }}">{{ e }}</option>{% endfor %}</select>
+<select id="level" aria-label="Grade / level jabatan"><option value="">Semua grade</option>{% for l in levels %}<option value="{{ l }}">Grade {{ l }}</option>{% endfor %}</select>
+<select id="contract_kind" aria-label="Jenis kontrak"><option value="">Semua jenis kontrak</option>{% for v, l in contract_kinds %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+<select id="tenure" aria-label="Masa kerja"><option value="">Semua masa kerja</option>{% for v, l in tenures %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+<input id="age_min" type="number" min="0" max="150" inputmode="numeric" placeholder="Usia min" aria-label="Usia minimum"><input id="age_max" type="number" min="0" max="150" inputmode="numeric" placeholder="Usia maks" aria-label="Usia maksimum">
+<input id="join_from" type="date" aria-label="Tanggal masuk dari"><input id="join_to" type="date" aria-label="Tanggal masuk sampai">
+<input id="supervisor" type="text" data-lookup="employee" placeholder="NIK atasan (atau none)" aria-label="NIK atasan (none = tanpa atasan)" autocomplete="off" maxlength="20">
+<select id="problem" aria-label="Data bermasalah"><option value="">Semua kelengkapan data</option>{% for v, l in problems %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>{% endif %}
 <select id="sort" aria-label="Urutkan"><option value="">Urutan bawaan (nama A→Z)</option><option value="name">Nama (A→Z)</option><option value="-name">Nama (Z→A)</option><option value="nik">NIK (kecil→besar)</option><option value="-nik">NIK (besar→kecil)</option>{% if departments %}<option value="department">Departemen (A→Z)</option><option value="-department">Departemen (Z→A)</option>{% endif %}<option value="position">Jabatan (A→Z)</option><option value="-position">Jabatan (Z→A)</option><option value="status">Status (A→Z)</option><option value="-status">Status (Z→A)</option>{% if hrd %}<option value="join_date">Tanggal masuk (terlama)</option><option value="-join_date">Tanggal masuk (terbaru)</option>{% endif %}</select>
 <select id="group" aria-label="Kelompokkan"><option value="">Tanpa pengelompokan</option>{% if departments %}<option value="department">Departemen</option>{% endif %}<option value="position">Jabatan</option><option value="status">Status</option><option value="shift">Shift (A7 / A7 Pack / GS)</option></select>
 {% if hrd %}<select id="contract" aria-label="Kontrak"><option value="">Semua kontrak</option><option value="aktif">Kontrak aktif</option><option value="expiring">Habis ≤ 30 hari</option><option value="expired">Sudah lewat</option><option value="none">Tanpa kontrak aktif</option></select>{% endif %}<button type="button" class="ghost" id="reset">Reset</button></div>
-{% if hrd %}<style>
-.bulkbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 10px;padding:8px 12px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r)}
+<style>
+.viewbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}.viewbar select{flex:0 1 220px}
+.colmenu{position:relative}.colmenu>summary{list-style:none;cursor:pointer;padding:6px 12px;border:1px solid var(--bd2);border-radius:8px;color:var(--ac);font-size:14px;min-height:34px;display:inline-flex;align-items:center}
+.colmenu>summary::-webkit-details-marker{display:none}
+.colmenu .cols{position:absolute;z-index:20;top:calc(100% + 4px);left:0;min-width:250px;padding:8px;background:var(--card);border:1px solid var(--bd2);border-radius:var(--r);box-shadow:var(--sh)}
+.colmenu .cr{display:flex;align-items:center;gap:6px;padding:3px 2px}.colmenu .cr label{flex:1;display:flex;gap:6px;align-items:center;cursor:pointer}.colmenu .cr input{width:auto;min-height:0}
+.colmenu .cr button{padding:0 8px;min-height:28px;background:transparent;color:var(--ac);border:1px solid var(--bd2)}.colmenu .cr button:disabled{opacity:.35}
+.pager select{min-height:34px}.printmeta{display:none}
+{% if hrd %}.bulkbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 10px;padding:8px 12px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r)}
 .bulkbar .cnt{font-weight:600}.bulkbar .act{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto}
-th.selcol,td.selcol{width:1%;white-space:nowrap}tr.sel{background:var(--hov)}
-@media(max-width:600px){table.cards td.selcol::before{display:none}}
+th.selcol,td.selcol{width:1%;white-space:nowrap}tr.sel{background:var(--hov)}{% endif %}
+@media(max-width:600px){table.ec,table.ec tbody{display:block;width:100%}table.ec thead{display:none}
+table.ec tr{display:block;margin:0 0 10px;padding:6px 12px;background:var(--card);border:1px solid var(--bd);border-radius:12px}
+table.ec td{display:block;width:auto;padding:6px 0;border:0;border-bottom:1px dashed var(--bd);white-space:normal}table.ec td:last-child{border-bottom:0}
+table.ec td::before{content:attr(data-label);display:block;color:var(--mu);font-size:12px;font-weight:600}table.ec td.selcol::before,table.ec td.empty::before{display:none}table.ec td.empty{text-align:center}
+table.ec tr.grow{padding:0;background:transparent;border:0;margin:12px 0 6px}table.ec tr.grow td{padding:6px 4px;color:var(--mu);font-size:13px;text-transform:uppercase}table.ec tr.grow td::before{display:none}}
+@media print{.filters,.fwrap,.fchips,.viewbar,.bulkbar,.pager,.selcol,h2 .btn{display:none!important}.printmeta{display:block;margin:0 0 8px;font-size:12px}table.ec{box-shadow:none}}
 </style>
-<form id="bulk" method="post" action="/employees/bulk/" hidden>{% csrf_token %}<input type="hidden" name="action"><input type="hidden" name="ids"></form>
+<div class="viewbar"><details class="colmenu" id="colmenu"><summary>Kolom</summary><div class="cols" id="collist"></div></details>
+<button type="button" class="ghost sm" id="print">Cetak</button>
+<select id="saved" aria-label="Filter tersimpan"><option value="">Filter tersimpan…</option></select><button type="button" class="ghost sm" id="savefilter">Simpan filter…</button><button type="button" class="ghost sm danger" id="delfilter" hidden>Hapus filter</button></div>
+{% if hrd %}<form id="bulk" method="post" action="/employees/bulk/" hidden>{% csrf_token %}<input type="hidden" name="action"><input type="hidden" name="ids"></form>
 <div class="bulkbar" role="region" aria-label="Aksi massal"><label class="chk"><input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini"> Pilih semua di halaman ini</label>
 <span class="cnt" id="selcnt" aria-live="polite"></span><button type="button" class="ghost sm" id="selmatch" hidden></button>
 <span class="act" id="bulkact" hidden><button type="button" class="sm" data-bact="status">Ubah status…</button><button type="button" class="sm danger" data-bact="delete">Hapus…</button><button type="button" class="ghost sm" id="selclear">Batal pilih</button></span></div>{% endif %}
-<div class="wrap"><table><thead><tr>{% if hrd %}<th class="selcol"><label class="chk"><input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini"> Pilih</label></th>{% endif %}<th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th><th>Status</th></tr></thead><tbody id="rows" aria-live="polite"></tbody></table></div>
-<nav class="pager" aria-label="Halaman"><button type="button" class="ghost" id="prev">‹ Sebelumnya</button> <span id="info"></span> <button type="button" class="ghost" id="next">Berikutnya ›</button></nav>
+<p class="printmeta" id="printmeta"></p>
+<div class="wrap"><table class="nocard ec"><thead><tr id="hrow"></tr></thead><tbody id="rows" aria-live="polite"></tbody></table></div>
+<nav class="pager" aria-label="Halaman"><button type="button" class="ghost" id="prev">‹ Sebelumnya</button> <span id="info"></span> <button type="button" class="ghost" id="next">Berikutnya ›</button>
+<select id="size" aria-label="Data per halaman">{% for s in page_sizes %}<option value="{{ s }}"{% if s == 50 %} selected{% endif %}>{{ s }} / halaman</option>{% endfor %}</select></nav>
 <script>
-function expLinks(){const p=new URLSearchParams();for(const k of ["q","st","department","position","shift","contract","sort","group"]){const e=document.getElementById(k);if(e&&e.value)p.set(k==="st"?"status":k,e.value)}for(const [id,f] of [["export-csv","csv"],["export-xlsx","xlsx"]]){const a=document.getElementById(id);if(a){p.set("format",f);a.href="/api/employees/export/?"+p}}}
-document.addEventListener("change",expLinks);document.addEventListener("input",expLinks);document.addEventListener("DOMContentLoaded",expLinks);
-let page=1,total=1,t,seq=0,count=0;const $=i=>document.getElementById(i),F=["department","position","shift","contract","sort","group"],ALL=["q","st",...F];
-const HRD={{ hrd|yesno:"true,false" }},COLS=HRD?6:5,sel=new Set();  // sel = id karyawan terpilih; bertahan antar halaman, dikosongkan saat filter berubah
+const HRD={{ hrd|yesno:"true,false" }},CSRF="{{ csrf_token }}",$=i=>document.getElementById(i);
+const FILTERS=["q","st","department","position","shift","contract","gender","education","level","contract_kind","tenure","age_min","age_max","join_from","join_to","supervisor","problem"],
+  VIEW=["sort","group"],ALL=[...FILTERS,...VIEW,"size"],NOCLEAR=["sort","group","size"];  // sort/group/size tidak mengubah himpunan hasil → pilihan baris tetap
+const pname=k=>k==="st"?"status":k,present=k=>!!$(k);
+let page=1,total=1,t,seq=0,count=0,pseq=0,selNote="";const sel=new Set();  // sel = id terpilih; bertahan antar halaman, dikosongkan saat filter berubah
+/* ---- Kolom: tampil/sembunyi + urutan (tersimpan per browser) ---- */
+const fmtDate=v=>v?v.split("-").reverse().join("-"):"-";
+const COLDEFS=[{k:"nik",l:"NIK",on:1},{k:"name",l:"Nama",on:1},{k:"department__name",l:"Departemen",on:1},{k:"position__name",l:"Jabatan",on:1},{k:"status",l:"Status",on:1},
+  ...(HRD?[{k:"join_date",l:"Tanggal masuk",f:fmtDate},{k:"gender",l:"Jenis kelamin",f:v=>v==="L"?"Laki-laki":v==="P"?"Perempuan":"-"},{k:"education",l:"Pendidikan"}]:[])];
+const CK="hris.emp.cols.v1";let cols=loadCols();
+function loadCols(){let s={};try{s=JSON.parse(localStorage.getItem(CK)||"{}")}catch(e){}
+  const known=COLDEFS.map(c=>c.k),order=(Array.isArray(s.order)?s.order:[]).filter(k=>known.includes(k));known.forEach(k=>{if(!order.includes(k))order.push(k)});
+  const hidden=Array.isArray(s.hidden)?s.hidden.filter(k=>known.includes(k)):COLDEFS.filter(c=>!c.on).map(c=>c.k);  // bawaan: kolom tambahan tersembunyi
+  return {order,hidden}}
+function saveCols(){try{localStorage.setItem(CK,JSON.stringify(cols))}catch(e){}}
+const def=k=>COLDEFS.find(c=>c.k===k),visible=()=>cols.order.filter(k=>!cols.hidden.includes(k)).map(def),ncols=()=>visible().length+(HRD?1:0);
+function renderHead(){const tr=$("hrow");tr.replaceChildren();
+  if(HRD){const th=document.createElement("th");th.className="selcol";th.innerHTML='<label class="chk"><input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini"> Pilih</label>';tr.append(th)}
+  visible().forEach(c=>{const th=document.createElement("th");th.textContent=c.l;tr.append(th)})}
+function renderColMenu(){const box=$("collist");box.replaceChildren();
+  cols.order.forEach((k,i)=>{const c=def(k),r=document.createElement("div");r.className="cr";
+    const lb=document.createElement("label"),cb=document.createElement("input");cb.type="checkbox";cb.checked=!cols.hidden.includes(k);cb.disabled=k==="nik"||k==="name";  // NIK & Nama selalu tampil (identitas baris)
+    cb.onchange=()=>{cols.hidden=cb.checked?cols.hidden.filter(x=>x!==k):[...cols.hidden,k];saveCols();redraw()};lb.append(cb,document.createTextNode(" "+c.l));r.append(lb);
+    for(const [d,txt,lab] of [[-1,"▲","Naikkan "],[1,"▼","Turunkan "]]){const b=document.createElement("button");b.type="button";b.textContent=txt;b.setAttribute("aria-label",lab+c.l);
+      b.disabled=(d<0&&i===0)||(d>0&&i===cols.order.length-1);b.onclick=()=>{const o=cols.order,j=i+d;[o[i],o[j]]=[o[j],o[i]];saveCols();redraw();renderColMenu()};r.append(b)}
+    box.append(r)});
+  const rs=document.createElement("button");rs.type="button";rs.className="ghost sm";rs.textContent="Atur ulang kolom";rs.onclick=()=>{try{localStorage.removeItem(CK)}catch(e){}cols=loadCols();redraw();renderColMenu()};box.append(rs)}
+let lastData=null;function redraw(){renderHead();draw(lastData);syncSel()}
+/* ---- Tabel ---- */
 function row(cells){const tr=document.createElement("tr");cells.forEach(c=>tr.append(c));return tr}
-function rowOf(r){const tr=baseRow(r);if(HRD){const td=document.createElement("td"),c=document.createElement("input");td.className="selcol";c.type="checkbox";c.className="rsel";c.value=r.id;c.setAttribute("aria-label","Pilih "+r.nik);td.append(c);tr.prepend(td)}return tr}
-function baseRow(r){const cells=[r.nik,r.name,r.department__name,r.position__name||"-",r.status].map((v,i)=>{const td=document.createElement("td");
-if(i===0){const a=document.createElement("a");a.href="/employees/"+encodeURIComponent(r.id)+"/";a.textContent=v;td.append(a)}
-else if(i===4){const s=document.createElement("span");s.className="pill "+(v==="aktif"?"aktif":v==="nonaktif"?"nonaktif":"");s.textContent=v;td.append(s)}
-else td.textContent=v;return td});return row(cells)}
-function msgRow(text,cls){const td=document.createElement("td");td.colSpan=COLS;td.className="empty"+(cls?" "+cls:"");td.textContent=text;return row([td])}
-function restore(){const u=new URLSearchParams(location.search);ALL.forEach(k=>{const el=$(k),v=u.get(k==="st"?"status":k);if(el&&v!==null)el.value=v});page=parseInt(u.get("page"))||1}
-function params(){const p=new URLSearchParams({q:$("q").value,status:$("st").value,page});F.forEach(k=>{const el=$(k);if(el&&el.value)p.set(k,el.value)});return p}
-async function load(){const my=++seq,p=params();history.replaceState(null,"","?"+p);
-$("rows").replaceChildren(msgRow("Memuat…"));$("prev").disabled=$("next").disabled=true;
-try{const r=await fetch("/api/employees/?"+p);if(!r.ok)throw new Error(r.status);const d=await r.json();if(my!==seq)return;
-total=Math.ceil(d.count/50)||1;
-if(!d.results.length){$("rows").replaceChildren(msgRow("Tidak ada karyawan yang cocok dengan filter."))}
-else{let last;const out=[];d.results.forEach(r=>{if("grp" in r&&r.grp!==last){last=r.grp;const td=document.createElement("td");td.colSpan=COLS;td.textContent=r.grp||"(kosong)";const g=row([td]);g.className="grow";out.push(g)}out.push(rowOf(r))});$("rows").replaceChildren(...out)}
-$("info").textContent=`Halaman ${d.page} / ${total} · ${d.count} data`;page=d.page;count=d.count;
-}catch(e){if(my!==seq)return;$("rows").replaceChildren(msgRow("Gagal memuat data. Periksa koneksi lalu coba lagi.","bad"));$("info").textContent=""}
-syncSel();$("prev").disabled=page<=1;$("next").disabled=page>=total}
+function cell(c,r){const td=document.createElement("td");td.dataset.label=c.l;const v=r[c.k];
+  if(c.k==="nik"){const a=document.createElement("a");a.href="/employees/"+encodeURIComponent(r.id)+"/";a.textContent=v;td.append(a)}
+  else if(c.k==="status"){const s=document.createElement("span");s.className="pill "+(v==="aktif"?"aktif":v==="nonaktif"?"nonaktif":"");s.textContent=v;td.append(s)}
+  else td.textContent=c.f?c.f(v):(v||"-");return td}
+function rowOf(r){const tr=row(visible().map(c=>cell(c,r)));
+  if(HRD){const td=document.createElement("td"),c=document.createElement("input");td.className="selcol";td.dataset.label="Pilih";c.type="checkbox";c.className="rsel";c.value=r.id;c.setAttribute("aria-label","Pilih "+r.nik);td.append(c);tr.prepend(td)}return tr}
+function msgRow(text,cls){const td=document.createElement("td");td.colSpan=ncols();td.className="empty"+(cls?" "+cls:"");td.textContent=text;return row([td])}
+function draw(d){if(!d){$("rows").replaceChildren(msgRow("Memuat…"));return}
+  if(!d.results.length){$("rows").replaceChildren(msgRow("Tidak ada karyawan yang cocok dengan filter."));return}
+  let last;const out=[];d.results.forEach(r=>{if("grp" in r&&r.grp!==last){last=r.grp;const td=document.createElement("td");td.colSpan=ncols();td.textContent=r.grp||"(kosong)";const g=row([td]);g.className="grow";out.push(g)}out.push(rowOf(r))});
+  $("rows").replaceChildren(...out)}
+/* ---- Filter ---- */
+function expLinks(){const p=new URLSearchParams();for(const k of FILTERS.concat(VIEW)){const e=$(k);if(e&&e.value)p.set(pname(k),e.value)}for(const [id,f] of [["export-csv","csv"],["export-xlsx","xlsx"]]){const a=$(id);if(a){p.set("format",f);a.href="/api/employees/export/?"+p}}}
+document.addEventListener("change",expLinks);document.addEventListener("input",expLinks);document.addEventListener("DOMContentLoaded",expLinks);
+function restore(src){const u=src||new URLSearchParams(location.search);ALL.forEach(k=>{const el=$(k),v=u.get(pname(k));if(el)el.value=v!==null?v:""});page=parseInt(u.get("page"))||1}
+function params(){const p=new URLSearchParams({page});ALL.forEach(k=>{const el=$(k);if(el&&el.value)p.set(pname(k),el.value)});return p}
+function chipsRefresh(){const r=document.querySelector("[data-fbar]");if(r)r.dispatchEvent(new Event("change"))}  // chips milik base.html mendengarkan 'change' di akar bilah filter
+async function syncPositions(want){if(!present("department"))return;const my=++pseq,s=$("position"),keep=want!==undefined?want:s.value;  // want = jabatan yang ingin dipertahankan (mis. dari filter tersimpan)
+  try{const r=await fetch("/api/employees/facets/?department="+encodeURIComponent($("department").value));if(!r.ok||my!==pseq)return;const d=await r.json();if(my!==pseq)return;
+    const o=[new Option("Semua jabatan","")];d.positions.forEach(p=>o.push(new Option(p.name,String(p.id))));s.replaceChildren(...o);s.value=d.positions.some(p=>String(p.id)===keep)?keep:""}catch(e){}}
+async function load(){const my=++seq,p=params();history.replaceState(null,"","?"+p);lastData=null;
+  $("rows").replaceChildren(msgRow("Memuat…"));$("prev").disabled=$("next").disabled=true;
+  try{const r=await fetch("/api/employees/?"+p);if(!r.ok)throw new Error(r.status);const d=await r.json();if(my!==seq)return;
+    total=Math.ceil(d.count/(d.size||50))||1;lastData=d;draw(d);
+    $("info").textContent=`Halaman ${d.page} / ${total} · ${d.count} data`;page=d.page;count=d.count;
+    $("printmeta").textContent=`Daftar karyawan · dicetak ${new Date().toLocaleString("id-ID")} · ${d.count} data (halaman ${d.page}/${total})`+activeText();
+  }catch(e){if(my!==seq)return;$("rows").replaceChildren(msgRow("Gagal memuat data. Periksa koneksi lalu coba lagi.","bad"));$("info").textContent=""}
+  syncSel();$("prev").disabled=page<=1;$("next").disabled=page>=total}
+function activeText(){const a=FILTERS.map(k=>{const e=$(k);if(!e||!e.value)return"";const l=e.getAttribute("aria-label")||k,v=e.tagName==="SELECT"?e.selectedOptions[0].textContent:e.value;return l+": "+v}).filter(Boolean);return a.length?" · Filter — "+a.join("; "):""}
 /* ---- Aksi massal (HRD/Superadmin): checkbox per baris + pilih semua di halaman + pilih semua hasil filter ---- */
 function syncSel(){if(!HRD)return;const bx=[...document.querySelectorAll("#rows input.rsel")];
-bx.forEach(b=>{b.checked=sel.has(+b.value);b.closest("tr").classList.toggle("sel",b.checked)});
-const n=bx.filter(b=>b.checked).length,all=bx.length>0&&n===bx.length;
-document.querySelectorAll(".selall").forEach(c=>{c.checked=all;c.indeterminate=n>0&&!all;c.disabled=!bx.length});
-if(!selNote)$("selcnt").textContent=sel.size?`${sel.size} karyawan dipilih`:"";$("bulkact").hidden=!sel.size;
-const m=$("selmatch"),can=all&&count>sel.size;m.hidden=!can;if(can)m.textContent=`Pilih semua ${count} karyawan yang cocok filter`}
-let selNote="";
+  bx.forEach(b=>{b.checked=sel.has(+b.value);b.closest("tr").classList.toggle("sel",b.checked)});
+  const n=bx.filter(b=>b.checked).length,all=bx.length>0&&n===bx.length;
+  document.querySelectorAll(".selall").forEach(c=>{c.checked=all;c.indeterminate=n>0&&!all;c.disabled=!bx.length});
+  if(!selNote)$("selcnt").textContent=sel.size?`${sel.size} karyawan dipilih`:"";$("bulkact").hidden=!sel.size;
+  const m=$("selmatch"),can=all&&count>sel.size;m.hidden=!can;if(can)m.textContent=`Pilih semua ${count} karyawan yang cocok filter`}
 function clearSel(){sel.clear();selNote="";syncSel()}
 if(HRD){
-document.addEventListener("change",e=>{const c=e.target;if(!c.classList)return;
-if(c.classList.contains("rsel")){c.checked?sel.add(+c.value):sel.delete(+c.value);selNote="";syncSel()}
-else if(c.classList.contains("selall")){document.querySelectorAll("#rows input.rsel").forEach(b=>{c.checked?sel.add(+b.value):sel.delete(+b.value)});selNote="";syncSel()}});
-$("selclear").onclick=clearSel;
-$("selmatch").onclick=async()=>{const b=$("selmatch");b.disabled=true;
-try{const p=params();p.delete("page");const r=await fetch("/api/employees/ids/?"+p);if(!r.ok)throw new Error(r.status);const d=await r.json();
-sel.clear();d.ids.forEach(i=>sel.add(i));selNote=d.truncated?`${d.ids.length} dari ${d.count} karyawan dipilih (batas ${d.limit} per aksi; persempit dengan filter)`:`Semua ${d.count} karyawan yang cocok filter dipilih`;$("selcnt").textContent=selNote;syncSel()}
-catch(e){selNote="Gagal memilih semua hasil filter. Coba lagi.";$("selcnt").textContent=selNote}finally{b.disabled=false}};
-document.querySelectorAll("[data-bact]").forEach(b=>b.onclick=()=>{if(!sel.size)return;const f=$("bulk");f.querySelector("[name=action]").value=b.dataset.bact;f.querySelector("[name=ids]").value=[...sel].join(",");f.submit()})}
+  document.addEventListener("change",e=>{const c=e.target;if(!c.classList)return;
+    if(c.classList.contains("rsel")){c.checked?sel.add(+c.value):sel.delete(+c.value);selNote="";syncSel()}
+    else if(c.classList.contains("selall")){document.querySelectorAll("#rows input.rsel").forEach(b=>{c.checked?sel.add(+b.value):sel.delete(+b.value)});selNote="";syncSel()}});
+  $("selclear").onclick=clearSel;
+  $("selmatch").onclick=async()=>{const b=$("selmatch");b.disabled=true;
+    try{const p=params();p.delete("page");const r=await fetch("/api/employees/ids/?"+p);if(!r.ok)throw new Error(r.status);const d=await r.json();
+      sel.clear();d.ids.forEach(i=>sel.add(i));selNote=d.truncated?`${d.ids.length} dari ${d.count} karyawan dipilih (batas ${d.limit} per aksi; persempit dengan filter)`:`Semua ${d.count} karyawan yang cocok filter dipilih`;$("selcnt").textContent=selNote;syncSel()}
+    catch(e){selNote="Gagal memilih semua hasil filter. Coba lagi.";$("selcnt").textContent=selNote}finally{b.disabled=false}};
+  document.querySelectorAll("[data-bact]").forEach(b=>b.onclick=()=>{if(!sel.size)return;const f=$("bulk");f.querySelector("[name=action]").value=b.dataset.bact;f.querySelector("[name=ids]").value=[...sel].join(",");f.submit()})}
+/* ---- Filter tersimpan (pribadi) ---- */
+let saved=[];
+function renderSaved(){const s=$("saved");s.replaceChildren(new Option("Filter tersimpan…",""),...saved.map(f=>new Option(f.name,String(f.id))));$("delfilter").hidden=true}
+async function sfCall(url,body){const r=await fetch(url,body?{method:"POST",headers:{"X-CSRFToken":CSRF,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams(body)}:undefined);
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.detail||"Gagal ("+r.status+")");saved=d.results;return d}
+$("savefilter").onclick=async()=>{const p=params();p.delete("page");if(![...p.keys()].some(k=>k!=="sort"&&k!=="group"&&k!=="size")){alert("Belum ada filter aktif untuk disimpan.");return}
+  const name=(prompt("Nama filter ini:")||"").trim();if(!name)return;
+  try{const d=await sfCall("/api/saved-filters/",{page:"employees",name,query:p.toString()});renderSaved();$("saved").value=String(d.saved);$("delfilter").hidden=false}catch(e){alert(e.message)}};
+$("saved").onchange=async()=>{const f=saved.find(x=>String(x.id)===$("saved").value);$("delfilter").hidden=!f;if(!f)return;
+  const u=new URLSearchParams(f.query);restore(u);page=1;clearSel();await syncPositions(u.get("position")||"");restore(u);chipsRefresh();load()};
+$("delfilter").onclick=async()=>{const f=saved.find(x=>String(x.id)===$("saved").value);if(!f||!confirm("Hapus filter tersimpan “"+f.name+"”?"))return;
+  try{await sfCall("/api/saved-filters/"+f.id+"/delete/",{});renderSaved()}catch(e){alert(e.message)}};
+/* ---- Pengait ---- */
 $("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;clearSel();load()},300)};
-["st",...F].forEach(k=>{const el=$(k);if(el)el.onchange=()=>{page=1;if(k!=="sort"&&k!=="group")clearSel();load()}});
-$("reset").onclick=()=>{ALL.forEach(k=>{const el=$(k);if(el)el.value=""});page=1;clearSel();load()};
-$("prev").onclick=()=>{if(page>1){page--;load()}};$("next").onclick=()=>{if(page<total){page++;load()}};restore();load();
+ALL.filter(k=>k!=="q").forEach(k=>{const el=$(k);if(el)el.onchange=async()=>{page=1;if(!NOCLEAR.includes(k))clearSel();if(k==="department")await syncPositions();load()}});
+$("reset").onclick=async()=>{ALL.forEach(k=>{const el=$(k);if(el&&k!=="size")el.value=""});page=1;clearSel();$("saved").value="";$("delfilter").hidden=true;await syncPositions();chipsRefresh();load()};
+$("prev").onclick=()=>{if(page>1){page--;load()}};$("next").onclick=()=>{if(page<total){page++;load()}};
+$("print").onclick=()=>window.print();
+renderHead();renderColMenu();restore();
+(async()=>{if($("department")&&$("department").value){await syncPositions();restore()}load();try{await sfCall("/api/saved-filters/?page=employees");renderSaved()}catch(e){}})();
 </script>{% endblock %}

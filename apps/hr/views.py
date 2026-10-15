@@ -1,3 +1,4 @@
+import calendar
 import json
 from django.core.paginator import Paginator
 from datetime import date, timedelta
@@ -59,6 +60,65 @@ def order_employees(qs, sort, group, hrd=True):
     order.append("pk")  # urutan stabil lintas halaman
     return qs.order_by(*order), ge is not None
 
+def _years_ago(today, n):
+    """Tanggal n tahun lalu; 29 Feb / akhir bulan dijepit ke hari terakhir bulan itu."""
+    y = today.year - n
+    return date(y, today.month, min(today.day, calendar.monthrange(y, today.month)[1]))
+
+
+def _iso(v):
+    try: return date.fromisoformat(v)
+    except (TypeError, ValueError): return None
+
+
+# Masa kerja (dari tanggal masuk). Nilai param `tenure` -> fungsi (today) -> Q
+TENURE = {"lt1": lambda t: Q(join_date__gt=_years_ago(t, 1)),
+          "1-3": lambda t: Q(join_date__lte=_years_ago(t, 1), join_date__gt=_years_ago(t, 3)),
+          "3-5": lambda t: Q(join_date__lte=_years_ago(t, 3), join_date__gt=_years_ago(t, 5)),
+          "5-10": lambda t: Q(join_date__lte=_years_ago(t, 5), join_date__gt=_years_ago(t, 10)),
+          "gt10": lambda t: Q(join_date__lte=_years_ago(t, 10))}
+TENURE_LABELS = (("lt1", "< 1 tahun"), ("1-3", "1–3 tahun"), ("3-5", "3–5 tahun"), ("5-10", "5–10 tahun"), ("gt10", "> 10 tahun"))
+
+# Data bermasalah/tidak lengkap. Kolom terenkripsi kosong tersimpan sebagai '' (tidak dienkripsi), jadi bisa disaring di SQL.
+PROBLEMS = {"no_birth": ("Tanggal lahir kosong", lambda: Q(birth_date__isnull=True)),
+            "no_phone": ("Telepon kosong", lambda: Q(phone="")),
+            "no_ktp": ("NIK KTP kosong", lambda: Q(nik_ktp="")),
+            "no_bank": ("No. rekening kosong", lambda: Q(bank_account="")),
+            "no_position": ("Tanpa jabatan", lambda: Q(position__isnull=True)),
+            "no_schedule": ("Tanpa shift/kelompok rotasi", lambda: Q(shift__isnull=True, shift_group__isnull=True)),
+            "no_contract": ("Tanpa kontrak aktif", lambda: ~Exists(Contract.objects.filter(employee=OuterRef("pk"), status="aktif")))}
+PROBLEM_LABELS = (("any", "Ada data yang belum lengkap"),) + tuple((k, v[0]) for k, v in PROBLEMS.items())
+PAGE_SIZES = (25, 50, 100, 200)
+HRD_FILTERS = ("gender", "education", "supervisor", "tenure", "age_min", "age_max", "join_from", "join_to", "problem", "contract_kind", "level")  # hanya HRD/Superadmin
+LIST_FILTERS = ("q", "status", "department", "position", "shift", "contract") + HRD_FILTERS  # kunci yang boleh disimpan di "Filter tersimpan"
+
+
+def _hrd_filters(qs, g, today):
+    """Filter lanjutan: memakai data yang tidak tampil di daftar bagi Admin Dept/Poli, jadi HANYA dipanggil untuk HRD/Superadmin (tidak jadi saluran bocor)."""
+    if g.get("gender") in ("L", "P"): qs = qs.filter(gender=g["gender"])
+    if g.get("education"): qs = qs.filter(education=g["education"])
+    sup = g.get("supervisor", "").strip()
+    if sup == "none": qs = qs.filter(supervisor__isnull=True)
+    elif sup: qs = qs.filter(supervisor__nik=sup)
+    if g.get("tenure") in TENURE: qs = qs.filter(TENURE[g["tenure"]](today))
+    a, b = g.get("age_min", ""), g.get("age_max", "")
+    if a.isascii() and a.isdigit(): qs = qs.filter(birth_date__lte=_years_ago(today, min(int(a), 150)))  # usia >= a
+    if b.isascii() and b.isdigit(): qs = qs.filter(birth_date__gt=_years_ago(today, min(int(b), 150) + 1))  # usia <= b
+    if _iso(g.get("join_from")): qs = qs.filter(join_date__gte=_iso(g["join_from"]))
+    if _iso(g.get("join_to")): qs = qs.filter(join_date__lte=_iso(g["join_to"]))
+    p = g.get("problem", "")
+    if p == "any":
+        cond = Q()
+        for _label, make in PROBLEMS.values(): cond |= make()
+        qs = qs.filter(cond)
+    elif p in PROBLEMS: qs = qs.filter(PROBLEMS[p][1]())
+    ck = g.get("contract_kind", "")
+    if ck: qs = qs.filter(Exists(Contract.objects.filter(employee=OuterRef("pk"), status="aktif", kind=ck).filter(Q(end__isnull=True) | Q(end__gte=today))))
+    lv = g.get("level", "")
+    if lv.isascii() and lv.isdigit(): qs = qs.filter(position__level=int(lv))
+    return qs
+
+
 def _employee_qs(request):
     qs = scope_by_department(request.user, Employee.objects.select_related("department", "position"))
     q = request.GET.get("q", "").strip()
@@ -70,18 +130,36 @@ def _employee_qs(request):
         if v.isdigit() and not (param == "department" and request.user.role == Role.DEPT_ADMIN):  # input non-angka diabaikan (bukan 500)
             qs = qs.filter(**{col: int(v)})
     c = request.GET.get("contract", "")
-    if c and request.user.role in (Role.HRD, Role.SUPERADMIN):  # info kontrak hanya untuk HRD: role lain tidak boleh memakainya sebagai filter
-        qs = _contract_filter(qs, c)
+    if request.user.role in (Role.HRD, Role.SUPERADMIN):  # info kontrak & data pribadi hanya untuk HRD: role lain tidak boleh memakainya sebagai filter
+        if c: qs = _contract_filter(qs, c)
+        qs = _hrd_filters(qs, {k: request.GET.get(k, "") for k in HRD_FILTERS}, date.today())
     return qs
+
+
+def _page_size(request):
+    v = request.GET.get("size", "")
+    return int(v) if v.isascii() and v.isdigit() and int(v) in PAGE_SIZES else 50
+
+
+@require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
+def employee_facets(request):
+    """Filter bergantung (dependent): jabatan yang benar-benar dipakai karyawan pada departemen terpilih (dalam scope pengguna)."""
+    from .models import Position
+    qs = scope_by_department(request.user, Employee.objects.all())
+    d = request.GET.get("department", "")
+    if d.isascii() and d.isdigit() and request.user.role != Role.DEPT_ADMIN: qs = qs.filter(department_id=int(d))
+    pos = Position.objects.filter(pk__in=qs.exclude(position__isnull=True).values("position_id")).order_by("name")
+    return JsonResponse({"positions": list(pos.values("id", "name"))})
 
 
 @require_roles(Role.HRD, Role.DEPT_ADMIN, Role.POLI)
 def employee_list(request):
     qs, grouped = order_employees(_employee_qs(request), request.GET.get("sort", ""), request.GET.get("group", ""), request.user.role in (Role.HRD, Role.SUPERADMIN))
-    page = Paginator(qs, 50).get_page(request.GET.get("page", 1))  # pagination di server
+    size = _page_size(request)
+    page = Paginator(qs, size).get_page(request.GET.get("page", 1))  # pagination di server
     cols = PUBLIC if request.user.role in (Role.POLI, Role.DEPT_ADMIN) else FULL
     if grouped: cols = cols + ("grp",)
-    return JsonResponse({"count": page.paginator.count, "page": page.number, "results": list(page.object_list.values(*cols))})
+    return JsonResponse({"count": page.paginator.count, "page": page.number, "size": size, "results": list(page.object_list.values(*cols))})
 
 BULK_MAX = 5000  # batas ID per aksi massal: cukup untuk ±3.000 karyawan, tetap melindungi dari POST/IN-query yang terlalu besar
 
@@ -120,8 +198,13 @@ from django.shortcuts import render
 def employees_page(request):
     from .models import Department, Position
     hrd = request.user.role in (Role.HRD, Role.SUPERADMIN)
-    return render(request, "employees.html", {"departments": Department.objects.order_by("name") if request.user.role != Role.DEPT_ADMIN else [],
-                                              "positions": Position.objects.order_by("name"), "shift_filters": SHIFT_FILTERS, "hrd": hrd})
+    ctx = {"departments": Department.objects.order_by("name") if request.user.role != Role.DEPT_ADMIN else [],
+           "positions": Position.objects.order_by("name"), "shift_filters": SHIFT_FILTERS, "hrd": hrd, "page_sizes": PAGE_SIZES}
+    if hrd:  # pilihan filter lanjutan (hanya HRD): pendidikan = nilai yang benar-benar ada, bukan daftar karangan
+        from .emp_forms import CONTRACT_KINDS
+        ctx.update(educations=list(Employee.objects.exclude(education="").order_by("education").values_list("education", flat=True).distinct()),
+                   levels=list(Position.objects.order_by("level").values_list("level", flat=True).distinct()), tenures=TENURE_LABELS, problems=PROBLEM_LABELS, contract_kinds=CONTRACT_KINDS)
+    return render(request, "employees.html", ctx)
 
 
 EXPORT_COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "shift_group", "gs_short", "status"]  # tanpa data sensitif

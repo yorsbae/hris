@@ -419,3 +419,15 @@ class AttendanceCheckAttachment(models.Model):
     class Meta: ordering = ["id"]
     @property
     def is_image(self): return bool(self.content_type)
+
+
+class SavedFilter(models.Model):
+    """Kombinasi filter yang disimpan pengguna untuk sebuah halaman daftar (pribadi, bukan bersama). `query` = string URL (urlencoded) yang sudah disaring ke kunci yang dikenal."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_filters")
+    page = models.CharField(max_length=30, default="employees")
+    name = models.CharField(max_length=60)
+    query = models.CharField(max_length=1000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "page", "name"], name="uniq_savedfilter_user_page_name")]
+        ordering = ["name"]

@@ -156,7 +156,7 @@ class ListPatternTests(DashboardUiBase):
     def test_global_search_form_for_every_role_points_to_scoped_list(self):
         for u in (self.su, self.hrd, self.adm, self.poli):
             h = self.get(u, "/employees/").content.decode()
-            self.assertIn('role="search"', h); self.assertIn('action="/employees/"', h); self.assertIn('name="q"', h)
+            self.assertIn('role="search"', h); self.assertIn('action="/search/"', h); self.assertIn('name="q"', h)
         self.client.logout(); self.assertNotIn('role="search"', self.client.get("/login/").content.decode())
 
     def test_empty_states_are_styled_and_have_colspan(self):

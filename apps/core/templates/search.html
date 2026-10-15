@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Cari{% endblock %}{% block content %}
+<h2>Pencarian{% if q %}: “{{ q }}”{% endif %}</h2>
+<form method="get" action="/search/" class="bar" role="search"><input type="search" name="q" value="{{ q }}" placeholder="Cari karyawan, pengajuan, master, obat…" aria-label="Kata kunci" maxlength="100" autofocus><button>Cari</button></form>
+{% if empty %}<p class="note">Ketik NIK atau nama (minimal 2 huruf). Hasil hanya dari modul yang boleh Anda buka.</p>
+{% elif too_short %}<p class="note">Kata kunci terlalu pendek; ketik minimal 2 karakter.</p>
+{% elif not sections %}<p class="note">Tidak ada hasil untuk “{{ q }}” di modul yang bisa Anda akses.</p>
+{% else %}<p class="dim">{{ total }} hasil di {{ sections|length }} modul.</p>
+{% for s in sections %}<h3>{{ s.title }} <small class="dim">({{ s.total }})</small></h3>
+<div class="wrap"><table class="nocard"><tbody>{% for label, sub, url in s.items %}<tr><td><a href="{{ url }}">{{ label }}</a></td><td class="dim">{{ sub }}</td></tr>{% endfor %}
+{% if s.see_all %}<tr><td colspan="2"><a href="{{ s.see_all }}">Lihat semua {{ s.total }} hasil {{ s.title|lower }} ›</a></td></tr>{% endif %}</tbody></table></div>
+{% endfor %}{% endif %}
+{% endblock %}
