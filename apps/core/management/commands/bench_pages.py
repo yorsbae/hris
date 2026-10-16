@@ -61,6 +61,11 @@ class Command(BaseCommand):
             ("Pengajuan (daftar)", "list", hrd, "GET", "/requests/", None),
             ("Absensi harian", "list", hrd, "GET", "/absensi/", None),
             ("Absensi bulanan", "list", hrd, "GET", "/absensi/bulanan/", None),
+            ("Data Scanlog (1 hari)", "list", hrd, "GET", "/absensi/scanlog/", None),
+            ("Data Scanlog (31 hari)", "list", hrd, "GET", "/absensi/scanlog/?from=2026-09-01&to=2026-10-01", None),
+            ("Shift Harian (31 hari)", "list", hrd, "GET", "/absensi/shift/?from=2026-09-01&to=2026-10-01", None),
+            ("Kontrol Harian", "list", hrd, "GET", "/absensi/kontrol/", None),
+            ("Master Mesin", "list", hrd, "GET", "/absensi/mesin/", None),
             ("Pencarian global 'Santoso'", "list", hrd, "GET", "/search/", {"q": "Santoso"}),
             ("Pratinjau aksi massal (semua karyawan)", None, hrd, "POST", "/employees/bulk/", {"action": "status", "ids": ids}),  # mendekati batas BULK_MAX
             ("Ekspor CSV (semua)", None, hrd, "GET", L + "export/", {"format": "csv"}),

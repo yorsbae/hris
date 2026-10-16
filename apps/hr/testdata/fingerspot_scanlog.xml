@@ -1,0 +1,63 @@
+<?xml version = "1.0" ?>
+<?xml:stylesheet type="text/xsl" href="A.xsl"?>
+<!DOCTYPE GRID [
+  <!ELEMENT GRID (BANDS, COLUMNS, ROWS*)>
+  <!ATTLIST GRID ExportVersion CDATA #REQUIRED>
+  <!ELEMENT BANDS (BAND*)>
+  <!ELEMENT BAND EMPTY>
+  <!ATTLIST BAND Index CDATA #REQUIRED>
+  <!ATTLIST BAND Caption CDATA #IMPLIED>
+  <!ELEMENT COLUMNS (COLUMN*)>
+  <!ELEMENT COLUMN EMPTY>
+  <!ATTLIST COLUMN Name CDATA #REQUIRED>
+  <!ATTLIST COLUMN Caption CDATA #IMPLIED>
+  <!ATTLIST COLUMN Index CDATA #REQUIRED>
+  <!ATTLIST COLUMN BandIndex CDATA #REQUIRED>
+  <!ATTLIST COLUMN RowIndex CDATA #REQUIRED>
+  <!ATTLIST COLUMN ColIndex CDATA #REQUIRED>
+  <!ATTLIST COLUMN Width CDATA #IMPLIED>
+  <!ELEMENT GROUP (GROUP*, ROW*)>
+  <!ATTLIST GROUP GroupText CDATA #IMPLIED>
+  <!ELEMENT ROWS (ROW*)>
+  <!ELEMENT ROW EMPTY>
+  <!ATTLIST ROW dbg_scanlogscan_date CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogtgl CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogjam CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogpin CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogpegawai_nip CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogpegawai_nama CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogpembagian1_nama CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogpembagian2_nama CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogpembagian3_nama CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogverifymode CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanloginoutmode CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogwork_code CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogsn CDATA #IMPLIED>
+  <!ATTLIST ROW dbg_scanlogdevice_name CDATA #IMPLIED>
+]>
+<GRID ExportVersion="1.0">
+  <BANDS>
+    <BAND Index="0" Caption=""></BAND>
+  </BANDS>
+  <COLUMNS>
+    <COLUMN Name="dbg_scanlogscan_date" Caption="Tanggal scan" Index="0" BandIndex="0" RowIndex="0" ColIndex="0" Width="109"></COLUMN>
+    <COLUMN Name="dbg_scanlogtgl" Caption="Tanggal" Index="1" BandIndex="0" RowIndex="0" ColIndex="1" Width="65"></COLUMN>
+    <COLUMN Name="dbg_scanlogjam" Caption="Jam" Index="2" BandIndex="0" RowIndex="0" ColIndex="2" Width="50"></COLUMN>
+    <COLUMN Name="dbg_scanlogpin" Caption="PIN" Index="3" BandIndex="0" RowIndex="0" ColIndex="3" Width="40"></COLUMN>
+    <COLUMN Name="dbg_scanlogpegawai_nip" Caption="NIP" Index="4" BandIndex="0" RowIndex="0" ColIndex="4" Width="40"></COLUMN>
+    <COLUMN Name="dbg_scanlogpegawai_nama" Caption="Nama" Index="5" BandIndex="0" RowIndex="0" ColIndex="5" Width="52"></COLUMN>
+    <COLUMN Name="dbg_scanlogpembagian1_nama" Caption="Jabatan" Index="6" BandIndex="0" RowIndex="0" ColIndex="6" Width="63"></COLUMN>
+    <COLUMN Name="dbg_scanlogpembagian2_nama" Caption="Departemen" Index="7" BandIndex="0" RowIndex="0" ColIndex="7" Width="86"></COLUMN>
+    <COLUMN Name="dbg_scanlogpembagian3_nama" Caption="Kantor" Index="8" BandIndex="0" RowIndex="0" ColIndex="8" Width="57"></COLUMN>
+    <COLUMN Name="dbg_scanlogverifymode" Caption="Verifikasi" Index="9" BandIndex="0" RowIndex="0" ColIndex="9" Width="70"></COLUMN>
+    <COLUMN Name="dbg_scanloginoutmode" Caption="I/O" Index="10" BandIndex="0" RowIndex="0" ColIndex="10" Width="39"></COLUMN>
+    <COLUMN Name="dbg_scanlogwork_code" Caption="Workcode" Index="11" BandIndex="0" RowIndex="0" ColIndex="11" Width="76"></COLUMN>
+    <COLUMN Name="dbg_scanlogsn" Caption="SN" Index="12" BandIndex="0" RowIndex="0" ColIndex="12" Width="98"></COLUMN>
+    <COLUMN Name="dbg_scanlogdevice_name" Caption="Mesin" Index="13" BandIndex="0" RowIndex="0" ColIndex="13" Width="54"></COLUMN>
+  </COLUMNS>
+  <ROWS>
+    <ROW dbg_scanlogscan_date="2026-10-09T20:16:30" dbg_scanlogtgl="2026-10-09" dbg_scanlogjam="20:16:30" dbg_scanlogpin="1" dbg_scanlogpegawai_nip="" dbg_scanlogpegawai_nama="" dbg_scanlogpembagian1_nama="" dbg_scanlogpembagian2_nama="" dbg_scanlogpembagian3_nama="" dbg_scanlogverifymode="1" dbg_scanloginoutmode="1" dbg_scanlogwork_code="0" dbg_scanlogsn="616202024171559" dbg_scanlogdevice_name="Mesin 1"></ROW>
+    <ROW dbg_scanlogscan_date="2026-10-16T14:02:59" dbg_scanlogtgl="2026-10-16" dbg_scanlogjam="14:02:59" dbg_scanlogpin="1" dbg_scanlogpegawai_nip="" dbg_scanlogpegawai_nama="" dbg_scanlogpembagian1_nama="" dbg_scanlogpembagian2_nama="" dbg_scanlogpembagian3_nama="" dbg_scanlogverifymode="1" dbg_scanloginoutmode="1" dbg_scanlogwork_code="0" dbg_scanlogsn="616202024171559" dbg_scanlogdevice_name="Mesin 1"></ROW>
+    <ROW dbg_scanlogscan_date="2026-10-16T14:05:42" dbg_scanlogtgl="2026-10-16" dbg_scanlogjam="14:05:42" dbg_scanlogpin="1" dbg_scanlogpegawai_nip="" dbg_scanlogpegawai_nama="" dbg_scanlogpembagian1_nama="" dbg_scanlogpembagian2_nama="" dbg_scanlogpembagian3_nama="" dbg_scanlogverifymode="1" dbg_scanloginoutmode="1" dbg_scanlogwork_code="0" dbg_scanlogsn="616202024171559" dbg_scanlogdevice_name="Mesin 1"></ROW>
+  </ROWS>
+</GRID>

@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block title %}Shift Harian{% endblock %}{% block content %}
+<style>.sg{border-collapse:collapse;font-size:12px}.sg th,.sg td{border:1px solid var(--bd);padding:3px 6px;white-space:nowrap;text-align:center}.sg td.l,.sg th.l{text-align:left}
+.sg td.ok{background:rgba(22,163,74,.13)}.sg td.late{background:rgba(234,179,8,.25)}.sg td.warn{background:rgba(249,115,22,.22)}.sg td.absent{background:rgba(217,45,32,.28);font-weight:600}
+.sg td.off{background:rgba(120,120,120,.16);color:var(--mu)}.sg td.leave{background:rgba(59,130,246,.2)}.sg td.none{color:var(--mu)}.sg thead th{position:sticky;top:0;background:var(--card)}
+.sg td.s{position:sticky;left:0;background:var(--card);text-align:left}.sgl{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;margin:6px 0}.sgl span{padding:1px 8px;border:1px solid var(--bd);border-radius:10px}</style>
+<p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
+<h2>Shift Harian</h2>
+<p class="sub">Karyawan × tanggal ({{ d1|date:"d M Y" }} – {{ d2|date:"d M Y" }}). Isi sel: kode shift; <b>+Nm</b> = terlambat N menit; <b>1x</b> = scan sekali; merah = tidak hadir. Arahkan kursor ke sel untuk jam scan.</p>
+{% if capped %}<p class="hint flow">Rentang dibatasi maksimal 31 hari.</p>{% endif %}
+<div class="tools"><details class="more"><summary>Ekspor ▾</summary><div><small>Grid sesuai filter</small><div class="xrow"><span>Shift harian</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a></div></div></details></div>
+<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" maxlength="60" aria-label="NIK atau nama">
+<input type="date" name="from" value="{{ d1|date:'Y-m-d' }}" aria-label="Dari tanggal"><input type="date" name="to" value="{{ d2|date:'Y-m-d' }}" aria-label="Sampai tanggal">
+<select name="status" aria-label="Status"><option value="">Semua karyawan</option>{% for k, l in status_opts %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>Pernah: {{ l }}</option>{% endfor %}</select>
+<select name="shift" aria-label="Shift"><option value="">Semua shift</option>{% for s in shifts %}<option value="{{ s.pk }}"{% if f.shift == s.pk|stringformat:"s" %} selected{% endif %}>{{ s.code|default:s.name }}</option>{% endfor %}</select>
+{% if not is_admin %}<select name="dept" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if f.dept == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}</form>
+{% if grid %}<div class="wrap" style="overflow:auto;max-height:75vh"><table class="sg nocard"><thead><tr><th class="l">Karyawan</th><th class="l">Departemen</th>{% for d in days %}<th>{{ d|date:"d-m" }}<br><small>{{ d|date:"D" }}</small></th>{% endfor %}<th>Hadir</th><th>Telat</th><th>Absen</th></tr></thead><tbody>
+{% for r in grid %}<tr><td class="s"><a href="{% url 'att_employee' r.e.pk %}?month={{ d1|date:'Y-m' }}">{{ r.e.name }}</a> <small>{{ r.e.nik }}</small></td><td class="l">{{ r.e.department.name }}</td>
+{% for css, txt, tip in r.cells %}<td class="{{ css }}" title="{{ tip }}">{{ txt }}</td>{% endfor %}<td>{{ r.hadir }}</td><td>{{ r.telat }}</td><td>{{ r.absen }}</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}{% else %}<p class="empty">{% if act %}Tidak ada karyawan yang cocok. <a href="{% url 'att_shift' %}">Reset filter</a>.{% else %}Belum ada rekap harian untuk rentang ini. Impor berkas Fingerspot lalu olah rekap.{% endif %}</p>{% endif %}
+{% endblock %}

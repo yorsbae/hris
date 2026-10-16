@@ -16,7 +16,8 @@ from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import get_scoped_or_404, require_roles, scope_by_department
 from . import attendance_calc as calc, attendance_check as checks, attendance_import as imp
-from .models import AttendanceCheck, AttendanceDaily as AD, AttendanceImport, AttendancePin, AttendanceRaw, Department, Employee, Holiday
+from .attendance_reports import STATUS_FILTERS, STATUS_LABELS
+from .models import AttendanceCheck, AttendanceDaily as AD, AttendanceImport, AttendancePin, AttendanceRaw, Department, Employee, Holiday, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))
 hrd = lambda fn: login_required(require_roles(Role.HRD)(fn))
@@ -55,10 +56,9 @@ def daily_list(request):
     if (d2 - d1).days > 92: d2 = d1 + timedelta(days=92)
     qs = scope_by_department(request.user, AD.objects.select_related("employee", "department", "shift").filter(date__gte=d1, date__lte=d2)).order_by("-date", "department__name", "employee__name")
     status = g.get("status", "")
-    if status == "review": qs = qs.filter(Q(status="tanpa_scan") | Q(incomplete=True) | ~Q(conflict=""))
-    elif status == "late": qs = qs.filter(late_minutes__gt=0)
-    elif status == "ot": qs = qs.filter(overtime_approved_minutes__gt=0)
+    if status in STATUS_FILTERS: qs = qs.filter(STATUS_FILTERS[status])     # absent · late · early · incomplete · leave · ot · review (satu sumber dengan Kontrol Harian & Shift Harian)
     elif status in dict(AD.STATUSES): qs = qs.filter(status=status)
+    if g.get("shift", "").isdigit(): qs = qs.filter(shift_id=int(g["shift"]))
     if g.get("dept", "").isdigit() and not is_admin: qs = qs.filter(department_id=int(g["dept"]))
     if g.get("q", "").strip(): q = g["q"].strip()[:60]; qs = qs.filter(Q(employee__nik__icontains=q) | Q(employee__name__icontains=q))
     if g.get("export"):
@@ -71,11 +71,11 @@ def daily_list(request):
     for a in page: a.pill = PILL.get(a.status, "pending"); a.fi, a.lo = _hhmm(a.first_in), _hhmm(a.last_out)
     base = scope_by_department(request.user, AD.objects.filter(date__gte=d1, date__lte=d2))
     k = base.aggregate(**{n: Count("id", filter=f) for n, f in
-                          (("total", Q()), ("hadir", Q(status="hadir")), ("telat", Q(late_minutes__gt=0)), ("review", Q(status="tanpa_scan") | Q(incomplete=True) | ~Q(conflict="")), ("alfa", Q(status="alfa")))})
+                          (("total", Q()), ("hadir", Q(status="hadir")), ("telat", Q(late_minutes__gt=0)), ("review", Q(status="tanpa_scan") | Q(incomplete=True) | ~Q(conflict="")), ("alfa", Q(status="alfa")), ("absent", STATUS_FILTERS["absent"]))})
     qd = g.copy(); qd.pop("page", None); qd.pop("export", None)
     ld, stale = _freshness()
-    return render(request, "attendance/daily.html", {"page": page, "qs": qd.urlencode(), "k": k, "d1": d1, "d2": d2, "f": {"status": status, "q": g.get("q", ""), "dept": g.get("dept", "")},
-                  "statuses": AD.STATUSES, "depts": Department.objects.order_by("name"), "is_admin": is_admin, "last_scan": ld, "stale": stale, "act": any(g.get(x) for x in ("status", "q", "dept"))})
+    return render(request, "attendance/daily.html", {"page": page, "qs": qd.urlencode(), "k": k, "d1": d1, "d2": d2, "f": {"status": status, "q": g.get("q", ""), "dept": g.get("dept", ""), "shift": g.get("shift", "")}, "shifts": Shift.objects.filter(active=True).order_by("start"), "status_opts": STATUS_LABELS,
+                  "statuses": AD.STATUSES, "depts": Department.objects.order_by("name"), "is_admin": is_admin, "last_scan": ld, "stale": stale, "act": any(g.get(x) for x in ("status", "q", "dept", "shift"))})
 
 
 # ---------------------------------------------------------------- rekap bulanan

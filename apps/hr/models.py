@@ -295,6 +295,20 @@ class AttendanceRaw(models.Model):
     def delete(self, *a, **k): raise PermissionError("Log mesin tidak boleh dihapus")
 
 
+class AttendanceDevice(models.Model):
+    """Master mesin absensi (Fingerspot dll). `code` = nilai kolom Mesin/SN di berkas impor = `AttendanceRaw.device_id` (tanpa FK: log mentah tidak diubah & mesin boleh belum terdaftar).
+    Dipakai untuk nama/lokasi yang mudah dibaca, filter Data Scanlog, dan pemantauan 'mesin mati' (aktif tapi tidak ada scan dalam beberapa hari)."""
+    code = models.CharField("Kode mesin (kolom Mesin/SN di berkas)", max_length=40, unique=True)
+    name = models.CharField("Nama", max_length=80)
+    location = models.CharField("Lokasi", max_length=100, blank=True)
+    serial = models.CharField("Nomor seri (SN)", max_length=40, blank=True)
+    active = models.BooleanField("Aktif", default=True)
+    note = models.CharField("Catatan", max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta: ordering = ["name"]
+    def __str__(self): return f"{self.name} ({self.code})"
+
+
 class AttendanceDaily(models.Model):
     """Rekap harian hasil olah (tabel terhitung; boleh dihitung ulang kapan saja dari log mentah + jadwal + pengajuan + validasi).
     Status: hadir · libur · libur_nasional · cuti · cuti_hamil · izin · sakit · alfa · tanpa_scan (hari kerja tanpa scan; belum jelas → minta validasi).

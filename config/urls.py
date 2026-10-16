@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap, attendance_reports as ar
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import health, lookup, search_views
@@ -40,6 +40,10 @@ urlpatterns = [
     path("validasi/<int:pk>/cancel/", av7.check_cancel, name="attcheck_cancel"),
     path("validasi/<int:pk>/correct/", av7.check_correct, name="attcheck_correct"),
     path("absensi/", ap.daily_list, name="att_daily"),
+    path("absensi/scanlog/", ar.scanlog, name="att_scanlog"),
+    path("absensi/shift/", ar.shift_grid, name="att_shift"),
+    path("absensi/kontrol/", ar.control, name="att_control"),
+    path("absensi/mesin/", ar.devices, name="att_devices"),
     path("absensi/bulanan/", ap.monthly, name="att_monthly"),
     path("absensi/karyawan/<int:pk>/", ap.employee_month, name="att_employee"),
     path("absensi/olah/", ap.reprocess, name="att_process"),

@@ -85,13 +85,30 @@ def read_grid(raw: bytes, filename: str):
     if not raw.strip(): raise ValueError("Berkas kosong.")
     head, name = raw[:8], (filename or "").lower()
     if head[:4] == b"PK\x03\x04": grid = _xlsx(raw)
-    elif head == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1": grid = _xls(raw)
+    elif head == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" or head[:2] in BIFF_BOF: grid = _xls(raw)   # OLE2 biasa, atau aliran BIFF mentah (ekspor Fingerspot: .xls tanpa pembungkus OLE)
+    elif raw.lstrip()[:5] == b"<?xml" and b"<ROW" in raw: grid = _xml_grid(raw)       # ekspor "XML" Fingerspot (<GRID><COLUMNS/><ROWS/>)
     elif raw.lstrip()[:1] == b"<" and (b"<table" in raw[:20000].lower() or b"<tr" in raw[:20000].lower()):
         p = _Html(); p.feed(_decode(raw)); grid = p.rows
     else: grid = _text_grid(_decode(raw))
     if not grid: raise ValueError("Berkas tidak berisi data.")
     if len(grid) > MAX_ROWS + 60: raise ValueError(f"Terlalu banyak baris (maks {MAX_ROWS:,}). Bagi berkas per periode.".replace(",", "."))
     return grid
+
+
+BIFF_BOF = (b"\x09\x00", b"\x09\x02", b"\x09\x04", b"\x09\x08")   # rekaman BOF BIFF2/3/4/5-8
+
+
+def _xml_grid(raw):
+    """Ekspor XML Fingerspot: <COLUMNS><COLUMN Name Caption/> dan <ROWS><ROW nama_kolom="nilai"/>. DOCTYPE dibuang sebelum diurai (tanpa entitas eksternal/DTD)."""
+    import xml.etree.ElementTree as ET
+    text = re.sub(r"<\?.*?\?>", "", _decode(raw), flags=re.S)                           # deklarasi & instruksi (mis. <?xml:stylesheet …?> yang bukan XML valid)
+    text = re.sub(r"<!DOCTYPE[^\[>]*(\[.*?\])?\s*>", "", text, count=1, flags=re.S)
+    try: root = ET.fromstring(text.encode("utf-8"))
+    except ET.ParseError: raise ValueError("Berkas XML tidak dapat dibaca (rusak atau bukan ekspor Fingerspot).")
+    cols = [(c.get("Name") or "", c.get("Caption") or c.get("Name") or "") for c in root.iter("COLUMN")]
+    if not cols: raise ValueError("Berkas XML tidak memuat daftar kolom (<COLUMN>).")
+    rows = [[r.get(n, "") for n, _ in cols] for r in root.iter("ROW")]
+    return [[cap for _, cap in cols]] + rows if rows else []
 
 
 def _xlsx(raw):
@@ -108,7 +125,7 @@ def _xlsx(raw):
 def _xls(raw):
     try: import xlrd
     except ImportError: raise ValueError("Berkas .xls lama butuh paket `xlrd` (pip install xlrd). Atau buka di Excel lalu simpan sebagai .xlsx / .csv.")
-    try: wb = xlrd.open_workbook(file_contents=raw)
+    try: wb = xlrd.open_workbook(file_contents=raw, logfile=io.StringIO())
     except Exception: raise ValueError("Berkas .xls tidak dapat dibaca. Buka di Excel lalu simpan sebagai .xlsx / .csv.")
     for sh in wb.sheets():
         rows = []

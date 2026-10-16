@@ -20,8 +20,9 @@ def _validasi(): return [("Validasi Kehadiran", "/validasi/", "clock")]  # putar
 
 def _absensi(full):
     """Menu Absensi (Tahap 6, putaran 48). HRD: rekap + impor + PIN + hari libur. Admin Dept: hanya rekap departemennya."""
-    items = [("Absensi", "/absensi/", "clock"), ("Rekap Bulanan", "/absensi/bulanan/", "calendar", True)]
-    if full: items += [("Impor Fingerspot", "/absensi/impor/", "file", True), ("Pemetaan PIN", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True)]
+    items = [("Absensi", "/absensi/", "clock"), ("Kontrol Harian", "/absensi/kontrol/", "shield", True), ("Shift Harian", "/absensi/shift/", "calendar", True),
+             ("Rekap Bulanan", "/absensi/bulanan/", "calendar", True)]
+    if full: items += [("Data Scanlog", "/absensi/scanlog/", "file", True), ("Impor Fingerspot", "/absensi/impor/", "file", True), ("Mesin", "/absensi/mesin/", "clock", True), ("Pemetaan PIN", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True)]
     return items
 
 

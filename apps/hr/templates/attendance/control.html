@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Kontrol Harian{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
+<h2>Kontrol Harian</h2>
+<p class="sub">Ringkasan per departemen, {{ d1|date:"d M Y" }}{% if d1 != d2 %} – {{ d2|date:"d M Y" }}{% endif %}. Klik angka untuk melihat nama karyawannya. “Tidak berangkat” = alfa + hari kerja tanpa scan (belum divalidasi).{% if last_scan %} Scan terakhir: {{ last_scan|date:"d M Y" }}.{% endif %}</p>
+{% if idle %}<p class="hint flow" style="border-left:4px solid #d92d20"><b>Mesin tidak mengirim scan:</b> {% for r in idle %}{{ r.d.name }}{% if r.last %} (terakhir {{ r.last|date:"d M H:i" }}){% else %} (tidak ada scan 30 hari){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}. <a href="{% url 'att_devices' %}">Master mesin</a></p>{% endif %}
+{% if unknown_dev %}<p class="hint flow">Ada {{ unknown_dev|length }} mesin di log yang belum terdaftar. <a href="{% url 'att_devices' %}">Daftarkan</a>.</p>{% endif %}
+<form method="get" data-fbar class="bar"><input type="date" name="from" value="{{ d1|date:'Y-m-d' }}" aria-label="Dari tanggal"><input type="date" name="to" value="{{ d2|date:'Y-m-d' }}" aria-label="Sampai tanggal"></form>
+<div class="tools"><details class="more"><summary>Ekspor ▾</summary><div><div class="xrow"><span>Ringkasan</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a></div></div></details>
+<a class="btn" href="{% url 'att_shift' %}?{{ qdate }}">Grid Shift Harian</a></div>
+{% if rows %}<div class="wrap"><table class="sepfit"><thead><tr><th>Departemen</th><th>Hadir</th><th>Tidak berangkat</th><th>Terlambat</th><th>Pulang awal</th><th>Scan 1x</th><th>Cuti/izin/sakit</th><th>Lembur</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.department__name|default:"—" }}</td><td class="num">{{ r.hadir }}<small>dari {{ r.kerja }} hari kerja{% if r.pct is not None %} · {{ r.pct }}%{% endif %}</small></td>
+{% for key, n in r.links %}<td class="num">{% if n %}<a href="{% url 'att_daily' %}?{{ qdate }}&amp;dept={{ r.department_id }}&amp;status={{ key }}">{{ n }}</a>{% else %}0{% endif %}</td>{% endfor %}</tr>{% endfor %}
+<tr><th>Semua</th><th class="num">{{ tot.hadir }}<small>dari {{ tot.kerja }}{% if tot.pct is not None %} · {{ tot.pct }}%{% endif %}</small></th>
+{% for key, n in tot.links %}<th class="num">{% if n %}<a href="{% url 'att_daily' %}?{{ qdate }}&amp;status={{ key }}">{{ n }}</a>{% else %}0{% endif %}</th>{% endfor %}</tr></tbody></table></div>
+{% else %}<p class="empty">Belum ada rekap untuk rentang ini.</p>{% endif %}
+{% endblock %}
