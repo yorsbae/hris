@@ -11,7 +11,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import simpleSplit
 from reportlab.pdfgen import canvas
-from apps.core import letterhead
+from apps.core import kop, letterhead
 
 MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
 GENDER = {"L": "Laki-laki", "P": "Perempuan"}
@@ -34,15 +34,8 @@ def terbilang(n):
 
 
 def _kop(c, W, top, L, lh):
-    """Kop surat (perusahaan, alamat bila diisi, nama poli) + garis bawah. Mengembalikan y garis kop; semua bagian lain surat diukur dari sana."""
-    c.setFont("Helvetica-Bold", 14); c.drawCentredString(W / 2, top, lh["company"]); y = top - 6 * mm
-    if lh["address"]:  # alamat panjang dibungkus (maks. 2 baris) agar tidak melewati margin
-        c.setFont("Helvetica", 8.5)
-        for part in simpleSplit(lh["address"], "Helvetica", 8.5, W - 2 * L)[:2]:
-            c.drawCentredString(W / 2, y, part); y -= 4.5 * mm
-    c.setFont("Helvetica", 10); c.drawCentredString(W / 2, y, lh["poli"])
-    y -= 3 * mm; c.setLineWidth(1.1); c.line(L, y, W - L, y); c.setLineWidth(0.4); c.line(L, y - 1 * mm, W - L, y - 1 * mm); c.setLineWidth(1)
-    return y - 1 * mm
+    """Kop surat bergambar poli (logo poli, nama poli, alamat) + garis ganda. Mengembalikan y garis kop; semua bagian lain surat diukur dari sana."""
+    return kop.draw(c, W, top, L, lh, kind="poli")
 
 
 def _dateline(c, W, L, y, lh, d):

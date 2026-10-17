@@ -194,8 +194,10 @@ def import_detail(request, pk):
             grid_w = max(len(r) for r in imp.load_grid(i)[:200]); m = imp.mapping_from_post(request.POST, grid_w) if request.POST.get("map_posted") else None
             if act == "commit":
                 imp.commit(i, request.user, ignore_invalid=bool(request.POST.get("ignore_invalid")), mapping=m)
-                log(request, "hr", "attendance_import", None, None, {"file": i.original_name[:100], "rows": i.rows_total, "new": i.taps_new, "dup": i.taps_duplicate, "unmapped_pins": i.pins_unmapped})
-                _process_after_import(request, i); return redirect("att_import_detail", pk=i.pk)
+                log(request, "hr", "attendance_import", None, None, {"file": i.original_name[:100], "rows": i.rows_total, "new": i.taps_new, "dup": i.taps_duplicate, "invalid": i.rows_invalid, "unmapped_pins": i.pins_unmapped})
+                if i.state == "selesai": _process_after_import(request, i)
+                else: messages.info(request, i.note)
+                return redirect("att_import_detail", pk=i.pk)
             ctx["res"] = imp.analyze(i, m)
         else: ctx["res"] = imp.analyze(i)
     except ValueError as e:
@@ -207,6 +209,18 @@ def import_detail(request, pk):
                                        "sample": ", ".join(str(r[c])[:19] for r in body[:3] if c < len(r) and r[c] not in (None, ""))} for c in range(max(len(r) for r in g[:200]))]}
         except ValueError: return redirect("att_import")
     return render(request, "attendance/import_preview.html", ctx)
+
+
+@hrd
+def import_errors(request, pk):
+    """Unduh daftar baris gagal impor (nomor baris di berkas, alasan, saran) agar bisa diperbaiki di berkas lalu diunggah ulang."""
+    i = AttendanceImport.objects.filter(pk=pk).first()
+    if not i: raise Http404
+    rows = (i.report or {}).get("rows") or []
+    hint = {c: h for c, (_, h) in imp.REASONS.items()}
+    data = [[r["row"], r["msg"], r.get("pin", ""), r.get("value", ""), hint.get(r.get("code"), "")] for r in rows]
+    log(request, "hr", "attendance_import_errors_export", None, None, {"import": i.pk, "rows": len(data)})
+    return tabular.export_response(f"impor-gagal-{i.pk}", ["baris_di_berkas", "masalah", "pin", "nilai_waktu", "saran"], data, request, sheet="Baris gagal", num_cols=(0,))
 
 
 def _process_after_import(request, i):

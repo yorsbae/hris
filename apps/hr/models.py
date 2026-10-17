@@ -27,14 +27,26 @@ class ShiftGroup(models.Model):
     """Kelompok rotasi (docs/jadwal_shift_2026.md). Pola 2 shift (Pagi–Siang) berkode A–G; pola 3 shift/PACK (Pagi–Siang–Malam) berkode A_pack–G_pack.
     Kedua pola adalah kelompok yang berbeda walau hurufnya sama."""
     P2, P3 = "2_SHIFT", "3_SHIFT"
-    PATTERNS = [(P2, "2 shift (Pagi–Siang)"), (P3, "3 shift / PACK (Pagi–Siang–Malam)")]
+    GS, GSN = "GS", "GS_N"   # bukan rotasi: GS = general shift (08–16); GS/N = kadang GS, kadang shift. Libur & jam mengikuti pengaturan tiap karyawan
+    PATTERNS = [(GS, "GS (general shift)"), (GSN, "GS/N (kadang GS, kadang shift)"), (P2, "2 shift (Pagi–Siang)"), (P3, "3 shift / PACK (Pagi–Siang–Malam)")]
     code = models.CharField("Kode kelompok", max_length=12, unique=True)
     pattern = models.CharField("Pola", max_length=8, choices=PATTERNS)
     class Meta:
         ordering = ["pattern", "code"]
         constraints = [models.CheckConstraint(name="shift_group_pack_suffix_matches_pattern",
-                                              condition=(models.Q(pattern="3_SHIFT", code__endswith="_pack") | (models.Q(pattern="2_SHIFT") & ~models.Q(code__endswith="_pack"))))]
-    def __str__(self): return self.code
+                                              condition=(models.Q(pattern="3_SHIFT", code__endswith="_pack") | (models.Q(pattern="2_SHIFT") & ~models.Q(code__endswith="_pack"))
+                                                         | models.Q(pattern__in=["GS", "GS_N"])))]
+    def __str__(self): return self.label
+    @property
+    def is_rotation(self): return self.pattern in (self.P2, self.P3)
+    @property
+    def label(self):
+        """Nama tampilan satu-satunya untuk 'Shift' karyawan: GS, GS/N, A7…G7 (pola 2 shift), A7Pack…G7Pack (pola 3 shift/PACK). Kode di DB (A, A_pack) tidak berubah."""
+        if self.pattern == self.GS: return "GS"
+        if self.pattern == self.GSN: return "GS/N"
+        base, pack = (self.code[:-5], True) if self.code.endswith("_pack") else (self.code, False)
+        if base and not base.endswith("7"): base += "7"
+        return base + ("Pack" if pack else "")
 
 
 class ShiftRotation(models.Model):
@@ -77,6 +89,14 @@ class Employee(models.Model):
     # Karyawan GS: pada hari kerja SEBELUM hari libur GS (mis. Sabtu), jam pulang dipersingkat ke GS-14 (08–14) atau GS-12 (08–12). Bawaan 14.
     GS_SHORT = [("14", "GS-14 (08:00–14:00)"), ("12", "GS-12 (08:00–12:00)")]
     gs_short = models.CharField("GS sebelum libur", max_length=2, choices=GS_SHORT, default="14")
+    # Karyawan non-rotasi (GS, GS/N): hari libur mingguan masing-masing (acak per orang). Kosong = ikut libur umum (Minggu). Tukar libur per tanggal tetap lewat pengajuan.
+    OFF_DAYS = [(0, "Senin"), (1, "Selasa"), (2, "Rabu"), (3, "Kamis"), (4, "Jumat"), (5, "Sabtu"), (6, "Minggu")]
+    off_weekday = models.PositiveSmallIntegerField("Hari libur (GS, GS/N)", null=True, blank=True, choices=OFF_DAYS)
+    PAY_BASIS = [("bulanan", "Bulanan"), ("harian", "Harian")]
+    pay_basis = models.CharField("Status karyawan (harian/bulanan)", max_length=8, choices=PAY_BASIS, default="bulanan", db_index=True)
+    # Grade organisasi untuk profil (mis. 9 + tingkat A). Upah tetap di modul Payroll (PayProfile, berlaku-sejak); kolom ini TIDAK memuat nominal.
+    grade = models.PositiveSmallIntegerField("Grade", null=True, blank=True)
+    grade_tier = models.CharField("Tingkat grade", max_length=2, blank=True)
     bpjs_kes = EncryptedTextField(max_length=20, blank=True); bpjs_tk = EncryptedTextField(max_length=20, blank=True)  # SENSITIF
     npwp = EncryptedTextField(max_length=25, blank=True)  # SENSITIF
     bank_name = models.CharField(max_length=50, blank=True); bank_account = EncryptedTextField(max_length=30, blank=True)  # SENSITIF
@@ -87,9 +107,24 @@ class Employee(models.Model):
     objects = EmployeeManager(); all_objects = models.Manager()
     class Meta:
         indexes = [models.Index(fields=["department", "status"]), models.Index(fields=["name", "nik"])]
+        constraints = [models.CheckConstraint(name="employee_off_weekday_0_6", condition=models.Q(off_weekday__isnull=True) | models.Q(off_weekday__gte=0, off_weekday__lte=6))]
     SENSITIVE = ("nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "address", "phone", "birth_date")
     ENCRYPTED = ("nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_account")
     def __str__(self): return f"{self.nik} {self.name}"
+    @property
+    def is_rotation(self):
+        """Ikut tabel rotasi kelompok (A7…G7, A7Pack…G7Pack). GS dan GS/N BUKAN rotasi."""
+        return bool(self.shift_group_id) and self.shift_group.is_rotation
+    @property
+    def works_shifts(self):
+        """Bisa bertugas di shift Pagi/Siang/Malam: rotasi, atau GS/N."""
+        return bool(self.shift_group_id) and (self.shift_group.is_rotation or self.shift_group.pattern == ShiftGroup.GSN)
+    @property
+    def shift_label(self):
+        """Satu nilai 'Shift': GS, GS/N, A7…G7, A7Pack…G7Pack (data lama GS tanpa kelompok tetap tampil GS)."""
+        if self.shift_group_id: return self.shift_group.label
+        if self.shift_id: return "GS" if self.shift.is_gs else self.shift.name
+        return "-"
     def age(self, on=None):
         """Umur penuh (tahun) pada tanggal `on` (bawaan hari ini); None bila tanggal lahir belum diisi."""
         if not self.birth_date: return None
@@ -247,6 +282,7 @@ class AttendanceImport(models.Model):
     pins_total = models.PositiveIntegerField(default=0); pins_unmapped = models.PositiveIntegerField(default=0); taps_unmapped = models.PositiveIntegerField(default=0)
     date_min = models.DateField(null=True, blank=True); date_max = models.DateField(null=True, blank=True)
     note = models.CharField(max_length=300, blank=True)
+    report = models.JSONField(default=dict, blank=True)                 # laporan hasil: alasan baris gagal (dikelompokkan + rincian maks 500 baris) & jumlah duplikat; tanpa isi baris selain PIN/waktu yang bermasalah
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True); committed_at = models.DateTimeField(null=True, blank=True)
     class Meta: ordering = ["-id"]

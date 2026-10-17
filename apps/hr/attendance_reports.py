@@ -19,6 +19,7 @@ from apps.core import tabular
 from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles, scope_by_department
+from .views import SHIFT_FILTERS, apply_shift_filter
 from .models import AttendanceDaily as AD, AttendanceDevice, AttendanceRaw, Department, Employee, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))   # noqa: E731
@@ -139,12 +140,22 @@ def scanlog(request):
 
 
 # ============================================================================= Shift Harian (grid karyawan × tanggal)
-def _cell(a):
-    """→ (css, teks, tooltip). Teks pendek agar 31 kolom muat; tooltip memuat jam scan."""
+def _shift_label(a, e=None):
+    """Label shift di grid, selaras dengan halaman Karyawan: GS-16 → "GS" (GS-14/GS-12 tetap, karena jam pulangnya berbeda);
+    PAGI/SIANG/MALAM → shift karyawan (A7…G7 = pola 2 shift, A7Pack…G7Pack = pola 3 shift/PACK, GS/N)."""
+    if not a.shift_id: return ""
+    code = a.shift.code or a.shift.name
+    if a.shift.is_gs: return "GS" if code == "GS-16" else code
+    g = getattr(e, "shift_group", None)
+    return g.label if g else code
+
+
+def _cell(a, e=None):
+    """→ (css, teks, tooltip). Teks pendek agar 31 kolom muat; tooltip memuat nama shift & jam scan."""
     if a is None: return "none", "–", "Belum ada rekap"
-    tip = " · ".join(x for x in (a.get_status_display(), f"masuk {_hhmm(a.first_in)}" if a.first_in else "", f"pulang {_hhmm(a.last_out)}" if a.last_out else "",
+    tip = " · ".join(x for x in (a.get_status_display(), a.shift.name if a.shift_id else "", f"masuk {_hhmm(a.first_in)}" if a.first_in else "", f"pulang {_hhmm(a.last_out)}" if a.last_out else "",
                                  f"terlambat {a.late_minutes} mnt" if a.late_minutes else "", f"pulang awal {a.early_minutes} mnt" if a.early_minutes else "") if x)
-    code = (a.shift.code or a.shift.name) if a.shift_id else ""
+    code = _shift_label(a, e)
     s = a.status
     if s in ABSENT: return "absent", "Tidak Hadir" if s == "alfa" else "Tanpa scan", tip
     if s in OFF_DAYS: return "off", "Libur" if s == "libur" else "Libur Nas.", tip
@@ -160,14 +171,14 @@ def shift_grid(request):
     d1, d2 = _range(g, MAX_GRID_DAYS, AD.objects.order_by("-date").values_list("date", flat=True).first())
     days = [d1 + timedelta(days=i) for i in range((d2 - d1).days + 1)]
     in_range = AD.objects.filter(date__gte=d1, date__lte=d2)
-    emp = scope_by_department(request.user, Employee.objects.select_related("department"))
+    emp = scope_by_department(request.user, Employee.objects.select_related("department", "shift_group"))
     emp = emp.filter(Exists(in_range.filter(employee=OuterRef("pk"))))
     q, dept, st, shift = g.get("q", "").strip()[:60], g.get("dept", ""), g.get("status", ""), g.get("shift", "")
     if q: emp = emp.filter(Q(nik__icontains=q) | Q(name__icontains=q))
     if dept.isdigit() and not is_admin: emp = emp.filter(department_id=int(dept))
     cond = Q()
     if st in STATUS_FILTERS: cond &= STATUS_FILTERS[st]
-    if shift.isdigit(): cond &= Q(shift_id=int(shift))
+    emp = apply_shift_filter(emp, shift)      # A7 / A7 Pack / GS (sama dengan filter Shift di Data Karyawan; id shift lama tetap diterima)
     if cond: emp = emp.filter(Exists(in_range.filter(cond, employee=OuterRef("pk"))))
     emp = emp.order_by("department__name", "name")
     if g.get("export"):
@@ -181,7 +192,7 @@ def shift_grid(request):
     for e in page_rows:
         row, hadir, telat, absen = [], 0, 0, 0
         for d in days:
-            a = cells.get((e.pk, d)); css, txt, tip = _cell(a); row.append((css, txt, tip))
+            a = cells.get((e.pk, d)); css, txt, tip = _cell(a, e); row.append((css, txt, tip))
             if a: hadir += a.status == "hadir"; telat += a.late_minutes > 0; absen += a.status in ABSENT
         grid.append({"e": e, "cells": row, "hadir": hadir, "telat": telat, "absen": absen})
     if g.get("export"):
@@ -192,7 +203,7 @@ def shift_grid(request):
     return render(request, "attendance/shift_grid.html", {
         "page": page, "grid": grid, "days": days, "d1": d1, "d2": d2, "qs": _qs_without(g, "export", "format"), "is_admin": is_admin,
         "f": {"q": q, "dept": dept, "status": st, "shift": shift}, "status_opts": STATUS_LABELS, "depts": Department.objects.order_by("name"),
-        "shifts": Shift.objects.filter(active=True).order_by("start"), "act": any((q, dept, st, shift)),
+        "shift_opts": SHIFT_FILTERS, "act": any((q, dept, st, shift)),
         "capped": (d2 - d1).days + 1 >= MAX_GRID_DAYS and bool(g.get("to"))})
 
 

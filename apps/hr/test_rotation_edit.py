@@ -40,7 +40,7 @@ class RotationEditTests(TestCase):
         self.client.login(username="hrd", password="x")
         Shift.objects.create(code="SIANG", name="Siang", start=time(14), end=time(22))
         self.assertEqual(self.post({"action": "reset"}).status_code, 302)
-        self.assertEqual(ShiftGroup.objects.count(), 14)
+        self.assertEqual(ShiftGroup.objects.filter(pattern__in=['2_SHIFT', '3_SHIFT']).count(), 14)
         self.assertEqual(ShiftRotation.objects.get(group__code="A", weekday=2).shift.code, "PAGI")  # A: Rabu Pagi (jadwal resmi)
         for u in ("poli", "admin_dept"):
             self.client.login(username=u, password="x"); self.assertEqual(self.client.get("/master/shift/rotation/").status_code, 403)

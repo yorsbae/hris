@@ -90,10 +90,28 @@ class RotationScheduleTests(RotBase):
         with self.assertRaises(ValidationError): bad(self.gA, self.pagi)  # shift nonaktif
         p3 = ShiftGroup(code="A_pack", pattern=ShiftGroup.P3); p3.save(); ShiftRotation(group=p3, weekday=0, shift=self.malam).clean()  # pola 3 shift boleh Malam
 
-    def test_employee_form_rejects_group_and_fixed_shift_together(self):
-        f = EmployeeForm({"nik": "777", "name": "N", "gender": "L", "join_date": "2020-01-01", "department": self.d1.pk, "shift": self.gs.pk, "shift_group": self.gA.pk,
-                          "status": "aktif"})
-        self.assertFalse(f.is_valid()); self.assertIn("shift_group", f.errors)
+    def test_employee_form_single_shift_field_sets_group_and_gs_shift(self):
+        """Satu field 'Shift': rotasi → kelompok saja; GS & GS/N → kelompok GS/GS-N + shift GS (jam 08–16); kolom lama shift/shift_group tidak lagi diisi dari form."""
+        base = {"gender": "L", "join_date": "2020-01-01", "department": self.d1.pk, "status": "aktif"}
+        gs, gsn = ShiftGroup.objects.get(pattern=ShiftGroup.GS), ShiftGroup.objects.get(pattern=ShiftGroup.GSN)
+        for nik, g, want_group, want_shift in (("777", self.gA, self.gA, None), ("778", gs, gs, self.gs), ("779", gsn, gsn, self.gs)):
+            f = EmployeeForm({**base, "nik": nik, "name": "N" + nik, "shift_choice": g.pk, "off_weekday": "2", "pay_basis": "harian", "grade": "9", "grade_tier": "a"})
+            self.assertTrue(f.is_valid(), f.errors); e = f.save()
+            self.assertEqual((e.shift_group, e.shift), (want_group, want_shift)); self.assertEqual((e.off_weekday, e.pay_basis, e.grade, e.grade_tier), (2, "harian", 9, "A"))
+        self.assertEqual(Employee.objects.get(nik="778").shift_label, "GS"); self.assertEqual(Employee.objects.get(nik="779").shift_label, "GS/N"); self.assertEqual(Employee.objects.get(nik="777").shift_label, "A7")
+        bad = EmployeeForm({**base, "nik": "780", "name": "X", "grade": "", "grade_tier": "A"}); self.assertFalse(bad.is_valid()); self.assertIn("grade", bad.errors)
+
+    def test_gs_employee_has_own_off_day_and_short_day_before_it(self):
+        """Libur GS acak per orang: libur Selasa → Selasa libur, Minggu masuk, Senin (hari kerja tepat sebelum libur) pulang GS pendek; kosong = libur umum (Minggu)."""
+        g16 = Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
+        gs = ShiftGroup.objects.get(pattern=ShiftGroup.GS)
+        mk = lambda nik, **kw: Employee.objects.create(nik=nik, name="G" + nik, gender="L", join_date=date(2020, 1, 1), department=self.d1, shift=g16, shift_group=gs, gs_short="12", **kw)
+        e, e2 = mk("790", off_weekday=1), mk("791")
+        mon, tue, wed, sun = date(2026, 10, 12), date(2026, 10, 13), date(2026, 10, 14), date(2026, 10, 18)
+        self.assertTrue(schedule.base_schedule(e, tue)["off"]); self.assertFalse(schedule.base_schedule(e, sun)["off"])
+        self.assertEqual(schedule.base_schedule(e, mon)["shift"].end, time(12))        # sebelum libur Selasa → GS-12 (gs_short=12)
+        self.assertEqual(schedule.base_schedule(e, wed)["shift"].end, time(16))
+        self.assertTrue(schedule.base_schedule(e2, sun)["off"]); self.assertFalse(schedule.base_schedule(e2, tue)["off"])   # kosong = libur umum (Minggu)
 
     def test_master_shift_form_code_unique_uppercase_and_flags(self):
         f = ShiftForm({"name": "GS 14", "code": "gs-14", "start": "07:00", "end": "14:00", "is_gs": "on", "active": "on"})
@@ -434,7 +452,7 @@ class OfficialRotationTableTests(TestCase):
         m = import_module("apps.hr.migrations.0008_md_group_codes_hours_rotation")
         for c, a, b, x in (("PAGI", 6, 14, False), ("SIANG", 14, 22, False), ("MALAM", 22, 6, True)): Shift.objects.create(code=c, name=c, start=time(a), end=time(b), crosses_midnight=x)
         m.hours_and_rotation(dj_apps, None)
-        self.assertEqual(ShiftGroup.objects.count(), 14); self.assertEqual(ShiftRotation.objects.count(), 98)
+        self.assertEqual(ShiftGroup.objects.filter(pattern__in=[ShiftGroup.P2, ShiftGroup.P3]).count(), 14); self.assertEqual(ShiftRotation.objects.count(), 98)
         self.assertEqual(ShiftRotation.objects.get(group__code="A_pack", weekday=2).shift.code, "PAGI")  # Rabu: Pagi A+B
         self.assertIsNone(ShiftRotation.objects.get(group__code="G", weekday=2).shift)  # Rabu: libur G
 
@@ -447,6 +465,6 @@ class MasterShiftRotationPageTests(Base):
         Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
         import_module("apps.hr.migrations.0008_md_group_codes_hours_rotation").hours_and_rotation(dj_apps, None)
         self.login("hrd"); r = self.client.get("/master/shift/")
-        self.assertContains(r, "Pola 2 shift — kelompok A–G"); self.assertContains(r, "A_pack"); self.assertContains(r, "GS-16"); self.assertNotContains(r, "Tidak sesuai aturan")
+        self.assertContains(r, "Pola 2 shift — kelompok A7–G7"); self.assertContains(r, "A7Pack"); self.assertContains(r, "GS/N"); self.assertContains(r, "GS-16"); self.assertNotContains(r, "Tidak sesuai aturan")
         ShiftRotation.objects.filter(group__code="A", weekday=0).update(shift=Shift.objects.get(code="PAGI"))  # A masuk Senin padahal harus libur? → hitungan Senin salah
         self.assertContains(self.client.get("/master/shift/"), "Tidak sesuai aturan")

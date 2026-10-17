@@ -14,7 +14,7 @@ from django.utils import timezone
 from . import leave, schedule
 from .models import ChangeRequest, Contract, Employee, EmployeeHistory, ShiftAssignment
 
-TRACKED = ("department", "position", "status", "shift", "shift_group")  # perubahan field ini selalu masuk EmployeeHistory
+TRACKED = ("department", "position", "status", "shift", "shift_group", "pay_basis", "off_weekday", "grade", "grade_tier")  # perubahan field ini selalu masuk EmployeeHistory
 ACTIVE_REQ = ("submitted", "pending", "approved")
 HRD_ROLES = (Role.HRD,)  # Superadmin otomatis lolos di require_roles
 
@@ -40,9 +40,12 @@ def _rows(user, e):
     rows = [("NIK", e.nik), ("Nama", e.name), ("Jenis kelamin", e.get_gender_display()),
             ("Departemen", e.department.name), ("Jabatan", e.position.name if e.position else "-")]
     if user.role == Role.POLI: return rows  # identitas minimum
-    rows += [("Status", e.status), ("Tanggal masuk", e.join_date), ("Shift", e.shift.name if e.shift else "-"), ("Kelompok shift", e.shift_group.code if e.shift_group_id else "-"),
+    rows += [("Status", e.status), ("Status karyawan", e.get_pay_basis_display()), ("Tanggal masuk", e.join_date), ("Shift", e.shift_label),
              ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
+    if not e.is_rotation and e.shift_group_id or (e.shift_id and e.shift.is_gs):  # GS / GS/N: libur masing-masing orang
+        rows.append(("Hari libur", e.get_off_weekday_display() if e.off_weekday is not None else "Minggu (libur umum)"))
     if user.role == Role.DEPT_ADMIN: return rows  # tanpa data sensitif
+    rows.append(("Grade", f"{e.grade} {e.grade_tier}".strip() if e.grade is not None else "-"))
     return rows + [("Status pernikahan", e.marital_status or "-"), ("Pendidikan", e.education or "-"), ("Alamat", e.address or "-"),
                    ("Tanggal lahir", f"{e.birth_date:%d-%m-%Y} ({e.age()} tahun)" if e.birth_date else "-"), ("Telepon", e.phone or "-"), ("NIK KTP", e.nik_ktp or "-"), ("BPJS Kesehatan", e.bpjs_kes or "-"),
                    ("BPJS Ketenagakerjaan", e.bpjs_tk or "-"), ("NPWP", e.npwp or "-"), ("Bank", e.bank_name or "-"), ("No. rekening", e.bank_account or "-")]
@@ -270,14 +273,31 @@ def rotation_context():
     cells = {}
     for r in ShiftRotation.objects.select_related("group", "shift"): cells.setdefault(r.group.code, [None] * 7)[r.weekday] = (r.shift.code or r.shift.name) if r.shift_id else None
     blocks = []
-    for pattern, title, note in ((rt.P2, "Pola 2 shift — kelompok A–G", "Pagi 3 kelompok · Siang 3 kelompok · Libur 1 kelompok setiap hari (tanpa Malam)"),
-                                 (rt.P3, "Pola 3 shift / PACK — kelompok A_pack–G_pack", "Pagi 2 · Siang 2 · Malam 2 · Libur 1 kelompok setiap hari")):
+    for pattern, title, note in ((rt.P2, "Pola 2 shift — kelompok A7–G7", "Pagi 3 kelompok · Siang 3 kelompok · Libur 1 kelompok setiap hari (tanpa Malam)"),
+                                 (rt.P3, "Pola 3 shift / PACK — kelompok A7Pack–G7Pack", "Pagi 2 · Siang 2 · Malam 2 · Libur 1 kelompok setiap hari")):
         groups = list(ShiftGroup.objects.filter(pattern=pattern).order_by("code").values_list("code", flat=True))
         table = {g: cells.get(g, [None] * 7) for g in groups}
-        blocks.append({"title": title, "note": note, "days": rt.DAY_NAMES, "rows": [(g, table[g]) for g in groups],
+        names = {g.code: g.label for g in ShiftGroup.objects.filter(pattern=pattern)}
+        blocks.append({"title": title, "note": note, "days": rt.DAY_NAMES, "rows": [(names.get(g, g), table[g]) for g in groups],
                        "issues": rt.check(table, pattern) if groups else ["Belum ada tabel rotasi — impor lewat tombol di atas atau jalankan migrasi."]})
     gs = list(Shift.objects.filter(is_gs=True, active=True).order_by("end").values_list("code", "start", "end"))
-    return {"rotation_blocks": blocks, "gs_rows": gs}
+    return {"rotation_blocks": blocks, "gs_rows": gs, "gs_blocks": gs_blocks()}
+
+
+def gs_blocks():
+    """GS dan GS/N di bagian rotasi: tidak ada pola mingguan bersama — libur tiap karyawan berbeda. Tampilkan jumlah karyawan aktif per hari libur (bantu HRD menjaga sebaran)."""
+    from django.db.models import Count
+    from . import rotation_table as rt
+    from .models import ShiftGroup
+    out = []
+    for g in ShiftGroup.objects.filter(pattern__in=(ShiftGroup.GS, ShiftGroup.GSN)).order_by("pattern"):
+        got = {r["off_weekday"]: r["n"] for r in Employee.objects.filter(shift_group=g, status="aktif").values("off_weekday").annotate(n=Count("pk"))}
+        cells = [got.get(i, 0) for i in range(7)]; unset = got.get(None, 0)
+        cells[6] += unset   # belum diatur = libur umum (Minggu)
+        out.append({"group": g, "cells": cells, "days": rt.DAY_NAMES, "total": sum(got.values()), "unset": unset,
+                    "note": "Berangkat GS 08:00–16:00; pada tanggal tertentu bisa bertugas di shift Pagi/Siang/Malam lewat pengajuan tukar shift. Libur tiap karyawan berbeda." if g.pattern == ShiftGroup.GSN
+                    else "Semua masuk 08:00–16:00; hari libur mingguan diatur per karyawan (Senin–Minggu)."})
+    return out
 
 
 @login_required
@@ -320,7 +340,7 @@ def rotation_edit(request):
     from .models import Shift, ShiftGroup, ShiftRotation
     shifts = list(Shift.objects.filter(active=True, is_gs=False).order_by("start", "code"))
     by_code = {s.code: s for s in shifts if s.code}
-    groups = list(ShiftGroup.objects.order_by("pattern", "code"))
+    groups = list(ShiftGroup.objects.filter(pattern__in=(rt.P2, rt.P3)).order_by("pattern", "code"))   # GS & GS/N tidak punya tabel rotasi
     cur = {(r.group_id, r.weekday): (r.shift.code if r.shift_id else "") for r in ShiftRotation.objects.select_related("shift")}
     errors, posted = [], {}
     if request.method == "POST":

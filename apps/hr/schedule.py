@@ -7,7 +7,9 @@ Jadwal efektif karyawan pada tanggal D (urutan prioritas):
   1. penyesuaian `ShiftAssignment` pada D (hasil tukar yang sudah dilaksanakan);
   2. rotasi kelompok: bila karyawan punya `shift_group` dan tabel `ShiftRotation` kelompok itu punya baris untuk hari-D
      (shift kosong = libur kelompok);
-  3. shift tetap/GS (`Employee.shift`), dengan hari libur global `settings.REGULAR_OFF_WEEKDAYS` (Minggu).
+  3. shift tetap/GS (`Employee.shift`; kelompok GS dan GS/N), dengan hari libur masing-masing karyawan (`Employee.off_weekday`)
+     atau, bila kosong, hari libur global `settings.REGULAR_OFF_WEEKDAYS` (Minggu). GS/N bertugas di shift lain pada tanggal tertentu lewat
+     penyesuaian `ShiftAssignment` (pengajuan tukar shift 1 orang).
      GS masuk 08:00 dan pulang 16:00 (GS-16); pada hari kerja tepat sebelum hari libur GS jam pulang menjadi 14:00 (GS-14) atau 12:00 (GS-12)
      menurut `Employee.gs_short`.
 
@@ -36,6 +38,12 @@ def _d(v): return v if isinstance(v, date) else date.fromisoformat(v)
 def regular_off(d: date) -> bool: return d.weekday() in settings.REGULAR_OFF_WEEKDAYS
 
 
+def is_off(employee: Employee, d: date) -> bool:
+    """Libur mingguan non-rotasi. GS dan GS/N punya hari libur sendiri-sendiri (`Employee.off_weekday`, bisa Senin…Minggu); kosong = libur umum (Minggu)."""
+    if employee.off_weekday is not None and not employee.is_rotation: return d.weekday() == employee.off_weekday
+    return regular_off(d)
+
+
 class gs_shorts:
     """{'14': Shift GS-14, '12': Shift GS-12} — shift GS untuk hari kerja sebelum libur GS. Dimuat MALAS (1 query, hanya bila ada karyawan GS
     yang jatuh pada hari tersebut) sehingga jumlah query jadwal untuk non-GS tidak berubah."""
@@ -49,17 +57,17 @@ def _fixed_shift(employee: Employee, d: date, gs=None):
     """Shift tetap pada tanggal d. GS: hari kerja tepat sebelum hari libur GS (mis. Sabtu) memakai GS-14 atau GS-12 sesuai `Employee.gs_short`;
     hari lain memakai shift GS-nya (GS-16, 08–16). Bila shift GS pendek belum ada di master, tetap memakai shift GS karyawan."""
     sh = employee.shift
-    if sh and sh.is_gs and regular_off(d + timedelta(days=1)):
+    if sh and sh.is_gs and is_off(employee, d + timedelta(days=1)):
         sh = (gs if gs is not None else gs_shorts()).get(employee.gs_short) or sh
     return sh
 
 
 def _base(employee: Employee, d: date, rotation=None, gs=None) -> dict:
     """Jadwal dasar tanpa penyesuaian. `rotation` (dict weekday→baris) dan `gs` dipakai agar rentang tanggal tidak menanyakan DB berulang."""
-    if employee.shift_group_id:
+    if employee.shift_group_id:   # GS dan GS/N tidak punya baris rotasi → jatuh ke jadwal tetap di bawah
         row = (rotation if rotation is not None else {r.weekday: r for r in ShiftRotation.objects.select_related("shift").filter(group_id=employee.shift_group_id)}).get(d.weekday())
         if row: return {"off": row.shift_id is None, "shift": row.shift, "via": "rotation"}  # tanpa baris untuk hari itu → jatuh ke shift tetap
-    if regular_off(d): return {"off": True, "shift": None, "via": "fixed"}
+    if is_off(employee, d): return {"off": True, "shift": None, "via": "fixed"}
     return {"off": False, "shift": _fixed_shift(employee, d, gs), "via": "fixed"}
 
 
@@ -142,8 +150,8 @@ def build_rows(type_, emp, partner, p):
         c1, c2 = effective_schedule(emp, d1), effective_schedule(emp, d2)
         if not c1["off"]: raise ValueError(f"{d1:%d-%m-%Y} bukan hari libur karyawan ini, jadi tidak bisa dijadikan hari masuk.")
         if c2["off"]: raise ValueError(f"{d2:%d-%m-%Y} sudah hari libur; pilih hari kerja yang akan dijadikan libur.")
-        # karyawan rotasi tidak punya shift master yang jelas pada hari libur kelompoknya → masuk memakai shift hari yang ditukar; shift tetap: shift reguler
-        kind, sh = _work(c2["shift"], as_shift=bool(emp.shift_group_id))
+        # karyawan rotasi / GS/N tidak punya shift master yang jelas pada hari liburnya → masuk memakai shift hari yang ditukar; shift tetap: shift reguler
+        kind, sh = _work(c2["shift"], as_shift=emp.works_shifts)
         return [(emp, d1, kind, sh), (emp, d2, O, None)]
     a1, b1, a2, b2 = effective_schedule(emp, d1), effective_schedule(partner, d1), effective_schedule(emp, d2), effective_schedule(partner, d2)  # 2 orang
     if not (a1["off"] and not b1["off"]): raise ValueError(f"Pada {d1:%d-%m-%Y} {emp.name} harus sedang libur dan {partner.name} masuk.")

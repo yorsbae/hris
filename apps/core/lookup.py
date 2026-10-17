@@ -48,7 +48,7 @@ def employees(request):
     return JsonResponse({"results": [{
         "nik": e.nik, "name": e.name, "gender": e.gender, "department": e.department.name, "department_id": e.department_id,
         "position": e.position.name if e.position_id else "", "shift": e.shift.name if e.shift_id else "",
-        "group": e.shift_group.code if e.shift_group_id else ""} for e in rows]})
+        "group": e.shift_group.label if e.shift_group_id else ""} for e in rows]})
 
 
 @require_roles(Role.POLI)

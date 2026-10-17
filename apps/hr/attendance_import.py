@@ -10,7 +10,7 @@ Kedua tata letak berujung sama: daftar scan (kunci karyawan, waktu, mesin). Scan
 kunci idempotensi (pin, mesin, waktu) → mengimpor ulang berkas yang sama/tumpang tindih tidak menggandakan apa pun.
 Alur: unggah → pratinjau (tidak ada yang tersimpan) → Impor. Isi baris tidak pernah masuk audit, hanya ringkasan."""
 import csv, hashlib, io, os, re, uuid
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date, datetime, time, timedelta
 from html.parser import HTMLParser
 from django.conf import settings
@@ -254,25 +254,40 @@ def layout_of(m): return "harian" if len(m.get("times") or []) >= 2 else "log"
 
 
 # ---------------------------------------------------------------- mengambil scan dari grid
-def extract(grid, m, limit_errors=50):
-    """→ dict(taps=[(key, name, datetime, device)], errors=[(nomor_baris, pesan)], invalid=int, rows=int). Nomor baris = baris di berkas (mulai 1)."""
-    out = {"taps": [], "errors": [], "invalid": 0, "rows": 0}
+# alasan baris gagal: kode → (label singkat, saran perbaikan). Dipakai di pratinjau, halaman hasil, dan unduhan daftar gagal.
+REASONS = {
+    "formula": ("Sel diawali '=' atau '@' (ditolak: risiko formula)", "Buka berkas di Excel, hapus tanda '=' / '@' di awal sel PIN, lalu simpan ulang."),
+    "key": ("PIN/NIK kosong atau karakternya tidak valid", "Isi PIN karyawan pada baris itu, atau hapus baris kosong/baris catatan di berkas. Pastikan kolom PIN/NIK di pemetaan benar."),
+    "time": ("Tanggal/jam tidak terbaca", "Pastikan kolom tanggal/jam berformat tanggal (mis. 2026-10-01 07:58:12 atau 01/10/2026 07:58). Periksa pemetaan kolom tanggal & jam."),
+    "absurd": ("Waktu tidak masuk akal (sebelum tahun 2000 atau di masa depan)", "Biasanya jam/tanggal mesin salah atau kolom tanggal tertukar. Perbaiki di Fingerspot atau berkas, lalu unggah ulang."),
+}
+DETAIL_MAX = 500   # rincian baris gagal yang disimpan di laporan impor
+
+
+def extract(grid, m, limit_errors=500):
+    """→ dict(taps=[(key, name, datetime, device)], errors=[(nomor_baris, pesan)], groups=Counter(kode_alasan), detail=[{row, code, msg, pin, value}], invalid=int, rows=int).
+    Nomor baris = baris di berkas (mulai 1). `errors` memuat maks `limit_errors` baris pertama; `groups` menghitung SEMUA baris gagal per alasan."""
+    out = {"taps": [], "errors": [], "groups": Counter(), "detail": [], "invalid": 0, "rows": 0}
     if m.get("key") is None: raise ValueError("Kolom PIN/NIK karyawan tidak ditemukan. Pilih kolomnya pada pemetaan di bawah.")
     if m.get("datetime") is None and not (m.get("date") is not None and m.get("times")): raise ValueError("Kolom tanggal & jam tidak ditemukan. Pilih kolom 'Tanggal & jam', atau 'Tanggal' + 'Jam' pada pemetaan.")
     start = m["header_row"] + 1 if m["header_row"] >= 0 else 0
     now = timezone.localtime().replace(tzinfo=None) + timedelta(days=1)
     g = lambda r, c: (r[c] if c is not None and c < len(r) else None)  # noqa: E731
+    show = lambda v: re.sub(r"\s+", " ", str(v if v is not None else "")).strip()[:40]  # noqa: E731
 
-    def bad(i, msg):
-        out["invalid"] += 1
+    def bad(i, r, code, msg=None):
+        out["invalid"] += 1; out["groups"][code] += 1; msg = msg or REASONS[code][0]
         if len(out["errors"]) < limit_errors: out["errors"].append((i, msg))
+        if len(out["detail"]) < DETAIL_MAX:
+            tcol = m.get("datetime") if m.get("datetime") is not None else m.get("date")
+            out["detail"].append({"row": i, "code": code, "msg": msg, "pin": show(g(r, m["key"])).lstrip("=@+-"), "value": show(g(r, tcol)).lstrip("=@+-")})  # tanda formula dibuang agar aman dibuka di Excel
     for i, r in enumerate(grid[start:], start=start + 1):
         if not any(c not in (None, "") for c in r): continue
         out["rows"] += 1
         raw_key = g(r, m["key"])
-        if isinstance(raw_key, str) and raw_key.strip()[:1] in FORMULA: bad(i, "Sel diawali '=' atau '@' ditolak (risiko formula)."); continue
+        if isinstance(raw_key, str) and raw_key.strip()[:1] in FORMULA: bad(i, r, "formula"); continue
         key = clean_key(raw_key)
-        if not key: bad(i, "PIN/NIK kosong atau tidak valid."); continue
+        if not key: bad(i, r, "key"); continue
         name = str(g(r, m["name"]) or "").strip()[:150]; dev = (str(g(r, m["device"]) or "").strip()[:40]) or DEFAULT_DEVICE
         stamps = []
         if m.get("datetime") is not None:
@@ -290,11 +305,19 @@ def extract(grid, m, limit_errors=50):
         if not stamps:
             # baris harian tanpa satu pun jam = hari tanpa scan (sah, bukan galat) — kecuali tanggalnya sendiri tak terbaca
             if m.get("datetime") is None and parse_dt(g(r, m["date"]), serial=True)[0]: out["rows"] -= 1; continue
-            bad(i, "Tanggal/jam tidak terbaca."); continue
+            bad(i, r, "time"); continue
         for dt in stamps:
-            if dt.year < 2000 or dt > now: bad(i, f"Waktu tidak masuk akal: {dt:%d-%m-%Y %H:%M} (jam mesin salah?)."); break
+            if dt.year < 2000 or dt > now: bad(i, r, "absurd", f"Waktu tidak masuk akal: {dt:%d-%m-%Y %H:%M} (jam mesin salah?)."); break
             out["taps"].append((key, name, dt, dev))
     return out
+
+
+def build_report(ex, plan=None):
+    """Laporan yang disimpan di AttendanceImport.report (JSON): alasan gagal terkelompok + rincian + jumlah duplikat."""
+    groups = [{"code": c, "label": REASONS[c][0], "hint": REASONS[c][1], "n": n} for c, n in ex["groups"].most_common()]
+    rep = {"groups": groups, "rows": ex["detail"][:DETAIL_MAX], "rows_shown_max": DETAIL_MAX, "invalid": ex["invalid"]}
+    if plan is not None: rep.update(dup_db=plan["dup_db"], dup_file=plan["dup_file"])
+    return rep
 
 
 # ---------------------------------------------------------------- pemetaan PIN → karyawan
@@ -370,73 +393,109 @@ def mapping_from_post(p, width):
             "date": idx("map_date"), "times": times, "device": idx("map_device")}
 
 
+def _npin(k):
+    """PIN dibandingkan tanpa nol di depan ('0012' = '12') agar format berkas yang berbeda tidak menggandakan scan yang sama."""
+    return (k.lstrip("0") or "0") if k.isdigit() else k
+
+
+def _db_index(taps):
+    """{(pin_ternormalisasi, waktu): {kode_mesin…}} untuk scan yang sudah ada di basis data dalam rentang berkas."""
+    dmin = min(t[2] for t in taps); dmax = max(t[2] for t in taps); npins = {_npin(t[0]) for t in taps}
+    qs = AttendanceRaw.objects.filter(punched_at__gte=timezone.make_aware(dmin), punched_at__lte=timezone.make_aware(dmax)).values_list("pin", "device_id", "punched_at")
+    idx = defaultdict(set)
+    for p, dv, at in qs.iterator(chunk_size=20000):
+        n = _npin(p)
+        if n in npins: idx[(n, timezone.make_naive(at))].add(dv)
+    return idx
+
+
+def _same(idx, k, dev, dt):
+    """Scan yang sama = PIN (tanpa nol depan) + waktu sama dan mesin sama. Mesin 'tak diketahui' (berkas tanpa kolom Mesin → DEFAULT_DEVICE) cocok dengan mesin mana pun
+    pada PIN+waktu yang sama, sehingga mengimpor ulang data yang sama dari format berkas lain tidak menggandakan. Dua mesin bernama berbeda tetap dianggap dua scan."""
+    devs = idx.get((_npin(k), dt))
+    return bool(devs) and (dev in devs or dev == DEFAULT_DEVICE or DEFAULT_DEVICE in devs)
+
+
+def plan(taps):
+    """Satu-satunya tempat aturan duplikat (pratinjau & impor memakai hasil yang sama).
+    → dict(kept=[scan berbeda di berkas], new=[yang belum ada di DB], dup_db=n sudah ada di DB, dup_file=n kembar di dalam berkas sendiri)."""
+    idx = _db_index(taps) if taps else {}
+    seen = defaultdict(set); kept, new = [], []; dup_db = dup_file = 0
+    for t in taps:
+        k, _, dt, dev = t; nk = (_npin(k), dt)
+        if dev in seen[nk] or (seen[nk] and (dev == DEFAULT_DEVICE or DEFAULT_DEVICE in seen[nk])): dup_file += 1; continue
+        seen[nk].add(dev); kept.append(t)
+        if _same(idx, k, dev, dt): dup_db += 1
+        else: new.append(t)
+    return {"kept": kept, "new": new, "dup_db": dup_db, "dup_file": dup_file}
+
+
+def _same_file_note(imp):
+    """Peringatan bila berkas yang persis sama (SHA-256) sudah pernah selesai diimpor."""
+    prev = AttendanceImport.objects.filter(sha256=imp.sha256, state="selesai").exclude(pk=imp.pk).order_by("-id").first()
+    return prev
+
+
 def analyze(imp, mapping=None):
     """Pratinjau tanpa menyimpan scan. Mengembalikan dict untuk templat; memperbarui ringkasan di baris draft."""
     grid = load_grid(imp); m = mapping or imp.mapping
     ex = extract(grid, m)
-    taps = ex["taps"]; seen = set(); uniq = []
-    for k, n, dt, dev in taps:
-        t = (k, dev, dt)
-        if t not in seen: seen.add(t); uniq.append((k, n, dt, dev))
+    pl = plan(ex["taps"]); uniq = pl["kept"]
     keys = {t[0] for t in uniq}; res = resolve_keys(keys)
     names = {}
     for k, n, _, _ in uniq:
         if n and k not in names: names[k] = n
     unm_count = Counter(k for k, *_ in uniq if k not in res)
     dmin = min((t[2] for t in uniq), default=None); dmax = max((t[2] for t in uniq), default=None)
-    existing = _existing(uniq) if uniq else set()
-    dup = sum(1 for t in seen if t in existing)
     sug = suggest_by_name({k: names.get(k, "") for k in list(unm_count)[:200]})
     emp_names = {e.pk: e for e in Employee.objects.filter(pk__in={v[0] for v in res.values()}).only("nik", "name")} if len(res) <= 5000 else {}
     imp.layout = layout_of(m); imp.mapping = m; imp.rows_total, imp.rows_invalid = ex["rows"], ex["invalid"]
-    imp.taps_valid, imp.taps_duplicate, imp.taps_new = len(uniq), dup, len(uniq) - dup
+    imp.taps_valid, imp.taps_duplicate, imp.taps_new = len(uniq), pl["dup_db"], len(pl["new"])
     imp.pins_total, imp.pins_unmapped, imp.taps_unmapped = len(keys), len(unm_count), sum(unm_count.values())
     imp.date_min, imp.date_max = (dmin.date() if dmin else None), (dmax.date() if dmax else None)
+    imp.report = build_report(ex, pl)
     imp.save()
     width = max(len(r) for r in grid[:200]); body = grid[m["header_row"] + 1:] if m["header_row"] >= 0 else grid
     head = grid[m["header_row"]] if m["header_row"] >= 0 else []
     columns = [{"i": c, "title": (str(head[c]).strip() if c < len(head) and head[c] not in (None, "") else f"Kolom {c + 1}"),
                 "sample": ", ".join(str(r[c])[:19] for r in body[:3] if c < len(r) and r[c] not in (None, ""))} for c in range(width)]
-    return {"imp": imp, "ex": ex, "columns": columns, "m": m, "layout": imp.layout,
+    return {"imp": imp, "ex": ex, "columns": columns, "m": m, "layout": imp.layout, "report": imp.report, "dup_file": pl["dup_file"], "same_file": _same_file_note(imp),
             "unmapped": [{"pin": k, "name": names.get(k, ""), "taps": n, "suggest": sug.get(k)} for k, n in unm_count.most_common(30)],
             "mapped_count": len(keys) - len(unm_count), "preview": [(k, names.get(k, ""), dt, dev, (emp_names.get(res[k][0]) if k in res else None)) for k, _, dt, dev in uniq[:12]],
             "grid_rows": len(grid)}
 
 
-def _existing(uniq):
-    """Himpunan (pin, mesin, waktu) yang sudah ada di basis data dalam rentang berkas (untuk menghitung duplikat)."""
-    dmin = min(t[2] for t in uniq); dmax = max(t[2] for t in uniq); pins = {t[0] for t in uniq}
-    aware = lambda d: timezone.make_aware(d)  # noqa: E731
-    qs = AttendanceRaw.objects.filter(punched_at__gte=aware(dmin), punched_at__lte=aware(dmax)).values_list("pin", "device_id", "punched_at")
-    return {(p, dv, timezone.make_naive(at)) for p, dv, at in qs.iterator(chunk_size=20000) if p in pins}
-
-
 def commit(imp, user, ignore_invalid=False, mapping=None):
-    """Simpan scan (idempoten) + buat pemetaan otomatis PIN = NIK. Mengembalikan imp (state selesai). ValueError bila tidak boleh dilanjutkan."""
-    grid = load_grid(imp); m = mapping or imp.mapping; ex = extract(grid, m)
-    if ex["invalid"] and not ignore_invalid: raise ValueError(f"{ex['invalid']} baris tidak terbaca. Perbaiki berkas/pemetaan, atau centang 'abaikan baris yang tak terbaca'.")
-    if not ex["taps"]: raise ValueError("Tidak ada scan yang dapat diimpor dari berkas ini.")
-    seen, uniq = set(), []
-    for k, n, dt, dev in ex["taps"]:
-        t = (k, dev, dt)
-        if t not in seen: seen.add(t); uniq.append((k, n, dt, dev))
-    keys = {t[0] for t in uniq}
+    """Simpan scan (idempoten, dikunci agar dua klik/dua sesi tidak menggandakan) + buat pemetaan otomatis PIN = NIK.
+    Mengembalikan imp: state 'selesai', atau 'dibatalkan' bila tidak ada scan baru (semua sudah ada → tidak ada data/riwayat ganda). ValueError bila tidak boleh dilanjutkan."""
     with transaction.atomic():
+        AttendanceImport.objects.select_for_update().filter(pk=imp.pk).first()           # kunci baris: commit paralel untuk draft yang sama menunggu, lalu gagal rapi
+        imp.refresh_from_db(fields=["state", "staged_name"])
+        grid = load_grid(imp); m = mapping or imp.mapping; ex = extract(grid, m)
+        if ex["invalid"] and not ignore_invalid: raise ValueError(f"{ex['invalid']} baris tidak terbaca. Perbaiki berkas/pemetaan, atau centang 'abaikan baris yang tak terbaca'.")
+        if not ex["taps"]: raise ValueError("Tidak ada scan yang dapat diimpor dari berkas ini.")
+        pl = plan(ex["taps"]); uniq = pl["kept"]
+        keys = {t[0] for t in uniq}
         res = resolve_keys(keys)
-        new_pins = [AttendancePin(pin=k, employee_id=eid, source="nik", created_by=user) for k, (eid, via) in res.items() if via == "nik"]
+        # pemetaan otomatis PIN = NIK: tidak membuat baris pemetaan kedua bila karyawan itu sudah punya PIN setara (mis. '0012' vs '12')
+        eids = {eid for eid, via in res.values() if via == "nik"}; have = defaultdict(set)
+        for ch in _chunks(eids):
+            for pin, eid in AttendancePin.objects.filter(employee_id__in=ch).values_list("pin", "employee_id"): have[eid].add(_npin(pin))
+        new_pins = []
+        for k, (eid, via) in res.items():
+            if via == "nik" and _npin(k) not in have[eid]: new_pins.append(AttendancePin(pin=k, employee_id=eid, source="nik", created_by=user)); have[eid].add(_npin(k))
         for ch in _chunks(new_pins): AttendancePin.objects.bulk_create(ch, ignore_conflicts=True)
-        existing = _existing(uniq); n_new = 0
-        rows = []
-        for k, _, dt, dev in uniq:
-            if (k, dev, dt) in existing: continue
-            rows.append(AttendanceRaw(employee_id=res[k][0] if k in res else None, pin=k, device_id=dev, punched_at=timezone.make_aware(dt), batch=imp))
+        rows = [AttendanceRaw(employee_id=res[k][0] if k in res else None, pin=k, device_id=dev, punched_at=timezone.make_aware(dt), batch=imp) for k, _, dt, dev in pl["new"]]
         for ch in _chunks(rows, 5000): AttendanceRaw.objects.bulk_create(ch, ignore_conflicts=True)
-        n_new = len(rows); unm = Counter(k for k, *_ in uniq if k not in res)
+        n_new = AttendanceRaw.objects.filter(batch=imp).count() if rows else 0    # hitung yang BENAR-BENAR masuk (impor paralel lain bisa mendahului sebagian)
+        unm = Counter(k for k, *_ in uniq if k not in res)
         imp.rows_total, imp.rows_invalid, imp.taps_valid = ex["rows"], ex["invalid"], len(uniq)
         imp.taps_new, imp.taps_duplicate = n_new, len(uniq) - n_new
         imp.pins_total, imp.pins_unmapped, imp.taps_unmapped = len(keys), len(unm), sum(unm.values())
         imp.date_min, imp.date_max = min(t[2] for t in uniq).date(), max(t[2] for t in uniq).date()
-        imp.state, imp.committed_at, imp.mapping, imp.layout = "selesai", timezone.now(), m, layout_of(m)
+        imp.report = build_report(ex, {"dup_db": len(uniq) - n_new, "dup_file": pl["dup_file"]}); imp.mapping, imp.layout = m, layout_of(m)
+        if n_new: imp.state, imp.committed_at = "selesai", timezone.now()
+        else: imp.state, imp.note = "dibatalkan", f"Tidak ada scan baru: semua {len(uniq)} scan sudah ada di sistem (tidak ada yang disimpan)."
         _drop_stage(imp); imp.save()
     return imp
 
@@ -491,13 +550,13 @@ def move_pin(user, pin, employee, reason):
 def import_pin_table(user, raw, filename, commit_it):
     """CSV/XLSX kolom `pin`,`nik` (opsional `catatan`). Semua-atau-tidak-sama-sekali. → dict(ok, errors[(baris, pesan)], created, linked, total)."""
     from apps.core import tabular
-    res = {"ok": False, "fatal": "", "errors": [], "created": 0, "linked": 0, "total": 0, "commit": commit_it}
+    res = {"ok": False, "fatal": "", "errors": [], "created": 0, "linked": 0, "total": 0, "skipped": 0, "commit": commit_it}
     try: rows = tabular.read_table(raw, filename, ["pin", "nik"])
     except ValueError as e: res["fatal"] = str(e); return res
     res["total"] = len(rows); niks = {r["nik"] for r in rows}
     emps = {e.nik: e for e in Employee.objects.filter(nik__in=niks)}
     existing = {p.pin: p for p in AttendancePin.objects.filter(pin__in={r["pin"] for r in rows}).select_related("employee")}
-    seen, plan = set(), []
+    seen, plan = set(), []   # (nama lokal `plan` di sini = rencana pemetaan, bukan fungsi plan() modul)
     for i, r in enumerate(rows, start=2):
         pin, nik = clean_key(r["pin"]), r["nik"].strip()
         if tabular.formula_like(r["pin"]) or tabular.formula_like(nik): res["errors"].append((i, "Sel diawali '=' atau '@' ditolak.")); continue
@@ -508,6 +567,7 @@ def import_pin_table(user, raw, filename, commit_it):
         cur = existing.get(pin)
         if cur and cur.employee_id != emps[nik].pk: res["errors"].append((i, f"PIN {pin} sudah milik {cur.employee.nik}; gunakan 'Pindahkan PIN'.")); continue
         if not cur: plan.append((pin, emps[nik], r.get("catatan", "")))
+        else: res["skipped"] += 1   # PIN sudah dipetakan ke karyawan yang sama → dilewati (tidak digandakan)
     res["ok"] = not res["errors"]
     if res["errors"] or not commit_it: res["created"] = len(plan); return res
     with transaction.atomic():

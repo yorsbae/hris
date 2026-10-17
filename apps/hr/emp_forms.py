@@ -2,7 +2,7 @@
 import re
 from datetime import date
 from django import forms
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, Value, When
 from .models import Contract, Department, Employee, Position, Shift, ShiftGroup
 
 STATUSES = [("aktif", "aktif"), ("nonaktif", "nonaktif")]
@@ -30,8 +30,14 @@ def identifier_owners(exclude_pk=None):
     return out
 
 
+class ShiftChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, g): return g.label
+
+
 class EmployeeForm(forms.ModelForm):
     status = forms.ChoiceField(choices=STATUSES)
+    shift_choice = ShiftChoiceField(ShiftGroup.objects.none(), required=False, label="Shift", empty_label="— belum diatur —",
+                                    help_text="Satu pilihan: GS, GS/N (kadang GS, kadang shift), A7–G7 (pola 2 shift: Pagi–Siang), A7Pack–G7Pack (pola 3 shift/PACK: Pagi–Siang–Malam).")
     supervisor_nik = forms.CharField(label="NIK atasan", max_length=20, required=False,
                                      help_text="Kosongkan bila tidak ada. Ketik NIK/nama lalu pilih dari saran (bukan dropdown) agar ringan untuk 3.000+ karyawan.",
                                      widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama atasan…"}))
@@ -40,33 +46,54 @@ class EmployeeForm(forms.ModelForm):
 
     class Meta:
         model = Employee
-        fields = ["nik", "name", "gender", "join_date", "department", "position", "shift", "shift_group", "gs_short", "status", "marital_status", "education",
-                  "birth_date", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account"]
+        fields = ["nik", "name", "gender", "join_date", "department", "position", "shift", "shift_group", "gs_short", "off_weekday", "pay_basis", "grade", "grade_tier",
+                  "status", "marital_status", "education", "birth_date", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account"]
         widgets = {"join_date": forms.DateInput(attrs={"type": "date"}), "birth_date": forms.DateInput(attrs={"type": "date"}), "address": forms.Textarea(attrs={"rows": 2}),
                    **{f: forms.TextInput() for f in Employee.ENCRYPTED}}
         labels = {"nik": "NIK induk kerja", "name": "Nama", "gender": "Jenis kelamin", "join_date": "Tanggal masuk", "nik_ktp": "NIK KTP",
                   "bpjs_kes": "BPJS Kesehatan", "bpjs_tk": "BPJS Ketenagakerjaan", "bank_name": "Bank", "bank_account": "No. rekening",
                   "marital_status": "Status pernikahan", "education": "Pendidikan", "birth_date": "Tanggal lahir", "address": "Alamat", "phone": "Telepon",
-                  "department": "Departemen", "position": "Jabatan", "shift": "Shift tetap / GS", "shift_group": "Kelompok shift (rotasi)", "gs_short": "GS sebelum libur"}
+                  "department": "Departemen", "position": "Jabatan", "gs_short": "GS sebelum libur", "off_weekday": "Hari libur (GS, GS/N)",
+                  "pay_basis": "Status karyawan (harian/bulanan)", "grade": "Grade", "grade_tier": "Tingkat grade"}
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         self.fields["position"].required = False
         self.fields["position"].queryset = Position.objects.order_by("name")
         self.fields["department"].queryset = Department.objects.order_by("name")
-        self.fields["shift"].queryset = Shift.objects.filter(Q(active=True) | Q(pk=self.instance.shift_id)).order_by("name")
-        self.fields["shift"].help_text = "Untuk karyawan non-rotasi (mis. GS). Kosongkan bila memakai kelompok rotasi."
-        self.fields["shift_group"].required = False
-        self.fields["shift_group"].queryset = ShiftGroup.objects.order_by("pattern", "code")
-        self.fields["shift_group"].help_text = "Pola 2 shift (Pagi–Siang): A–G. Pola 3 shift/PACK (Pagi–Siang–Malam): A_pack–G_pack. Kelompok berbeda walau hurufnya sama."
+        for f in ("shift", "shift_group"): del self.fields[f]   # digantikan satu field "Shift" (shift_choice); kolom DB tetap dipakai mesin jadwal
+        order = Case(When(pattern=ShiftGroup.GS, then=Value(0)), When(pattern=ShiftGroup.GSN, then=Value(1)), When(pattern=ShiftGroup.P2, then=Value(2)), default=Value(3), output_field=IntegerField())
+        self.fields["shift_choice"].queryset = ShiftGroup.objects.order_by(order, "code")
+        cur = self.instance.shift_group if self.instance.shift_group_id else (ShiftGroup.objects.filter(pattern=ShiftGroup.GS).first() if self.instance.shift_id and self.instance.shift.is_gs else None)
+        self.fields["shift_choice"].initial = cur.pk if cur else None
+        self.fields["off_weekday"].required = False
+        self.fields["off_weekday"].help_text = "Khusus GS dan GS/N: hari libur mingguan masing-masing karyawan (acak per orang). Kosong = libur umum (Minggu). Pindah libur sesekali lewat pengajuan tukar libur."
+        self.fields["grade"].required = False
+        self.fields["grade"].help_text = "Contoh: 9 dan tingkat A. Hanya profil; upah tetap diatur di modul Payroll."
+        self.fields["grade_tier"].required = False
+        self.fields["pay_basis"].initial = "bulanan"; self.fields["pay_basis"].required = False   # kosong = pertahankan nilai lama (karyawan baru: bulanan)
+        self.order_fields(["nik", "name", "gender", "join_date", "department", "position", "shift_choice", "gs_short", "off_weekday", "pay_basis", "grade", "grade_tier", "status"])
         self.fields["gs_short"].required = False  # kosong = pertahankan nilai lama (karyawan baru: 14)
-        self.fields["gs_short"].help_text = "Khusus karyawan GS: jam pulang pada hari kerja sebelum libur GS (mis. Sabtu): GS-14 atau GS-12. Pada hari biasa GS 08:00–16:00."
+        self.fields["gs_short"].help_text = "Khusus karyawan GS dan GS/N: jam pulang pada hari kerja sebelum libur GS (mis. Sabtu): GS-14 atau GS-12. Pada hari biasa GS 08:00–16:00."
         if self.instance.pk: self.fields["supervisor_nik"].widget.attrs["data-q-exclude"] = self.instance.nik
         self.supervisor = None
         if self.instance.pk:
             self.fields["supervisor_nik"].initial = self.instance.supervisor.nik if self.instance.supervisor_id else ""
         else:
             del self.fields["effective_date"]  # karyawan baru: belum ada riwayat
+
+    def clean_pay_basis(self):
+        return self.cleaned_data.get("pay_basis") or (self.instance.pay_basis if self.instance.pk else "bulanan")
+
+    def clean_grade(self):
+        g = self.cleaned_data.get("grade")
+        if g is not None and not 1 <= g <= 99: raise forms.ValidationError("Grade 1–99.")
+        return g
+
+    def clean_grade_tier(self):
+        t = (self.cleaned_data.get("grade_tier") or "").strip().upper()
+        if t and not re.fullmatch(r"[A-Z]{1,2}", t): raise forms.ValidationError("Tingkat grade berupa 1–2 huruf (mis. A).")
+        return t
 
     def clean_gs_short(self):
         return self.cleaned_data.get("gs_short") or (self.instance.gs_short if self.instance.pk else "14")
@@ -102,8 +129,10 @@ class EmployeeForm(forms.ModelForm):
 
     def clean(self):
         d = super().clean()
-        if d.get("shift") and d.get("shift_group"):  # satu sumber jadwal dasar: rotasi kelompok ATAU shift tetap/GS (jadwal efektif tidak ambigu)
-            self.add_error("shift_group", "Pilih salah satu: kelompok rotasi atau shift tetap/GS, tidak keduanya.")
+        if d.get("grade_tier") and d.get("grade") is None: self.add_error("grade", "Isi grade bila tingkat diisi.")
+        g = d.get("shift_choice")
+        if g and not g.is_rotation and "shift_choice" in self.changed_data and not (self.instance.shift_id and self.instance.shift.is_gs) and not self._gs_shift():
+            self.add_error("shift_choice", "Belum ada shift GS di Master Shift; buat dulu (mis. GS-16).")
         self._check_identifiers(d)
         return d
 
@@ -127,8 +156,25 @@ class EmployeeForm(forms.ModelForm):
         self.supervisor = sup
         return nik
 
+    def _gs_shift(self):
+        """Shift GS bawaan (jam pulang terlambat = GS-16). Impor massal mengisi `gs_shift` agar tidak menanyakan DB per baris."""
+        if getattr(self, "gs_shift", None) is None: self.gs_shift = Shift.objects.filter(is_gs=True, active=True).order_by("-end", "pk").first()
+        return self.gs_shift
+
+    def _apply_shift_choice(self, obj):
+        """Satu pilihan 'Shift' → dua kolom yang dibaca mesin jadwal. Rotasi: kelompok saja. GS & GS/N: kelompok + shift GS (jam 08–16).
+        Tidak diubah bila pilihan tidak berubah (mis. data lama dengan shift tetap non-GS tidak terhapus diam-diam)."""
+        g = self.cleaned_data.get("shift_choice")
+        if not g and getattr(self, "legacy_shift", None) is not None: obj.shift = self.legacy_shift; return   # impor format lama: shift tetap non-GS
+        if "shift_choice" not in self.changed_data: return
+        obj.shift_group = g
+        if g is None: obj.shift = None
+        elif g.is_rotation: obj.shift = None
+        elif not (obj.shift_id and obj.shift.is_gs): obj.shift = self._gs_shift()   # GS-16
+
     def save(self, commit=True):
         obj = super().save(commit=False)
+        self._apply_shift_choice(obj)
         obj.supervisor = self.supervisor
         if commit: obj.save()
         return obj

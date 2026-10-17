@@ -1,6 +1,6 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8">
+{% load static %}<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{% block title %}HRIS{% endblock %}</title>
-<script>(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(localStorage.getItem("sb")==="1")document.documentElement.classList.add("sbc")}catch(e){}})()</script>
 <style>
 :root{--bg:#f5f6f8;--card:#fff;--tx:#1d2330;--mu:#667085;--ac:#1f6feb;--ac2:#1859c4;--bd:#e3e6eb;--bd2:#d0d5dd;--hov:#f0f4fb;--ok:#05603a;--okb:#abefc6;--wn:#7a4b00;--wnb:#fedf89;--er:#d92d20;--erb:#fecdca;--inf:#175cd3;--infb:#d1e0ff;--sh:0 1px 2px rgba(16,24,40,.06);--r:10px;--nv:#0d2149;--nv2:#12306b;--nvt:#c9d6f2;--nva:#1d5fd1;--nvg:#6ea8ff}
 @media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12151b;--card:#1b2029;--tx:#e7eaf0;--mu:#97a0b0;--ac:#5b9bff;--ac2:#7db0ff;--bd:#2b3240;--bd2:#3a4354;--hov:#222a38;--ok:#75e0a7;--okb:#0b3b27;--wn:#fec84b;--wnb:#4a3300;--er:#f97066;--erb:#4a1612;--inf:#84adff;--infb:#12284f;--sh:none;--nv:#0a1530;--nv2:#0f2252}}
@@ -73,7 +73,7 @@ label.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer}label.ch
 .badge{background:var(--ac);color:#fff;border-radius:10px;padding:0 7px;font-size:11px;font-weight:600;margin-left:auto}
 .shell{display:flex;min-height:100vh}
 aside.side{position:fixed;inset:0 auto 0 0;width:260px;background:linear-gradient(180deg,var(--nv),var(--nv2));color:var(--nvt);display:flex;flex-direction:column;z-index:40;overflow-y:auto;scrollbar-width:thin}
-.brand{display:flex;align-items:center;gap:10px;padding:18px 18px 14px;color:#fff!important;text-decoration:none;font-weight:700;font-size:15px;line-height:1.2;letter-spacing:.01em}.brand svg{width:34px;height:34px;flex:none}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 18px 14px;color:#fff!important;text-decoration:none;font-weight:700;font-size:15px;line-height:1.2;letter-spacing:.01em}.brand svg,.brand img{width:42px;height:auto;flex:none}
 nav.main{padding:4px 10px 18px;flex:1}.ng{margin-top:14px}.ng h2{margin:0 0 6px;padding:0 10px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--nvg);font-weight:700;display:block}
 nav.main a{display:flex;align-items:center;gap:11px;padding:9px 10px;margin-bottom:2px;border-radius:8px;color:var(--nvt);text-decoration:none;font-size:14px}
 nav.main a:hover{background:rgba(255,255,255,.08);color:#fff}nav.main a[aria-current]{background:var(--nva);color:#fff;font-weight:600}
@@ -174,14 +174,50 @@ table td small,table th small{display:block;color:var(--mu);font-size:12px;font-
 @media(max-width:900px){table th,table th.nw,table td.nw,table td.acts{white-space:normal}table td.num{white-space:nowrap}table td.acts{display:table-cell}.rowacts{flex-wrap:wrap}}
 .table-wrap{overflow-x:auto;max-width:100%;border-radius:var(--r)}
 .wrap table,.table-wrap table{table-layout:auto}main,.col{min-width:0}.wrap{max-width:100%}
+
+/* putaran 62: tautan aksi di tabel = tombol-chip (.lk; JS memberi kelas otomatis pada tautan aksi di sel tabel), tautan teks biasa tanpa garis bawah */
+a.lk{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;min-height:30px;border:1px solid var(--bd2);border-radius:8px;background:var(--hov);color:var(--ac);font-size:14px;font-weight:500;line-height:1.3;text-decoration:none!important;white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+a.lk:hover{background:var(--infb);border-color:var(--ac);color:var(--ac2)}a.lk:active{transform:translateY(1px)}a.lk .ar{display:inline-block;transition:transform .15s}a.lk:hover .ar{transform:translateX(2px)}
+a.lk.danger{color:var(--er);border-color:var(--erb)}a.lk.danger:hover{background:var(--erb);color:var(--er)}
+td a:not(.btn):not(.chip):not(.lk):not(.pill){text-decoration:none}td a:not(.btn):not(.chip):not(.lk):not(.pill):hover{text-decoration:underline}
+td.acts .lk+.lk,.rowacts .lk+.lk{margin-left:6px}
+/* putaran 62: sidebar bisa diciutkan (desktop) — hanya ikon; submenu muncul sebagai flyout saat disorot/fokus */
+.sbt{display:grid;place-items:center;width:38px;height:38px;min-height:0;padding:0;border-radius:8px;background:none;color:var(--mu);border:1px solid var(--bd)}.sbt:hover{background:var(--hov);color:var(--tx)}.sbt .ic{width:20px;height:20px}
+@media(max-width:1000px){.sbt{display:none}}
+@media not all and (max-width:1000px){
+aside.side{transition:width .18s}.col{transition:margin-left .18s}
+html.sbc aside.side{width:72px}html.sbc .col{margin-left:72px}
+html.sbc .brand{justify-content:center;padding:18px 0 14px}html.sbc .brand span{display:none}
+html.sbc nav.main{padding:4px 8px 18px}
+html.sbc .ng{margin-top:6px}html.sbc .ng h2{font-size:0;line-height:0;height:1px;padding:0;margin:8px 10px;background:rgba(255,255,255,.16)}
+html.sbc nav.main a{position:relative;justify-content:center;padding:10px 0}
+html.sbc nav.main a>span:not(.badge){display:none}
+html.sbc nav.main a .badge{position:absolute;top:2px;right:6px;margin:0;min-width:16px;line-height:16px;font-size:10px;padding:0 4px}
+html.sbc .ntog{display:none}html.sbc .nrow{display:block;margin-bottom:2px}
+html.sbc .nsec>.nrow>a::after{content:"";position:absolute;right:5px;bottom:7px;border:3px solid transparent;border-left-color:currentColor;opacity:.55}
+html.sbc .nsec.open>.nrow>a{background:rgba(255,255,255,.08);color:#fff}
+html.sbc .subs{display:none!important}
+html.sbc .nsec.fly>.subs{display:block!important;position:fixed;left:72px;top:var(--fy,8px);min-width:220px;max-height:calc(100vh - 16px);overflow:auto;background:var(--nv2);border:1px solid rgba(255,255,255,.16);border-radius:0 10px 10px 0;box-shadow:0 12px 32px rgba(0,0,0,.35);padding:6px;z-index:70}
+html.sbc .nsec.fly>.subs::before{content:attr(data-t);display:block;padding:6px 10px 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--nvg);font-weight:700}
+html.sbc .nsec.fly>.subs a.sub{justify-content:flex-start;padding:8px 10px;font-size:13px}html.sbc .nsec.fly>.subs a>span:not(.badge){display:inline}
+html.sbc .nsec.fly>.subs a .badge{position:static;margin-left:auto}
+}
+/* putaran 62: group-by bertingkat (hingga 3 level, dapat dilipat) + saring kolom (centang banyak nilai) */
+tr.grow td{cursor:pointer;user-select:none}tr.grow td::before{content:"\25BE";display:inline-block;width:1.2em;color:var(--mu);transition:transform .15s}tr.grow.cl td::before{transform:rotate(-90deg)}
+tr.grow[data-lv="1"] td{background:var(--card);font-weight:600}tr.grow[data-lv="2"] td{background:var(--card);font-weight:500;color:var(--mu)}
+tr.grow td:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
+tr.sgnone td{color:var(--mu)}
+.fpanel fieldset.cfset{border:1px solid var(--bd);border-radius:8px;margin:0;padding:6px 10px 8px;min-width:0}.cfset legend{font-size:13px;font-weight:600;padding:0 4px}
+.cfset label{display:flex;align-items:center;gap:8px;min-height:30px;font-size:14px;font-weight:400;cursor:pointer}.cfset input{width:auto;min-height:0;margin:0}
 </style></head><body class="{% block bodyclass %}{% endblock %}"><a class="skip" href="#main">Lewati ke isi</a>
 {% include "_icons.html" %}
 {% if not user.is_authenticated %}<button type="button" class="tt float" id="tt" aria-pressed="false" aria-label="Mode gelap" title="Ganti tema terang/gelap"><svg class="ic i-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic i-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>{% endif %}
 {% if user.is_authenticated %}<div class="shell">
-<aside class="side" id="side"><a class="brand" href="/"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#1d5fd1"/><path d="M11 11l18 18M29 11L11 29" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M29 11L11 29" stroke="#6ea8ff" stroke-width="5" stroke-linecap="round" opacity=".0"/></svg><span>HRIS &amp; POLIKLINIK<br>{{ company_name }}</span></a>
+<aside class="side" id="side"><a class="brand" href="/"><img src="{% static 'core/brand-logo.png' %}" alt="" width="42" height="36"><span>HRIS &amp; POLIKLINIK<br>{{ company_name }}</span></a>
 <nav class="main" id="nav" aria-label="Navigasi utama">{% for g in nav_groups %}<div class="ng"><h2>{{ g.title }}</h2>{% for n in g.tree %}{% if n.children %}<div class="nsec{% if n.open %} open{% endif %}" data-k="{{ n.key }}" data-force="{% if n.open %}1{% endif %}"><div class="nrow">{% include "_navitem.html" with sub=False %}<button type="button" class="ntog" aria-expanded="{% if n.open %}true{% else %}false{% endif %}" aria-controls="sub-{{ n.key }}" aria-label="Buka atau tutup submenu {{ n.label }}"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button></div><div class="subs" id="sub-{{ n.key }}"{% if not n.open %} hidden{% endif %}>{% for n in n.children %}{% include "_navitem.html" with sub=True %}{% endfor %}</div></div>{% else %}{% include "_navitem.html" with sub=False %}{% endif %}{% endfor %}</div>{% endfor %}</nav></aside>
 <div class="scrim" id="scrim"></div>
 <div class="col"><header class="top"><button class="nt" type="button" aria-expanded="false" aria-controls="side" id="nt">Menu</button>
+<button class="sbt" type="button" id="sbt" aria-pressed="false" aria-controls="side" aria-label="Ciutkan sidebar" title="Ciutkan / perluas sidebar"><svg class="ic" aria-hidden="true"><use href="#i-sidebar"/></svg></button>
 <form class="gs" role="search" method="get" action="/search/"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><input type="search" name="q" placeholder="Cari karyawan, pengajuan, obat…" aria-label="Pencarian global lintas modul sesuai hak akses" autocomplete="off" maxlength="100"></form>
 <button type="button" class="tt" id="tt" aria-pressed="false" aria-label="Mode gelap" title="Ganti tema terang/gelap"><svg class="ic i-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic i-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>
 <a class="bell" href="/notifications/" aria-label="Notifikasi{% if unread_count %}, {{ unread_count }} belum dibaca{% endif %}"><svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg>{% if unread_count %}<span class="badge" aria-hidden="true">{{ unread_count }}</span>{% endif %}</a>
@@ -260,7 +296,7 @@ function align(h){var k=[].slice.call(h.children).filter(function(c){return !c.h
    Halaman yang mengurus sendiri di server (employees.html) memberi atribut data-sg="server" dan menyertakan select sort/group sendiri. */
 var SG_MON={jan:0,feb:1,mar:2,apr:3,mei:4,may:4,jun:5,jul:6,agu:7,aug:7,sep:8,okt:9,oct:9,nov:10,des:11,dec:11},SG_COL=(window.Intl&&Intl.Collator)?new Intl.Collator("id",{numeric:true,sensitivity:"base"}):{compare:function(a,b){return a<b?-1:a>b?1:0}};
 function sgTexts(el){var out=[],w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);while(w.nextNode()){var t=w.currentNode.nodeValue.replace(/\s+/g," ").trim();if(t)out.push(t)}return out}
-function sgKey(td,first){if(!td)return"";var v=td.getAttribute("data-sort");if(v!==null)return v.trim();var a=sgTexts(td);return first?(a[0]||""):a.join(" ")}
+function sgKey(td,first){if(!td)return"";var v=td.getAttribute("data-sort");if(v!==null)return v.trim();var a=sgTexts(td);return(first?(a[0]||""):a.join(" ")).replace(/\s*[›»]$/,"")}
 function sgDate(s){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s);if(m)return Date.UTC(+m[1],+m[2]-1,+m[3]);m=/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/.exec(s);if(m)return Date.UTC(+m[3],+m[2]-1,+m[1]);
 m=/^(\d{1,2}) ([A-Za-z]{3,})\.? (\d{4})/.exec(s);if(m){var mo=SG_MON[m[2].slice(0,3).toLowerCase()];if(mo!==undefined)return Date.UTC(+m[3],mo,+m[1])}return null}
 function sgNum(s){var m=/^(?:Rp\.?\s*)?(-?\d[\d.,]*)\s*(?:%|menit|mnt|hari|jam)?$/i.exec(s);if(!m)return null;var x=m[1];
@@ -272,30 +308,48 @@ for(var i=0;i<ts.length;i++){var t=ts[i];if(t.closest(".nosg")||!t.tHead||t.tHea
 function sgCols(t){var out=[];[].forEach.call(t.tHead.rows[0].cells,function(th,j){var l=sgHead(th);if(!l||/^(aksi|kelola|tindakan|ubah|no\.?|#)$/i.test(l)||th.colSpan>1)return;out.push({j:j,l:l})});return out}
 function sgInject(root){if(root.dataset.sg==="server"||root.querySelector('[name="sortby"],[name="groupby"],#sort'))return;var t=sgTable(root);if(!t)return;var cols=sgCols(t);if(cols.length<2)return;
 function mk(name,label,first){var s=document.createElement("select");s.name=name;s.setAttribute("aria-label",label);s.dataset.sgctl="1";var o=document.createElement("option");o.value="";o.textContent=first;s.appendChild(o);return s}
-var so=mk("sortby","Urutkan","Urutan bawaan"),gr=mk("groupby","Kelompokkan","Tanpa pengelompokan");  /* nama sortby/groupby: tidak bentrok dengan filter lama bernama group (mis. Jadwal) */
-cols.forEach(function(c){["a","d"].forEach(function(d){var o=document.createElement("option");o.value=c.j+":"+d;o.textContent=c.l+(d==="a"?" (A→Z / terkecil)":" (Z→A / terbesar)");so.appendChild(o)});var g=document.createElement("option");g.value=String(c.j);g.textContent=c.l;gr.appendChild(g)});
-root.appendChild(so);root.appendChild(gr);root._sg={t:t,so:so,gr:gr};
+var so=mk("sortby","Urutkan","Urutan bawaan"),grs=[mk("groupby","Kelompokkan","Tanpa pengelompokan"),mk("groupby2","Lalu kelompokkan","— level 2: tanpa"),mk("groupby3","Lalu kelompokkan lagi","— level 3: tanpa")];  /* nama sortby/groupby*: tidak bentrok dengan filter lama bernama group (mis. Jadwal) */
+cols.forEach(function(c){["a","d"].forEach(function(d){var o=document.createElement("option");o.value=c.j+":"+d;o.textContent=c.l+(d==="a"?" (A→Z / terkecil)":" (Z→A / terbesar)");so.appendChild(o)});
+grs.forEach(function(g){var o=document.createElement("option");o.value=String(c.j);o.textContent=c.l;g.appendChild(o)})});
+root.appendChild(so);grs.forEach(function(g){root.appendChild(g)});
+/* saring kolom: kolom kategorikal (2–10 nilai berbeda, bukan angka/tanggal) → kotak centang banyak nilai */
+var hn=t.tHead.rows[0].cells.length,all=[].slice.call(t.tBodies[0].rows).filter(function(r){return r.cells.length===hn}),cfs=[];
+if(all.length>1)cols.forEach(function(c){var m=Object.create(null),ks=[],num=0;all.forEach(function(r){var v=sgKey(r.cells[c.j],true)||"(kosong)";if(!(v in m)){m[v]=1;ks.push(v)}if(v!=="(kosong)"&&(sgNum(v)!==null||sgDate(v)!==null))num++});
+if(ks.length<2||ks.length>10||ks.length>=all.length||num>=all.length/2)return;ks.sort(sgCmp);
+var fs=document.createElement("fieldset");fs.className="cfset";fs.dataset.sgctl="1";var lg=document.createElement("legend");lg.textContent="Filter "+c.l;fs.appendChild(lg);
+ks.forEach(function(v){var lb=document.createElement("label"),i=document.createElement("input");i.type="checkbox";i.name="cf";i.value=c.j+":"+v;i.dataset.fl=c.l+": "+v;lb.appendChild(i);lb.appendChild(document.createTextNode(v));fs.appendChild(lb);cfs.push(i)});root.appendChild(fs)});
+root._sg={t:t,so:so,grs:grs,cfs:cfs};
 var key="sg:"+location.pathname,u=new URLSearchParams(location.search),sv={};try{sv=JSON.parse(sessionStorage.getItem(key)||"{}")}catch(e){}
 function pick(sel,v){if(v&&[].some.call(sel.options,function(o){return o.value===v}))sel.value=v}
-pick(so,u.has("sortby")?u.get("sortby"):sv.sort);pick(gr,u.has("groupby")?u.get("groupby"):sv.group);
-var busy=false;function run(){if(busy)return;busy=true;try{sgApply(t,so.value,gr.value)}finally{busy=false}}
-function save(){try{if(so.value||gr.value)sessionStorage.setItem(key,JSON.stringify({sort:so.value,group:gr.value}));else sessionStorage.removeItem(key)}catch(e){}
-try{var p=new URLSearchParams(location.search);["sortby","groupby"].forEach(function(k){var v=k==="sortby"?so.value:gr.value;if(v)p.set(k,v);else p.delete(k)});var qs=p.toString();history.replaceState(null,"",location.pathname+(qs?"?"+qs:"")+location.hash)}catch(e){}}
-[so,gr].forEach(function(s){s.addEventListener("change",function(){run();save()})});
+var svg=sv.g||[sv.group];pick(so,u.has("sortby")?u.get("sortby"):sv.sort);grs.forEach(function(g,i){pick(g,u.has(g.name)?u.get(g.name):svg[i])});
+var inUrl=["sortby","groupby","groupby2","groupby3","cf"].some(function(k){return u.has(k)}),want=inUrl?u.getAll("cf"):(sv.cf||[]);cfs.forEach(function(i){i.checked=want.indexOf(i.value)>=0});
+function state(){var gs=[],f=Object.create(null),any=false;grs.forEach(function(g){if(g.value!==""&&gs.indexOf(g.value)<0)gs.push(g.value)});
+cfs.forEach(function(i){if(!i.checked)return;var k=i.value.indexOf(":"),j=i.value.slice(0,k),v=i.value.slice(k+1);(f[j]=f[j]||Object.create(null))[v]=1;any=true});return{gs:gs,f:any?f:null}}
+var busy=false;function run(){if(busy)return;busy=true;try{var st=state();sgApply(t,so.value,st.gs,st.f)}finally{busy=false}}
+function save(){var st=state();try{if(so.value||st.gs.length||st.f)sessionStorage.setItem(key,JSON.stringify({sort:so.value,g:grs.map(function(g){return g.value}),cf:cfs.filter(function(i){return i.checked}).map(function(i){return i.value})}));else sessionStorage.removeItem(key)}catch(e){}
+try{var p=new URLSearchParams(location.search);p.delete("cf");[["sortby",so]].concat(grs.map(function(g){return[g.name,g]})).forEach(function(a){if(a[1].value)p.set(a[0],a[1].value);else p.delete(a[0])});cfs.forEach(function(i){if(i.checked)p.append("cf",i.value)});var qs=p.toString();history.replaceState(null,"",location.pathname+(qs?"?"+qs:"")+location.hash)}catch(e){}}
+[so].concat(grs,cfs).forEach(function(c){c.addEventListener("change",function(){run();save()})});
 if(window.MutationObserver){var mo=new MutationObserver(function(){if(busy)return;mo.disconnect();run();mo.observe(t.tBodies[0],{childList:true})});mo.observe(t.tBodies[0],{childList:true})}
 run()}
-function sgApply(t,sort,group){var tb=t.tBodies[0],n=t.tHead.rows[0].cells.length;[].slice.call(tb.querySelectorAll("tr.grow")).forEach(function(r){r.remove()});
+function sgVis(tb){var cl=1e9;[].forEach.call(tb.rows,function(r){if(r.classList.contains("grow")){var lv=+r.dataset.lv;if(lv<=cl)cl=1e9;r.hidden=lv>cl;if(!r.hidden&&r.classList.contains("cl"))cl=lv}else if(r.classList.contains("sgnone"))r.hidden=false;else r.hidden=r.dataset.fx==="1"||cl<1e9})}
+function sgApply(t,sort,gs,f){var tb=t.tBodies[0],n=t.tHead.rows[0].cells.length;[].slice.call(tb.querySelectorAll("tr.grow,tr.sgnone")).forEach(function(r){r.remove()});
 var rows=[].slice.call(tb.rows);if(!rows.length||(rows.length===1&&rows[0].cells.length===1&&rows[0].cells[0].classList.contains("empty")))return;
 rows.forEach(function(r,i){if(r.dataset.o===undefined)r.dataset.o=i});
-var sj=-1,sd=1;if(sort){var p=sort.split(":");sj=parseInt(p[0],10);sd=p[1]==="d"?-1:1}var gj=group===""||group==null?-1:parseInt(group,10);
+var sj=-1,sd=1;if(sort){var p=sort.split(":");sj=parseInt(p[0],10);sd=p[1]==="d"?-1:1}
 function cell(r,j,first){return r.cells.length===n?sgKey(r.cells[j],first):""}
 function byRow(a,b){if(sj>=0){var x=cell(a,sj),y=cell(b,sj);if(x!==y){if(x==="")return 1;if(y==="")return -1;var c=sgCmp(x,y)*sd;if(c)return c}}return a.dataset.o-b.dataset.o}
-rows.sort(byRow);var frag=document.createDocumentFragment();
-if(gj<0){rows.forEach(function(r){frag.appendChild(r)})}
-else{var gs={},order=[];rows.forEach(function(r){var k=cell(r,gj,true)||"(kosong)";if(!gs.hasOwnProperty(k)){gs[k]=[];order.push(k)}gs[k].push(r)});
+rows.sort(byRow);
+rows.forEach(function(r){var ok=true;if(f&&r.cells.length===n){for(var j in f){if(!f[j][cell(r,+j,true)||"(kosong)"]){ok=false;break}}}if(ok)delete r.dataset.fx;else r.dataset.fx="1"});
+var vis=rows.filter(function(r){return r.dataset.fx!=="1"}),frag=document.createDocumentFragment();
+function emit(list,d){if(d>=gs.length){list.forEach(function(r){frag.appendChild(r)});return}
+var j=parseInt(gs[d],10),m=Object.create(null),order=[];list.forEach(function(r){var k=cell(r,j,true)||"(kosong)";if(!(k in m)){m[k]=[];order.push(k)}m[k].push(r)});
 order.sort(function(a,b){if(a==="(kosong)")return 1;if(b==="(kosong)")return -1;return sgCmp(a,b)});
-order.forEach(function(k){var tr=document.createElement("tr");tr.className="grow";var td=document.createElement("td");td.colSpan=n;td.textContent=k+" · "+gs[k].length;tr.appendChild(td);frag.appendChild(tr);gs[k].forEach(function(r){frag.appendChild(r)})})}
-tb.appendChild(frag)}
+order.forEach(function(k){var tr=document.createElement("tr");tr.className="grow";tr.dataset.lv=d;var td=document.createElement("td");td.colSpan=n;td.tabIndex=0;td.setAttribute("role","button");td.setAttribute("aria-expanded","true");td.style.paddingLeft=(12+d*20)+"px";td.appendChild(document.createTextNode(k+" · "+m[k].length));tr.appendChild(td);frag.appendChild(tr);emit(m[k],d+1)})}
+emit(vis,0);rows.forEach(function(r){if(r.dataset.fx==="1")frag.appendChild(r)});
+if(f&&!vis.length){var nr=document.createElement("tr");nr.className="sgnone";var nd=document.createElement("td");nd.className="empty";nd.colSpan=n;nd.textContent="Tidak ada baris yang cocok dengan filter kolom.";nr.appendChild(nd);frag.appendChild(nr)}
+tb.appendChild(frag);
+if(!t._sgc){t._sgc=1;var tog=function(e){var td=e.target.closest&&e.target.closest("tr.grow>td");if(!td)return;if(e.type==="keydown"&&e.key!=="Enter"&&e.key!==" ")return;e.preventDefault();var c=td.parentNode.classList.toggle("cl");td.setAttribute("aria-expanded",c?"false":"true");sgVis(tb)};tb.addEventListener("click",tog);tb.addEventListener("keydown",tog)}
+sgVis(tb)}
 function setup(root){if(root.dataset.fdone)return;root.dataset.fdone="1";sgInject(root);var isForm=root.tagName==="FORM",id="fp"+(++uid);
 root.classList.add("fbar");
 var panel=document.createElement("div");panel.className="fpanel";panel.id=id;panel.hidden=true;panel.setAttribute("role","dialog");
@@ -306,13 +360,14 @@ var acts=document.createElement("div");acts.className="facts";
 var search=null,move=[],foot=[],kill=[];
 [].slice.call(root.children).forEach(function(el){var t=el.tagName;
 if(t==="INPUT"){var ty=(el.type||"text").toLowerCase();if(ty==="hidden")return;if(!search&&(el.name==="q"||ty==="search"||el.hasAttribute("data-fsearch"))){search=el;return}move.push(el);return}
-if(t==="SELECT"||t==="TEXTAREA"||t==="LABEL"){move.push(el);return}
+if(t==="SELECT"||t==="TEXTAREA"||t==="LABEL"||t==="FIELDSET"){move.push(el);return}
 if(t==="BUTTON"){var bt=(el.getAttribute("type")||"submit").toLowerCase();if(bt==="submit")kill.push(el);else foot.push(el);return}
 if(t==="A"&&el.classList.contains("chip")){foot.push(el)}});
 kill.forEach(function(b){b.remove()});
 if(search){search.classList.add("fsearch");if(!search.getAttribute("aria-label"))search.setAttribute("aria-label",search.placeholder||"Cari")}
 var ctr=[];
 move.forEach(function(el){var w;
+if(el.tagName==="FIELDSET"){body.appendChild(el);el.querySelectorAll("input").forEach(function(c){ctr.push(c)});return}
 if(el.tagName==="LABEL"){el.classList.add("ff");el.classList.remove("chk");if(el.querySelector("input[type=checkbox]"))el.classList.add("chk");w=el}
 else{var tx=lbl(el);w=document.createElement("label");w.className="ff";var s=document.createElement("span");s.textContent=tx;
 if(el.type==="checkbox"||el.type==="radio"){w.className="ff chk";w.append(el,s)}else w.append(s,el)}
@@ -340,9 +395,33 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!panel.hidd
 root.addEventListener("change",refresh);root.addEventListener("input",refresh);root.addEventListener("click",function(){setTimeout(refresh,0)});
 refresh();window.addEventListener("load",refresh);
 align(root);if(root.hasAttribute("data-fopen"))toggle(true)}
-document.querySelectorAll("[data-fbar]").forEach(setup);document.querySelectorAll("[data-pbar]").forEach(function(h){toolbar(h,null);align(h)})})();
+document.querySelectorAll("[data-fbar]").forEach(setup);document.querySelectorAll("[data-pbar]").forEach(function(h){toolbar(h,null);align(h)});
+/* putaran 62: halaman tabel tanpa bilah filter → bilah Filter (urut/kelompok/saring kolom) dipasang otomatis bila tabel ≥5 baris; lewati dengan class .nosg */
+var roots=[].slice.call(document.querySelectorAll("[data-fbar]"));
+[].slice.call(document.querySelectorAll("main .wrap>table,main .table-wrap>table")).forEach(function(t){if(t.closest(".nosg,form")||!t.tHead||t.tHead.rows.length!==1||!t.tBodies[0]||t.querySelector("tbody input,tbody select,tbody textarea"))return;
+var n=[].filter.call(t.tBodies[0].rows,function(r){return r.cells.length>1}).length;if(n<5||sgCols(t).length<2)return;
+if(roots.some(function(r){return r._sg&&r._sg.t===t}))return;
+var w=t.parentNode,h=document.createElement("div");h.className="fbar";h.setAttribute("data-fbar","");w.parentNode.insertBefore(h,w);setup(h)})})();
+(function(){var h=document.documentElement,b=document.getElementById("sbt");if(!b)return;
+var links=[].slice.call(document.querySelectorAll("nav.main a"));
+function set(c,save){h.classList.toggle("sbc",c);b.setAttribute("aria-pressed",c?"true":"false");b.setAttribute("aria-label",c?"Perluas sidebar":"Ciutkan sidebar");
+links.forEach(function(a){var sp=a.querySelector("span:not(.badge)");if(c&&sp)a.title=sp.textContent.trim();else a.removeAttribute("title")});
+if(!c)document.querySelectorAll(".nsec.fly").forEach(function(o){o.classList.remove("fly")});
+if(save)try{localStorage.setItem("sb",c?"1":"0")}catch(e){}}
+set(h.classList.contains("sbc"),false);b.addEventListener("click",function(){set(!h.classList.contains("sbc"),true)});
+[].forEach.call(document.querySelectorAll(".nsec"),function(s){var subs=s.querySelector(".subs"),lab=s.querySelector(".nrow>a span:not(.badge)"),tm;if(!subs)return;if(lab)subs.setAttribute("data-t",lab.textContent.trim());
+function on(){if(!h.classList.contains("sbc"))return;clearTimeout(tm);[].forEach.call(document.querySelectorAll(".nsec.fly"),function(o){if(o!==s)o.classList.remove("fly")});s.classList.add("fly");var r=s.querySelector(".nrow").getBoundingClientRect();s.style.setProperty("--fy",Math.max(8,Math.min(r.top,innerHeight-subs.offsetHeight-8))+"px")}
+function off(){tm=setTimeout(function(){s.classList.remove("fly")},160)}
+s.addEventListener("mouseenter",on);s.addEventListener("mouseleave",off);s.addEventListener("focusin",on);s.addEventListener("focusout",function(e){if(!s.contains(e.relatedTarget))off()})});
+document.addEventListener("keydown",function(e){if(e.key==="Escape")[].forEach.call(document.querySelectorAll(".nsec.fly"),function(o){o.classList.remove("fly")})})})();
+/* putaran 62: tautan aksi di sel tabel (Ubah, Kelola ›, 2 obat ›, Detail …) tampil sebagai tombol-chip (.lk) di semua halaman */
+(function(){var ACT=/^(ubah|edit|kelola|detail|rincian|lihat|buka|cetak|unduh|atur|proses|tinjau|periksa|riwayat|slip|tautkan|salin)(\s|$|›|»)/i;
+[].forEach.call(document.querySelectorAll("main td a[href]"),function(a){if(a.classList.contains("btn")||a.classList.contains("chip")||a.classList.contains("pill")||a.closest(".nolk"))return;
+if(a.children.length&&!a.querySelector(".ar"))return;var t=a.textContent.replace(/\s+/g," ").trim();if(!t||t.length>32)return;
+var acts=!!a.closest("td.acts,.rowacts"),arrow=/[›»]$/.test(t);if(!a.classList.contains("lk")&&!(acts||arrow||ACT.test(t)))return;
+a.classList.add("lk");if(arrow&&!a.querySelector(".ar")){var last=a.lastChild;if(last&&last.nodeType===3){var m=/\s*([›»])\s*$/.exec(last.nodeValue);if(m){last.nodeValue=last.nodeValue.slice(0,m.index)+" ";var sp=document.createElement("span");sp.className="ar";sp.setAttribute("aria-hidden","true");sp.textContent=m[1];a.appendChild(sp)}}}})})();
 (function(){function cardify(t){if(t.classList.contains("nocard")||t.closest(".nocard"))return;var hr=t.tHead&&t.tHead.rows;if(!hr||hr.length!==1)return;var ths=[].slice.call(hr[0].cells);if(ths.length<2||ths.length>8)return;
-var rows=[].slice.call(t.tBodies[0]?t.tBodies[0].rows:[]);for(var i=0;i<rows.length;i++){var c=rows[i].cells;if(c.length===1&&c[0].classList.contains("empty"))continue;if(c.length!==ths.length)return;for(var j=0;j<c.length;j++)if(c[j].rowSpan>1||c[j].colSpan>1)return}
+var rows=[].slice.call(t.tBodies[0]?t.tBodies[0].rows:[]);for(var i=0;i<rows.length;i++){if(rows[i].classList.contains("grow"))continue;var c=rows[i].cells;if(c.length===1&&c[0].classList.contains("empty"))continue;if(c.length!==ths.length)return;for(var j=0;j<c.length;j++)if(c[j].rowSpan>1||c[j].colSpan>1)return}
 function hl(th){var x="";th.childNodes.forEach(function(n){if(n.nodeType===3)x+=n.textContent});x=x.trim();return x||th.textContent.trim()}
 function lab(){[].forEach.call(t.tBodies[0].rows,function(r){if(r.cells.length===ths.length)[].forEach.call(r.cells,function(td,j){var l=hl(ths[j]),has=td.querySelector("a,button,input,select");td.setAttribute("data-label",l);
 td.classList.toggle("kact",!!has&&(/^(aksi|kelola|tindakan|ubah)$/i.test(l)||(!l&&!td.textContent.trim().replace(/\s+/g,""))||td.classList.contains("acts")||!!td.querySelector(".rowacts")));

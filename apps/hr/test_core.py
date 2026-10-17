@@ -273,3 +273,42 @@ class EmployeeDetailTabsTests(TestCase):
         for k in ('data-tab="profil"', 'data-tab="jadwal"', 'data-tab="kontrak"', 'data-tab="dokumen"', 'data-tab="riwayat"', "Bagian detail karyawan"):
             self.assertContains(r, k)
         self.assertNotContains(r, 'data-tab="poli"')  # HRD tanpa data poli
+
+
+class ProfileFieldsTests(CoreBase):
+    """Grade, status karyawan (harian/bulanan), hari libur GS, dan satu field 'Shift' (GS, GS/N, A7…G7, A7Pack…G7Pack) di profil."""
+    def setUp(self):
+        from .models import ShiftGroup
+        self.gs16 = Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
+        self.g_gs, self.g_gsn = ShiftGroup.objects.get(pattern="GS"), ShiftGroup.objects.get(pattern="GS_N")
+        self.g7 = ShiftGroup.objects.create(code="A", pattern="2_SHIFT")
+        self.login("hrd")
+
+    def test_create_with_profile_fields_and_history(self):
+        r = self.client.post("/employees/new/", self.emp_data(nik="500", shift_choice=self.g_gsn.pk, off_weekday="3", pay_basis="harian", grade="9", grade_tier="b"))
+        e = Employee.objects.get(nik="500"); self.assertRedirects(r, f"/employees/{e.pk}/")
+        self.assertEqual((e.shift_group, e.shift, e.off_weekday, e.pay_basis, e.grade, e.grade_tier), (self.g_gsn, self.gs16, 3, "harian", 9, "B"))
+        h = self.client.get(f"/employees/{e.pk}/").content.decode()
+        for t in ("GS/N", "Kamis", "Harian", "9 B"): self.assertIn(t, h)
+        self.client.post(f"/employees/{e.pk}/edit/", self.emp_data(nik="500", shift_choice=self.g7.pk, off_weekday="", pay_basis="bulanan", grade="9", grade_tier="B", effective_date="2026-11-01"))
+        e.refresh_from_db(); self.assertEqual((e.shift_group, e.shift, e.pay_basis), (self.g7, None, "bulanan"))
+        self.assertTrue({"shift_group", "pay_basis", "off_weekday"} <= set(EmployeeHistory.objects.filter(employee=e).values_list("field", flat=True)))
+
+    def test_dept_admin_sees_schedule_not_grade(self):
+        e = Employee.objects.create(nik="501", name="X", gender="L", department=self.d1, join_date=date(2024, 1, 1), shift=self.gs16, shift_group=self.g_gs, off_weekday=2, grade=7)
+        self.login("adm1"); h = self.client.get(f"/employees/{e.pk}/").content.decode()
+        self.assertIn("Rabu", h); self.assertNotIn(">Grade<", h)
+
+    def test_filter_and_group_by_gs_and_gsn(self):
+        for nik, g in (("510", self.g_gs), ("511", self.g_gsn), ("512", self.g7)):
+            Employee.objects.create(nik=nik, name="N" + nik, gender="L", department=self.d1, join_date=date(2024, 1, 1), shift_group=g, shift=self.gs16 if not g.is_rotation else None)
+        names = lambda q: sorted(x["name"] for x in self.client.get("/api/employees/?" + q).json()["results"])
+        self.assertEqual(names("shift=gs"), ["N510"]); self.assertEqual(names("shift=gsn"), ["N511"]); self.assertEqual(names("shift=a7"), ["N512"])
+
+    def test_master_shift_page_lists_gs_and_gsn_off_day_counts(self):
+        Employee.objects.create(nik="520", name="S", gender="L", department=self.d1, join_date=date(2024, 1, 1), shift=self.gs16, shift_group=self.g_gsn, off_weekday=0)
+        h = self.client.get("/master/shift/").content.decode(); self.assertIn("GS/N", h); self.assertIn("1 karyawan aktif", h)
+
+    def test_validation(self):
+        r = self.client.post("/employees/new/", self.emp_data(nik="530", grade="150", grade_tier="9Z")); self.assertEqual(Employee.objects.filter(nik="530").count(), 0)
+        self.assertContains(r, "Grade 1–99"); self.assertContains(r, "Tingkat grade")

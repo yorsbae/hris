@@ -6,7 +6,9 @@ environ.Env.read_env(BASE_DIR / ".env")
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 COMPANY_NAME = env("COMPANY_NAME", default="PT X")  # sementara; kelak dari konfigurasi sistem (VISION → Konfigurasi sistem)
 # Kop & penanda tangan surat cetak (putaran 20). Nama di formulir contoh hanya TEMPLATE: isi lewat .env sesuai pejabat yang bertugas.
-COMPANY_ADDRESS = env("COMPANY_ADDRESS", default="")
+COMPANY_ADDRESS = env("COMPANY_ADDRESS", default="Jl. Raya Kandeman Km. 4,5 Kandeman - Batang 51261, Jawa Tengah, Telp. (0285) 392884 / 4493084 - Fax. (0285) 392583")
+COMPANY_TAGLINE = env("COMPANY_TAGLINE", default="EXPORT - IMPORT - MANUFACTURE - GENERAL TRADING")  # baris usaha di bawah nama pada kop
+POLI_TAGLINE = env("POLI_TAGLINE", default="PELAYANAN KESEHATAN KARYAWAN")  # baris di bawah nama poli pada kop poli
 COMPANY_CITY = env("COMPANY_CITY", default="")  # kota untuk baris "Batang, 11 Oktober 2026" di surat Poli; kosong → hanya tanggal
 POLI_NAME = env("POLI_NAME", default="")  # kosong → "POLIKLINIK <COMPANY_NAME>"
 POLI_DOCTOR_NAME = env("POLI_DOCTOR_NAME", default="")  # dokter perusahaan; kosong → nama pengguna Poli yang membuat surat

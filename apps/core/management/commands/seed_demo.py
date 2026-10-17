@@ -111,7 +111,7 @@ class Command(BaseCommand):
     def shift_for(self, dept_code):
         """(shift tetap/GS, kelompok rotasi) untuk karyawan baru: dept rotasi → kelompok bergilir A..G (shift kosong), lainnya → general shift."""
         pattern = ROTATING_DEPTS.get(dept_code)
-        if not pattern: return next(x for x in self.gs if x.code == "GS-16"), None  # semua GS: 08–16; GS-14/GS-12 hanya sebelum libur GS (Employee.gs_short)
+        if not pattern: return next(x for x in self.gs if x.code == "GS-16"), hr.ShiftGroup.objects.get(pattern=hr.ShiftGroup.GS)  # semua GS: 08–16; GS-14/GS-12 hanya sebelum libur karyawan (Employee.gs_short)
         i = self.group_cycle[pattern]; self.group_cycle[pattern] += 1
         return None, self.groups[pattern][i % len(GROUP_LETTERS)]
 
@@ -134,6 +134,7 @@ class Command(BaseCommand):
                 marital_status=r.choice(["Belum menikah", "Menikah", "Menikah"]), education=r.choice(["SMA", "SMK", "D3", "S1"]),
                 address=f"Jl. Contoh No. {r.randint(1, 99)}, Tegal", birth_date=today - timedelta(days=r.randint(20 * 365, 55 * 365)), phone="08" + "".join(str(r.randint(0, 9)) for _ in range(10)), department=d, position=self.pos[lvl],
                 status="nonaktif" if (r.random() < .04 and not staff) else "aktif", join_date=join, shift=shift, shift_group=group, gs_short=r.choice(["14", "12"]),
+                off_weekday=None if group.is_rotation else i % 7, pay_basis="harian" if (lvl == "Operator" and i % 5 == 0) else "bulanan",   # libur GS acak per orang (deterministik, tanpa menggeser urutan acak)
                 bpjs_kes="000" + "".join(str(r.randint(0, 9)) for _ in range(10)), bpjs_tk="26" + "".join(str(r.randint(0, 9)) for _ in range(9)),
                 npwp="".join(str(r.randint(0, 9)) for _ in range(15)), bank_name=r.choice(["BCA", "BRI", "Mandiri", "BNI"]), bank_account="".join(str(r.randint(0, 9)) for _ in range(10)))
             self.emps.append(e)

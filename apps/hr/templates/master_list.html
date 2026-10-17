@@ -12,13 +12,16 @@
 <td><a href="{% url 'master_edit' kind i.pk %}">Ubah</a></td></tr>{% empty %}<tr><td class="empty" colspan="5">Belum ada data.</td></tr>{% endfor %}</tbody></table></div>
 {% if kind == "shift" %}
 <h3 style="margin-top:22px">Tabel rotasi kelompok <a class="btn" href="{% url 'rotation_edit' %}" style="margin-left:10px">Ubah tabel rotasi</a></h3>
-<p style="color:var(--mu);font-size:13px;margin:0 0 8px">Kelompok 2 shift (<b>A</b>) dan 3 shift/PACK (<b>A_pack</b>) adalah dua kelompok berbeda. Berubahnya anggota tidak mengubah kode kelompok maupun pola rotasi.</p>
+<p style="color:var(--mu);font-size:13px;margin:0 0 8px">Daftar <b>Shift</b> karyawan: <b>GS</b>, <b>GS/N</b>, <b>A7–G7</b> (2 shift) dan <b>A7Pack–G7Pack</b> (3 shift/PACK). A7 dan A7Pack adalah dua kelompok berbeda. Berubahnya anggota tidak mengubah kelompok maupun pola rotasi.</p>
 {% for b in rotation_blocks %}<h4 style="margin:14px 0 2px">{{ b.title }}</h4><p style="color:var(--mu);font-size:13px;margin:0 0 6px">{{ b.note }}</p>
 {% if b.issues %}<div class="card" role="alert" style="border-color:#d97706;margin-bottom:8px"><b>Tidak sesuai aturan:</b><ul style="margin:4px 0 0 18px">{% for i in b.issues %}<li>{{ i }}</li>{% endfor %}</ul></div>{% endif %}
 <div class="wrap"><table><thead><tr><th>Kelompok</th>{% for d in b.days %}<th>{{ d }}</th>{% endfor %}</tr></thead><tbody>
 {% for code, cells in b.rows %}<tr><td><b>{{ code }}</b></td>{% for c in cells %}<td>{% if c %}{{ c }}{% else %}<span class="pill nonaktif">Libur</span>{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td class="empty" colspan="8">Belum ada kelompok.</td></tr>{% endfor %}</tbody></table></div>{% endfor %}
+{% for b in gs_blocks %}<h4 style="margin:18px 0 2px">{{ b.group.label }} <small style="color:var(--mu);font-weight:400">· {{ b.total }} karyawan aktif</small></h4>
+<p style="color:var(--mu);font-size:13px;margin:0 0 6px">{{ b.note }}{% if b.unset %} {{ b.unset }} karyawan belum diatur hari liburnya (dihitung Minggu).{% endif %} Jumlah karyawan yang libur tiap hari:</p>
+<div class="wrap"><table><thead><tr><th>Kelompok</th>{% for d in b.days %}<th>{{ d }}</th>{% endfor %}</tr></thead><tbody><tr><td><b>{{ b.group.label }}</b></td>{% for n in b.cells %}<td>{{ n }}</td>{% endfor %}</tr></tbody></table></div>{% endfor %}
 <h4 style="margin:18px 0 2px">General Shift (GS)</h4>
-<p style="color:var(--mu);font-size:13px;margin:0 0 6px">Semua GS masuk 08:00, pulang 16:00 (GS-16). Pada hari kerja tepat sebelum libur GS, jam pulang menjadi 14:00 (GS-14) atau 12:00 (GS-12) menurut pengaturan tiap karyawan. GS tidak ikut rotasi kelompok.</p>
+<p style="color:var(--mu);font-size:13px;margin:0 0 6px">Semua GS masuk 08:00, pulang 16:00 (GS-16). Pada hari kerja tepat sebelum libur karyawan itu, jam pulang menjadi 14:00 (GS-14) atau 12:00 (GS-12) menurut pengaturan tiap karyawan. GS dan GS/N tidak ikut rotasi kelompok.</p>
 <div class="wrap"><table><thead><tr><th>Kode</th><th>Masuk</th><th>Pulang</th></tr></thead><tbody>{% for c, a, b in gs_rows %}<tr><td><b>{{ c }}</b></td><td>{{ a|time:"H:i" }}</td><td>{{ b|time:"H:i" }}</td></tr>{% empty %}<tr><td class="empty" colspan="3">Belum ada GS.</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 {% endblock %}

@@ -76,18 +76,18 @@ class SeedDemoTests(TestCase):
     def test_shift_master_codes_groups_and_full_rotation_table(self):
         self.assertEqual(set(Shift.objects.values_list("code", flat=True)), {"PAGI", "SIANG", "MALAM", "GS-12", "GS-14", "GS-16"})
         self.assertEqual(set(Shift.objects.filter(is_gs=True).values_list("code", flat=True)), {"GS-12", "GS-14", "GS-16"})
-        self.assertEqual(ShiftGroup.objects.count(), 14)
+        self.assertEqual(ShiftGroup.objects.filter(pattern__in=['2_SHIFT', '3_SHIFT']).count(), 14)
         self.assertEqual(set(ShiftGroup.objects.filter(pattern="3_SHIFT").values_list("code", flat=True)), {f"{l}_pack" for l in "ABCDEFG"})
         self.assertEqual(ShiftRotation.objects.count(), 14 * 7)  # tiap kelompok punya 7 hari
-        for g in ShiftGroup.objects.all():
+        for g in ShiftGroup.objects.filter(pattern__in=['2_SHIFT', '3_SHIFT']):
             rows = list(g.rotation.all()); self.assertEqual(sum(r.shift_id is None for r in rows), 1, g.code)  # tepat 1 hari libur per minggu
             if g.pattern == "2_SHIFT": self.assertFalse(any(r.shift and r.shift.crosses_midnight for r in rows), g.code)  # pola 2 shift tanpa Malam
             r_clean = [r.clean() for r in rows]  # lolos validasi rotasi
 
     def test_employees_have_either_group_or_fixed_shift(self):
         for e in Employee.objects.filter(nik__startswith="DM"):
-            self.assertNotEqual(bool(e.shift_id), bool(e.shift_group_id), e.nik)  # tepat salah satu
-            if e.shift_id: self.assertTrue(e.shift.is_gs, e.nik)
+            if e.shift_group.is_rotation: self.assertIsNone(e.shift_id, e.nik); self.assertIsNone(e.off_weekday, e.nik)   # rotasi: kelompok saja
+            else: self.assertTrue(e.shift.is_gs, e.nik); self.assertEqual(e.shift_group.pattern, "GS"); self.assertIsNotNone(e.off_weekday, e.nik)   # GS: shift GS + libur sendiri
             if e.department.code in ("PRD", "GDG", "MTC"): self.assertEqual(e.shift_group.pattern, "2_SHIFT")
             if e.department.code == "PKG": self.assertEqual(e.shift_group.pattern, "3_SHIFT")
 

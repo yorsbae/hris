@@ -4,7 +4,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import simpleSplit
 from reportlab.pdfgen import canvas
-from apps.core import letterhead
+from apps.core import kop, letterhead
 
 MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
 
@@ -15,10 +15,7 @@ def _id(d): return f"{d.day} {MONTHS[d.month - 1]} {d.year}"
 def warning_pdf(w):
     lh = letterhead.info(); emp = w.employee
     buf = BytesIO(); c = canvas.Canvas(buf, pagesize=A4); W, H = A4; L = 22 * mm; R = W - 22 * mm; y = H - 20 * mm
-    c.setFont("Helvetica-Bold", 15); c.drawCentredString(W / 2, y, lh["company"]); y -= 6 * mm
-    if lh["address"]:
-        c.setFont("Helvetica", 9); c.drawCentredString(W / 2, y, lh["address"]); y -= 5 * mm
-    c.setLineWidth(1.2); c.line(L, y, R, y); c.setLineWidth(0.4); c.line(L, y - 1.2 * mm, R, y - 1.2 * mm); y -= 12 * mm
+    y = kop.draw(c, W, y + 3 * mm, L, lh) - 12 * mm
     c.setFont("Helvetica-Bold", 13); title = f"SURAT PERINGATAN {w.level}"; c.drawCentredString(W / 2, y, title)
     tw = c.stringWidth(title, "Helvetica-Bold", 13); c.line(W / 2 - tw / 2, y - 1 * mm, W / 2 + tw / 2, y - 1 * mm); y -= 6 * mm
     c.setFont("Helvetica", 10.5); c.drawCentredString(W / 2, y, f"Nomor: {w.number}"); y -= 12 * mm
@@ -47,10 +44,7 @@ def paklaring_pdf(s):
     from .services import SEPARATION_PHRASE, service_period
     lh = letterhead.info()
     buf = BytesIO(); c = canvas.Canvas(buf, pagesize=A4); W, H = A4; L = 22 * mm; R = W - 22 * mm; y = H - 20 * mm
-    c.setFont("Helvetica-Bold", 15); c.drawCentredString(W / 2, y, lh["company"]); y -= 6 * mm
-    if lh["address"]:
-        c.setFont("Helvetica", 9); c.drawCentredString(W / 2, y, lh["address"]); y -= 5 * mm
-    c.setLineWidth(1.2); c.line(L, y, R, y); c.setLineWidth(0.4); c.line(L, y - 1.2 * mm, R, y - 1.2 * mm); y -= 12 * mm
+    y = kop.draw(c, W, y + 3 * mm, L, lh) - 12 * mm
     c.setFont("Helvetica-Bold", 13); title = "SURAT KETERANGAN KERJA"; c.drawCentredString(W / 2, y, title)
     tw = c.stringWidth(title, "Helvetica-Bold", 13); c.line(W / 2 - tw / 2, y - 1 * mm, W / 2 + tw / 2, y - 1 * mm); y -= 6 * mm
     c.setFont("Helvetica", 10.5); c.drawCentredString(W / 2, y, f"Nomor: {s.paklaring_number}"); y -= 12 * mm

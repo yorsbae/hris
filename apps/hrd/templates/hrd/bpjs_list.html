@@ -13,7 +13,7 @@
 {% for e in page %}<tr><td class="fill">{{ e.name }}<small>{{ e.nik }}</small></td><td class="fill">{{ e.department.name }}<small>{{ e.status }}</small></td>
 <td class="nw">{% if e.kes_status %}<span class="pill {% if e.kes_status == 'aktif' %}approved{% else %}rejected{% endif %}">{{ e.kes_status }}</span>{% else %}<span class="pill">belum dicatat</span>{% endif %} <small>{% if e.has_kes %}no. terisi{% else %}no. kosong{% endif %}</small></td>
 <td class="nw">{% if e.tk_status %}<span class="pill {% if e.tk_status == 'aktif' %}approved{% else %}rejected{% endif %}">{{ e.tk_status }}</span>{% else %}<span class="pill">belum dicatat</span>{% endif %} <small>{% if e.has_tk %}no. terisi{% else %}no. kosong{% endif %}</small></td>
-<td class="acts"><a href="{% url 'hrd_bpjs_detail' e.pk %}">Kelola ›</a></td></tr>
+<td class="acts"><a class="lk" href="{% url 'hrd_bpjs_detail' e.pk %}">Kelola ›</a></td></tr>
 {% empty %}<tr><td class="empty" colspan="5">{% if act %}Tidak ada karyawan yang cocok dengan filter. <a href="/hrd/bpjs/">Reset filter</a>.{% else %}Belum ada karyawan aktif. Tambahkan lewat menu Karyawan.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

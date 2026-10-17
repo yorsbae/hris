@@ -32,7 +32,7 @@ def schedule_week(request):
         from apps.core.audit import log
         days = [start + timedelta(days=i) for i in range(7)]; emps = list(qs.order_by("department__name", "name")[:5000])
         def cell(c): return "Libur" if c["off"] else (f"{c['shift'].code or c['shift'].name} {c['shift'].start:%H:%M}-{c['shift'].end:%H:%M}" if c["shift"] else "-")
-        rows = [[e.nik, e.name, e.department.name, e.shift_group.code if e.shift_group_id else "GS" if e.shift_id and e.shift.is_gs else "Tetap", *[cell(c) for c in cells]] for e, cells in schedule.schedule_grid(emps, start, 7)]
+        rows = [[e.nik, e.name, e.department.name, e.shift_label if e.shift_group_id or e.shift_id else "Tetap", *[cell(c) for c in cells]] for e, cells in schedule.schedule_grid(emps, start, 7)]
         log(request, "hr", "schedule_export", None, None, {"start": start.isoformat(), "rows": len(rows)})
         return tabular.export_response(f"jadwal-{start:%Y%m%d}", ["nik", "nama", "departemen", "kelompok", *[f"{d:%a %d-%m}" for d in days]], rows, request, sheet="Jadwal")
     page = Paginator(qs.order_by("department__name", "name"), 50).get_page(request.GET.get("page", 1))

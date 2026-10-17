@@ -50,6 +50,7 @@ urlpatterns = [
     path("absensi/minta-validasi/", ap.ask_validation, name="att_ask"),
     path("absensi/impor/", ap.import_home, name="att_import"),
     path("absensi/impor/<int:pk>/", ap.import_detail, name="att_import_detail"),
+    path("absensi/impor/<int:pk>/gagal/", ap.import_errors, name="att_import_errors"),
     path("absensi/pin/", ap.pins, name="att_pins"),
     path("absensi/libur/", ap.holidays, name="att_holidays"),
     path("employees/", hr.employees_page),

@@ -179,3 +179,25 @@ class DeviceTests(Base):
         for who in ("adm", "poli"): self.login(who); self.assertEqual(self.client.get(reverse("att_devices")).status_code, 403)
         self.login("hrd"); self.client.post(reverse("att_devices"), {"code": "", "name": "x"}); self.assertEqual(AttendanceDevice.objects.count(), 0)
         self.client.post(reverse("att_devices"), {"code": "<b>x</b>", "name": "<script>1</script>"}); r = self.client.get(reverse("att_devices")); self.assertNotContains(r, "<script>1</script>")
+
+
+class ShiftLabelTests(Base):
+    """Label Shift Harian: GS-16 → GS; PAGI/SIANG/MALAM → shift karyawan (A7… / A7Pack… / GS/N); filter Shift = GS / GS/N / A7 / A7 Pack."""
+    def _a(self, code, is_gs, group=None):
+        from types import SimpleNamespace as NS
+        from apps.hr.models import ShiftGroup
+        return NS(shift_id=1, shift=NS(code=code, name=code, is_gs=is_gs)), NS(shift_group=ShiftGroup(code=group[0], pattern=group[1]) if group else None)
+
+    def test_labels(self):
+        from apps.hr.attendance_reports import _shift_label
+        self.assertEqual(_shift_label(*self._a("GS-16", True)), "GS")
+        self.assertEqual(_shift_label(*self._a("GS-14", True)), "GS-14")
+        self.assertEqual(_shift_label(*self._a("PAGI", False, ("B", "2_SHIFT"))), "B7")
+        self.assertEqual(_shift_label(*self._a("MALAM", False, ("C_pack", "3_SHIFT"))), "C7Pack")
+        self.assertEqual(_shift_label(*self._a("SIANG", False, ("GS/N", "GS_N"))), "GS/N")
+        self.assertEqual(_shift_label(*self._a("SIANG", False)), "SIANG")     # tanpa kelompok: tetap kode shift
+
+    def test_filter_options_in_page(self):
+        self.login("hrd"); h = self.client.get(reverse("att_shift")).content.decode()
+        for t in ("A7 Pack", ">GS<", ">GS/N<", ">A7<"): self.assertIn(t, h)
+        self.assertNotIn("GS-16", h)

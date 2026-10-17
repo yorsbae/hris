@@ -94,7 +94,7 @@ class EmployeeImportExportTests(BulkBase):
         self.assertContains(r, "2 karyawan diimpor")
         e1, e2 = Employee.objects.get(nik="E1"), Employee.objects.get(nik="E2")
         self.assertEqual((e1.shift_id, e1.gs_short, e2.shift_group.code), (g.pk, "12", "A_pack"))
-        bad = self.post("/employees/import/", [hdr, ["E3", "Tiga", "L", "2024-01-15", "PRD", "", "", "Z9", ""]]); self.assertContains(bad, "Kelompok shift")
+        bad = self.post("/employees/import/", [hdr, ["E3", "Tiga", "L", "2024-01-15", "PRD", "", "", "Z9", ""]]); self.assertContains(bad, "Shift &#x27;Z9&#x27; tidak ada")
         x = load_workbook(io.BytesIO(self.client.get("/api/employees/export/?format=xlsx").content)).active
         self.assertEqual({r[0].value for r in list(x.rows)[1:]}, {"E1", "E2"}); self.assertEqual([c.value for c in x[1]][:2], ["nik", "name"])
         self.login("adm"); self.assertEqual(self.client.get("/api/employees/export/").status_code, 200)

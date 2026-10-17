@@ -22,14 +22,15 @@ def _contract_filter(qs, kind):
     if kind == "expired": return qs.filter(Exists(act.filter(end__lt=today)))
     return qs
 
-# Filter "Shift" = jenis jadwal (A7 = pola 2 shift A–G, A7 Pack = pola 3 shift/PACK A_pack–G_pack, GS = General Shift); angka lama (id shift) tetap diterima.
-SHIFT_FILTERS = (("a7", "A7"), ("a7pack", "A7 Pack"), ("gs", "GS"))
+# Filter "Shift" = jenis jadwal (A7 = pola 2 shift A–G, A7 Pack = pola 3 shift/PACK A_pack–G_pack, GS = General Shift, GS/N = kadang GS kadang shift); angka lama (id shift) tetap diterima.
+SHIFT_FILTERS = (("gs", "GS"), ("gsn", "GS/N"), ("a7", "A7"), ("a7pack", "A7 Pack"))
 
 def apply_shift_filter(qs, v):
     v = (v or "").strip().lower()
     if v == "a7": return qs.filter(shift_group__pattern=ShiftGroup.P2)
     if v == "a7pack": return qs.filter(shift_group__pattern=ShiftGroup.P3)
-    if v == "gs": return qs.filter(shift__is_gs=True)
+    if v == "gs": return qs.filter(Q(shift_group__pattern=ShiftGroup.GS) | Q(shift_group__isnull=True, shift__is_gs=True))
+    if v == "gsn": return qs.filter(shift_group__pattern=ShiftGroup.GSN)
     if v.isdigit(): return qs.filter(shift_id=int(v))  # kompatibel dengan tautan lama
     return qs
 
@@ -44,7 +45,7 @@ def group_expr(g):
     if g == "status": return F("status")
     if g == "shift":
         return Case(When(shift_group__pattern=ShiftGroup.P2, then=Value("A7")), When(shift_group__pattern=ShiftGroup.P3, then=Value("A7 Pack")),
-                    When(shift__is_gs=True, then=Value("GS")), default=Value("Tanpa kelompok/GS"), output_field=CharField())
+                    When(shift_group__pattern=ShiftGroup.GSN, then=Value("GS/N")), When(shift_group__pattern=ShiftGroup.GS, then=Value("GS")), When(shift__is_gs=True, then=Value("GS")), default=Value("Tanpa kelompok/GS"), output_field=CharField())
     return None
 
 def order_employees(qs, sort, group, hrd=True):
@@ -207,7 +208,7 @@ def employees_page(request):
     return render(request, "employees.html", ctx)
 
 
-EXPORT_COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "shift_group", "gs_short", "status"]  # tanpa data sensitif
+EXPORT_COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "shift_group", "gs_short", "status", "pay_basis", "grade", "grade_tier", "off_day"]  # tanpa data sensitif
 
 
 @require_roles(Role.HRD, Role.DEPT_ADMIN)
@@ -217,6 +218,7 @@ def employee_export(request):
     qs, _g = order_employees(_employee_qs(request), request.GET.get("sort", ""), request.GET.get("group", ""))  # ekspor mengikuti urutan layar (HRD saja yang boleh mengekspor)
     qs = qs.select_related("department", "position", "shift", "shift_group")[:20000]
     rows = [[e.nik, e.name, e.gender, e.join_date, e.department.code, e.position.name if e.position_id else "", e.shift.name if e.shift_id else "",
-             e.shift_group.code if e.shift_group_id else "", e.gs_short if e.shift_id and e.shift.is_gs else "", e.status] for e in qs]
+             e.shift_group.label if e.shift_group_id else "", e.gs_short if e.shift_id and e.shift.is_gs else "", e.status,
+             e.pay_basis, e.grade if e.grade is not None else "", e.grade_tier, e.get_off_weekday_display() if e.off_weekday is not None else ""] for e in qs]
     log(request, "hr", "employee_export", None, None, {"rows": len(rows), "format": tabular.fmt(request)})
     return tabular.export_response("karyawan", EXPORT_COLUMNS, rows, request, sheet="Karyawan")

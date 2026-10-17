@@ -49,7 +49,7 @@ class AccessTests(PageBase):
         self.login("hrd"); r = self.client.get(reverse("att_employee", args=[self.e1.pk]), {"month": d.strftime("%Y-%m")}); self.assertContains(r, "Semua scan")
 
     def test_nav_per_role(self):
-        self.login("hrd"); h = self.client.get("/").content.decode(); self.assertIn("/absensi/impor/", h); self.assertIn("/absensi/pin/", h)
+        self.login("hrd"); h = self.client.get("/").content.decode(); self.assertIn("/absensi/scanlog/", h); self.assertNotIn('href="/absensi/impor/"', h); self.assertIn("/absensi/pin/", h)
         self.login("adm"); h = self.client.get("/").content.decode(); self.assertIn("/absensi/bulanan/", h); self.assertNotIn("/absensi/impor/", h)
 
 

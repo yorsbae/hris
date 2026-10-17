@@ -3,6 +3,15 @@
 Terakhir diperbarui: 15 Oktober 2026 (putaran 62 — **format asli Fingerspot, Data Scanlog, Shift Harian, Kontrol Harian, Master Mesin**; sebelumnya: putaran 61 uji PostgreSQL/CI/uji beban/pemantauan; putaran 60 filter lanjutan, kolom, filter tersimpan, pencarian global; putaran 59 aksi massal karyawan; putaran 58 exim anti-duplikat, pembagian beban Poli BPJS 75/25 + cetak/rekap, alur run gaji dibalik HRD → Payroll; putaran 57 Payroll) — riwayat putaran sebelumnya ada di bagian bawah.
 Uji: `python manage.py test` (**putaran 62: 1378 tes lulus di PostgreSQL 16 (0 dilewati) dan SQLite (13 dilewati khusus PG), keduanya serial**; mode `--parallel` menyembunyikan pesan error — jalankan serial; butuh `FIELD_ENCRYPTION_KEY` & `DATABASE_URL`). Migrasi dari nol di PostgreSQL OK, `makemigrations --check` bersih.
 
+## Putaran 62b — Impor scanlog tanpa input ganda + backup/restore terverifikasi
+**Perlu tindakan saat deploy**: `git am` patch lalu `python manage.py migrate` (`hr/0018_attendanceimport_report`, hanya menambah kolom JSON). Disarankan backup dulu; `scripts/backup.sh` & `restore.sh` berubah (lihat bawah).
+- **Duplikat dilewati, satu aturan** (`attendance_import.plan()`, dipakai pratinjau & impor): scan sama = PIN (tanpa nol depan, `0012`=`12`) + waktu + mesin. Berkas tanpa kolom Mesin (kode `FINGERSPOT`) cocok dengan mesin mana pun pada PIN+waktu yang sama; dua mesin bernama berbeda tetap dua scan. Kembar di dalam berkas sendiri juga dilewati & dihitung.
+- **Tidak ada data/riwayat redundan**: impor yang semua scannya sudah ada → status `dibatalkan` (tidak ada riwayat "selesai" kosong, berkas sementara dihapus); PIN setara (`0012` vs `12`) tidak dibuatkan baris pemetaan kedua; peringatan di pratinjau bila berkas identik (SHA-256) sudah pernah diimpor; draft dikunci (`select_for_update`) sehingga dobel-klik/dua sesi tidak menggandakan; jumlah "scan baru" dihitung dari baris yang benar-benar tersimpan.
+- **Kegagalan dijelaskan**: baris gagal dikelompokkan per alasan + saran perbaikan (pratinjau, halaman hasil, CLI), rincian maks 500 baris tersimpan di `AttendanceImport.report` dan dapat diunduh (`/absensi/impor/<id>/gagal/?format=csv|xlsx`). Impor pemetaan PIN melaporkan baris yang dilewati.
+- `manage.py audit_attendance_dupes`: laporan hanya-baca untuk duplikat lama yang lolos aturan sebelumnya (log mentah tidak dapat dihapus dari aplikasi).
+- **Backup/restore** (diuji sungguhan di PostgreSQL 16): backup menulis `hris_*.sha256` + `hris_*.manifest.json` (jumlah baris tabel kunci) dan tidak mencadangkan `media/attendance_stage/`. Restore memverifikasi checksum, meminta konfirmasi (`RESTORE_YES=1` untuk otomasi), membuat `pre_restore_*.dump`, memakai `--single-transaction --exit-on-error`, memeriksa arsip media, menjalankan `migrate`, menutup draft impor yatim, dan membandingkan jumlah baris dengan manifest.
+- Perbaikan sisa putaran UI: label filter kolom bukan lagi "Saring" (cocok dengan nama "Sari" di tes akses) dan media query tidak memuat "001".
+
 ## 1. Peta kemajuan terhadap VISION
 
 ### Tahapan (VISION → "Tahapan")

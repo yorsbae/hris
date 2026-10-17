@@ -205,7 +205,7 @@ def _row(e, d, cell, taps, check, leave, partial, windows, standby, maternity, h
     elif maternity:
         status, source = "cuti_hamil", "pengajuan"
         if has_scan: conflict = "Ada scan pada masa cuti hamil"
-    elif holiday and (holiday.applies == "all" or not e.shift_group_id):
+    elif holiday and (holiday.applies == "all" or not e.is_rotation):
         status, source = ("hadir", "mesin") if has_scan else ("libur_nasional", "libur")
         if has_scan: notes.append(f"{HOLIDAY_WORK_NOTE}: {holiday.name}")
     elif off:
