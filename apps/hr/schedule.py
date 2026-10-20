@@ -40,6 +40,8 @@ def regular_off(d: date) -> bool: return d.weekday() in settings.REGULAR_OFF_WEE
 
 def is_off(employee: Employee, d: date) -> bool:
     """Libur mingguan non-rotasi. GS dan GS/N punya hari libur sendiri-sendiri (`Employee.off_weekday`, bisa Senin…Minggu); kosong = libur umum (Minggu)."""
+    pat = employee.gsn_pattern
+    if pat: return pat[d.weekday()] == "LIBUR"
     if employee.off_weekday is not None and not employee.is_rotation: return d.weekday() == employee.off_weekday
     return regular_off(d)
 
@@ -51,12 +53,20 @@ class gs_shorts:
     def get(self, key):
         if self._m is None: self._m = {s.code[3:]: s for s in Shift.objects.filter(code__in=("GS-14", "GS-12"))}
         return self._m.get(key)
+    def by_code(self, code):
+        """Shift Pagi/Siang/Malam menurut kode master (dimuat sekali, malas) — untuk pola mingguan GS/N."""
+        if getattr(self, "_c", None) is None: self._c = {s.code: s for s in Shift.objects.filter(code__in=("PAGI", "SIANG", "MALAM"))}
+        return self._c.get(code)
 
 
 def _fixed_shift(employee: Employee, d: date, gs=None):
     """Shift tetap pada tanggal d. GS: hari kerja tepat sebelum hari libur GS (mis. Sabtu) memakai GS-14 atau GS-12 sesuai `Employee.gs_short`;
     hari lain memakai shift GS-nya (GS-16, 08–16). Bila shift GS pendek belum ada di master, tetap memakai shift GS karyawan."""
     sh = employee.shift
+    pat = employee.gsn_pattern
+    if pat:   # GS/N: tiap hari menurut pola mingguan; GS = 08–16 penuh (tanpa GS pendek), PAGI/SIANG/MALAM = shift master
+        code = pat[d.weekday()]
+        return sh if code == "GS" else ((gs if gs is not None else gs_shorts()).by_code(code) or sh)
     if sh and sh.is_gs and is_off(employee, d + timedelta(days=1)):
         sh = (gs if gs is not None else gs_shorts()).get(employee.gs_short) or sh
     return sh

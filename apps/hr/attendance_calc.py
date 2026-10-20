@@ -234,6 +234,13 @@ def process(start: date, end: date, employee_ids=None, today=None, chunk=250):
     """Hitung & simpan (upsert) rekap harian. Hari ini dan masa depan TIDAK diolah (hari belum selesai). → {rows, employees, start, end}."""
     today = today or timezone.localdate(); end = min(end, today - timedelta(days=1))
     if end < start: return {"rows": 0, "changed": 0, "employees": 0, "start": start, "end": end}
+    from . import periods   # bulan yang sudah ditutup tidak dihitung ulang
+    segs = periods.open_segments(start, end)
+    if segs != [(start, end)]:
+        tot = {"rows": 0, "changed": 0, "employees": 0, "start": start, "end": end, "skipped_closed": True}
+        for a, b in segs:
+            r = process(a, b, employee_ids, today, chunk); tot["rows"] += r["rows"]; tot["changed"] += r["changed"]; tot["employees"] = max(tot["employees"], r["employees"])
+        return tot
     qs = Employee.objects.filter(join_date__lte=end).select_related("shift", "shift_group").order_by("pk")
     sep = _separations()
     if employee_ids is not None: qs = qs.filter(pk__in=list(employee_ids))

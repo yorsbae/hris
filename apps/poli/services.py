@@ -251,6 +251,8 @@ def create_partner_bill(user, partner, bill_number, bill_date, employee, service
     from decimal import Decimal
     from .models import PartnerBill, PartnerBillEvent, PartnerBillLine
     discount = Decimal(discount or 0)
+    from apps.hr import periods
+    if periods.is_closed(service_date): raise ValueError(f"Periode {periods.key(service_date)} sudah ditutup; tagihan tidak bisa dicatat. Minta Superadmin membuka kembali periode.")
     if discount < 0 or discount > Decimal(total): raise ValueError("Potongan tidak boleh negatif atau melebihi total tagihan.")
     with transaction.atomic():
         lines_total = sum((Decimal(q) * Decimal(p) for _, q, p in lines), Decimal(0))
@@ -314,7 +316,7 @@ def void_allergy(user, allergy):
 
 
 def patient_overview(e):
-    """Ringkasan medis untuk Poli saat NIK dipilih: alergi aktif, status BPJS K/TK (hanya status, BUKAN nomor), kunjungan terakhir & hitungan per jenis."""
+    """Ringkasan medis untuk Poli saat NIK dipilih: alergi aktif, status + nomor BPJS K/TK, kunjungan terakhir & hitungan per jenis."""
     from django.db.models import Count
     from apps.hrd.models import BpjsMembership
     allergies = [{"id": a.pk, "substance": a.substance, "reaction": a.reaction, "severity": a.severity, "severity_label": a.get_severity_display()}
@@ -323,7 +325,7 @@ def patient_overview(e):
     bpjs = {}
     for k, label in (("kes", "BPJS Kesehatan (K)"), ("tk", "BPJS Ketenagakerjaan (TK)")):
         m = ms.get(k); has_no = bool(e.bpjs_kes if k == "kes" else e.bpjs_tk)
-        bpjs[k] = {"label": label, "status": m.get_status_display() if m else "Belum dicatat", "active": bool(m and m.status == "aktif"), "number_on_file": has_no}
+        bpjs[k] = {"label": label, "status": m.get_status_display() if m else "Belum dicatat", "active": bool(m and m.status == "aktif"), "number_on_file": has_no, "number": (e.bpjs_kes if k == "kes" else e.bpjs_tk) or ""}
     kinds = {r["kind"]: r["n"] for r in e.medical_records.values("kind").annotate(n=Count("id"))}
     return {"allergies": allergies, "bpjs": bpjs, "kinds": kinds}
 

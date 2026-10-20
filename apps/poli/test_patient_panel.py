@@ -28,7 +28,7 @@ class PatientPanelTests(PoliBase):
 
     def test_summary_never_exposes_bpjs_number(self):
         Employee.objects.filter(pk=self.e1.pk).update(bpjs_kes="0001234567890")
-        j = self.js(); self.assertTrue(j["bpjs"]["kes"]["number_on_file"]); self.assertNotIn("0001234567890", str(j))
+        j = self.js(); self.assertTrue(j["bpjs"]["kes"]["number_on_file"]); self.assertEqual(j["bpjs"]["kes"]["number"], "0001234567890")   # Poli melihat nomor BPJS
 
     def test_voided_allergy_hidden_from_summary_but_kept(self):
         a = services.add_allergy(self.poli, self.e1, "Udang"); services.void_allergy(self.poli, a)

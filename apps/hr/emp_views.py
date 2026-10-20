@@ -14,7 +14,7 @@ from django.utils import timezone
 from . import leave, schedule
 from .models import ChangeRequest, Contract, Employee, EmployeeHistory, ShiftAssignment
 
-TRACKED = ("department", "position", "status", "shift", "shift_group", "pay_basis", "off_weekday", "grade", "grade_tier")  # perubahan field ini selalu masuk EmployeeHistory
+TRACKED = ("department", "position", "status", "shift", "shift_group", "pay_basis", "off_weekday", "gsn_week", "grade", "grade_tier")  # perubahan field ini selalu masuk EmployeeHistory
 ACTIVE_REQ = ("submitted", "pending", "approved")
 HRD_ROLES = (Role.HRD,)  # Superadmin otomatis lolos di require_roles
 
@@ -45,13 +45,17 @@ def _rows(user, e):
     """Field yang tampil ditentukan di sini per role (bukan di template) agar tidak ada kebocoran tak sengaja."""
     rows = [("NIK", e.nik), ("Nama", e.name), ("Jenis kelamin", e.get_gender_display()),
             ("Departemen", e.department.name), ("Jabatan", e.position.name if e.position else "-")]
-    if user.role == Role.POLI:   # identitas + info pelayanan: Shift, atasan, status BPJS K/TK (hanya status, BUKAN nomor); tanpa gaji/grade/alamat/KTP/rekening
+    if user.role == Role.POLI:   # info pelayanan Poli: identitas + Shift, atasan, alamat, NIK KTP, BPJS K/TK (nomor + status); TANPA gaji/grade/rekening/NPWP. Akses tercatat di audit (view_sensitive).
         from apps.poli.services import patient_overview
-        rows += [("Shift", e.shift_label), ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
-        return rows + [(b["label"], b["status"]) for b in patient_overview(e)["bpjs"].values()]
+        rows += [("Shift", e.shift_label), ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-"), ("Alamat", e.address or "-"), ("NIK KTP", e.nik_ktp or "-")]
+        nums = {"kes": e.bpjs_kes, "tk": e.bpjs_tk}
+        return rows + [(b["label"], f"{nums[k] or 'nomor kosong'} · {b['status']}") for k, b in patient_overview(e)["bpjs"].items()]
     rows += [("Status", e.status), ("Status karyawan", e.get_pay_basis_display()), ("Tanggal masuk", e.join_date), ("Shift", e.shift_label),
              ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
-    if not e.is_rotation and e.shift_group_id or (e.shift_id and e.shift.is_gs):  # GS / GS/N: libur masing-masing orang
+    if e.gsn_pattern:   # GS/N: pola mingguan Senin…Minggu
+        names = dict(Employee.GSN_CODES)
+        rows.append(("Pola GS/N", "\n".join(f"{n}: {names[c].split(' (')[0]}" for n, c in zip(("Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"), e.gsn_pattern))))
+    elif not e.is_rotation and e.shift_group_id or (e.shift_id and e.shift.is_gs):  # GS: libur masing-masing orang
         rows.append(("Hari libur", e.get_off_weekday_display() if e.off_weekday is not None else "Minggu (libur umum)"))
     if user.role == Role.DEPT_ADMIN: return rows  # tanpa data sensitif
     rows.append(("Grade", f"{e.grade} {e.grade_tier}".strip() if e.grade is not None else "-"))
@@ -65,7 +69,7 @@ def _rows(user, e):
 def employee_detail_page(request, pk):
     e = get_scoped_or_404(request.user, Employee.objects.select_related("department", "position", "shift", "shift_group", "supervisor"), pk)
     full = request.user.role in (Role.HRD, Role.SUPERADMIN)
-    if full: log(request, "hr", "view_sensitive", e)
+    if full or request.user.role == Role.POLI: log(request, "hr", "view_sensitive", e)
     ctx = {"e": e, "rows": _rows(request.user, e), "full": full}
     if request.user.role != Role.POLI:  # saldo cuti & jadwal bukan data sensitif; Admin Dept hanya lewat get_scoped_or_404 di atas
         today = timezone.localdate()
@@ -303,7 +307,15 @@ def gs_blocks():
         got = {r["off_weekday"]: r["n"] for r in Employee.objects.filter(shift_group=g, status="aktif").values("off_weekday").annotate(n=Count("pk"))}
         cells = [got.get(i, 0) for i in range(7)]; unset = got.get(None, 0)
         cells[6] += unset   # belum diatur = libur umum (Minggu)
-        out.append({"group": g, "cells": cells, "days": rt.DAY_NAMES, "total": sum(got.values()), "unset": unset,
+        if g.pattern == ShiftGroup.GSN:   # GS/N: hitung dari pola mingguan (bisa >1 hari libur per orang)
+            cells = [0] * 7; unset = 0
+            for w, off in Employee.objects.filter(shift_group=g, status="aktif").values_list("gsn_week", "off_weekday"):
+                if isinstance(w, list) and len(w) == 7: 
+                    for i, c in enumerate(w): cells[i] += c == "LIBUR"
+                else: cells[6 if off is None else off] += 1; unset += off is None
+        avg = sum(cells) / 7
+        warn = [rt.DAY_NAMES[i] for i, n in enumerate(cells) if n > max(2, 2 * avg)]   # hari libur terlalu menumpuk → pabrik kekurangan orang di hari itu
+        out.append({"group": g, "cells": cells, "days": rt.DAY_NAMES, "total": sum(got.values()), "unset": unset, "warn": warn,
                     "note": "Berangkat GS 08:00–16:00; pada tanggal tertentu bisa bertugas di shift Pagi/Siang/Malam lewat pengajuan tukar shift. Libur tiap karyawan berbeda." if g.pattern == ShiftGroup.GSN
                     else "Semua masuk 08:00–16:00; hari libur mingguan diatur per karyawan (Senin–Minggu)."})
     return out

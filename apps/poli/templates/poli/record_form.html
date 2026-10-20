@@ -86,12 +86,12 @@ function setAllergy(list){alc.textContent="";
 function reset(){seq++;setAllergy(null);body.textContent="";body.appendChild(el("p",EMPTY,"help"))}
 function render(j){body.textContent="";setAllergy(j.allergies);
  var w=el("div",null,"who");w.appendChild(el("b",j.name));w.appendChild(el("span","NIK "+j.nik,"sub"));body.appendChild(w);
- var dl=el("dl",null,"dl");[["Jenis kelamin",j.gender],["Departemen",j.department],["Jabatan",j.position||"—"],["Shift",j.shift||"—"],["Atasan",j.supervisor||"—"],["Bergabung",j.join_date+" ("+j.tenure+")"],["Status",j.status]].forEach(function(r){dl.appendChild(el("dt",r[0]));dl.appendChild(el("dd",r[1]))});body.appendChild(dl);
+ var dl=el("dl",null,"dl");[["Jenis kelamin",j.gender],["Departemen",j.department],["Jabatan",j.position||"—"],["Shift",j.shift||"—"],["Atasan",j.supervisor||"—"],["Alamat",j.address||"—"],["NIK KTP",j.nik_ktp||"—"],["Bergabung",j.join_date+" ("+j.tenure+")"],["Status",j.status]].forEach(function(r){dl.appendChild(el("dt",r[0]));dl.appendChild(el("dd",r[1]))});body.appendChild(dl);
  var al=el("div",null,"al"+(j.allergies.length?"":" none"));
  if(j.allergies.length){al.appendChild(el("b","⚠ Alergi ("+j.allergies.length+")"));var ul=el("ul");j.allergies.forEach(function(a){ul.appendChild(el("li",a.substance+(a.reaction?" — "+a.reaction:"")+" ["+a.severity_label+"]"))});al.appendChild(ul)}
  else al.appendChild(el("span","Tidak ada alergi tercatat."));
  body.appendChild(al);
- body.appendChild(el("h4","BPJS"));var ch=el("div",null,"chips");["kes","tk"].forEach(function(k){var b=j.bpjs[k];ch.appendChild(el("span",b.label+": "+b.status+(b.number_on_file?"":" · nomor kosong"),"pill "+(b.active?"aktif":"nonaktif")))});body.appendChild(ch);
+ body.appendChild(el("h4","BPJS"));var ch=el("div",null,"chips");["kes","tk"].forEach(function(k){var b=j.bpjs[k];ch.appendChild(el("span",b.label+": "+(b.number||"nomor kosong")+" · "+b.status,"pill "+(b.active?"aktif":"nonaktif")))});body.appendChild(ch);
  body.appendChild(el("h4","Riwayat medis · "+j.total+" kunjungan"));
  if(j.kinds.length){var kc=el("div",null,"chips");j.kinds.forEach(function(k){kc.appendChild(el("span",k.label+" × "+k.n,"pill"))});body.appendChild(kc)}
  if(!j.visits.length){body.appendChild(el("p","Belum ada riwayat kunjungan.","sub"))}

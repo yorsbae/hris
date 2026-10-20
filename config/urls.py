@@ -53,6 +53,7 @@ urlpatterns = [
     path("absensi/impor/<int:pk>/gagal/", ap.import_errors, name="att_import_errors"),
     path("absensi/pin/", ap.pins, name="att_pins"),
     path("absensi/libur/", ap.holidays, name="att_holidays"),
+    path("absensi/periode/", ap.periods_page, name="att_periods"),
     path("employees/", hr.employees_page),
     path("employees/import/", iv2.employee_import, name="employee_import"),
     path("employees/import/template.csv", iv2.import_template),

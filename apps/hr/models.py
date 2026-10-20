@@ -92,6 +92,9 @@ class Employee(models.Model):
     # Karyawan non-rotasi (GS, GS/N): hari libur mingguan masing-masing (acak per orang). Kosong = ikut libur umum (Minggu). Tukar libur per tanggal tetap lewat pengajuan.
     OFF_DAYS = [(0, "Senin"), (1, "Selasa"), (2, "Rabu"), (3, "Kamis"), (4, "Jumat"), (5, "Sabtu"), (6, "Minggu")]
     off_weekday = models.PositiveSmallIntegerField("Hari libur (GS, GS/N)", null=True, blank=True, choices=OFF_DAYS)
+    # GS/N: pola mingguan per karyawan, 7 isian (Senin…Minggu) masing-masing GS / PAGI / SIANG / MALAM / LIBUR. Kosong = belum diatur (jatuh ke GS biasa + off_weekday).
+    GSN_CODES = [("GS", "GS (08:00–16:00)"), ("PAGI", "Pagi"), ("SIANG", "Siang"), ("MALAM", "Malam"), ("LIBUR", "Libur")]
+    gsn_week = models.JSONField("Pola mingguan GS/N", default=list, blank=True)
     PAY_BASIS = [("bulanan", "Bulanan"), ("harian", "Harian")]
     pay_basis = models.CharField("Status karyawan (harian/bulanan)", max_length=8, choices=PAY_BASIS, default="bulanan", db_index=True)
     # Grade organisasi untuk profil (mis. 9 + tingkat A). Upah tetap di modul Payroll (PayProfile, berlaku-sejak); kolom ini TIDAK memuat nominal.
@@ -115,6 +118,12 @@ class Employee(models.Model):
     def is_rotation(self):
         """Ikut tabel rotasi kelompok (A7…G7, A7Pack…G7Pack). GS dan GS/N BUKAN rotasi."""
         return bool(self.shift_group_id) and self.shift_group.is_rotation
+    @property
+    def gsn_pattern(self):
+        """Pola mingguan GS/N (7 kode, Senin=0) bila karyawan GS/N dan polanya sudah diisi lengkap; selain itu None."""
+        w = self.gsn_week
+        if self.shift_group_id and self.shift_group.pattern == ShiftGroup.GSN and isinstance(w, list) and len(w) == 7 and all(c in dict(self.GSN_CODES) for c in w): return w
+        return None
     @property
     def works_shifts(self):
         """Bisa bertugas di shift Pagi/Siang/Malam: rotasi, atau GS/N."""
@@ -481,3 +490,15 @@ class SavedFilter(models.Model):
     class Meta:
         constraints = [models.UniqueConstraint(fields=["user", "page", "name"], name="uniq_savedfilter_user_page_name")]
         ordering = ["name"]
+
+
+class PeriodClose(models.Model):
+    """Tutup periode (tutup buku) per bulan: setelah ditutup, rekap absensi bulan itu tidak dihitung ulang dan tagihan Poli bertanggal pelayanan bulan itu tidak bisa dicatat.
+    Dibuka kembali hanya oleh Superadmin (tercatat di audit). Satu baris per bulan; `closed` False = pernah ditutup lalu dibuka kembali."""
+    period = models.CharField("Periode (YYYY-MM)", max_length=7, unique=True)
+    closed = models.BooleanField(default=True, db_index=True)
+    note = models.CharField(max_length=300, blank=True)
+    closed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+"); closed_at = models.DateTimeField(null=True, blank=True)
+    reopened_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"); reopened_at = models.DateTimeField(null=True, blank=True)
+    class Meta: ordering = ["-period"]
+    def __str__(self): return f"{self.period} {'ditutup' if self.closed else 'dibuka'}"

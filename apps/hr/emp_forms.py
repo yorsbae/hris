@@ -34,6 +34,9 @@ class ShiftChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, g): return g.label
 
 
+DAY_NAMES = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+
+
 class EmployeeForm(forms.ModelForm):
     status = forms.ChoiceField(choices=STATUSES)
     shift_choice = ShiftChoiceField(ShiftGroup.objects.none(), required=False, label="Shift", empty_label="— belum diatur —",
@@ -46,7 +49,7 @@ class EmployeeForm(forms.ModelForm):
 
     class Meta:
         model = Employee
-        fields = ["nik", "name", "gender", "join_date", "department", "position", "shift", "shift_group", "gs_short", "off_weekday", "pay_basis", "grade", "grade_tier",
+        fields = ["nik", "name", "gender", "join_date", "department", "position", "shift", "shift_group", "gs_short", "off_weekday", "gsn_week", "pay_basis", "grade", "grade_tier",
                   "status", "marital_status", "education", "birth_date", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account"]
         widgets = {"join_date": forms.DateInput(attrs={"type": "date"}), "birth_date": forms.DateInput(attrs={"type": "date"}), "address": forms.Textarea(attrs={"rows": 2}),
                    **{f: forms.TextInput() for f in Employee.ENCRYPTED}}
@@ -61,18 +64,21 @@ class EmployeeForm(forms.ModelForm):
         self.fields["position"].required = False
         self.fields["position"].queryset = Position.objects.order_by("name")
         self.fields["department"].queryset = Department.objects.order_by("name")
-        for f in ("shift", "shift_group"): del self.fields[f]   # digantikan satu field "Shift" (shift_choice); kolom DB tetap dipakai mesin jadwal
+        for f in ("shift", "shift_group", "gsn_week"): del self.fields[f]   # digantikan satu field "Shift" (shift_choice); kolom DB tetap dipakai mesin jadwal
         order = Case(When(pattern=ShiftGroup.GS, then=Value(0)), When(pattern=ShiftGroup.GSN, then=Value(1)), When(pattern=ShiftGroup.P2, then=Value(2)), default=Value(3), output_field=IntegerField())
         self.fields["shift_choice"].queryset = ShiftGroup.objects.order_by(order, "code")
         cur = self.instance.shift_group if self.instance.shift_group_id else (ShiftGroup.objects.filter(pattern=ShiftGroup.GS).first() if self.instance.shift_id and self.instance.shift.is_gs else None)
         self.fields["shift_choice"].initial = cur.pk if cur else None
         self.fields["off_weekday"].required = False
+        cur_week = self.instance.gsn_week if isinstance(self.instance.gsn_week, list) and len(self.instance.gsn_week) == 7 else []
+        for i, n in enumerate(DAY_NAMES):   # Pola mingguan GS/N: hanya tampil (dan wajib) bila Shift = GS/N
+            self.fields[f"gsn_{i}"] = forms.ChoiceField(label=n, required=False, choices=[("", "—")] + Employee.GSN_CODES, initial=cur_week[i] if cur_week else ("LIBUR" if i == 6 else "GS"))
         self.fields["off_weekday"].help_text = "Khusus GS dan GS/N: hari libur mingguan masing-masing karyawan (acak per orang). Kosong = libur umum (Minggu). Pindah libur sesekali lewat pengajuan tukar libur."
         self.fields["grade"].required = False
         self.fields["grade"].help_text = "Contoh: 9 dan tingkat A. Hanya profil; upah tetap diatur di modul Payroll."
         self.fields["grade_tier"].required = False
         self.fields["pay_basis"].initial = "bulanan"; self.fields["pay_basis"].required = False   # kosong = pertahankan nilai lama (karyawan baru: bulanan)
-        self.order_fields(["nik", "name", "gender", "join_date", "department", "position", "shift_choice", "gs_short", "off_weekday", "pay_basis", "grade", "grade_tier", "status"])
+        self.order_fields(["nik", "name", "gender", "join_date", "department", "position", "shift_choice", *[f"gsn_{i}" for i in range(7)], "gs_short", "off_weekday", "pay_basis", "grade", "grade_tier", "status"])
         self.fields["gs_short"].required = False  # kosong = pertahankan nilai lama (karyawan baru: 14)
         self.fields["gs_short"].help_text = "Khusus karyawan GS dan GS/N: jam pulang pada hari kerja sebelum libur GS (mis. Sabtu): GS-14 atau GS-12. Pada hari biasa GS 08:00–16:00."
         if self.instance.pk: self.fields["supervisor_nik"].widget.attrs["data-q-exclude"] = self.instance.nik
@@ -131,6 +137,10 @@ class EmployeeForm(forms.ModelForm):
         d = super().clean()
         if d.get("grade_tier") and d.get("grade") is None: self.add_error("grade", "Isi grade bila tingkat diisi.")
         g = d.get("shift_choice")
+        week = [d.get(f"gsn_{i}") or "" for i in range(7)]
+        if g and g.pattern == ShiftGroup.GSN:
+            if any(week) and not all(week): self.add_error("shift_choice", "GS/N: isi pola Senin sampai Minggu (GS / Pagi / Siang / Malam / Libur).")
+            elif all(week) and "LIBUR" not in week: self.add_error("shift_choice", "GS/N: minimal satu hari harus Libur.")
         if g and g.is_rotation:   # A7…G7 / A7Pack…G7Pack: libur & jam mengikuti tabel rotasi → kolom khusus GS dikosongkan (disembunyikan di form)
             d["off_weekday"] = None
         if g and not g.is_rotation and "shift_choice" in self.changed_data and not (self.instance.shift_id and self.instance.shift.is_gs) and not self._gs_shift():
@@ -178,6 +188,12 @@ class EmployeeForm(forms.ModelForm):
         obj = super().save(commit=False)
         self._apply_shift_choice(obj)
         obj.supervisor = self.supervisor
+        g = self.cleaned_data.get("shift_choice")
+        if g is not None and g.pattern == ShiftGroup.GSN:    # pola mingguan GS/N disimpan; hari libur pertama dijadikan off_weekday (tampilan/ekspor lama)
+            week = [self.cleaned_data.get(f"gsn_{i}") or "" for i in range(7)]
+            if all(week): obj.gsn_week = week; obj.off_weekday = week.index("LIBUR")   # kosong semua (impor massal/data lama): pola lama GS + hari libur
+            elif "shift_choice" in self.changed_data: obj.gsn_week = []
+        elif "shift_choice" in self.changed_data or g is not None: obj.gsn_week = []
         if commit: obj.save()
         return obj
 

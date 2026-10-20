@@ -61,10 +61,11 @@ def _errors(form): return "; ".join(f"{e}" for errs in form.errors.values() for 
 
 
 def identity_rows(e):
-    """Identitas untuk Poli (sama dengan yang dilihat Poli di modul karyawan): identitas dasar + Shift + Atasan. Tidak ada data sensitif (BPJS tampil terpisah sebagai status)."""
+    """Identitas untuk Poli (sama dengan yang dilihat Poli di modul karyawan): identitas dasar + Shift + Atasan + alamat + NIK KTP + nomor BPJS. Tanpa gaji/rekening/NPWP."""
     return [("NIK", e.nik), ("Nama", e.name), ("Jenis kelamin", e.get_gender_display()), ("Departemen", e.department.name),
             ("Jabatan", e.position.name if e.position else "-"), ("Shift", e.shift_label),
-            ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
+            ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-"), ("Alamat", e.address or "-"), ("NIK KTP", e.nik_ktp or "-"),
+            ("No. BPJS Kesehatan", e.bpjs_kes or "-"), ("No. BPJS Ketenagakerjaan", e.bpjs_tk or "-")]
 
 
 EXAM_LABELS = {"tensi": "Tensi", "suhu": "Suhu (°C)", "nadi": "Nadi (x/menit)", "bb": "Berat badan (kg)", "tb": "Tinggi badan (cm)"}
@@ -378,7 +379,7 @@ def patient_summary(request):
     kl = dict(MedicalRecord.KINDS)
     return JsonResponse({"found": True, "nik": e.nik, "name": e.name, "gender": {"L": "Laki-laki", "P": "Perempuan"}.get(e.gender, e.gender), "department": e.department.name,
                          "position": e.position.name if e.position_id else "", "join_date": e.join_date.strftime("%d-%m-%Y"), "tenure": services.tenure_text(e.join_date),
-                         "shift": e.shift_label if e.shift_label != "-" else "", "group": "", "supervisor": f"{e.supervisor.name} ({e.supervisor.nik})" if e.supervisor_id else "", "status": e.status,
+                         "shift": e.shift_label if e.shift_label != "-" else "", "group": "", "address": e.address or "", "nik_ktp": e.nik_ktp or "", "supervisor": f"{e.supervisor.name} ({e.supervisor.nik})" if e.supervisor_id else "", "status": e.status,
                          "total": qs.count(), "history_url": f"/poli/employees/{e.pk}/", "visits": last,
                          "allergies": ov["allergies"], "bpjs": ov["bpjs"], "kinds": [{"label": kl.get(k, k), "n": n} for k, n in sorted(ov["kinds"].items())]})
 

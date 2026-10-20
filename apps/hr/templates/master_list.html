@@ -15,6 +15,7 @@
 <p style="color:var(--mu);font-size:13px;margin:0 0 8px">Daftar <b>Shift</b> karyawan: <b>GS</b>, <b>GS/N</b>, <b>A7–G7</b> (2 shift) dan <b>A7Pack–G7Pack</b> (3 shift/PACK). A7 dan A7Pack adalah dua kelompok berbeda. Berubahnya anggota tidak mengubah kelompok maupun pola rotasi.</p>
 {% for b in rotation_blocks %}<h4 style="margin:14px 0 2px">{{ b.title }}</h4><p style="color:var(--mu);font-size:13px;margin:0 0 6px">{{ b.note }}</p>
 {% if b.issues %}<div class="card" role="alert" style="border-color:#d97706;margin-bottom:8px"><b>Tidak sesuai aturan:</b><ul style="margin:4px 0 0 18px">{% for i in b.issues %}<li>{{ i }}</li>{% endfor %}</ul></div>{% endif %}
+{% if b.warn %}<p class="msg warn" style="margin:0 0 6px">⚠ Libur menumpuk di hari {{ b.warn|join:", " }} (lebih dari 2× rata-rata). Pindahkan sebagian karyawan ke hari lain agar produksi tetap berjalan.</p>{% endif %}
 <div class="wrap"><table><thead><tr><th>Kelompok</th>{% for d in b.days %}<th>{{ d }}</th>{% endfor %}</tr></thead><tbody>
 {% for code, cells in b.rows %}<tr><td><b>{{ code }}</b></td>{% for c in cells %}<td>{% if c %}{{ c }}{% else %}<span class="pill nonaktif">Libur</span>{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td class="empty" colspan="8">Belum ada kelompok.</td></tr>{% endfor %}</tbody></table></div>{% endfor %}
 {% for b in gs_blocks %}<h4 style="margin:18px 0 2px">{{ b.group.label }} <small style="color:var(--mu);font-weight:400">· {{ b.total }} karyawan aktif</small></h4>

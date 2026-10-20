@@ -3,7 +3,7 @@
 <div class="ph"><div><h1>Riwayat kunjungan</h1><p>{{ e.nik }} · {{ e.name }}</p></div><div class="tools"><a class="btn" href="{% url 'poli_record_new' %}?nik={{ e.nik|urlencode }}">+ Kunjungan baru</a></div></div>
 <div class="hist-grid">
 <div class="card"><h3 style="margin-top:0">Identitas</h3><table>{% for k, v in idn %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table>
-<h3>BPJS</h3><div class="chips">{% for k, b in bpjs.items %}<span class="pill {% if b.active %}aktif{% else %}nonaktif{% endif %}">{{ b.label }}: {{ b.status }}{% if not b.number_on_file %} · nomor kosong{% endif %}</span>{% endfor %}</div></div>
+<h3>BPJS</h3><div class="chips">{% for k, b in bpjs.items %}<span class="pill {% if b.active %}aktif{% else %}nonaktif{% endif %}">{{ b.label }}: {{ b.number|default:"nomor kosong" }} · {{ b.status }}</span>{% endfor %}</div></div>
 <div class="card" id="allergies"><h3 style="margin-top:0">Alergi</h3>
 {% for a in allergies %}<div class="al-row{% if a.voided_at %} off{% endif %}"><div><b>{{ a.substance }}</b> <span class="pill {% if a.severity == 'berat' %}ditolak{% elif a.severity == 'sedang' %}pending{% endif %}">{{ a.get_severity_display }}</span>{% if a.reaction %}<div class="help">{{ a.reaction }}</div>{% endif %}<div class="help">Dicatat {{ a.created_at|date:"d M Y" }} oleh {{ a.created_by.get_full_name|default:a.created_by.username }}{% if a.voided_at %} · dinonaktifkan {{ a.voided_at|date:"d M Y" }}{% endif %}</div></div>
 {% if not a.voided_at %}<form method="post" action="{% url 'poli_allergy_void' e.pk a.pk %}">{% csrf_token %}<button class="sm danger" title="Nonaktifkan alergi ini">Nonaktifkan</button></form>{% endif %}</div>

@@ -6,17 +6,24 @@
 <p><button>Simpan</button></p></form>
 {{ shift_patterns|json_script:"shift-patterns" }}
 <script>
-/* Kolom khusus GS disembunyikan bila Shift = kelompok rotasi (A7…G7, A7Pack…G7Pack):
-   "GS sebelum libur" hanya untuk GS; "Hari libur" untuk GS dan GS/N (karyawan rotasi mengikuti tabel rotasi kelompok). */
+/* Kolom form mengikuti pilihan Shift:
+   • A7…G7 / A7Pack…G7Pack (rotasi): tanpa "Hari libur" & "GS sebelum libur" — jadwal dari tabel rotasi kelompok.
+   • GS: "Hari libur" + "GS sebelum libur" (Sabtu pendek).
+   • GS/N: pola mingguan Senin…Minggu (GS / Pagi / Siang / Malam / Libur); 8 jam sehari, tanpa GS pendek. */
 (function(){
   var sel=document.getElementById("id_shift_choice"); if(!sel) return;
   var pat=JSON.parse(document.getElementById("shift-patterns").textContent);
-  var gsOnly=document.querySelector('[data-field="gs_short"]'), off=document.querySelector('[data-field="off_weekday"]');
+  function f(n){return document.querySelector('[data-field="'+n+'"]')}
+  var gsn=[0,1,2,3,4,5,6].map(function(i){return f("gsn_"+i)}).filter(Boolean);
+  if(gsn.length){var box=document.createElement("fieldset");box.id="gsn-box";box.style.cssText="border:1px solid var(--bd,#d0d7de);border-radius:8px;margin:8px 0;padding:8px 12px";
+    box.innerHTML="<legend>Pola mingguan GS/N</legend><small style='color:var(--mu)'>Pilih kegiatan tiap hari, mis. Senin GS, Selasa Pagi, … sampai hari Libur. Tiap karyawan boleh berbeda; minimal satu hari Libur.</small>";
+    gsn[0].parentNode.insertBefore(box,gsn[0]); gsn.forEach(function(d){box.appendChild(d)})}
   function sync(){
-    var p=pat[sel.value]||"";            // "" = belum diatur
+    var p=pat[sel.value]||"";
     var rotation=(p==="2_SHIFT"||p==="3_SHIFT");
-    if(off) off.hidden=rotation;
-    if(gsOnly) gsOnly.hidden=(p!=="GS");
+    if(f("off_weekday")) f("off_weekday").hidden=(rotation||p==="GS_N");
+    if(f("gs_short")) f("gs_short").hidden=(p!=="GS");
+    var b=document.getElementById("gsn-box"); if(b) b.hidden=(p!=="GS_N");
   }
   sel.addEventListener("change",sync); sync();
 })();

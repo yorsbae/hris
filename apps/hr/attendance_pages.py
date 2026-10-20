@@ -297,3 +297,38 @@ def holidays(request):
         except (ValueError, Holiday.DoesNotExist) as e: messages.error(request, str(e) if isinstance(e, ValueError) else "Data tidak ditemukan.")
         return redirect(f"/absensi/libur/?year={y}")
     return render(request, "attendance/holidays.html", {"items": Holiday.objects.filter(date__year=y), "year": y, "kinds": Holiday.KINDS, "applies": Holiday.APPLIES})
+
+
+# ---------------------------------------------------------------- tutup periode (tutup buku)
+@hrd
+def periods_page(request):
+    """Daftar bulan + checklist akhir bulan. HRD & Superadmin menutup; HANYA Superadmin membuka kembali."""
+    from . import periods
+    from .models import PeriodClose
+    sup = request.user.role == Role.SUPERADMIN
+    if request.method == "POST":
+        per, act = request.POST.get("period", ""), request.POST.get("action")
+        if not periods.valid(per): messages.error(request, "Periode tidak valid."); return redirect("att_periods")
+        row = PeriodClose.objects.filter(period=per).first()
+        if act == "close":
+            blockers = [i for i in periods.checklist(per) if i["blocking"] and not i["ok"]]
+            if row and row.closed: messages.info(request, f"Periode {per} sudah ditutup.")
+            elif blockers and request.POST.get("force") != "1": messages.error(request, "Belum bisa ditutup: " + "; ".join(f"{i['label']} ({i['n']})" for i in blockers) + ". Selesaikan dulu, atau centang 'Tutup paksa'.")
+            else:
+                PeriodClose.objects.update_or_create(period=per, defaults=dict(closed=True, note=request.POST.get("note", "").strip()[:300], closed_by=request.user, closed_at=timezone.now(), reopened_by=None, reopened_at=None))
+                log(request, "hr", "period_close", None, None, {"period": per, "forced": bool(blockers)}); messages.success(request, f"Periode {per} ditutup. Rekap absensi dan tagihan Poli bulan itu terkunci.")
+        elif act == "reopen":
+            if not sup: messages.error(request, "Hanya Superadmin yang boleh membuka kembali periode.")
+            elif row and row.closed:
+                row.closed, row.reopened_by, row.reopened_at = False, request.user, timezone.now(); row.save(update_fields=["closed", "reopened_by", "reopened_at"])
+                log(request, "hr", "period_reopen", None, None, {"period": per}); messages.success(request, f"Periode {per} dibuka kembali.")
+        return redirect("att_periods")
+    today = timezone.localdate(); rows, y, m = [], today.year, today.month
+    saved = {r.period: r for r in PeriodClose.objects.all()}
+    for _ in range(12):
+        per = periods.key(date(y, m, 1)); cl = periods.checklist(per) if per == request.GET.get("period") or per not in saved or saved[per].closed is False else []
+        rows.append({"period": per, "label": f"{MONTHS[m - 1]} {y}", "row": saved.get(per), "closed": bool(saved.get(per) and saved[per].closed), "checklist": cl,
+                     "blocking": sum(1 for i in cl if i["blocking"] and not i["ok"]), "warn": sum(1 for i in cl if not i["blocking"] and not i["ok"])})
+        m -= 1
+        if m == 0: m, y = 12, y - 1
+    return render(request, "attendance/periods.html", {"rows": rows, "sup": sup})
