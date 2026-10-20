@@ -19,7 +19,7 @@ from apps.core import tabular
 from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles, scope_by_department
-from .views import SHIFT_FILTERS, apply_shift_filter
+from .views import SHIFT_GROUP_FILTERS, apply_shift_filter
 from .models import AttendanceDaily as AD, AttendanceDevice, AttendanceRaw, Department, Employee, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))   # noqa: E731
@@ -178,7 +178,7 @@ def shift_grid(request):
     if dept.isdigit() and not is_admin: emp = emp.filter(department_id=int(dept))
     cond = Q()
     if st in STATUS_FILTERS: cond &= STATUS_FILTERS[st]
-    emp = apply_shift_filter(emp, shift)      # A7 / A7 Pack / GS (sama dengan filter Shift di Data Karyawan; id shift lama tetap diterima)
+    emp = apply_shift_filter(emp, shift)      # GS / GS/N / A7…G7 / A7Pack…G7Pack: satu kelompok per pilihan (id shift lama tetap diterima)
     if cond: emp = emp.filter(Exists(in_range.filter(cond, employee=OuterRef("pk"))))
     emp = emp.order_by("department__name", "name")
     if g.get("export"):
@@ -203,7 +203,7 @@ def shift_grid(request):
     return render(request, "attendance/shift_grid.html", {
         "page": page, "grid": grid, "days": days, "d1": d1, "d2": d2, "qs": _qs_without(g, "export", "format"), "is_admin": is_admin,
         "f": {"q": q, "dept": dept, "status": st, "shift": shift}, "status_opts": STATUS_LABELS, "depts": Department.objects.order_by("name"),
-        "shift_opts": SHIFT_FILTERS, "act": any((q, dept, st, shift)),
+        "shift_opts": SHIFT_GROUP_FILTERS, "act": any((q, dept, st, shift)),
         "capped": (d2 - d1).days + 1 >= MAX_GRID_DAYS and bool(g.get("to"))})
 
 

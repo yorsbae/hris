@@ -182,7 +182,7 @@ class DeviceTests(Base):
 
 
 class ShiftLabelTests(Base):
-    """Label Shift Harian: GS-16 → GS; PAGI/SIANG/MALAM → shift karyawan (A7… / A7Pack… / GS/N); filter Shift = GS / GS/N / A7 / A7 Pack."""
+    """Label Shift Harian: GS-16 → GS; PAGI/SIANG/MALAM → shift karyawan (A7… / A7Pack… / GS/N); filter Shift = GS / GS/N / A7…G7 / A7Pack…G7Pack (satu per kelompok)."""
     def _a(self, code, is_gs, group=None):
         from types import SimpleNamespace as NS
         from apps.hr.models import ShiftGroup
@@ -199,5 +199,19 @@ class ShiftLabelTests(Base):
 
     def test_filter_options_in_page(self):
         self.login("hrd"); h = self.client.get(reverse("att_shift")).content.decode()
-        for t in ("A7 Pack", ">GS<", ">GS/N<", ">A7<"): self.assertIn(t, h)
-        self.assertNotIn("GS-16", h)
+        for t in (">GS<", ">GS/N<", ">A7<", ">B7<", ">G7<", ">A7Pack<", ">D7Pack<", ">G7Pack<"): self.assertIn(t, h)
+        self.assertNotIn("A7 Pack", h); self.assertNotIn("GS-16", h)
+
+    def test_filter_by_single_group(self):
+        from datetime import date
+        from apps.hr.models import AttendanceDaily, Employee, ShiftGroup
+        ga, gb, gp = (ShiftGroup.objects.get_or_create(code=c, defaults={"pattern": p})[0] for c, p in (("A", "2_SHIFT"), ("B", "2_SHIFT"), ("A_pack", "3_SHIFT")))
+        base = Employee.objects.first()
+        mk = lambda nik, name, g: Employee.objects.create(nik=nik, name=name, department=base.department, join_date=date(2024, 1, 1), shift_group=g)
+        ea, eb, ep = mk("ZA1", "Anto Ay", ga), mk("ZB1", "Bima Be", gb), mk("ZP1", "Candra Pe", gp)
+        for e in (ea, eb, ep): AttendanceDaily.objects.create(employee=e, department=e.department, date=date(2026, 10, 5), status="hadir")
+        self.login("hrd")
+        def names(v):
+            h = self.client.get(reverse("att_shift"), {"from": "2026-10-05", "to": "2026-10-05", "shift": v}).content.decode()
+            return [n for n in ("Anto Ay", "Bima Be", "Candra Pe") if n in h]
+        self.assertEqual(names("g:A"), ["Anto Ay"]); self.assertEqual(names("g:B"), ["Bima Be"]); self.assertEqual(names("g:A_pack"), ["Candra Pe"])

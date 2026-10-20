@@ -2,6 +2,23 @@
 <p class="back"><a href="{% if e %}{% url 'employee_detail_page' e.pk %}{% else %}/employees/{% endif %}">‹ Kembali</a></p>
 <h2>{{ title }}</h2>
 <form method="post" class="card form" style="max-width:720px">{% csrf_token %}{{ form.non_field_errors }}
-{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
+{% for f in form %}<div class="fld" data-field="{{ f.name }}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
 <p><button>Simpan</button></p></form>
+{{ shift_patterns|json_script:"shift-patterns" }}
+<script>
+/* Kolom khusus GS disembunyikan bila Shift = kelompok rotasi (A7…G7, A7Pack…G7Pack):
+   "GS sebelum libur" hanya untuk GS; "Hari libur" untuk GS dan GS/N (karyawan rotasi mengikuti tabel rotasi kelompok). */
+(function(){
+  var sel=document.getElementById("id_shift_choice"); if(!sel) return;
+  var pat=JSON.parse(document.getElementById("shift-patterns").textContent);
+  var gsOnly=document.querySelector('[data-field="gs_short"]'), off=document.querySelector('[data-field="off_weekday"]');
+  function sync(){
+    var p=pat[sel.value]||"";            // "" = belum diatur
+    var rotation=(p==="2_SHIFT"||p==="3_SHIFT");
+    if(off) off.hidden=rotation;
+    if(gsOnly) gsOnly.hidden=(p!=="GS");
+  }
+  sel.addEventListener("change",sync); sync();
+})();
+</script>
 {% endblock %}

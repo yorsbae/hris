@@ -265,9 +265,9 @@ def bills_pdf(bills, period, partner, user):
     if y < 55 * mm: c.showPage(); y = H - 25 * mm
     today = timezone.localdate(); c.setFont("Helvetica", 9)
     c.drawString(L + 10 * mm, y, "Mengetahui,"); c.drawString(L + 10 * mm, y - 4.5 * mm, lh["pers_title"])
-    c.drawString(L + 10 * mm, y - 24 * mm, f"( {lh['pers_name'] or '........................'} )")
+    c.drawString(L + 10 * mm, y - 24 * mm, "( ........................ )")   # kolom tanda tangan dikosongkan: nama ditulis tangan
     c.drawRightString(W - L - 10 * mm, y, f"{lh['city']}, {_id(today)}" if lh["city"] else _id(today)); c.drawRightString(W - L - 10 * mm, y - 4.5 * mm, "Yang Membuat")
-    c.drawRightString(W - L - 10 * mm, y - 24 * mm, f"( {(user.get_full_name() or user.get_username()) if user else '........................'} )")
+    c.drawRightString(W - L - 10 * mm, y - 24 * mm, "( ........................ )")
     c.showPage()
     _rekap_page(c, W, H, bills, mitra, label, tot, lh, today)
     c.save(); return buf.getvalue()

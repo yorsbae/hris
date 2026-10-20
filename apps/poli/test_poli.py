@@ -183,7 +183,7 @@ class RecordTests(PoliBase):
         resp = self.client.get(f"/poli/records/{r.pk}/"); self.assertEqual(resp.status_code, 200)
         self.assertTrue(AuditLog.objects.filter(module="poli", action="view_record", object_id=str(r.pk), user=self.poli).exists())
         html = resp.content.decode(); self.assertNotIn("0001234567890", html); self.assertNotIn("TK-9988776655", html)
-        self.assertEqual([k for k, _ in resp.context["idn"]], ["NIK", "Nama", "Jenis kelamin", "Departemen", "Jabatan"])
+        self.assertEqual([k for k, _ in resp.context["idn"]], ["NIK", "Nama", "Jenis kelamin", "Departemen", "Jabatan", "Shift", "Atasan"])
 
     def test_xss_escaped(self):
         self.login("poli"); self.post_record(complaint="<script>alert(1)</script>")

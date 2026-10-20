@@ -131,6 +131,8 @@ class EmployeeForm(forms.ModelForm):
         d = super().clean()
         if d.get("grade_tier") and d.get("grade") is None: self.add_error("grade", "Isi grade bila tingkat diisi.")
         g = d.get("shift_choice")
+        if g and g.is_rotation:   # A7…G7 / A7Pack…G7Pack: libur & jam mengikuti tabel rotasi → kolom khusus GS dikosongkan (disembunyikan di form)
+            d["off_weekday"] = None
         if g and not g.is_rotation and "shift_choice" in self.changed_data and not (self.instance.shift_id and self.instance.shift.is_gs) and not self._gs_shift():
             self.add_error("shift_choice", "Belum ada shift GS di Master Shift; buat dulu (mis. GS-16).")
         self._check_identifiers(d)

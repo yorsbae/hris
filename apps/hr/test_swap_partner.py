@@ -97,7 +97,7 @@ class RotationScheduleTests(RotBase):
         for nik, g, want_group, want_shift in (("777", self.gA, self.gA, None), ("778", gs, gs, self.gs), ("779", gsn, gsn, self.gs)):
             f = EmployeeForm({**base, "nik": nik, "name": "N" + nik, "shift_choice": g.pk, "off_weekday": "2", "pay_basis": "harian", "grade": "9", "grade_tier": "a"})
             self.assertTrue(f.is_valid(), f.errors); e = f.save()
-            self.assertEqual((e.shift_group, e.shift), (want_group, want_shift)); self.assertEqual((e.off_weekday, e.pay_basis, e.grade, e.grade_tier), (2, "harian", 9, "A"))
+            self.assertEqual((e.shift_group, e.shift), (want_group, want_shift)); self.assertEqual((e.off_weekday, e.pay_basis, e.grade, e.grade_tier), (None if g.is_rotation else 2, "harian", 9, "A"))   # rotasi: hari libur per orang dikosongkan (ikut tabel rotasi)
         self.assertEqual(Employee.objects.get(nik="778").shift_label, "GS"); self.assertEqual(Employee.objects.get(nik="779").shift_label, "GS/N"); self.assertEqual(Employee.objects.get(nik="777").shift_label, "A7")
         bad = EmployeeForm({**base, "nik": "780", "name": "X", "grade": "", "grade_tier": "A"}); self.assertFalse(bad.is_valid()); self.assertIn("grade", bad.errors)
 

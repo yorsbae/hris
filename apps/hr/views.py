@@ -24,6 +24,8 @@ def _contract_filter(qs, kind):
 
 # Filter "Shift" = jenis jadwal (A7 = pola 2 shift A–G, A7 Pack = pola 3 shift/PACK A_pack–G_pack, GS = General Shift, GS/N = kadang GS kadang shift); angka lama (id shift) tetap diterima.
 SHIFT_FILTERS = (("gs", "GS"), ("gsn", "GS/N"), ("a7", "A7"), ("a7pack", "A7 Pack"))
+# Filter "Shift" di Shift Harian: satu pilihan per kelompok (GS, GS/N, A7…G7, A7Pack…G7Pack), bukan perwakilan pola. Nilai "g:<kode DB>" (kode DB: A, A_pack).
+SHIFT_GROUP_FILTERS = (("gs", "GS"), ("gsn", "GS/N"), *((f"g:{c}", f"{c}7") for c in "ABCDEFG"), *((f"g:{c}_pack", f"{c}7Pack") for c in "ABCDEFG"))
 
 def apply_shift_filter(qs, v):
     v = (v or "").strip().lower()
@@ -31,6 +33,9 @@ def apply_shift_filter(qs, v):
     if v == "a7pack": return qs.filter(shift_group__pattern=ShiftGroup.P3)
     if v == "gs": return qs.filter(Q(shift_group__pattern=ShiftGroup.GS) | Q(shift_group__isnull=True, shift__is_gs=True))
     if v == "gsn": return qs.filter(shift_group__pattern=ShiftGroup.GSN)
+    if v.startswith("g:") and len(v) <= 14:  # kelompok tertentu (A7, B7, … A7Pack, …); kode DB huruf besar + akhiran _pack
+        code = v[2:].upper().replace("_PACK", "_pack")
+        return qs.filter(shift_group__code=code)
     if v.isdigit(): return qs.filter(shift_id=int(v))  # kompatibel dengan tautan lama
     return qs
 

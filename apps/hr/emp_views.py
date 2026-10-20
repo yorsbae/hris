@@ -35,11 +35,20 @@ def _audit_diff(before, after):
     return b, a
 
 
+def _shift_patterns():
+    """{id kelompok: pola} untuk form karyawan: JS menyembunyikan kolom khusus GS bila Shift = kelompok rotasi (A7…G7, A7Pack…G7Pack)."""
+    from .models import ShiftGroup
+    return {str(pk): pat for pk, pat in ShiftGroup.objects.values_list("pk", "pattern")}
+
+
 def _rows(user, e):
     """Field yang tampil ditentukan di sini per role (bukan di template) agar tidak ada kebocoran tak sengaja."""
     rows = [("NIK", e.nik), ("Nama", e.name), ("Jenis kelamin", e.get_gender_display()),
             ("Departemen", e.department.name), ("Jabatan", e.position.name if e.position else "-")]
-    if user.role == Role.POLI: return rows  # identitas minimum
+    if user.role == Role.POLI:   # identitas + info pelayanan: Shift, atasan, status BPJS K/TK (hanya status, BUKAN nomor); tanpa gaji/grade/alamat/KTP/rekening
+        from apps.poli.services import patient_overview
+        rows += [("Shift", e.shift_label), ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
+        return rows + [(b["label"], b["status"]) for b in patient_overview(e)["bpjs"].values()]
     rows += [("Status", e.status), ("Status karyawan", e.get_pay_basis_display()), ("Tanggal masuk", e.join_date), ("Shift", e.shift_label),
              ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
     if not e.is_rotation and e.shift_group_id or (e.shift_id and e.shift.is_gs):  # GS / GS/N: libur masing-masing orang
@@ -90,7 +99,7 @@ def employee_new(request):
             log(request, "hr", "employee_create", e, None, a)
         messages.success(request, f"Karyawan {e.nik} dibuat.")
         return redirect("employee_detail_page", pk=e.pk)
-    return render(request, "employee_form.html", {"form": form, "title": "Karyawan baru"})
+    return render(request, "employee_form.html", {"form": form, "title": "Karyawan baru", "shift_patterns": _shift_patterns()})
 
 
 @login_required
@@ -110,7 +119,7 @@ def employee_edit(request, pk):
             if a: log(request, "hr", "employee_update", e, b, a)
         messages.success(request, "Perubahan disimpan." if a else "Tidak ada perubahan.")
         return redirect("employee_detail_page", pk=e.pk)
-    return render(request, "employee_form.html", {"form": form, "title": f"Ubah {e.nik}", "e": e})
+    return render(request, "employee_form.html", {"form": form, "title": f"Ubah {e.nik}", "e": e, "shift_patterns": _shift_patterns()})
 
 
 @login_required

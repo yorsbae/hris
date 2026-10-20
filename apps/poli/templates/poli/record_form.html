@@ -86,7 +86,7 @@ function setAllergy(list){alc.textContent="";
 function reset(){seq++;setAllergy(null);body.textContent="";body.appendChild(el("p",EMPTY,"help"))}
 function render(j){body.textContent="";setAllergy(j.allergies);
  var w=el("div",null,"who");w.appendChild(el("b",j.name));w.appendChild(el("span","NIK "+j.nik,"sub"));body.appendChild(w);
- var dl=el("dl",null,"dl");[["Jenis kelamin",j.gender],["Departemen",j.department],["Jabatan",j.position||"—"],["Shift",(j.shift||"—")+(j.group?" · Kelompok "+j.group:"")],["Bergabung",j.join_date+" ("+j.tenure+")"],["Status",j.status]].forEach(function(r){dl.appendChild(el("dt",r[0]));dl.appendChild(el("dd",r[1]))});body.appendChild(dl);
+ var dl=el("dl",null,"dl");[["Jenis kelamin",j.gender],["Departemen",j.department],["Jabatan",j.position||"—"],["Shift",j.shift||"—"],["Atasan",j.supervisor||"—"],["Bergabung",j.join_date+" ("+j.tenure+")"],["Status",j.status]].forEach(function(r){dl.appendChild(el("dt",r[0]));dl.appendChild(el("dd",r[1]))});body.appendChild(dl);
  var al=el("div",null,"al"+(j.allergies.length?"":" none"));
  if(j.allergies.length){al.appendChild(el("b","⚠ Alergi ("+j.allergies.length+")"));var ul=el("ul");j.allergies.forEach(function(a){ul.appendChild(el("li",a.substance+(a.reaction?" — "+a.reaction:"")+" ["+a.severity_label+"]"))});al.appendChild(ul)}
  else al.appendChild(el("span","Tidak ada alergi tercatat."));

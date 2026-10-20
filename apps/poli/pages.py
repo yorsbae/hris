@@ -61,9 +61,10 @@ def _errors(form): return "; ".join(f"{e}" for errs in form.errors.values() for 
 
 
 def identity_rows(e):
-    """Identitas MINIMUM (sama dengan yang dilihat Poli di modul karyawan). Tidak ada data sensitif."""
+    """Identitas untuk Poli (sama dengan yang dilihat Poli di modul karyawan): identitas dasar + Shift + Atasan. Tidak ada data sensitif (BPJS tampil terpisah sebagai status)."""
     return [("NIK", e.nik), ("Nama", e.name), ("Jenis kelamin", e.get_gender_display()), ("Departemen", e.department.name),
-            ("Jabatan", e.position.name if e.position else "-")]
+            ("Jabatan", e.position.name if e.position else "-"), ("Shift", e.shift_label),
+            ("Atasan", f"{e.supervisor.nik} · {e.supervisor.name}" if e.supervisor_id else "-")]
 
 
 EXAM_LABELS = {"tensi": "Tensi", "suhu": "Suhu (°C)", "nadi": "Nadi (x/menit)", "bb": "Berat badan (kg)", "tb": "Tinggi badan (cm)"}
@@ -368,7 +369,7 @@ def patient_summary(request):
     """JSON: identitas minimum + 8 kunjungan terakhir. Hanya karyawan aktif. Pembukaan riwayat tercatat di audit (sama seperti halaman riwayat)."""
     e = services.active_employee(nik=request.GET.get("nik", "").strip()[:20])
     if not e: return JsonResponse({"found": False}, status=404)
-    e = Employee.objects.select_related("department", "position", "shift", "shift_group").get(pk=e.pk)
+    e = Employee.objects.select_related("department", "position", "shift", "shift_group", "supervisor").get(pk=e.pk)
     log(request, "poli", "view_history", e)
     qs = e.medical_records.select_related("diagnosis").order_by("-visit_at", "-id")
     last = [{"id": r.pk, "date": timezone.localtime(r.visit_at).strftime("%d-%m-%Y"), "kind": r.get_kind_display(), "url": f"/poli/records/{r.pk}/",
@@ -377,7 +378,7 @@ def patient_summary(request):
     kl = dict(MedicalRecord.KINDS)
     return JsonResponse({"found": True, "nik": e.nik, "name": e.name, "gender": {"L": "Laki-laki", "P": "Perempuan"}.get(e.gender, e.gender), "department": e.department.name,
                          "position": e.position.name if e.position_id else "", "join_date": e.join_date.strftime("%d-%m-%Y"), "tenure": services.tenure_text(e.join_date),
-                         "shift": e.shift.name if e.shift_id else "", "group": e.shift_group.code if e.shift_group_id else "", "status": e.status,
+                         "shift": e.shift_label if e.shift_label != "-" else "", "group": "", "supervisor": f"{e.supervisor.name} ({e.supervisor.nik})" if e.supervisor_id else "", "status": e.status,
                          "total": qs.count(), "history_url": f"/poli/employees/{e.pk}/", "visits": last,
                          "allergies": ov["allergies"], "bpjs": ov["bpjs"], "kinds": [{"label": kl.get(k, k), "n": n} for k, n in sorted(ov["kinds"].items())]})
 

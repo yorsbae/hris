@@ -158,7 +158,8 @@ class DetailVisibilityTests(CoreBase):
     def test_poli_minimum_identity_only(self):
         self.login("poli"); r = self.client.get(f"/employees/{self.e1.pk}/")
         self.assertContains(r, "Budi"); self.assertContains(r, "Produksi")
-        for v in (KTP, "0812", "Tanggal masuk", "Status", "Atasan", "Kontrak"): self.assertNotContains(r, v)
+        for v in ("Shift", "Atasan", "BPJS Kesehatan (K)", "BPJS Ketenagakerjaan (TK)"): self.assertContains(r, v)   # info pelayanan untuk Poli
+        for v in (KTP, "0812", "Tanggal masuk", "Grade", "NPWP", "No. rekening", "Kontrak"): self.assertNotContains(r, v)
 
     def test_xss_escaped(self):
         Employee.objects.filter(pk=self.e1.pk).update(name="<script>alert(1)</script>")
