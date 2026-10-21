@@ -32,6 +32,13 @@ class ShiftFilterSortGroupTests(TestCase):
         r = self.client.get("/api/employees/?" + qs); self.assertEqual(r.status_code, 200)
         return [x["name"] for x in r.json()["results"]]
 
+    def test_employee_page_offers_one_filter_option_per_group_a7_to_g7(self):
+        """Dropdown Shift di Karyawan: GS, GS/N, A7…G7, A7Pack…G7Pack (bukan hanya perwakilan pola A7/A7 Pack); tiap pilihan menyaring tepat satu kelompok."""
+        self.client.force_login(self.hrd); html = self.client.get("/employees/").content.decode()
+        for v, l in (("g:A", "A7"), ("g:B", "B7"), ("g:G", "G7"), ("g:A_pack", "A7Pack"), ("g:G_pack", "G7Pack"), ("gs", "GS"), ("gsn", "GS/N")): self.assertIn(f'<option value="{v}">{l}</option>', html, v)
+        ShiftGroup.objects.create(code="B", pattern=ShiftGroup.P2)
+        self.assertEqual(self.names("shift=g:A"), ["Andi"]); self.assertEqual(self.names("shift=g:A_pack"), ["Budi"]); self.assertEqual(self.names("shift=g:B"), [])
+
     def test_shift_filter_a7_a7pack_gs(self):
         self.assertEqual(self.names("shift=a7"), ["Andi"])
         self.assertEqual(self.names("shift=a7pack"), ["Budi"])
@@ -42,9 +49,9 @@ class ShiftFilterSortGroupTests(TestCase):
     def test_old_numeric_shift_link_still_works(self):
         self.assertEqual(self.names(f"shift={self.gs.shift_id}"), ["Citra"])
 
-    def test_page_offers_only_the_three_shift_options(self):
+    def test_page_offers_group_shift_options_not_raw_shift_names(self):
         self.client.force_login(self.hrd); h = self.client.get("/employees/").content.decode()
-        for o in ('value="a7">A7<', 'value="a7pack">A7 Pack<', 'value="gs">GS<'): self.assertIn(o, h)
+        for o in ('value="gs">GS<', 'value="gsn">GS/N<', 'value="g:A">A7<', 'value="g:G">G7<', 'value="g:A_pack">A7Pack<', 'value="g:G_pack">G7Pack<'): self.assertIn(o, h)
         self.assertNotIn("General Shift 12", h); self.assertNotIn("Shift Malam", h)
 
     def test_shift_filter_respects_department_scope(self):

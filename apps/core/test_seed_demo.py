@@ -28,6 +28,20 @@ class SeedDemoTests(TestCase):
         paid = PayrollRun.objects.get(status="dibayar"); self.assertTrue(paid.locked); self.assertTrue(Payslip.objects.filter(run=paid).exists())
         self.assertTrue(PayProfile.objects.exists())
 
+    def test_payslips_complete_and_printable(self):
+        """Putaran 58: data demo sampai cetak slip — absensi sebulan penuh terolah, slip bulan lalu punya uang makan + lembur, tiap slip bisa dicetak PDF."""
+        from apps.payroll.models import PayrollRun, Payslip
+        from apps.payroll import pdf
+        paid = PayrollRun.objects.get(status="dibayar"); slips = Payslip.objects.filter(run=paid)
+        self.assertFalse(any("belum diolah" in f for x in slips for f in x.flags))   # absensi bulan lalu sudah diolah
+        secs = {i.section for x in slips for i in x.items.all()}; self.assertTrue({"pokok", "tunjangan", "makan", "lembur", "potongan"} <= secs, secs)
+        self.assertLess(slips.filter(flagged=True).count(), slips.count() // 2)   # sebagian besar slip bersih (tidak semua berflag)
+        self.assertFalse(Payslip.objects.filter(net_pay__lte=0).exists())
+        self.client.force_login(User.objects.get(username="payroll"))
+        for run in PayrollRun.objects.all():
+            r = self.client.get(f"/payroll/runs/{run.pk}/slips.pdf"); self.assertEqual(r.status_code, 200); self.assertTrue(r.content.startswith(b"%PDF"))
+        for x in Payslip.objects.all()[:10]: self.assertTrue(pdf.slips_pdf([x]).startswith(b"%PDF")); self.assertEqual(self.client.get(f"/payroll/slips/{x.pk}/slip.pdf").status_code, 200)
+
     def test_stock_never_negative_and_ledger_consistent(self):
         self.assertFalse(Medicine.objects.filter(stock__lt=0).exists())
         for m in Medicine.objects.all(): self.assertEqual(m.stock, sum(x.qty for x in m.movements.all()))
@@ -84,10 +98,18 @@ class SeedDemoTests(TestCase):
             if g.pattern == "2_SHIFT": self.assertFalse(any(r.shift and r.shift.crosses_midnight for r in rows), g.code)  # pola 2 shift tanpa Malam
             r_clean = [r.clean() for r in rows]  # lolos validasi rotasi
 
+    def test_gsn_group_and_demo_employees_exist_and_form_offers_gsn(self):
+        """Putaran 58: grup GS/N ada & dipakai karyawan demo; form karyawan menawarkan GS/N (kolom Senin–Minggu)."""
+        self.assertTrue(ShiftGroup.objects.filter(pattern="GS_N").exists()); self.assertTrue(Employee.objects.filter(shift_group__pattern="GS_N", nik__startswith="DM").exists())
+        e = Employee.objects.filter(shift_group__pattern="GS_N").first(); self.client.force_login(User.objects.get(username="hrd"))
+        html = self.client.get(f"/employees/{e.pk}/edit/").content.decode()
+        self.assertIn(">GS/N<", html); self.assertIn("gsn_0", html); self.assertIn("gsn_6", html)
+
     def test_employees_have_either_group_or_fixed_shift(self):
         for e in Employee.objects.filter(nik__startswith="DM"):
             if e.shift_group.is_rotation: self.assertIsNone(e.shift_id, e.nik); self.assertIsNone(e.off_weekday, e.nik)   # rotasi: kelompok saja
-            else: self.assertTrue(e.shift.is_gs, e.nik); self.assertEqual(e.shift_group.pattern, "GS"); self.assertIsNotNone(e.off_weekday, e.nik)   # GS: shift GS + libur sendiri
+            else: self.assertTrue(e.shift.is_gs, e.nik); self.assertIn(e.shift_group.pattern, ("GS", "GS_N")); self.assertIsNotNone(e.off_weekday, e.nik)   # GS / GS/N: shift GS + libur sendiri
+            if e.shift_group.pattern == "GS_N": self.assertEqual(len(e.gsn_week), 7, e.nik); self.assertEqual(e.off_weekday, e.gsn_week.index("LIBUR"), e.nik)   # pola mingguan lengkap, libur = hari Libur pertama
             if e.department.code in ("PRD", "GDG", "MTC"): self.assertEqual(e.shift_group.pattern, "2_SHIFT")
             if e.department.code == "PKG": self.assertEqual(e.shift_group.pattern, "3_SHIFT")
 

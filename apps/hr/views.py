@@ -24,7 +24,7 @@ def _contract_filter(qs, kind):
 
 # Filter "Shift" = jenis jadwal (A7 = pola 2 shift A–G, A7 Pack = pola 3 shift/PACK A_pack–G_pack, GS = General Shift, GS/N = kadang GS kadang shift); angka lama (id shift) tetap diterima.
 SHIFT_FILTERS = (("gs", "GS"), ("gsn", "GS/N"), ("a7", "A7"), ("a7pack", "A7 Pack"))
-# Filter "Shift" di Shift Harian: satu pilihan per kelompok (GS, GS/N, A7…G7, A7Pack…G7Pack), bukan perwakilan pola. Nilai "g:<kode DB>" (kode DB: A, A_pack).
+# Filter "Shift" di Karyawan DAN Shift Harian: satu pilihan per kelompok (GS, GS/N, A7…G7, A7Pack…G7Pack), bukan perwakilan pola. Nilai "g:<kode DB>" (kode DB: A, A_pack).
 SHIFT_GROUP_FILTERS = (("gs", "GS"), ("gsn", "GS/N"), *((f"g:{c}", f"{c}7") for c in "ABCDEFG"), *((f"g:{c}_pack", f"{c}7Pack") for c in "ABCDEFG"))
 
 def apply_shift_filter(qs, v):
@@ -205,7 +205,7 @@ def employees_page(request):
     from .models import Department, Position
     hrd = request.user.role in (Role.HRD, Role.SUPERADMIN)
     ctx = {"departments": Department.objects.order_by("name") if request.user.role != Role.DEPT_ADMIN else [],
-           "positions": Position.objects.order_by("name"), "shift_filters": SHIFT_FILTERS, "hrd": hrd, "page_sizes": PAGE_SIZES}
+           "positions": Position.objects.order_by("name"), "shift_filters": SHIFT_GROUP_FILTERS, "hrd": hrd, "page_sizes": PAGE_SIZES}
     if hrd:  # pilihan filter lanjutan (hanya HRD): pendidikan = nilai yang benar-benar ada, bukan daftar karangan
         from .emp_forms import CONTRACT_KINDS
         ctx.update(educations=list(Employee.objects.exclude(education="").order_by("education").values_list("education", flat=True).distinct()),

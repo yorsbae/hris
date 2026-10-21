@@ -95,6 +95,9 @@ class Command(BaseCommand):
         self.group_cycle = {hr.ShiftGroup.P2: 0, hr.ShiftGroup.P3: 0}
         self.groups = {hr.ShiftGroup.P2: [hr.ShiftGroup.objects.create(code=rt.group_code(l, hr.ShiftGroup.P2), pattern=hr.ShiftGroup.P2) for l in GROUP_LETTERS],
                        hr.ShiftGroup.P3: [hr.ShiftGroup.objects.create(code=rt.group_code(l, hr.ShiftGroup.P3), pattern=hr.ShiftGroup.P3) for l in GROUP_LETTERS]}
+        hr.ShiftGroup.objects.get_or_create(code="GS", defaults={"pattern": hr.ShiftGroup.GS})   # kelompok GS biasanya dibuat migrasi hr/0017; DB yang tidak memilikinya (dibersihkan/migrasi lama) tidak boleh menggagalkan seed
+        hr.ShiftGroup.objects.get_or_create(code="GS/N", defaults={"pattern": hr.ShiftGroup.GSN})   # GS/N (kadang GS, kadang shift; pola Senin–Minggu per karyawan) juga dibuat migrasi hr/0017
+        self.gs_n_cycle = 0
         self.rotation()
         self.poli_u.department = self.depts["POL"]; self.poli_u.save(update_fields=["department"])  # akun Poli = admin departemen Poli (putaran 48)
         for c, nm in DEPT_ADMINS:  # satu Admin Departemen per departemen → Validasi Kehadiran bisa menanyakan karyawan mana pun, tanpa banner "belum ada admin"
@@ -111,9 +114,16 @@ class Command(BaseCommand):
     def shift_for(self, dept_code):
         """(shift tetap/GS, kelompok rotasi) untuk karyawan baru: dept rotasi → kelompok bergilir A..G (shift kosong), lainnya → general shift."""
         pattern = ROTATING_DEPTS.get(dept_code)
-        if not pattern: return next(x for x in self.gs if x.code == "GS-16"), hr.ShiftGroup.objects.get(pattern=hr.ShiftGroup.GS)  # semua GS: 08–16; GS-14/GS-12 hanya sebelum libur karyawan (Employee.gs_short)
+        if not pattern:
+            self.gs_n_cycle += 1   # putaran 58: tiap karyawan GS ke-4 = GS/N (pola mingguan diisi di employees()); penghitung terpisah → urutan acak tidak bergeser
+            return next(x for x in self.gs if x.code == "GS-16"), hr.ShiftGroup.objects.get(pattern=hr.ShiftGroup.GSN if self.gs_n_cycle % 4 == 0 else hr.ShiftGroup.GS)  # semua GS: 08–16; GS-14/GS-12 hanya sebelum libur karyawan (Employee.gs_short)
         i = self.group_cycle[pattern]; self.group_cycle[pattern] += 1
         return None, self.groups[pattern][i % len(GROUP_LETTERS)]
+
+    def gsn_week(self, i):
+        """Pola mingguan GS/N (Senin..Minggu) seperti isian form: kadang GS, kadang Pagi/Siang, satu hari Libur yang bergeser per orang."""
+        base = ["GS", "GS", "PAGI", "GS", "SIANG", "GS", "LIBUR"]; k = i % 7
+        return base[k:] + base[:k]
 
     # ---------- karyawan + kontrak + BPJS
     def employees(self, n):
@@ -134,7 +144,7 @@ class Command(BaseCommand):
                 marital_status=r.choice(["Belum menikah", "Menikah", "Menikah"]), education=r.choice(["SMA", "SMK", "D3", "S1"]),
                 address=f"Jl. Contoh No. {r.randint(1, 99)}, Tegal", birth_date=today - timedelta(days=r.randint(20 * 365, 55 * 365)), phone="08" + "".join(str(r.randint(0, 9)) for _ in range(10)), department=d, position=self.pos[lvl],
                 status="nonaktif" if (r.random() < .04 and not staff) else "aktif", join_date=join, shift=shift, shift_group=group, gs_short=r.choice(["14", "12"]),
-                off_weekday=None if group.is_rotation else i % 7, pay_basis="harian" if (lvl == "Operator" and i % 5 == 0) else "bulanan",   # libur GS acak per orang (deterministik, tanpa menggeser urutan acak)
+                off_weekday=None if group.is_rotation else self.gsn_week(i).index("LIBUR") if group.pattern == hr.ShiftGroup.GSN else i % 7, gsn_week=self.gsn_week(i) if group.pattern == hr.ShiftGroup.GSN else [], pay_basis="harian" if (lvl == "Operator" and i % 5 == 0) else "bulanan",   # libur GS acak per orang (deterministik, tanpa menggeser urutan acak)
                 bpjs_kes="000" + "".join(str(r.randint(0, 9)) for _ in range(10)), bpjs_tk="26" + "".join(str(r.randint(0, 9)) for _ in range(9)),
                 npwp="".join(str(r.randint(0, 9)) for _ in range(15)), bank_name=r.choice(["BCA", "BRI", "Mandiri", "BNI"]), bank_account="".join(str(r.randint(0, 9)) for _ in range(10)))
             self.emps.append(e)
@@ -214,7 +224,7 @@ class Command(BaseCommand):
         admins = {u.department_id: u for u in User.objects.filter(role=Role.DEPT_ADMIN)}
         # (departemen, jenis, selisih hari dari hari ini, jam mulai, menit, jumlah orang, keputusan)
         plans = [("PRD", "lembur", -3, time(17, 0), 150, 8, "approved"), ("PKG", "standby", -1, time(12, 0), 45, 6, "approved"), ("MTC", "lembur", -5, time(7, 0), 120, 4, "rejected"),
-                 ("QC", "lembur", -2, time(16, 30), 90, 3, "pending"), ("GDG", "lembur", 1, time(17, 0), 120, 5, "pending"), ("PRD", "standby", 2, time(12, 0), 60, 6, "pending")]
+                 ("PRD", "lembur", -(today.day + 4), time(17, 0), 120, 6, "approved"), ("QC", "lembur", -2, time(16, 30), 90, 3, "pending"), ("GDG", "lembur", 1, time(17, 0), 120, 5, "pending"), ("PRD", "standby", 2, time(12, 0), 60, 6, "pending")]
         hrd_users, batches, people_n, cancelled = list(User.objects.filter(role=Role.HRD, is_active=True)), 0, 0, 0
         for code, kind, off, start, mins, k, decision in plans:
             dept = self.depts[code]; admin = admins.get(dept.pk); d = today + timedelta(days=off)
@@ -385,27 +395,36 @@ class Command(BaseCommand):
 
     # ---------- absensi mesin (Tahap 6, putaran 48)
     def machine_scans(self):
-        """Scan Fingerspot 14 hari terakhir lewat importer yang SAMA dengan UI (PIN = NIK, tanggal DD/MM/YYYY), lalu rekap diolah. Mayoritas tepat waktu; ada yang
-        terlambat, hanya satu scan, tidak ada scan, dan dua PIN yang belum dipetakan (mewakili antrean pemetaan)."""
+        """Scan Fingerspot dari AWAL BULAN LALU sampai kemarin (putaran 58: sebelumnya hanya 14 hari, sehingga slip gaji bulan lalu tanpa uang makan/lembur dan
+        berflag \"Absensi belum diolah\") lewat importer yang SAMA dengan UI (PIN = NIK, tanggal DD/MM/YYYY), lalu rekap diolah. Mayoritas karyawan rapi; anomali
+        (terlambat, satu scan, tanpa scan) hanya pada ~15% karyawan agar slip demo tidak semuanya berflag. Scan pulang karyawan yang lemburnya DISETUJUI
+        mengikuti jam akhir lembur (bukti lembur untuk slip). Dua PIN belum dipetakan mewakili antrean pemetaan."""
         import io
         from apps.hr import attendance_calc as calc, attendance_import as imp
-        r, today = self.r, self.today; lines = ["PIN,Nama,Tanggal Scan,Mesin"]
+        r, today = self.r, self.today; first = (today.replace(day=1) - timedelta(days=1)).replace(day=1); span = (today - first).days
+        ot_end = {}
+        for q in hr.ChangeRequest.objects.filter(type="lembur", status="executed").only("employee_id", "payload"):
+            d = date.fromisoformat(q.payload["date"]); ot_end[(q.employee_id, d)] = datetime.combine(d, datetime.strptime(q.payload["time_to"], "%H:%M").time())
+        messy = {e.pk for e in r.sample(self.active, max(3, len(self.active) * 15 // 100))}; lines = ["PIN,Nama,Tanggal Scan,Mesin"]
         for e in self.active:
-            for k in range(14, 0, -1):
-                d = today - timedelta(days=k); c = schedule.effective_schedule(e, d)
+            for k in range(span, 0, -1):
+                d = today - timedelta(days=k)
+                if d < e.join_date: continue
+                c = schedule.effective_schedule(e, d)
                 if c["off"] or not c["shift"]: continue
-                roll = r.random()
-                if roll < 0.04: continue                                    # tidak ada scan → tanpa_scan (bahan validasi)
+                roll = r.random() if e.pk in messy else 1.0   # karyawan rapi: selalu lengkap & tepat waktu
+                if roll < 0.08: continue                                    # tidak ada scan → tanpa_scan (bahan validasi)
                 st, en = datetime.combine(d, c["shift"].start), datetime.combine(d, c["shift"].end)
                 if c["shift"].crosses_midnight or en <= st: en += timedelta(days=1)
-                tin = st + timedelta(minutes=r.randint(-12, 3) if roll > 0.12 else r.randint(6, 40)); tout = en + timedelta(minutes=r.randint(-2, 14))
+                tin = st + timedelta(minutes=r.randint(-12, 3) if roll > 0.3 else r.randint(6, 40)); tout = en + timedelta(minutes=r.randint(-2, 14))
+                if (e.pk, d) in ot_end: tout = max(tout, ot_end[(e.pk, d)] + timedelta(minutes=r.randint(1, 10)))
                 lines.append(f"{e.nik},{e.name},{tin:%d/%m/%Y %H:%M:%S},FP-1")
-                if roll > 0.16: lines.append(f"{e.nik},{e.name},{tout:%d/%m/%Y %H:%M:%S},FP-1")   # sisanya hanya scan masuk
+                if roll > 0.4: lines.append(f"{e.nik},{e.name},{tout:%d/%m/%Y %H:%M:%S},FP-1")   # sisanya hanya scan masuk
         lines += [f"9901,Tamu Mesin,{today - timedelta(days=1):%d/%m/%Y} 07:01:00,FP-1", f"9902,Magang Baru,{today - timedelta(days=1):%d/%m/%Y} 07:05:00,FP-1"]
         raw = ("\n".join(lines) + "\n").encode()
         f = io.BytesIO(raw); f.name = "demo-scan-fingerspot.csv"
         i = imp.stage_upload(f, self.hrd_u); imp.analyze(i); imp.commit(i, self.hrd_u)
-        res = calc.process(today - timedelta(days=15), today - timedelta(days=1))
+        res = calc.process(first, today - timedelta(days=1))
         self.stat += f", {i.taps_new} scan mesin ({res['rows']} baris rekap)"
 
     # ---------- operasional HRD
