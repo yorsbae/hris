@@ -323,13 +323,28 @@ class Holiday(models.Model):
     DUTY = [("none", "Tidak ada (libur)"), ("all", "Semua departemen wajib masuk"), ("dept", "Hanya departemen tertentu wajib masuk")]
     duty = models.CharField(max_length=4, choices=DUTY, default="none")
     duty_departments = models.ManyToManyField("Department", blank=True, related_name="+")
+    daily_work = models.BooleanField("Karyawan harian wajib masuk", default=False, help_text="Karyawan berstatus Harian selalu masuk pada hari ini, apa pun pilihan untuk karyawan bulanan.")
     duty_premium = models.BooleanField(default=True, help_text="Yang masuk dihitung 'Hari Libur' di Payroll (upah harian tambahan). Matikan bila perusahaan menetapkan hari itu sebagai hari kerja biasa.")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     class Meta: ordering = ["date"]
     def __str__(self): return f"{self.date:%d-%m-%Y} {self.name}"
+    # Pola libur yang dipilih HRD → (duty, daily_work). Bulanan: libur / semua masuk / hanya departemen tertentu masuk; Harian: ikut daily_work.
+    MODES = [("total", "Libur total: semua karyawan libur"), ("harian", "Harian masuk, bulanan libur"), ("harian_dept", "Harian masuk, bulanan hanya departemen tertentu yang masuk"),
+             ("semua", "Semua masuk (harian dan bulanan)"), ("dept", "Hanya departemen tertentu masuk (harian dan bulanan)")]
+    MODE_MAP = {"total": ("none", False), "harian": ("none", True), "harian_dept": ("dept", True), "semua": ("all", True), "dept": ("dept", False)}
+    @property
+    def mode(self):
+        if self.duty == "all": return "semua"
+        if self.duty == "dept": return "harian_dept" if self.daily_work else "dept"
+        return "harian" if self.daily_work else "total"
+    @property
+    def mode_label(self): return dict(self.MODES)[self.mode]
+    @property
+    def anyone_works(self): return self.duty != "none" or self.daily_work
     def on_duty(self, emp):
         """Apakah karyawan ini wajib masuk pada hari libur ini?"""
         if self.duty == "all": return True
+        if self.daily_work and getattr(emp, "pay_basis", "") == "harian": return True
         if self.duty != "dept": return False
         if not hasattr(self, "_duty_ids"): self._duty_ids = {d.pk for d in self.duty_departments.all()}
         return emp.department_id in self._duty_ids

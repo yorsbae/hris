@@ -10,7 +10,7 @@ from apps.hrd.test_base import KEY
 from apps.core.models import AuditLog, Role, User
 from apps.hr import attendance_calc as calc
 from apps.hr.attendance_import import _stage_path as _stage
-from apps.hr.models import AttendanceCheck, AttendanceDaily, AttendanceImport, AttendancePin, AttendanceRaw, Department, Holiday
+from apps.hr.models import AttendanceCheck, AttendanceDaily, AttendanceImport, AttendancePin, AttendanceRaw, Department, Employee, Holiday
 from apps.hr.test_attendance import Base, LOG_HDR, csv_bytes, workday, xlsx_bytes
 
 
@@ -122,8 +122,22 @@ class PinHolidayTests(PageBase):
         dept = Department.objects.first() or Department.objects.create(code="X", name="Dept X")
         self.client.post(reverse("att_holidays"), {"action": "add", "date": d.isoformat(), "name": "Libur Dept", "duty": "dept", "duty_departments": [dept.pk], "duty_premium": "1"})
         h = Holiday.objects.get(); self.assertEqual(h.duty, "dept"); self.assertEqual(list(h.duty_departments.all()), [dept])
-        r = self.client.get(reverse("att_holidays"), {"year": d.year}); self.assertContains(r, "Libur Dept"); self.assertContains(r, "Ubah pengaturan masuk"); self.assertContains(r, dept.name)
+        r = self.client.get(reverse("att_holidays"), {"year": d.year}); self.assertContains(r, "Libur Dept"); self.assertContains(r, dept.name)
         self.client.post(reverse("att_holidays"), {"action": "duty", "id": h.pk, "duty": "dept"}); self.assertEqual(Holiday.objects.get().duty, "dept")   # gagal validasi: data lama utuh
+
+    def test_holiday_modes_harian_vs_bulanan(self):
+        self.login("hrd"); d = workday(); e = self.e1; dept = e.department
+        post = lambda **kw: self.client.post(reverse("att_holidays"), {"action": "add", "date": d.isoformat(), "name": "Libur Pola", **kw})
+        e.pay_basis = "harian"; harian = e; bulanan = Employee.objects.exclude(pk=e.pk).first()
+        post(mode="harian"); h = Holiday.objects.get(); self.assertEqual((h.duty, h.daily_work, h.mode), ("none", True, "harian"))
+        self.assertTrue(h.on_duty(harian)); bulanan.pay_basis = "bulanan"; self.assertFalse(h.on_duty(bulanan))                 # harian masuk, bulanan libur
+        self.client.post(reverse("att_holidays"), {"action": "duty", "id": h.pk, "mode": "harian_dept", "duty_departments": [dept.pk], "duty_premium": "1"}); h = Holiday.objects.get()
+        self.assertEqual(h.mode, "harian_dept"); self.assertTrue(h.on_duty(harian))                                         # harian tetap masuk
+        bulanan.department = dept; self.assertTrue(h.on_duty(bulanan)); bulanan.department = None; self.assertFalse(h.on_duty(bulanan))   # bulanan: hanya dept terpilih
+        self.client.post(reverse("att_holidays"), {"action": "duty", "id": h.pk, "mode": "total"}); h = Holiday.objects.get(); self.assertEqual((h.duty, h.daily_work), ("none", False))
+        self.assertFalse(h.on_duty(harian)); self.assertFalse(h.on_duty(bulanan))                                           # libur total
+        self.client.post(reverse("att_holidays"), {"action": "duty", "id": h.pk, "mode": "semua"}); self.assertTrue(Holiday.objects.get().on_duty(bulanan))
+        self.assertContains(self.client.get(reverse("att_holidays"), {"year": d.year}), "Semua masuk (harian dan bulanan)")
 
     def test_holiday_form_rejects_garbage(self):
         self.login("hrd"); self.client.post(reverse("att_holidays"), {"action": "add", "date": "bukan", "name": "x"}); self.assertEqual(Holiday.objects.count(), 0)

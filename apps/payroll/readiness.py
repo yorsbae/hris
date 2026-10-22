@@ -62,7 +62,7 @@ def readiness(period):
     # 8. info hari libur
     hol = list(Holiday.objects.filter(active=True, date__gte=start, date__lte=end))
     if hol:
-        duty = [h for h in hol if h.duty != "none"]
+        duty = [h for h in hol if h.anyone_works]
         out.append(_c("ok", f"{len(hol)} hari libur di periode ini" + (f" ({len(duty)} tetap berangkat)" if duty else ""), "; ".join(f"{h.date:%d} {h.name}" for h in hol[:6]), 0, reverse("att_holidays"), "Atur Hari Libur"))
     return out
 

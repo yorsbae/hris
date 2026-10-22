@@ -279,10 +279,11 @@ def _reprocess_scans(emp, pin, also=None):
 # ---------------------------------------------------------------- hari libur
 def _save_duty(h, p):
     """Atur libur yang tetap berangkat: none / all / dept (+ daftar departemen) dan apakah yang masuk dihitung Hari Libur di Payroll."""
-    duty = p.get("duty") if p.get("duty") in dict(Holiday.DUTY) else "none"
+    if p.get("mode") in Holiday.MODE_MAP: duty, daily = Holiday.MODE_MAP[p["mode"]]      # pola baru: total / harian / harian_dept / semua / dept
+    else: duty, daily = (p.get("duty") if p.get("duty") in dict(Holiday.DUTY) else "none"), p.get("daily_work") == "1"   # kompatibel dengan isian lama (duty)
     ids = [int(x) for x in p.getlist("duty_departments") if x.isdigit()] if duty == "dept" else []
     if duty == "dept" and not ids: raise ValueError("Pilih minimal satu departemen yang wajib masuk.")   # divalidasi sebelum menyimpan apa pun
-    h.duty, h.duty_premium = duty, p.get("duty_premium") == "1"; h.save(update_fields=["duty", "duty_premium"])
+    h.duty, h.daily_work, h.duty_premium = duty, daily, p.get("duty_premium") == "1"; h.save(update_fields=["duty", "daily_work", "duty_premium"])
     h.duty_departments.set(Department.objects.filter(pk__in=ids))
 
 
@@ -315,9 +316,9 @@ def holidays(request):
     items, today = list(Holiday.objects.filter(date__year=y).prefetch_related("duty_departments")), timezone.localdate()
     for h in items:
         deps = list(h.duty_departments.all()); h.duty_ids = {d.pk for d in deps}; h.duty_names = ", ".join(d.name for d in deps); h.past = h.date < today
-    stats = {"total": len(items), "aktif": sum(h.active for h in items), "berangkat": sum(h.active and h.duty != "none" for h in items), "akan": sum(h.active and not h.past for h in items)}
+    stats = {"total": len(items), "aktif": sum(h.active for h in items), "berangkat": sum(h.active and h.anyone_works for h in items), "akan": sum(h.active and not h.past for h in items)}
     return render(request, "attendance/holidays.html", {"items": items, "stats": stats, "today": today, "year": y, "kinds": Holiday.KINDS, "applies": Holiday.APPLIES,
-                                                          "duty_choices": Holiday.DUTY, "departments": Department.objects.order_by("name")})
+                                                          "modes": Holiday.MODES, "departments": Department.objects.order_by("name")})
 
 
 # ---------------------------------------------------------------- tutup periode (tutup buku)

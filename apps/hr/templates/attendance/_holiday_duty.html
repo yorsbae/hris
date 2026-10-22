@@ -1,9 +1,12 @@
+{% comment %}Pilihan pola libur. Dipakai formulir tambah (h kosong) dan panel ubah (h = hari libur). Nama isian: mode, duty_departments, duty_premium.{% endcomment %}
 <div class="hl-duty" data-hlduty>
-<div class="fld"><label for="duty-{{ h.pk|default:'new' }}">Apakah perusahaan tetap beroperasi?</label>
-<select id="duty-{{ h.pk|default:'new' }}" name="duty" data-duty>{% for k, v in duty_choices %}<option value="{{ k }}"{% if h.duty == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
-<div class="help">Pilih <b>Tidak ada</b> bila semua libur. Pilih lainnya bila ada karyawan yang tetap harus masuk.</div></div>
-<div class="fld hl-dept" data-dept hidden><label>Departemen yang wajib masuk</label>
+<div class="hl-modes" role="radiogroup" aria-label="Pola libur">
+{% for k, v in modes %}{% if k != 'dept' or h.mode == 'dept' %}<label class="hl-mode"><input type="radio" name="mode" value="{{ k }}"{% if h.mode == k or not h and k == 'total' %} checked{% endif %}>
+<span class="t">{{ v }}</span>
+<span class="d">{% if k == 'total' %}Tidak ada yang masuk. Tanpa scan bukan alfa.{% elif k == 'harian' %}Karyawan Harian tetap masuk. Karyawan Bulanan libur.{% elif k == 'harian_dept' %}Karyawan Harian tetap masuk. Karyawan Bulanan hanya departemen yang dipilih yang masuk, sisanya libur.{% elif k == 'semua' %}Semua karyawan masuk seperti hari kerja biasa.{% else %}Hanya departemen yang dipilih yang masuk, sisanya libur.{% endif %}</span></label>{% endif %}{% endfor %}
+</div>
+<div class="hl-dept" data-dept hidden><div class="hl-lbl">Departemen yang masuk</div>
 <div class="roster">{% for d in departments %}<label><input type="checkbox" name="duty_departments" value="{{ d.pk }}"{% if d.pk in h.duty_ids %} checked{% endif %}> {{ d.name }}</label>{% endfor %}</div></div>
-<div class="fld hl-prem" data-prem hidden><label class="chk"><input type="checkbox" name="duty_premium" value="1"{% if not h or h.duty_premium %} checked{% endif %}> Yang masuk dihitung <b>Hari Libur</b> di Payroll</label>
+<div class="hl-prem" data-prem hidden><label class="chk"><input type="checkbox" name="duty_premium" value="1"{% if not h or h.duty_premium %} checked{% endif %}> Yang masuk dihitung Hari Libur di Payroll</label>
 <div class="help">Hilangkan centang bila hari itu ditetapkan sebagai hari kerja biasa.</div></div>
 </div>
