@@ -625,8 +625,9 @@ class Command(BaseCommand):
 
     # ---------- payroll (putaran 57): skala upah harian, profil, isian manual, run bulan lalu (dibayar) + bulan ini (dihitung)
     def payroll(self):
-        from apps.payroll import services as ps_, models as pm
+        from apps.payroll import defaults as pd_, services as ps_, models as pm
         from apps.hrd.models import Separation
+        pd_.ensure_components()   # komponen slip dibuat migrasi; hilang bila database di-`flush`
         today, pu = self.today, self.payroll_u
         since = date(today.year - 6, 1, 1)
         grade_of = {"Operator": 3, "Staf": 5, "Teknisi": 6, "Leader": 7, "Supervisor": 8, "Manager": 9, "Perawat": 6, "Bidan": 6}

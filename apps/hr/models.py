@@ -319,9 +319,20 @@ class Holiday(models.Model):
     kind = models.CharField(max_length=14, choices=KINDS, default="nasional")
     applies = models.CharField(max_length=14, choices=APPLIES, default="non_rotation")
     active = models.BooleanField(default=True)
+    # Libur nasional yang perusahaannya TETAP BERANGKAT: karyawan yang "wajib masuk" diperlakukan seperti hari kerja biasa (tanpa scan = perlu ditinjau, bukan libur).
+    DUTY = [("none", "Tidak ada (libur)"), ("all", "Semua departemen wajib masuk"), ("dept", "Hanya departemen tertentu wajib masuk")]
+    duty = models.CharField(max_length=4, choices=DUTY, default="none")
+    duty_departments = models.ManyToManyField("Department", blank=True, related_name="+")
+    duty_premium = models.BooleanField(default=True, help_text="Yang masuk dihitung 'Hari Libur' di Payroll (upah harian tambahan). Matikan bila perusahaan menetapkan hari itu sebagai hari kerja biasa.")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     class Meta: ordering = ["date"]
     def __str__(self): return f"{self.date:%d-%m-%Y} {self.name}"
+    def on_duty(self, emp):
+        """Apakah karyawan ini wajib masuk pada hari libur ini?"""
+        if self.duty == "all": return True
+        if self.duty != "dept": return False
+        if not hasattr(self, "_duty_ids"): self._duty_ids = {d.pk for d in self.duty_departments.all()}
+        return emp.department_id in self._duty_ids
 
 
 class AttendanceRaw(models.Model):

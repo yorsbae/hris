@@ -129,7 +129,8 @@ def build(period):
     att, ot = _attendance(ids, start, end)
     if ids and not att: warnings.append("Absensi periode ini belum diolah (tidak ada rekap harian): lembur, hari libur, uang makan, dan potongan alfa bernilai Rp 0. Jalankan Absensi → olah dulu bila perlu.")
     bpjs_amt, bpjs_off = _bpjs(ids, period); uni = _uniform(ids, end); adj = _adjustments(ids, period)
-    slips, missing_scale = [], []
+    slips, missing_scale, no_items = [], [], []
+    if not comps: warnings.append("Tidak ada komponen slip aktif (biasanya setelah `manage.py flush`); slip tidak dapat dibuat. Jalankan: python manage.py seed_payroll_demo (demo) atau aktifkan komponen di Payroll → Komponen.")
     for e, pf in todo:
         daily = daily_wage_of(pf, scale)
         if daily is None: missing_scale.append(f"{e.nik} (grade {pf.grade_label})"); continue
@@ -176,9 +177,11 @@ def build(period):
         elif last and last < start: flags.append("Sudah keluar sebelum periode: hanya komponen tersisa (mis. tali asih)")
         earn = sum((i["amount"] for i in items if i["component"].section != "potongan"), D(0)); ded = sum((i["amount"] for i in items if i["component"].section == "potongan"), D(0))
         if earn - ded < 0: flags.append("Gaji bersih NEGATIF: potongan melebihi pendapatan — tinjau sebelum diajukan")
-        if not items: continue
+        if not items: no_items.append(e.nik); continue
         slips.append({"employee": e, "daily": daily, "days": days, "years": years, "grade": pf.grade_label, "items": items, "earn": earn, "ded": ded, "net": earn - ded, "flags": flags})
     if missing_scale: warnings.append(f"{len(missing_scale)} karyawan punya profil tetapi skala gajinya tidak ditemukan dan TIDAK ikut run: {', '.join(missing_scale[:8])}{'…' if len(missing_scale) > 8 else ''}. Tambahkan di Skala Gaji Harian.")
+    if no_items: warnings.append(f"{len(no_items)} karyawan tidak menghasilkan baris slip apa pun (mis. NIK {', '.join(no_items[:8])}{'…' if len(no_items) > 8 else ''}): periksa tanggal masuk/keluar dan komponen aktif.")
+    if not slips and not warnings: warnings.append("Tidak ada karyawan yang masuk run periode ini (belum ada karyawan aktif dengan tanggal masuk ≤ akhir periode).")
     return {"slips": slips, "warnings": warnings, "params": {k: str(v) for k, v in prm.items()}}
 
 

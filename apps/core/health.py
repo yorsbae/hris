@@ -75,7 +75,24 @@ def _backup(now=None):
     return (age <= limit, f"backup terakhir {h} jam lalu" if age <= limit else f"backup terakhir {h} jam lalu (batas {int(limit.total_seconds() // 3600)} jam)")
 
 
-CHECKS = (("database", _db), ("migrasi", _migrations), ("cache", _cache), ("disk", _disk), ("kunci_enkripsi", _key), ("backup", _backup))
+def _drill(now=None):
+    """Status latihan restore (scripts/restore_drill.sh → restore_drill.json). Gagal bila latihan terakhir GAGAL atau terlalu lama tidak dijalankan.
+    Berkas belum ada = gagal hanya bila HEALTH_REQUIRE_DRILL; tanpa DRILL_STATUS_FILE pemantauan ini mati."""
+    now = now or datetime.now(dt_tz.utc)
+    f, require = getattr(settings, "DRILL_STATUS_FILE", ""), getattr(settings, "HEALTH_REQUIRE_DRILL", False)
+    if not f: return (not require), "pemantauan latihan restore tidak dikonfigurasi"
+    try: d = json.loads(Path(f).read_text(encoding="utf-8"))
+    except FileNotFoundError: return (not require), "belum pernah ada latihan restore"
+    except (OSError, ValueError): return False, "catatan latihan restore tidak terbaca"
+    if not d.get("ok"): return False, "latihan restore terakhir GAGAL"
+    try: t = datetime.fromisoformat(str(d.get("finished_at")).replace("Z", "+00:00"))
+    except ValueError: return False, "waktu latihan restore tidak valid"
+    if t.tzinfo is None: t = t.replace(tzinfo=dt_tz.utc)
+    age = now - t; limit = timedelta(days=getattr(settings, "DRILL_MAX_AGE_DAYS", 35)); days = age.days
+    return (age <= limit, f"latihan restore terakhir {days} hari lalu" if age <= limit else f"latihan restore terakhir {days} hari lalu (batas {limit.days} hari)")
+
+
+CHECKS = (("database", _db), ("migrasi", _migrations), ("cache", _cache), ("disk", _disk), ("kunci_enkripsi", _key), ("backup", _backup), ("latihan_restore", _drill))
 
 
 def collect():

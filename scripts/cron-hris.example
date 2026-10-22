@@ -24,3 +24,6 @@ PY=/path/venv/bin/python
 */10 * * * * cd $HRIS && $PY manage.py check_health --notify >/dev/null 2>&1
 # 01:00 — backup harian (menulis /var/backups/hris/status.json; gagal → alarm langsung + kode keluar 1). Sesuaikan HRIS_HOME/PY bila bukan /opt/hris.
 0 1 * * * HRIS_HOME=/opt/hris PY=/opt/hris/venv/bin/python /opt/hris/scripts/backup.sh
+# 03:00 tanggal 1 — LATIHAN RESTORE: pulihkan backup terbaru ke DB sementara, verifikasi (baris semua tabel, kunci enkripsi, payroll), buang. Gagal → alarm.
+0 3 1 * * HRIS_HOME=/opt/hris PY=/opt/hris/venv/bin/python /opt/hris/scripts/restore_drill.sh
+# Salinan di luar mesin: isi BACKUP_RSYNC_TARGET di /opt/hris/.env (backup.sh akan rsync tiap backup; gagal salin = backup GAGAL + alarm).

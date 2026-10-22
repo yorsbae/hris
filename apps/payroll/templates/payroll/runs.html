@@ -1,11 +1,11 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Run Gaji{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
 <h2>Run Gaji</h2>
-<p class="sub">Satu run per bulan: dihitung dari profil, Absensi, BPJS, seragam, tali asih, dan penyesuaian. Diajukan Payroll, disetujui HRD, lalu dibayar.</p>
+<p class="sub">Satu run per bulan: dihitung dari profil, Absensi, BPJS, seragam, tali asih, dan penyesuaian. Alur: HRD membuat run dan menyerahkan data → Payroll menghitung dan menetapkan → dibayar.</p>
 {% if form %}<form method="post" class="card form" style="margin-bottom:12px">{% csrf_token %}{{ form.non_field_errors }}<h3 style="margin-top:0">Buat run baru (HRD)</h3>
 {% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}<p><button>Buat run</button></p></form>{% endif %}
 <div class="wrap"><table id="runs"><thead><tr><th class="nw">Periode</th><th class="nw">Status</th><th class="num">Slip</th><th class="num">Total bersih<small>pendapatan − potongan</small></th><th class="nw">Dibayar</th><th class="acts"></th></tr></thead><tbody>
-{% for r in page %}<tr{% if r.status == 'dibatalkan' %} style="opacity:.55"{% endif %}><td class="nw">{{ r.period }}</td><td class="nw"><span class="pill {{ r.status }}">{{ r.get_status_display }}</span></td><td class="num">{{ r.n_slips }}</td>
+{% for r in page %}<tr{% if r.status == 'dibatalkan' %} style="opacity:.55"{% endif %}><td class="nw">{{ r.period }}</td><td class="nw"><span class="pill {{ r.status }}">{{ r.get_status_display }}</span>{% if not r.n_slips and r.status == 'dihitung' %} <span title="Tidak ada slip terbentuk — buka run untuk melihat penyebabnya (profil gaji / skala gaji belum lengkap)" style="cursor:help">⚠</span>{% endif %}</td><td class="num">{{ r.n_slips }}</td>
 <td class="num nw">{{ r.total_net|rupiah }}<small>{{ r.total_gross|rupiah }} − {{ r.total_deductions|rupiah }}</small></td><td class="nw">{% if r.paid_on %}{{ r.paid_on|date:"d-m-Y" }}{% else %}<span style="color:var(--mu)">—</span>{% endif %}</td>
 <td class="acts"><a class="btn sm ghost" href="{% url 'pay_run' r.pk %}">Buka</a></td></tr>
 {% empty %}<tr><td class="empty" colspan="6">Belum ada run gaji.{% if form %} Isi periode di atas lalu klik <b>Buat run</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>

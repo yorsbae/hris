@@ -145,6 +145,9 @@ if SENTRY_DSN and "test" not in sys.argv:
 HEALTH_MIN_FREE_MB = env.int("HEALTH_MIN_FREE_MB", 500)                                   # ruang disk bebas minimum di folder media/
 BACKUP_STATUS_FILE = env("BACKUP_STATUS_FILE", default="/var/backups/hris/status.json")   # ditulis scripts/backup.sh; kosong = pemantauan backup mati
 BACKUP_MAX_AGE_HOURS = env.int("BACKUP_MAX_AGE_HOURS", 26)                                # backup harian: >26 jam = anggap tidak berjalan
+DRILL_STATUS_FILE = env("DRILL_STATUS_FILE", default="/var/backups/hris/restore_drill.json")   # ditulis scripts/restore_drill.sh; kosong = pemantauan latihan restore mati
+DRILL_MAX_AGE_DAYS = env.int("DRILL_MAX_AGE_DAYS", 35)                                            # latihan restore harus berhasil minimal sebulan sekali
+HEALTH_REQUIRE_DRILL = env.bool("HEALTH_REQUIRE_DRILL", False)                                    # True di produksi: tanpa catatan latihan restore = GAGAL
 HEALTH_REQUIRE_BACKUP = env.bool("HEALTH_REQUIRE_BACKUP", False)                          # True di produksi: tanpa catatan backup = GAGAL
 HEALTH_STATE_FILE = env("HEALTH_STATE_FILE", default=str(BASE_DIR / ".health_state.json"))  # status alarm terakhir (anti-banjir)
 ALERT_WEBHOOK_URL = env("ALERT_WEBHOOK_URL", default="")                                  # Slack/Mattermost/Discord (JSON {text, content})

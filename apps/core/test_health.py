@@ -39,7 +39,7 @@ class HealthEndpointTests(TmpMixin, TestCase):
     def test_ok_without_login_and_not_cached(self):
         self.write_status(); r = self.get(FIELD_ENCRYPTION_KEY="x" * 10)
         self.assertEqual(r.status_code, 200); d = r.json(); self.assertEqual(d["status"], "ok")
-        self.assertEqual(set(d["checks"]), {"database", "migrasi", "cache", "disk", "kunci_enkripsi", "backup"}); self.assertTrue(all(c["ok"] for c in d["checks"].values()))
+        self.assertEqual(set(d["checks"]), {"database", "migrasi", "cache", "disk", "kunci_enkripsi", "backup", "latihan_restore"}); self.assertTrue(all(c["ok"] for c in d["checks"].values()))
         self.assertIn("no-cache", r["Cache-Control"])
 
     def test_no_secrets_or_paths_in_output(self):
@@ -194,6 +194,23 @@ class BackupScriptTests(TmpMixin, SimpleTestCase):
         self.assertFalse(self.alert_log.exists()); self.assertEqual(oct((self.dir).stat().st_mode & 0o777), "0o700")
         with override_settings(BACKUP_STATUS_FILE=str(self.dir / "status.json"), BACKUP_MAX_AGE_HOURS=26): self.assertTrue(health._backup()[0])  # health membaca berkas yang ditulis skrip
 
+    def test_private_media_is_archived_and_listed_in_manifest(self):
+        (self.home / "private_media").mkdir(); (self.home / "private_media" / "cv.bin").write_bytes(b"enc")
+        r = self.run_backup(); self.assertEqual(r.returncode, 0, r.stderr)
+        arc = list(self.dir.glob("hris_private_*.tar.gz")); self.assertEqual(len(arc), 1)
+        man = json.loads(next(self.dir.glob("hris_*.manifest.json")).read_text()); self.assertEqual(man["private"], arc[0].name); self.assertIn("key_fingerprint", man)
+        self.assertIn(arc[0].name, next(self.dir.glob("hris_*.sha256")).read_text())
+
+    def test_rsync_target_failure_marks_backup_failed(self):
+        self.exe("rsync", "echo 'rsync: connection refused' >&2; exit 12")
+        r = self.run_backup(BACKUP_RSYNC_TARGET="x@host:/dst/"); self.assertEqual(r.returncode, 1)
+        d = json.loads((self.dir / "status.json").read_text()); self.assertFalse(d["ok"]); self.assertIn("gagal", d["error"])
+
+    def test_rsync_target_success_copies_all_files(self):
+        self.exe("rsync", f'echo "$@" > "{self.tmp}/rsync.args"; exit 0')
+        r = self.run_backup(BACKUP_RSYNC_TARGET="x@host:/dst/"); self.assertEqual(r.returncode, 0, r.stderr)
+        args = (self.tmp / "rsync.args").read_text(); self.assertIn(".dump", args); self.assertIn(".sha256", args); self.assertIn(".manifest.json", args); self.assertTrue(args.strip().endswith("x@host:/dst/"))
+
     def test_pg_dump_failure_writes_failed_status_alerts_and_exits_1(self):
         r = self.run_backup(FAKE_DUMP_FAIL="1"); self.assertEqual(r.returncode, 1)
         d = json.loads((self.dir / "status.json").read_text()); self.assertFalse(d["ok"]); self.assertIn("pg_dump", d["error"])  # JSON tetap valid walau galat memuat tanda kutip/backslash
@@ -217,3 +234,62 @@ class BackupScriptTests(TmpMixin, SimpleTestCase):
         self.dir.mkdir(); old, new = self.dir / "hris_20200101_000000.dump", self.dir / "hris_20990101_000000.dump"
         old.write_text("x"); new.write_text("x"); t = (datetime.now() - timedelta(days=40)).timestamp(); os.utime(old, (t, t))
         self.assertEqual(self.run_backup().returncode, 0); self.assertFalse(old.exists()); self.assertTrue(new.exists())
+
+
+class DrillHealthTests(TmpMixin, SimpleTestCase):
+    """Status latihan restore (scripts/restore_drill.sh) dipantau seperti backup: gagal, terlalu lama, atau tidak pernah dijalankan."""
+    def put(self, ok=True, age_d=2):
+        f = self.tmp / "restore_drill.json"; f.write_text(json.dumps({"ok": ok, "finished_at": iso(datetime.now(dt_tz.utc) - timedelta(days=age_d)), "message": "x"})); return str(f)
+
+    def test_states(self):
+        with override_settings(DRILL_STATUS_FILE=self.put(age_d=3), DRILL_MAX_AGE_DAYS=35): self.assertTrue(health._drill()[0])
+        with override_settings(DRILL_STATUS_FILE=self.put(age_d=40), DRILL_MAX_AGE_DAYS=35): ok, d = health._drill(); self.assertFalse(ok); self.assertIn("40 hari", d)
+        with override_settings(DRILL_STATUS_FILE=self.put(ok=False)): self.assertEqual(health._drill(), (False, "latihan restore terakhir GAGAL"))
+        (self.tmp / "bad.json").write_text("{x"); 
+        with override_settings(DRILL_STATUS_FILE=str(self.tmp / "bad.json")): self.assertFalse(health._drill()[0])
+
+    def test_missing_file_depends_on_require_flag_and_empty_setting_disables(self):
+        with override_settings(DRILL_STATUS_FILE=str(self.tmp / "none.json"), HEALTH_REQUIRE_DRILL=False): self.assertTrue(health._drill()[0])
+        with override_settings(DRILL_STATUS_FILE=str(self.tmp / "none.json"), HEALTH_REQUIRE_DRILL=True): self.assertFalse(health._drill()[0])
+        with override_settings(DRILL_STATUS_FILE="", HEALTH_REQUIRE_DRILL=False): self.assertTrue(health._drill()[0])
+
+
+class VerifyRestoreTests(TmpMixin, TestCase):
+    """manage.py verify_restore: restore yang 'selesai' tetapi datanya tidak utuh / kunci salah / payroll tak konsisten harus GAGAL."""
+    def manifest(self, **over):
+        from django.db import connection
+        from apps.core.management.commands.verify_restore import key_fingerprint
+        counts = {}
+        with connection.cursor() as c:
+            for t in ("hr_employee", "core_user"):
+                c.execute(f"select count(*) from {t}"); counts[t] = str(c.fetchone()[0])
+        m = {"counts": counts, "key_fingerprint": key_fingerprint()}; m.update(over); p = self.tmp / "m.json"; p.write_text(json.dumps(m)); return str(p)
+
+    def run_cmd(self, path):
+        out = StringIO(); call_command("verify_restore", "--manifest", path, stdout=out); return out.getvalue()
+
+    @override_settings(FIELD_ENCRYPTION_KEY="x" * 10)
+    def test_matching_manifest_passes(self):
+        self.assertIn("jumlah baris", self.run_cmd(self.manifest()))
+
+    @override_settings(FIELD_ENCRYPTION_KEY="x" * 10)
+    def test_row_count_mismatch_fails(self):
+        with self.assertRaises(CommandError): self.run_cmd(self.manifest(counts={"hr_employee": "999"}))
+
+    @override_settings(FIELD_ENCRYPTION_KEY="x" * 10)
+    def test_missing_table_fails(self):
+        with self.assertRaises(CommandError): self.run_cmd(self.manifest(counts={"tabel_hilang": "1"}))
+
+    @override_settings(FIELD_ENCRYPTION_KEY="x" * 10)
+    def test_different_encryption_key_fails(self):
+        with self.assertRaises(CommandError): self.run_cmd(self.manifest(key_fingerprint="000000000000"))
+
+    def test_unreadable_manifest_is_an_error(self):
+        (self.tmp / "bad.json").write_text("{x")
+        with self.assertRaises(CommandError): self.run_cmd(str(self.tmp / "bad.json"))
+
+    @override_settings(FIELD_ENCRYPTION_KEY="x" * 10)
+    def test_inconsistent_payroll_run_fails(self):
+        from apps.payroll.models import PayrollRun
+        PayrollRun.objects.create(period="2025-01", status="dihitung", n_slips=3)   # klaim 3 slip, isinya 0
+        with self.assertRaises(CommandError): self.run_cmd(self.manifest())

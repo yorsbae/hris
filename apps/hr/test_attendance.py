@@ -175,6 +175,15 @@ class IntegrationTests(Base):
         Holiday.objects.filter(date=d).update(applies="all"); self.run_calc(d); self.assertEqual(self.row(self.e3, d).status, "libur_nasional")
         self.scan(self.e1, d, (8, 0), (12, 0)); self.run_calc(d); x = self.row(self.e1, d); self.assertEqual(x.status, "hadir"); self.assertIn("Hari Raya", x.notes)
 
+    def test_holiday_where_company_still_works(self):
+        """Libur nasional tapi perusahaan tetap berangkat: wajib masuk = hari kerja biasa; yang masuk dihitung Hari Libur (bisa dimatikan)."""
+        d = workday(); h = Holiday.objects.create(date=d, name="Hari Raya", applies="all", duty="dept"); h.duty_departments.add(self.e1.department)
+        self.run_calc(d); self.assertEqual(self.row(self.e1, d).status, "tanpa_scan")            # departemen wajib masuk: tanpa scan ≠ libur
+        self.assertEqual(self.row(self.e3, d).status, "libur_nasional") if self.e3.department_id != self.e1.department_id else None
+        self.scan(self.e1, d, (7, 0), (15, 0)); self.run_calc(d); x = self.row(self.e1, d)
+        self.assertEqual(x.status, "hadir"); self.assertTrue(x.notes.startswith("Masuk di hari libur"))   # Payroll membaca awalan ini
+        Holiday.objects.filter(pk=h.pk).update(duty="all", duty_premium=False); self.run_calc(d); self.assertEqual(self.row(self.e1, d).notes, "")   # hari kerja biasa: tanpa premi
+
     def test_inactive_holiday_ignored(self):
         d = workday(); Holiday.objects.create(date=d, name="X", active=False); self.run_calc(d); self.assertEqual(self.row(self.e1, d).status, "tanpa_scan")
 

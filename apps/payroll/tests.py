@@ -110,8 +110,8 @@ class EngineSampleSlipTests(Base):
     def test_missing_profile_and_scale_are_warned_not_silently_skipped(self):
         self.emp("E010")                                         # tanpa profil
         e = self.emp("E011"); self.profile(e, grade=7, tier="C")  # profil tanpa skala
-        run = self.run_calc(); self.assertEqual(run.n_slips, 0)
-        w = " ".join(run.warnings); self.assertIn("belum punya profil gaji", w); self.assertIn("E010", w); self.assertIn("skala gajinya tidak ditemukan", w); self.assertIn("E011", w)
+        with self.assertRaises(ValueError) as cm: self.run_calc()   # semua karyawan terlewati → ditolak, alasan ada di pesan
+        w = str(cm.exception); self.assertIn("belum punya profil gaji", w); self.assertIn("E010", w); self.assertIn("skala gajinya tidak ditemukan", w); self.assertIn("E011", w)
 
     def test_wage_override_beats_scale(self):
         e = self.emp(); PayProfile.objects.create(employee=e, effective_from=D1(2021, 4, 1), wage_override=D("100000"))
@@ -196,7 +196,9 @@ class EngineDeductionTests(Base):
 
     def test_leaver_before_period_without_tali_asih_is_not_paid(self):
         Separation.objects.create(employee=self.e, kind="resign", last_date=D1(2025, 8, 31), emp_name=self.e.name, department_name="Produksi", join_date=self.e.join_date)
-        Employee.objects.filter(pk=self.e.pk).update(status="nonaktif"); run = services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="diserahkan").pk, self.payroll); self.assertEqual(run.n_slips, 0)
+        Employee.objects.filter(pk=self.e.pk).update(status="nonaktif"); r = PayrollRun.objects.create(period=PERIOD, status="diserahkan")
+        with self.assertRaises(ValueError): services.calculate_run(r.pk, self.payroll)   # tidak ada slip → ditolak, bukan "Sudah dihitung" kosong
+        r.refresh_from_db(); self.assertEqual((r.status, r.n_slips), ("diserahkan", 0))
 
     def test_new_hire_mid_month_is_prorated(self):
         n = self.emp("E050", join=D1(2025, 10, 21)); self.profile(n, on=D1(2025, 10, 21)); run = services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="diserahkan").pk, self.payroll)
@@ -205,6 +207,29 @@ class EngineDeductionTests(Base):
     def test_inactive_without_separation_and_future_joiner_are_excluded(self):
         a = self.emp("E060", status="nonaktif"); self.profile(a); b = self.emp("E061", join=D1(2025, 11, 5)); self.profile(b, on=D1(2025, 11, 5))
         run = services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="diserahkan").pk, self.payroll); self.assertEqual(list(Payslip.objects.filter(run=run).values_list("nik", flat=True)), ["E001"])
+
+
+class ZeroSlipTests(Base):
+    """Run tanpa slip tidak boleh berstatus 'Sudah dihitung' (bug: Slip 0 / Rp 0 diam-diam)."""
+    def setUp(self): self.e = self.emp(); self.run = PayrollRun.objects.create(period=PERIOD, status="diserahkan")
+
+    def test_no_profile_is_rejected_with_reason(self):
+        with self.assertRaises(ValueError) as cm: services.calculate_run(self.run.pk, self.payroll)
+        self.assertIn("belum punya profil gaji", str(cm.exception)); self.run.refresh_from_db(); self.assertEqual(self.run.status, "diserahkan")
+
+    def test_profile_without_scale_is_rejected_with_reason(self):
+        self.profile(self.e)
+        with self.assertRaises(ValueError) as cm: services.calculate_run(self.run.pk, self.payroll)
+        self.assertIn("skala gajinya tidak ditemukan", str(cm.exception))
+
+    def test_no_active_components_is_reported(self):
+        self.profile(self.e); self.scale(); PayComponent.objects.update(active=False)
+        with self.assertRaises(ValueError) as cm: services.calculate_run(self.run.pk, self.payroll)
+        self.assertIn("komponen slip aktif", str(cm.exception))
+
+    def test_complete_data_still_calculates(self):
+        self.profile(self.e); self.scale(); r = services.calculate_run(self.run.pk, self.payroll)
+        self.assertEqual((r.status, r.n_slips), ("dihitung", 1))
 
 
 class RunWorkflowTests(Base):
@@ -380,3 +405,62 @@ class ViewAccessTests(Base):
 
     def test_get_does_not_mutate(self):
         self.get(self.payroll, "pay_run_action", self.run.pk, "finalize"); self.assertEqual(PayrollRun.objects.get(pk=self.run.pk).status, "dihitung")
+
+
+class SeedPayrollDemoTests(Base):
+    def test_seed_makes_slips_and_is_idempotent(self):
+        from django.core.management import call_command
+        from io import StringIO
+        for i in range(3): self.emp(f"S{i}")
+        out = StringIO(); call_command("seed_payroll_demo", "--periods", PERIOD, stdout=out)
+        run = PayrollRun.objects.get(period=PERIOD); self.assertEqual(run.n_slips, 3); self.assertEqual(Payslip.objects.filter(run=run).count(), 3); self.assertGreater(run.total_net, 0)
+        n = (PayProfile.objects.count(), WageScale.objects.count()); call_command("seed_payroll_demo", "--periods", PERIOD, stdout=StringIO())
+        self.assertEqual((PayProfile.objects.count(), WageScale.objects.count()), n)
+
+
+    def test_seed_recreates_components_wiped_by_flush(self):
+        """`manage.py flush` menghapus komponen slip (dibuat migrasi). Seed harus membuatnya ulang, bukan menghasilkan run kosong."""
+        from django.core.management import call_command
+        from io import StringIO
+        from .defaults import ensure_components
+        self.emp("F1"); PayComponent.objects.all().delete()
+        out = StringIO(); call_command("seed_payroll_demo", "--periods", PERIOD, stdout=out)
+        self.assertIn("Komponen slip dibuat ulang", out.getvalue()); self.assertEqual(PayrollRun.objects.get(period=PERIOD).n_slips, 1)
+        n = PayComponent.objects.count(); self.assertGreater(n, 20); self.assertEqual(ensure_components(), 0); self.assertEqual(PayComponent.objects.count(), n)   # idempoten
+
+    def test_ensure_components_does_not_overwrite_edits(self):
+        from .defaults import ensure_components
+        c = PayComponent.objects.get(code="gaji_pokok"); PayComponent.objects.filter(pk=c.pk).update(label="Gaji Dasar", active=False); ensure_components()
+        c.refresh_from_db(); self.assertEqual((c.label, c.active), ("Gaji Dasar", False))
+
+
+class ReadinessAndCompareTests(Base):
+    def run_calc(self): return services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="diserahkan").pk, self.payroll)
+
+    def test_readiness_flags_missing_profile_and_scale_then_clears(self):
+        from . import readiness as RD
+        e = self.emp("R1"); lv = lambda: {i["title"]: i["level"] for i in RD.readiness(PERIOD)}
+        self.assertEqual(lv()["Karyawan aktif tanpa Profil Gaji"], "bad")
+        self.profile(e, grade=7, tier="C"); self.assertEqual(lv()["Grade/tingkat belum ada di Skala Gaji"], "bad")
+        self.scale(grade=7, tier="C"); l = lv(); self.assertEqual(l["Semua karyawan aktif punya Profil Gaji"], "ok"); self.assertEqual(l["Skala gaji mencakup semua profil"], "ok")
+        self.assertEqual(RD.summary(RD.readiness(PERIOD))["bad"], 0)
+
+    def test_run_detail_shows_readiness_and_comparison(self):
+        e = self.emp("R2"); self.profile(e); self.scale()
+        prev = services.calculate_run(PayrollRun.objects.create(period="2025-09", status="diserahkan").pk, self.payroll)
+        cur = self.run_calc(); Payslip.objects.filter(run=cur).update(net_pay=D("9000000"))   # lonjakan besar
+        PayrollRun.objects.filter(pk=cur.pk).update(total_net=D("9000000"))
+        self.client.force_login(self.payroll); r = self.client.get(reverse("pay_run", args=[cur.pk])); self.assertContains(r, "Kesiapan data"); self.assertContains(r, "Dibanding 2025-09"); self.assertContains(r, "1 berubah besar")
+
+    def test_comparison_new_and_gone(self):
+        from . import readiness as RD
+        a, b = self.emp("R3"), self.emp("R4"); self.profile(a); self.profile(b); self.scale()
+        services.calculate_run(PayrollRun.objects.create(period="2025-09", status="diserahkan").pk, self.payroll)
+        Employee.objects.filter(pk=a.pk).update(status="nonaktif"); c = self.emp("R5"); self.profile(c)
+        cur = self.run_calc(); cmp = RD.comparison(cur)
+        self.assertEqual((cmp["n_new"], cmp["n_gone"]), (1, 1)); self.assertEqual(cmp["new"][0].nik, "R5"); self.assertEqual(cmp["gone"][0].nik, "R3")
+
+    def test_first_run_has_no_comparison(self):
+        from . import readiness as RD
+        e = self.emp("R6"); self.profile(e); self.scale(); self.assertIsNone(RD.comparison(self.run_calc()))
+

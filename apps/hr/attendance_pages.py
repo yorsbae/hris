@@ -274,6 +274,14 @@ def _reprocess_scans(emp, pin, also=None):
 
 
 # ---------------------------------------------------------------- hari libur
+def _save_duty(h, p):
+    """Atur libur yang tetap berangkat: none / all / dept (+ daftar departemen) dan apakah yang masuk dihitung Hari Libur di Payroll."""
+    h.duty = p.get("duty") if p.get("duty") in dict(Holiday.DUTY) else "none"; h.duty_premium = p.get("duty_premium") == "1"; h.save(update_fields=["duty", "duty_premium"])
+    ids = [int(x) for x in p.getlist("duty_departments") if x.isdigit()] if h.duty == "dept" else []
+    if h.duty == "dept" and not ids: raise ValueError("Pilih minimal satu departemen yang wajib masuk.")
+    h.duty_departments.set(Department.objects.filter(pk__in=ids))
+
+
 @hrd
 def holidays(request):
     y = int(request.GET["year"]) if request.GET.get("year", "").isdigit() and 2000 < int(request.GET["year"]) < 2100 else timezone.localdate().year
@@ -285,8 +293,12 @@ def holidays(request):
                 if not d or not name: raise ValueError("Tanggal dan nama wajib diisi.")
                 if Holiday.objects.filter(date=d).exists(): raise ValueError("Tanggal itu sudah ada di daftar.")
                 kind = p.get("kind") if p.get("kind") in dict(Holiday.KINDS) else "nasional"; ap = p.get("applies") if p.get("applies") in dict(Holiday.APPLIES) else "non_rotation"
-                h = Holiday.objects.create(date=d, name=name, kind=kind, applies=ap, created_by=request.user); log(request, "hr", "holiday_add", None, None, {"date": d.isoformat(), "name": name})
+                h = Holiday.objects.create(date=d, name=name, kind=kind, applies=ap, created_by=request.user); _save_duty(h, p)
+                log(request, "hr", "holiday_add", None, None, {"date": d.isoformat(), "name": name, "duty": h.duty})
                 messages.success(request, f"{name} ({d:%d-%m-%Y}) ditambahkan. Olah ulang rekap tanggal itu agar berlaku.")
+            elif act == "duty":
+                h = Holiday.objects.get(pk=int(p.get("id", 0))); _save_duty(h, p); log(request, "hr", "holiday_duty", None, None, {"date": h.date.isoformat(), "duty": h.duty})
+                messages.success(request, "Pengaturan masuk disimpan. Olah ulang rekap tanggal itu agar berlaku.")
             elif act in ("toggle", "delete"):
                 h = Holiday.objects.get(pk=int(p.get("id", 0)))
                 if act == "delete":
@@ -296,7 +308,8 @@ def holidays(request):
                 messages.success(request, "Tersimpan. Olah ulang rekap tanggal itu agar berlaku.")
         except (ValueError, Holiday.DoesNotExist) as e: messages.error(request, str(e) if isinstance(e, ValueError) else "Data tidak ditemukan.")
         return redirect(f"/absensi/libur/?year={y}")
-    return render(request, "attendance/holidays.html", {"items": Holiday.objects.filter(date__year=y), "year": y, "kinds": Holiday.KINDS, "applies": Holiday.APPLIES})
+    return render(request, "attendance/holidays.html", {"items": Holiday.objects.filter(date__year=y).prefetch_related("duty_departments"), "year": y, "kinds": Holiday.KINDS, "applies": Holiday.APPLIES,
+                                                          "duty_choices": Holiday.DUTY, "departments": Department.objects.order_by("name")})
 
 
 # ---------------------------------------------------------------- tutup periode (tutup buku)

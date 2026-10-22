@@ -178,7 +178,7 @@ def compute_rows(emps, start, end, sep=None):
                                                punched_at__lt=_aware(datetime.combine(end + timedelta(days=2), time.min))).values_list("employee_id", "punched_at").iterator(chunk_size=20000):
         taps[eid].append(_naive(at).replace(microsecond=0))
     chk = _checks(ids, start, end); leave, part, ot, sb = _requests(ids, start, end); mat = _maternity(ids, start, end)
-    hol = {h.date: h for h in Holiday.objects.filter(active=True, date__gte=start, date__lte=end)}
+    hol = {h.date: h for h in Holiday.objects.filter(active=True, date__gte=start, date__lte=end).prefetch_related("duty_departments")}
     out = []
     for e in emps:
         by = assign_workdays(taps.get(e.pk, []), grid[e.pk]); last_day = sep.get(e.pk)
@@ -205,7 +205,7 @@ def _row(e, d, cell, taps, check, leave, partial, windows, standby, maternity, h
     elif maternity:
         status, source = "cuti_hamil", "pengajuan"
         if has_scan: conflict = "Ada scan pada masa cuti hamil"
-    elif holiday and (holiday.applies == "all" or not e.is_rotation):
+    elif holiday and (holiday.applies == "all" or not e.is_rotation) and not holiday.on_duty(e):
         status, source = ("hadir", "mesin") if has_scan else ("libur_nasional", "libur")
         if has_scan: notes.append(f"{HOLIDAY_WORK_NOTE}: {holiday.name}")
     elif off:
@@ -213,6 +213,7 @@ def _row(e, d, cell, taps, check, leave, partial, windows, standby, maternity, h
         if has_scan: notes.append(f"{HOLIDAY_WORK_NOTE} jadwal")
     else:
         status, source = ("hadir", "mesin") if has_scan else ("tanpa_scan", "mesin")
+        if holiday and holiday.on_duty(e) and holiday.duty_premium and has_scan: notes.append(f"{HOLIDAY_WORK_NOTE}: {holiday.name} (wajib masuk)")   # harus di depan: Payroll membaca awalan catatan
         if not shift: notes.append("Karyawan belum punya shift: terlambat tidak dihitung")
     late, early = (a["late"], a["early"]) if status == "hadir" else (0, 0)
     if "izin_terlambat" in partial and late: notes.append(f"Izin terlambat ({late} menit tidak dihitung)"); late = 0

@@ -10,6 +10,7 @@
 {% else %}<p class="note wait">Dibatalkan: {{ run.cancel_reason }}</p>{% endif %}
 {% if stale %}<p class="note wait">⚠ Ada perubahan data (penyesuaian/profil/skala/parameter) setelah perhitungan terakhir. Hitung ulang sebelum menetapkan.</p>{% endif %}
 {% for w in run.warnings %}<p class="note wait">⚠ {{ w }}</p>{% endfor %}
+{% include "payroll/_readiness.html" %}
 <div class="sepkpi"><span><b>{{ run.n_slips }}</b> slip{% if flagged %} <small>({{ flagged }} perlu ditinjau)</small>{% endif %}</span><span><b>{{ run.total_gross|rupiah }}</b> pendapatan <small>− {{ run.total_deductions|rupiah }} potongan</small></span><span><b>{{ run.total_net|rupiah }}</b> gaji bersih</span></div>
 <div class="decide" style="margin:0 0 12px">
 {% if can.calculate %}<form method="post" action="{% url 'pay_run_action' run.pk 'calculate' %}" style="display:inline">{% csrf_token %}<button class="btn{% if run.status != 'draft' and not stale %} ghost{% endif %}">{% if run.status == 'draft' %}Hitung{% else %}Hitung ulang{% endif %}</button></form>{% endif %}
@@ -27,8 +28,9 @@
 {% for s in page %}<tr><td class="fill"><a href="{% url 'pay_slip' s.pk %}">{{ s.emp_name }}</a>{% if s.flagged %} <span title="{{ s.flags|join:'; ' }}">⚠</span>{% endif %}<small>{{ s.nik }} · {{ s.department_name }}</small></td>
 <td class="nw">{{ s.paid_days }}<small>{{ s.daily_wage|rupiah }}</small></td><td class="num nw">{{ s.total_earnings|rupiah }}</td><td class="num nw">{{ s.total_deductions|rupiah }}</td><td class="num nw"><b>{{ s.net_pay|rupiah }}</b></td>
 <td class="acts"><a class="btn sm ghost" href="{% url 'pay_slip' s.pk %}">Slip</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="6">{% if f.q or f.department or f.flag %}Tidak ada slip yang cocok. <a href="?">Reset filter</a>{% elif run.status == 'draft' %}Belum dihitung. Klik <b>Hitung</b>.{% else %}Run ini tidak berisi slip. Periksa peringatan di atas (profil/skala belum lengkap).{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">{% if f.q or f.department or f.flag %}Tidak ada slip yang cocok. <a href="?">Reset filter</a>{% elif run.status == 'draft' %}Belum dihitung. Klik <b>Hitung</b>.{% else %}Run ini tidak berisi slip. Periksa peringatan di atas: lengkapi <a href="{% url 'pay_profiles' %}">Profil Gaji</a> dan <a href="{% url 'pay_scale' %}">Skala Gaji Harian</a>, lalu klik <b>Hitung ulang</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
+{% include "payroll/_compare.html" %}
 {% if by_dept %}<details class="flt"><summary>Ringkasan per departemen</summary><div class="wrap"><table><thead><tr><th>Departemen</th><th class="num">Slip</th><th class="num">Pendapatan</th><th class="num">Bersih</th></tr></thead><tbody>{% for r in by_dept %}<tr><td>{{ r.department_name }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.gross|rupiah }}</td><td class="num">{{ r.net|rupiah }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
 {% if param_rows %}<details class="flt"><summary>Parameter yang dipakai saat dihitung</summary><div class="wrap"><table><thead><tr><th>Parameter</th><th class="num">Nilai</th><th>Satuan</th></tr></thead><tbody>{% for l, v, u in param_rows %}<tr><td>{{ l }}</td><td class="num">{{ v }}</td><td>{{ u }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
 <details class="flt"><summary>Jejak run</summary><div class="wrap"><table><thead><tr><th class="nw">Waktu</th><th>Aksi</th><th>Oleh</th><th>Catatan</th></tr></thead><tbody>{% for e in events %}<tr><td class="nw">{{ e.at|date:"d-m-Y H:i" }}</td><td>{{ e.action }}</td><td>{{ e.by.username|default:"—" }}</td><td>{{ e.note }}</td></tr>{% endfor %}</tbody></table></div></details>

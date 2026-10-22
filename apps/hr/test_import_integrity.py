@@ -151,8 +151,13 @@ class BackupScriptGuards(__import__("django.test", fromlist=["SimpleTestCase"]).
 
     def test_backup_has_checksum_manifest_and_skips_staging(self):
         s = self.read("backup.sh")
-        for k in ("sha256sum", ".manifest.json", "--exclude='media/attendance_stage'", "hr_attendanceraw", "$SUM"): self.assertIn(k, s, k)
+        for k in ("sha256sum", ".manifest.json", "--exclude='media/attendance_stage'", "information_schema.tables", "key_fingerprint", "hris_private_", "BACKUP_RSYNC_TARGET", "$SUM"): self.assertIn(k, s, k)   # manifest = SEMUA tabel (bukan daftar tetap)
 
     def test_restore_verifies_confirms_snapshots_and_is_atomic(self):
         s = self.read("restore.sh")
-        for k in ("sha256sum -c", "RESTORE_YES", "pre_restore_", "--single-transaction", "--exit-on-error", "attendance_stage", "purge_stale", "migrate --noinput", "manifest.json"): self.assertIn(k, s, k)
+        for k in ("sha256sum -c", "RESTORE_YES", "pre_restore_", "--single-transaction", "--exit-on-error", "attendance_stage", "purge_stale", "migrate --noinput", "manifest.json", "verify_restore"): self.assertIn(k, s, k)
+
+    def test_restore_drill_never_touches_production_db_and_cleans_up(self):
+        s = self.read("restore_drill.sh")
+        for k in ("create database", "drop database if exists", "trap cleanup EXIT", "verify_restore", "restore_drill.json", "send_alert", "sha256sum -c", "--single-transaction", "DRILL_DB sama dengan database produksi"): self.assertIn(k, s, k)
+        self.assertNotIn("--clean", s)   # latihan tidak boleh memakai --clean (itu untuk restore sungguhan)

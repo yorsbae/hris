@@ -23,7 +23,7 @@ from apps.core.scope import require_roles
 from apps.hr.models import Department, Employee
 from apps.hrd.models import Separation
 from apps.hrd.views import paginate
-from . import calc, engine, params as P, pdf, services
+from . import calc, engine, params as P, pdf, readiness as RD, services
 from .forms import AdjustmentForm, PayDateForm, ProfileForm, ReasonForm, RunForm, ScaleForm, ParamForm, TaliRuleForm
 from .models import PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, PayslipItem, TaliAsihRule, WageScale
 
@@ -154,9 +154,11 @@ def run_detail(request, pk):
                                        money_cols=("upah_harian", "gaji_pokok", "tunjangan", "premi", "lembur", "uang_makan", "lain_lain", "total_pendapatan", "total_potongan", "gaji_bersih"), num_cols=("hari_dibayar",))
     by_dept = list(run.slips.order_by().values("department_name").annotate(n=Count("id"), gross=Sum("total_earnings"), net=Sum("net_pay")).order_by("department_name"))
     flagged = run.slips.filter(flagged=True).count(); can = _can(request.user, run); stale = services.run_is_stale(run)
+    ready = RD.readiness(run.period) if run.status in ("draft", "diserahkan", "dihitung") else None
     ctx = {"run": run, "f": f, "page": paginate(request, qs), "by_dept": by_dept, "flagged": flagged, "can": can, "stale": stale, "step_now": STATUS_STEP.get(run.status, 0),
            "events": run.events.select_related("by"), "depts": [d["department_name"] for d in by_dept], "reason_form": ReasonForm(), "pay_form": PayDateForm(),
            "qs": urlencode({k: v for k, v in f.items() if v}), "is_payroll": _is_payroll(request.user),
+           "ready": ready, "ready_sum": RD.summary(ready) if ready else None, "compare": RD.comparison(run) if run.status != "dibatalkan" else None,
            "param_rows": [(P.PARAMS[k][0], v, P.PARAMS[k][2]) for k, v in (run.params or {}).items() if k in P.PARAMS]}
     return render(request, "payroll/run_detail.html", ctx)
 

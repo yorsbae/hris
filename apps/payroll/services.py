@@ -71,7 +71,10 @@ def calculate_run(pk, user):
         run = _locked(pk)
         if run.status == PayrollRun.DRAFT: raise ValueError("Data periode ini belum diserahkan HRD. Minta HRD menyerahkan run ke Payroll lebih dulu.")
         if run.status not in (PayrollRun.HANDED, PayrollRun.CALCULATED): raise ValueError(f"Run berstatus '{run.get_status_display()}' tidak dapat dihitung ulang.")
-        engine.persist(run, engine.build(run.period))
+        built = engine.build(run.period)
+        if not built["slips"]:   # jangan tandai "Sudah dihitung" bila hasilnya kosong: itu menyesatkan dan tidak bisa ditetapkan
+            raise ValueError("Tidak ada slip yang terbentuk, perhitungan dibatalkan. " + " ".join(built["warnings"]))
+        engine.persist(run, built)
         run.status, run.calc_at, run.calc_by = PayrollRun.CALCULATED, timezone.now(), user
         run.save(); _event(run, "hitung", user, f"{run.n_slips} slip")
         return run
@@ -141,7 +144,6 @@ def cancel_run(pk, reason, user):
 def _stale(run):
     """True bila ada master/penyesuaian yang dibuat/dibatalkan setelah perhitungan terakhir (hasil perhitungan mungkin usang)."""
     if not run.calc_at: return True
-    start, end = calc.period_bounds(run.period)
     for model, extra in ((PayAdjustment, {"period": run.period}), (PayProfile, {}), (WageScale, {}), (PayParam, {})):
         qs = model.objects.filter(**extra)
         if qs.filter(created_at__gt=run.calc_at).exists() or qs.filter(voided_at__gt=run.calc_at).exists(): return True
