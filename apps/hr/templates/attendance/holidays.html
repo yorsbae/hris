@@ -16,7 +16,6 @@
 .hl-dept,.hl-prem{margin-top:10px;padding:12px 14px;border:1px dashed var(--bd2);border-radius:10px}.hl-dept[hidden],.hl-prem[hidden]{display:none}
 .hl-lbl{font-size:13px;font-weight:600;margin:0 0 6px}.hl-dept .roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:2px 10px;max-height:190px;padding:6px}
 .hl-dept .roster label{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:14px;margin:0}.hl-prem .help{margin:4px 0 0 24px}
-.hl-adv{margin:0 0 14px;font-size:14px}.hl-adv>summary{cursor:pointer;color:var(--ac);font-weight:500}.hl-adv .row{margin-top:8px;max-width:520px}.hl-adv select{width:100%}
 table.hl td{vertical-align:top}table.hl td small{display:block;color:var(--mu);font-size:12px;margin-top:2px}table.hl tr.past td{color:var(--mu)}table.hl tr.off td:not(.hl-acts){opacity:.6}
 td.hl-acts{white-space:nowrap;text-align:right}td.hl-acts form{display:inline;margin:0}td.hl-acts .btn{margin:0 0 0 6px;padding:4px 10px;font-size:13px;min-height:30px}
 tr.hl-edit td{background:var(--hov);padding:16px}tr.hl-edit[hidden]{display:none}.hl-edit .hl-form{max-width:700px}.hl-edit h4{margin:0 0 10px;font-size:15px}
@@ -48,8 +47,6 @@ tr.hl-edit td{background:var(--hov);padding:16px}tr.hl-edit[hidden]{display:none
 <div><label for="hl-name">Nama hari libur</label><input id="hl-name" name="name" placeholder="mis. Idul Fitri" required maxlength="100"></div>
 <div><label for="hl-kind">Jenis</label><select id="hl-kind" name="kind">{% for k, v in kinds %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div></div></div>
 <div class="hl-sec"><div class="hl-h"><i>2</i>Pola libur</div>{% include "attendance/_holiday_duty.html" %}</div>
-<details class="hl-adv"><summary>Pengaturan lanjutan (karyawan shift bergilir)</summary><div class="row"><select name="applies" aria-label="Libur berlaku untuk">{% for k, v in applies %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
-<div class="help">Biasanya dibiarkan. Karyawan shift bergilir (A7…G7, A7Pack…G7Pack) tetap mengikuti jadwal rotasinya.</div></div></details>
 <button class="btn" type="submit">+ Tambah hari libur</button></form>
 
 <p class="hl-stats"><span><b>{{ stats.total }}</b> hari libur</span><span><b>{{ stats.aktif }}</b> aktif</span><span><b>{{ stats.akan }}</b> akan datang</span><span><b>{{ stats.berangkat }}</b> ada yang tetap masuk</span></p>

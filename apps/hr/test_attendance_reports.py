@@ -49,6 +49,11 @@ class ScanlogTests(Base):
     def test_lists_rows_and_unmapped(self):
         r = self.get(); self.assertEqual(r.status_code, 200); self.assertEqual(r.context["page"].paginator.count, 4); self.assertContains(r, "PIN belum dipetakan")
 
+    def test_summary_unmapped_warning_and_quick_ranges(self):
+        r = self.get(); k = r.context["k"]; self.assertEqual((k["total"], k["unmapped"], k["pins"]), (4, 1, 3))
+        self.assertContains(r, "1 scan belum terhubung ke karyawan"); self.assertContains(r, "Petakan PIN"); self.assertContains(r, "Hari scan terakhir"); self.assertEqual(r.context["n_rows"], 4)
+        AttendanceRaw.objects.filter(employee=None).delete(); self.assertNotContains(self.get(), "belum terhubung ke karyawan")
+
     def test_filters(self):
         self.assertEqual(self.get(dept=self.e1.department_id).context["page"].paginator.count, 2)
         self.assertEqual(self.get(device="FP2").context["page"].paginator.count, 1)

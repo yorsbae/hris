@@ -1,21 +1,37 @@
 {% extends "base.html" %}{% block title %}Data Scanlog{% endblock %}{% block content %}
+<style>
+.slp .rng{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px;font-size:13px;color:var(--mu)}.slp .rng a{padding:3px 11px;border:1px solid var(--bd2);border-radius:999px;text-decoration:none;color:var(--ac)}.slp .rng a.cur{background:var(--ac);border-color:var(--ac);color:#fff}
+.slp .fl{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mu);font-weight:500}.slp .fl input,.slp .fl select{min-width:0}.slp form.bar{align-items:flex-end}
+.slp .nres{color:var(--mu);font-size:13px;margin:0 0 8px}.slp .note.warn{border-left-color:var(--wn);background:var(--wnb);color:var(--wn)}.slp .note .btn{margin:6px 8px 0 0}
+.slp tr.unm td{background:var(--wnb)}
+</style>
+<div class="slp">
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Data Scanlog</h2>
-<p class="sub">Log mentah tiap ketukan mesin ({{ d1|date:"d M Y" }}{% if d1 != d2 %} – {{ d2|date:"d M Y" }}{% endif %}). Tidak bisa diubah/dihapus. Hanya HRD. Satu hari bisa ribuan baris: persempit dengan filter, atau ekspor.</p>
+<p class="sub">Rekaman mentah setiap ketukan jari dari mesin Fingerspot, untuk memeriksa data sebelum direkap. Tidak bisa diubah atau dihapus. Hanya HRD.</p>
+<details class="flt"><summary>Alur &amp; petunjuk</summary><div class="hint flow"><ol class="flowsteps">
+<li><i>1</i><span><a href="{% url 'att_import' %}"><b>Impor berkas Fingerspot</b></a><small>Scan dari mesin masuk ke sini sebagai data mentah.</small></span></li>
+<li class="now"><i>2</i><span><b>Periksa di halaman ini</b><small>Pastikan jumlah scan wajar dan tidak ada PIN yang belum dikenal.</small></span></li>
+<li><i>3</i><span><a href="{% url 'att_pins' %}"><b>Petakan PIN yang belum dikenal</b></a><small>Scan dengan PIN tanpa karyawan tidak ikut rekap.</small></span></li>
+<li><i>4</i><span><a href="{% url 'att_daily' %}"><b>Lihat hasil rekap</b></a><small>Hadir, terlambat, dan tanpa scan dihitung otomatis dari data ini.</small></span></li></ol></div></details>
 {% if capped %}<p class="hint flow">Rentang tampilan dibatasi maks. 31 hari; untuk rentang lebih panjang gunakan ekspor (maks. 93 hari; batas baris per ekspor: XLSX {{ limits.xlsx }}, XML {{ limits.xml }}, CSV {{ limits.csv }}).</p>{% endif %}
-<div class="tools"><details class="more"><summary>Ekspor format Fingerspot ▾</summary><div><small>Sesuai filter (14 kolom persis template Fingerspot)</small>
+<div class="sepkpi"><span><b>{{ k.total }}</b> scan</span><span><b>{{ k.pins }}</b> PIN berbeda</span><a{% if k.unmapped %} class="warn"{% endif %} href="?{{ unmapped_qs }}"><b>{{ k.unmapped }}</b> PIN belum dipetakan</a><span>scan terakhir <b>{% if k.last %}{{ k.last|date:"d M H:i" }}{% else %}—{% endif %}</b></span></div>
+{% if k.unmapped %}<div class="note warn" role="status"><strong>{{ k.unmapped }} scan belum terhubung ke karyawan.</strong> Scan ini tidak masuk rekap absensi sampai PIN-nya dipetakan.<br><a class="btn" href="{% url 'att_pins' %}">Petakan PIN ›</a><a class="btn ghost" href="?{{ unmapped_qs }}">Lihat scan-nya</a></div>{% endif %}
+<div class="tools"><a class="btn" style="margin-left:0" href="{% url 'att_import' %}">+ Impor Fingerspot</a><details class="more"><summary>Ekspor ▾</summary><div><small>Sesuai filter di bawah (14 kolom persis template Fingerspot)</small>
 <div class="xrow"><span>Scanlog</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a><a href="?{{ qs }}&amp;export=1&amp;format=xml">XML</a></div>
-<small>Kolom Verifikasi / I/O / Workcode tidak disimpan HRIS → kosong. Kolom Mesin = kode mesin, aman diimpor ulang.</small></div></details>
-<a class="btn" href="{% url 'att_import' %}">+ Impor Fingerspot</a></div>
-<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari PIN / NIK / nama" maxlength="60" aria-label="PIN, NIK atau nama">
-<input type="date" name="from" value="{{ d1|date:'Y-m-d' }}" aria-label="Dari tanggal"><input type="date" name="to" value="{{ d2|date:'Y-m-d' }}" aria-label="Sampai tanggal">
-<select name="dept" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if f.dept == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
-<select name="device" aria-label="Mesin"><option value="">Semua mesin</option>{% for c, n in device_opts %}<option value="{{ c }}"{% if f.device == c %} selected{% endif %}>{{ n }}</option>{% endfor %}</select>
-<select name="unmapped" aria-label="Pemetaan"><option value="">Semua scan</option><option value="1"{% if f.unmapped == '1' %} selected{% endif %}>PIN belum dipetakan</option></select>
-<select name="sort" aria-label="Urutan"><option value="">Terbaru dulu</option><option value="asc"{% if f.sort == 'asc' %} selected{% endif %}>Terlama dulu</option></select></form>
+<small>Kolom Verifikasi / I/O / Workcode tidak disimpan HRIS → kosong. Kolom Mesin = kode mesin, aman diimpor ulang.</small></div></details></div>
+{% if ranges %}<div class="rng"><span>Pilih cepat:</span>{% for lbl, q, cur in ranges %}<a href="?{{ q }}"{% if cur %} class="cur" aria-current="true"{% endif %}>{{ lbl }}</a>{% endfor %}</div>{% endif %}
+<form method="get" data-fbar class="bar"><label class="fl">Cari<input name="q" value="{{ f.q }}" placeholder="PIN / NIK / nama" maxlength="60"></label>
+<label class="fl">Dari tanggal<input type="date" name="from" value="{{ d1|date:'Y-m-d' }}"></label><label class="fl">Sampai tanggal<input type="date" name="to" value="{{ d2|date:'Y-m-d' }}"></label>
+<label class="fl">Departemen<select name="dept"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if f.dept == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
+<label class="fl">Mesin<select name="device"><option value="">Semua mesin</option>{% for c, n in device_opts %}<option value="{{ c }}"{% if f.device == c %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
+<label class="fl">Tampilkan<select name="unmapped"><option value="">Semua scan</option><option value="1"{% if f.unmapped == '1' %} selected{% endif %}>Hanya PIN belum dipetakan</option></select></label>
+<label class="fl">Urutan<select name="sort"><option value="">Terbaru dulu</option><option value="asc"{% if f.sort == 'asc' %} selected{% endif %}>Terlama dulu</option></select></label></form>
+<p class="nres">{% if act %}{{ n_rows }} scan cocok dengan filter · <a href="{% url 'att_scanlog' %}">Reset filter</a>{% else %}Menampilkan {{ n_rows }} scan pada {{ d1|date:"d M Y" }}{% if d1 != d2 %} – {{ d2|date:"d M Y" }}{% endif %}{% endif %}</p>
 {% if page %}<div class="wrap"><table class="sepfit"><thead><tr><th>Tanggal</th><th>Jam</th><th>PIN</th><th>Karyawan</th><th>Jabatan</th><th>Departemen</th><th>Mesin</th></tr></thead><tbody>
-{% for r in page %}<tr><td class="nw">{{ r.d }}</td><td class="nw">{{ r.t }}</td><td>{{ r.pin }}</td>
-<td>{% if r.employee %}<a href="{% url 'att_employee' r.employee_id %}?month={{ r.punched_at|date:'Y-m' }}">{{ r.employee.name }}</a><small>{{ r.employee.nik }}</small>{% else %}<span class="pill rejected">PIN belum dipetakan</span>{% endif %}</td>
+{% for r in page %}<tr{% if not r.employee_id %} class="unm"{% endif %}><td class="nw">{{ r.d }}</td><td class="nw">{{ r.t }}</td><td>{{ r.pin }}</td>
+<td>{% if r.employee %}<a href="{% url 'att_employee' r.employee_id %}?month={{ r.punched_at|date:'Y-m' }}">{{ r.employee.name }}</a><small>{{ r.employee.nik }}</small>{% else %}<span class="pill rejected">PIN belum dipetakan</span> <a href="{% url 'att_pins' %}">Petakan ›</a>{% endif %}</td>
 <td>{{ r.employee.position.name|default:"—" }}</td><td>{{ r.employee.department.name|default:"—" }}</td><td>{{ r.dev }}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}{% else %}<p class="empty">{% if act %}Tidak ada scan yang cocok. <a href="{% url 'att_scanlog' %}">Reset filter</a>.{% else %}Tidak ada scan pada rentang ini. <a href="{% url 'att_import' %}">Impor berkas Fingerspot</a>.{% endif %}</p>{% endif %}
+</div>
 {% endblock %}

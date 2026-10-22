@@ -133,7 +133,14 @@ def scanlog(request):
         t = timezone.localtime(r.punched_at); r.d, r.t = t.strftime("%d-%m-%Y"), t.strftime("%H:%M:%S"); dv = devices.get(r.device_id); r.dev = dv.name if dv else r.device_id
     seen = AttendanceRaw.objects.filter(punched_at__gte=a, punched_at__lt=b).values_list("device_id", flat=True).distinct()
     codes = sorted(set(seen) | set(devices))
-    return render(request, "attendance/scanlog.html", {
+    # Ringkasan rentang (tanpa filter pencarian) + pintasan rentang tanggal, supaya jelas "apa isi data ini" dan "apa langkah berikutnya"
+    k = AttendanceRaw.objects.filter(punched_at__gte=a, punched_at__lt=b).aggregate(total=Count("id"), unmapped=Count("id", filter=Q(employee__isnull=True)), pins=Count("pin", distinct=True), last=Max("punched_at"))
+    k["last"] = timezone.localtime(k["last"]) if k["last"] else None
+    latest = _latest_scan_date()
+    def _rng(x, y): q = g.copy(); [q.pop(n, None) for n in ("page", "export", "format", "date")]; q["from"], q["to"] = x.isoformat(), y.isoformat(); return q.urlencode()
+    ranges = [(lbl, _rng(x, y), (x, y) == (d1, d2)) for lbl, x, y in (("Hari scan terakhir", latest, latest), ("7 hari terakhir", latest - timedelta(days=6), latest), ("31 hari terakhir", latest - timedelta(days=30), latest))] if latest else []
+    uq = g.copy(); [uq.pop(n, None) for n in ("page", "export", "format")]; uq["unmapped"] = "1"; uq.setdefault("from", d1.isoformat()); uq.setdefault("to", d2.isoformat())
+    return render(request, "attendance/scanlog.html", {"k": k, "ranges": ranges, "unmapped_qs": uq.urlencode(), "n_rows": page.paginator.count,
         "page": page, "qs": _qs_without(g, "export", "format"), "d1": d1, "d2": d2, "f": {"q": q, "dept": dept, "device": dev, "unmapped": g.get("unmapped", ""), "sort": g.get("sort", "")},
         "depts": Department.objects.order_by("name"), "device_opts": [(c, devices[c].name if c in devices else c) for c in codes], "capped": (d2 - d1).days + 1 >= MAX_LOG_DAYS and bool(g.get("to")),
         "act": any((q, dept, dev, g.get("unmapped"))), "limits": EXPORT_LIMIT})
