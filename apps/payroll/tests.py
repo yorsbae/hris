@@ -9,7 +9,7 @@ from apps.core.models import Role, User
 from apps.hr.models import AttendanceDaily, Department, Employee, Position, Shift
 from apps.hrd.models import BpjsDeduction, BpjsMembership, Separation, UniformPurchase, UniformSize, UniformType
 from . import calc, engine, services
-from .models import MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, WageScale
+from .models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, WageScale
 
 PERIOD = "2025-10"
 D1 = datetime.date
@@ -153,6 +153,15 @@ class EngineSampleSlipTests(Base):
         for e in (h, b): self.att(e, D1(2025, 10, 1), ot=120); self.att(e, D1(2025, 10, 2), ot=30)   # 2,5 jam
         run = self.run_calc(); sh, sb = Payslip.objects.get(run=run, employee=h), Payslip.objects.get(run=run, employee=b)
         self.assertEqual((self.item(sh, "lembur_overtime").amount, self.item(sh, "lembur_overtime").qty), (37_500, D("2.50"))); self.assertEqual(self.item(sb, "lembur_overtime").amount, 50_000)
+
+    def test_flat_standby_rate_and_education_master_with_profile_override(self):
+        self.scale(); a, b = self.emp("A1"), self.emp("B1"); a.education = b.education = "S1"; a.save(); b.save()
+        self.profile(a, pay_type="harian"); self.profile(b, allowance_education=75_000)
+        EducationAllowance.objects.create(education="S1", amount=60_000, effective_from=D1(2021, 1, 1)); OvertimeRate.objects.create(kind="standby", pay_type="harian", amount=8_000, effective_from=D1(2021, 1, 1))
+        self.att(a, D1(2025, 10, 1), standby_minutes=90)
+        run = self.run_calc(); sa, sb = Payslip.objects.get(run=run, employee=a), Payslip.objects.get(run=run, employee=b)
+        self.assertEqual(self.item(sa, "t_pendidikan").amount, 60_000); self.assertEqual(self.item(sb, "t_pendidikan").amount, 75_000)   # profil menang
+        self.assertEqual((self.item(sa, "lembur_standby").amount, self.item(sa, "lembur_standby").qty), (12_000, D("1.50")))
 
     def test_alfa_deduction_and_standby(self):
         e = self.emp(); self.scale("90000"); self.profile(e)
@@ -377,7 +386,7 @@ class ViewAccessTests(Base):
         self.run = PayrollRun.objects.create(period=PERIOD, status="diserahkan"); services.calculate_run(self.run.pk, self.payroll)
         self.slip = self.run.slips.first()
         self.dept_admin = make_user("da", Role.DEPT_ADMIN, department=self.dept); self.poli = make_user("pl", Role.POLI)
-        self.pages = ["pay_home", "pay_runs", "pay_profiles", "pay_profile_new", "pay_scale", "pay_scale_new", "pay_rates", "pay_meal_period_new", "pay_meal_rate_new", "pay_ot_rate_new", "pay_params", "pay_param_new", "pay_adjustments", "pay_adjustment_new", "pay_tali", "pay_tali_rule_new"]
+        self.pages = ["pay_home", "pay_runs", "pay_profiles", "pay_profile_new", "pay_scale", "pay_scale_new", "pay_rates", "pay_meal_period_new", "pay_meal_rate_new", "pay_ot_rate_new", "pay_edu_allow_new", "pay_params", "pay_param_new", "pay_adjustments", "pay_adjustment_new", "pay_tali", "pay_tali_rule_new"]
 
     def get(self, user, name, *a, **kw):
         self.client.force_login(user); return self.client.get(reverse(name, args=a), **kw)

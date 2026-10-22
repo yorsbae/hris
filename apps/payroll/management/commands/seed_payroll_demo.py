@@ -16,7 +16,7 @@ from apps.core.models import Role, User
 from apps.hr.attendance_calc import HOLIDAY_WORK_NOTE
 from apps.hr.models import AttendanceDaily, Employee, Shift
 from apps.payroll import calc, defaults, engine, services
-from apps.payroll.models import MealPeriod, MealRate, OvertimeRate, PayProfile, PayrollRun, WageScale
+from apps.payroll.models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayProfile, PayrollRun, WageScale
 
 SINCE = date(2020, 1, 1)
 GRADE_OF = {"Operator": 3, "Staf": 5, "Teknisi": 6, "Leader": 7, "Supervisor": 8, "Manager": 9, "Perawat": 6, "Bidan": 6}
@@ -90,7 +90,10 @@ class Command(BaseCommand):
                 if "PAGI" in (sh.code or sh.name).upper() or sh.is_gs: 
                     for t in ("harian", "bulanan"): MealRate.objects.create(pay_type=t, shift=sh, amount=0, effective_from=SINCE, note="Contoh demo: tidak dapat", created_by=actor)
         if not OvertimeRate.objects.filter(voided_at__isnull=True).exists():
-            for t, amt in (("harian", 15000), ("bulanan", 20000)): OvertimeRate.objects.create(pay_type=t, amount=amt, effective_from=SINCE, note="Contoh demo", created_by=actor)
+            for t, amt in (("harian", 15000), ("bulanan", 20000)): OvertimeRate.objects.create(kind="lembur", pay_type=t, amount=amt, effective_from=SINCE, note="Contoh demo", created_by=actor)
+            for t, amt in (("harian", 8000), ("bulanan", 10000)): OvertimeRate.objects.create(kind="standby", pay_type=t, amount=amt, effective_from=SINCE, note="Contoh demo: kerja saat jam istirahat", created_by=actor)
+        if not EducationAllowance.objects.filter(voided_at__isnull=True).exists():
+            for edu, amt in (("SMA", 30000), ("D3", 60000), ("S1", 90000)): EducationAllowance.objects.create(education=edu, amount=amt, effective_from=SINCE, note="Contoh demo", created_by=actor)
 
     def seed_attendance(self, o, today, actor):
         """Rekap absensi CONTOH untuk karyawan berprofil yang belum punya rekap di periode itu: hadir Sen–Sab (Minggu libur), lembur berkala, stand by, 1 hari masuk di hari libur."""

@@ -23,7 +23,7 @@ from apps.hr.attendance_calc import HOLIDAY_WORK_NOTE
 from apps.hr.models import AttendanceDaily, Employee, Shift
 from apps.hrd.models import BpjsDeduction, BpjsMembership, Separation, UniformPurchase
 from . import calc, params as P
-from .models import MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, Payslip, PayslipItem, WageScale
+from .models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, Payslip, PayslipItem, WageScale
 
 CHUNK = 500
 
@@ -76,9 +76,16 @@ def meal_rate_for(rates, pay_type, shift_id):
 
 
 def overtime_rates(on):
-    """{pay_type: Rp/jam} berlaku pada `on`."""
+    """{(jenis, pay_type): Rp/jam} berlaku pada `on`; jenis = lembur | standby."""
     out = {}
-    for r in OvertimeRate.objects.filter(voided_at__isnull=True, effective_from__lte=on).order_by("effective_from", "id"): out[r.pay_type] = r.amount
+    for r in OvertimeRate.objects.filter(voided_at__isnull=True, effective_from__lte=on).order_by("effective_from", "id"): out[(r.kind, r.pay_type)] = r.amount
+    return out
+
+
+def education_allowances(on):
+    """{PENDIDIKAN huruf besar: Rp/bulan} standar berlaku pada `on`."""
+    out = {}
+    for r in EducationAllowance.objects.filter(voided_at__isnull=True, effective_from__lte=on).order_by("effective_from", "id"): out[r.education.strip().upper()] = r.amount
     return out
 
 
@@ -150,7 +157,7 @@ def build(period):
     seps = {s.employee_id: s for s in Separation.objects.filter(voided_at__isnull=True)}
     tali = pending_tali_asih(end)
     profs = current_profiles(end)
-    mrates, orates, windows = meal_rates(end), overtime_rates(end), meal_windows(start, end)
+    mrates, orates, windows, edu = meal_rates(end), overtime_rates(end), meal_windows(start, end), education_allowances(end)
     emps = {e.pk: e for e in Employee.objects.filter(join_date__lte=end).select_related("department", "position")}
     warnings = []
 
@@ -186,11 +193,11 @@ def build(period):
             items.append({"component": c, "amount": amount, "qty": qty, "rate": rate, "source": source, "note": note, "refs": refs or []})
         gp = calc.q0(daily * days)
         if days > 0: add("gaji_pokok", gp, qty=calc.q1(days), rate=calc.q2(daily), source="profil")
-        add("t_jabatan", pf.allowance_position * ratio, source="profil"); add("t_pendidikan", pf.allowance_education * ratio, source="profil")
+        add("t_jabatan", pf.allowance_position * ratio, source="profil"); add("t_pendidikan", (pf.allowance_education or edu.get((e.education or "").strip().upper(), D(0))) * ratio, source="profil" if pf.allowance_education else "master")
         add("t_khusus", pf.allowance_special * ratio, source="profil"); add("t_lain", pf.allowance_other * ratio, source="profil")
         years = calc.full_years(e.join_date, end)
         if days > 0: add("t_masa_kerja", years * prm["tunj_masa_kerja"] * ratio, qty=D(years), rate=prm["tunj_masa_kerja"], source="hitung")
-        flat = orates.get(pf.pay_type)
+        flat = orates.get(("lembur", pf.pay_type))
         if flat:   # master Lembur per jam (nominal tetap): jam terbukti scan × tarif
             hours = calc.q2(sum((D(int(m)) for m in ot.get(e.pk, []) if m and m > 0), D(0)) / 60)
             if hours > 0: add("lembur_overtime", hours * flat, qty=hours, rate=flat, source="absensi", note=f"tarif tetap {pf.get_pay_type_display().lower()}")
@@ -198,7 +205,10 @@ def build(period):
             hours = calc.weighted_hours(ot.get(e.pk, []), prm["lembur_jam1"], prm["lembur_jam2"])
             if hours > 0: add("lembur_overtime", hours * hourly, qty=hours, rate=calc.q2(hourly), source="absensi")
         if a and a["libur_kerja"]: add("lembur_libur", daily * a["libur_kerja"], qty=D(a["libur_kerja"]), rate=calc.q2(daily), source="absensi")
-        if a and a["standby"]: add("lembur_standby", D(a["standby"]) / 60 * hourly * prm["standby_pengali"], qty=calc.q2(D(a["standby"]) / 60), rate=calc.q2(hourly), source="absensi")
+        if a and a["standby"]:
+            sflat = orates.get(("standby", pf.pay_type)); sh = calc.q2(D(a["standby"]) / 60)
+            if sflat: add("lembur_standby", sh * sflat, qty=sh, rate=sflat, source="absensi", note=f"tarif tetap {pf.get_pay_type_display().lower()}")
+            else: add("lembur_standby", D(a["standby"]) / 60 * hourly * prm["standby_pengali"], qty=sh, rate=calc.q2(hourly), source="absensi")
         if pf.meal_allowance and mdays.get(e.pk):   # hanya hari hadir di dalam Periode Uang Makan; tarif menurut tipe gaji + shift hari itu (0 = shift tanpa uang makan)
             tot, n, parts = D(0), 0, []
             for sid, cnt in sorted(mdays[e.pk].items(), key=lambda kv: (kv[0] is None, kv[0] or 0)):

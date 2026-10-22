@@ -1,4 +1,12 @@
-{% extends "base.html" %}{% load money ui %}{% block title %}Lembur & Uang Makan{% endblock %}{% block content %}
+{% extends "base.html" %}{% load money ui %}{% block title %}Lembur & Uang Makan
+<h3>4. Tunjangan pendidikan standar</h3>
+<p class="sub">Tunjangan <b>pendidikan</b> standar per tingkat pendidikan; dipakai bila Profil Gaji karyawan tidak mengisi sendiri. <b>T Khusus</b> dan <b>T Lain-lain</b> berbeda tiap karyawan, jadi diisi per orang di <a href="{% url 'pay_profiles' %}">Profil Gaji</a>.</p>
+<div class="tools"><a class="btn" href="{% url 'pay_edu_allow_new' %}">+ Tambah / ubah tunjangan pendidikan</a></div>
+<div class="wrap"><table><thead><tr><th class="nw">Pendidikan</th><th class="num">Per bulan</th><th class="nw">Sejak</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
+{% for r in edu_rows %}<tr><td class="nw"><b>{{ r.education }}</b></td><td class="num nw">{{ r.amount|rupiah }}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td class="fill"><small>{{ r.note }}</small></td>
+<td class="acts"><form method="post" action="{% url 'pay_void' 'eduallow' r.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada standar; T Pendidikan hanya dari Profil Gaji tiap karyawan.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
 <h2>Master Lembur &amp; Uang Makan</h2>
 <p class="sub">Tarif lembur per jam dan uang makan per hari, dibedakan untuk karyawan <b>harian</b> dan <b>bulanan</b>. Uang makan hanya dibayar pada <b>periode uang makan</b> (mis. bulan puasa) dan bisa berbeda per shift. Perubahan = baris baru bertanggal; riwayat tidak ditimpa.</p>
@@ -19,10 +27,18 @@
 <td class="acts"><form method="post" action="{% url 'pay_void' 'mealrate' r.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
 {% empty %}<tr><td class="empty" colspan="6">Belum ada tarif. Tanpa tarif, uang makan Rp 0.</td></tr>{% endfor %}</tbody></table></div>
 
-<h3>3. Tarif lembur per jam</h3>
-<div class="tools"><a class="btn" href="{% url 'pay_ot_rate_new' %}">+ Tambah / ubah tarif lembur</a></div>
-<div class="wrap"><table><thead><tr><th class="nw">Tipe gaji</th><th class="num">Per jam</th><th class="nw">Sejak</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
-{% for r in ot_rows %}<tr><td class="nw"><b>{{ r.get_pay_type_display }}</b></td><td class="num nw">{{ r.amount|rupiah }}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td class="fill"><small>{{ r.note }}</small></td>
+<h3>3. Tarif lembur &amp; stand by per jam</h3>
+<div class="tools"><a class="btn" href="{% url 'pay_ot_rate_new' %}">+ Tambah / ubah tarif lembur / stand by</a></div>
+<div class="wrap"><table><thead><tr><th class="nw">Jenis</th><th class="nw">Tipe gaji</th><th class="num">Per jam</th><th class="nw">Sejak</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
+{% for r in ot_rows %}<tr><td class="nw">{{ r.get_kind_display }}</td><td class="nw"><b>{{ r.get_pay_type_display }}</b></td><td class="num nw">{{ r.amount|rupiah }}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td class="fill"><small>{{ r.note }}</small></td>
 <td class="acts"><form method="post" action="{% url 'pay_void' 'otrate' r.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
-{% empty %}<tr><td class="empty" colspan="5">Belum ada tarif tetap: lembur memakai rumus upah/jam × pengali (lihat <a href="{% url 'pay_params' %}">Parameter</a>).</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada tarif tetap: lembur &amp; stand by memakai rumus upah/jam × pengali (lihat <a href="{% url 'pay_params' %}">Parameter</a>).</td></tr>{% endfor %}</tbody></table></div>
+
+<h3>4. Tunjangan pendidikan standar</h3>
+<p class="sub">Tunjangan <b>pendidikan</b> standar per tingkat pendidikan; dipakai bila Profil Gaji karyawan tidak mengisi sendiri. <b>T Khusus</b> dan <b>T Lain-lain</b> berbeda tiap karyawan, jadi diisi per orang di <a href="{% url 'pay_profiles' %}">Profil Gaji</a>.</p>
+<div class="tools"><a class="btn" href="{% url 'pay_edu_allow_new' %}">+ Tambah / ubah tunjangan pendidikan</a></div>
+<div class="wrap"><table><thead><tr><th class="nw">Pendidikan</th><th class="num">Per bulan</th><th class="nw">Sejak</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
+{% for r in edu_rows %}<tr><td class="nw"><b>{{ r.education }}</b></td><td class="num nw">{{ r.amount|rupiah }}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td class="fill"><small>{{ r.note }}</small></td>
+<td class="acts"><form method="post" action="{% url 'pay_void' 'eduallow' r.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada standar; T Pendidikan hanya dari Profil Gaji tiap karyawan.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

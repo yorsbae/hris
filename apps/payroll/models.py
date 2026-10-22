@@ -117,14 +117,29 @@ class MealRate(Voidable):
 
 class OvertimeRate(Voidable):
     """Tarif lembur per JAM (nominal tetap) berlaku-sejak, per tipe gaji. Bila ada, lembur = jam terbukti scan × tarif ini; bila tidak ada, dipakai rumus upah/jam × pengali (params)."""
+    KINDS = [("lembur", "Lembur (overtime)"), ("standby", "Stand by (kerja saat jam istirahat)")]
+    kind = models.CharField("Jenis", max_length=8, choices=KINDS, default="lembur")
     pay_type = models.CharField(max_length=8, choices=PayProfile.PAY_TYPES)
-    amount = models.DecimalField("Lembur per jam (Rp)", max_digits=12, decimal_places=0)
+    amount = models.DecimalField("Tarif per jam (Rp)", max_digits=12, decimal_places=0)
     effective_from = models.DateField()
     note = models.CharField(max_length=300, blank=True)
 
     class Meta:
         ordering = ["pay_type", "-effective_from", "-id"]
         constraints = [models.CheckConstraint(condition=models.Q(amount__gt=0), name="otrate_positive")]
+
+
+class EducationAllowance(Voidable):
+    """Tunjangan pendidikan STANDAR per tingkat pendidikan (mis. SMA, D3, S1) berlaku-sejak. Dipakai bila profil gaji karyawan tidak mengisi T Pendidikan sendiri (nilai profil > 0 selalu menang,
+    jadi tiap karyawan boleh berbeda). T Khusus dan T Lain-lain tidak punya standar: diisi per karyawan di Profil Gaji."""
+    education = models.CharField("Pendidikan", max_length=30)
+    amount = models.DecimalField("Tunjangan / bulan (Rp)", max_digits=14, decimal_places=0)
+    effective_from = models.DateField()
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["education", "-effective_from", "-id"]
+        constraints = [models.CheckConstraint(condition=models.Q(amount__gte=0), name="eduallow_nonneg")]
 
 
 class PayComponent(models.Model):

@@ -1292,3 +1292,5 @@ Kebijakan berikut dipilih karena VISION tidak menyebutnya; semuanya nilai di `co
 - `PayProfile.pay_type` (harian/bulanan) baru; impor profil menerima kolom `tipe_gaji`.
 - Data demo: `seed_demo` / `seed_payroll_demo` kini mengisi periode puasa, tarif, absensi (lembur, stand by, masuk hari libur), dan run bulan puasa (slip lengkap: gaji pokok, tunjangan, lembur, hari libur, uang makan, potongan).
 - ASUMSI (konfirmasi pemilik produk): nominal demo hanyalah contoh; tanggal Ramadan 2026/2027 perkiraan; tarif lembur tetap tidak memakai pengali jam pertama/berikutnya; uang makan bulanan juga per hari hadir (hanya tarifnya berbeda).
+- **Stand by** (kerja saat jam istirahat) kini punya tarif per jam tetap per tipe gaji di master Lembur & Uang Makan (jenis "Stand by"); tanpa tarif → rumus lama (upah/jam × pengali).
+- **Tunjangan pendidikan standar** per tingkat pendidikan (master). T Pendidikan di Profil Gaji karyawan (> 0) selalu menang; 0/kosong → memakai standar. T Khusus & T Lain-lain tetap per karyawan di Profil Gaji.

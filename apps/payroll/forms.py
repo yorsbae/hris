@@ -12,7 +12,7 @@ from apps.core.money import RupiahField, parse_rupiah
 from apps.hr.models import Employee
 from apps.hrd.models import Separation
 from . import calc, params as P
-from .models import MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, TaliAsihRule, WageScale
+from .models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, TaliAsihRule, WageScale
 from . import services
 
 DATE = lambda: forms.DateInput(attrs={"type": "date"})  # noqa: E731
@@ -275,8 +275,9 @@ class MealRateForm(forms.Form):
 
 
 class OvertimeRateForm(forms.Form):
+    kind = forms.ChoiceField(label="Jenis", choices=OvertimeRate.KINDS, initial="lembur", help_text="Stand by = bekerja pada jam istirahat (disetujui HRD).")
     pay_type = forms.ChoiceField(label="Tipe gaji", choices=PayProfile.PAY_TYPES)
-    amount = RupiahField(label="Lembur per jam (Rp)", min_value=1, max_value=10_000_000, help_text="Nominal tetap per 1 jam lembur terbukti scan. Menggantikan rumus upah/jam × pengali untuk tipe gaji ini.")
+    amount = RupiahField(label="Tarif per jam (Rp)", min_value=1, max_value=10_000_000, help_text="Nominal tetap per 1 jam (lembur: terbukti scan; stand by: disetujui). Menggantikan rumus upah/jam × pengali untuk jenis + tipe gaji ini.")
     effective_from = forms.DateField(label="Berlaku sejak", initial=timezone.localdate, widget=DATE())
     note = forms.CharField(label="Keterangan", required=False, max_length=300)
 
@@ -285,7 +286,26 @@ class OvertimeRateForm(forms.Form):
 
     @transaction.atomic
     def save(self):
-        d = self.cleaned_data; old = OvertimeRate.objects.select_for_update().filter(pay_type=d["pay_type"], effective_from=d["effective_from"], voided_at__isnull=True).first()
+        d = self.cleaned_data; old = OvertimeRate.objects.select_for_update().filter(kind=d["kind"], pay_type=d["pay_type"], effective_from=d["effective_from"], voided_at__isnull=True).first()
         if old and same_values(old, {"amount": d["amount"], "note": d.get("note", "").strip()}): self.unchanged = True; return old
         if old: self.replaced = True; _void(old, self.user)
-        return OvertimeRate.objects.create(pay_type=d["pay_type"], amount=d["amount"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
+        return OvertimeRate.objects.create(kind=d["kind"], pay_type=d["pay_type"], amount=d["amount"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
+
+
+class EducationAllowanceForm(forms.Form):
+    education = forms.CharField(label="Pendidikan", max_length=30, help_text="Sama dengan isian Pendidikan di data karyawan (mis. SMA, D3, S1).")
+    amount = RupiahField(label="Tunjangan pendidikan / bulan (Rp)", min_value=0, max_value=100_000_000, help_text="Dipakai bila T Pendidikan di Profil Gaji karyawan kosong/0. Nilai di profil karyawan selalu menang.")
+    effective_from = forms.DateField(label="Berlaku sejak", initial=timezone.localdate, widget=DATE())
+    note = forms.CharField(label="Keterangan", required=False, max_length=300)
+
+    def __init__(self, *a, instance=None, user=None, **k):
+        super().__init__(*a, **k); self.instance, self.user = instance, user
+
+    def clean_education(self): return self.cleaned_data["education"].strip().upper()
+
+    @transaction.atomic
+    def save(self):
+        d = self.cleaned_data; old = EducationAllowance.objects.select_for_update().filter(education=d["education"], effective_from=d["effective_from"], voided_at__isnull=True).first()
+        if old and same_values(old, {"amount": d["amount"], "note": d.get("note", "").strip()}): self.unchanged = True; return old
+        if old: self.replaced = True; _void(old, self.user)
+        return EducationAllowance.objects.create(education=d["education"], amount=d["amount"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)

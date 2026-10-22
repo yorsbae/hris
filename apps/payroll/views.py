@@ -24,8 +24,8 @@ from apps.hr.models import Department, Employee
 from apps.hrd.models import Separation
 from apps.hrd.views import paginate
 from . import calc, engine, params as P, pdf, readiness as RD, services
-from .forms import MealPeriodForm, MealRateForm, OvertimeRateForm, AdjustmentForm, PayDateForm, ProfileForm, ReasonForm, RunForm, ScaleForm, ParamForm, TaliRuleForm
-from .models import MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, PayslipItem, TaliAsihRule, WageScale
+from .forms import EducationAllowanceForm, MealPeriodForm, MealRateForm, OvertimeRateForm, AdjustmentForm, PayDateForm, ProfileForm, ReasonForm, RunForm, ScaleForm, ParamForm, TaliRuleForm
+from .models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, PayslipItem, TaliAsihRule, WageScale
 
 EXPORT_MAX = 20000
 PDF_MAX = 400
@@ -305,9 +305,10 @@ def rates(request):
     meal_rows = list(MealRate.objects.filter(voided_at__isnull=True).select_related("shift").order_by("pay_type", "shift__code", "-effective_from", "-id"))
     ot_rows = list(OvertimeRate.objects.filter(voided_at__isnull=True).order_by("pay_type", "-effective_from", "-id"))
     cur_meal, cur_ot = engine.meal_rates(today), engine.overtime_rates(today)
+    edu_rows = list(EducationAllowance.objects.filter(voided_at__isnull=True).order_by("education", "-effective_from", "-id"))
     periods = list(MealPeriod.objects.filter(voided_at__isnull=True).order_by("-start_date"))
     for m in periods: m.active_now = m.start_date <= today <= m.end_date
-    return render(request, "payroll/rates.html", {"meal_rows": meal_rows, "ot_rows": ot_rows, "periods": periods, "today": today,
+    return render(request, "payroll/rates.html", {"meal_rows": meal_rows, "ot_rows": ot_rows, "edu_rows": edu_rows, "periods": periods, "today": today,
                                                    "cur_meal": [{"pay_type": k[0], "shift": k[1], "amount": v} for k, v in sorted(cur_meal.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0))],
                                                    "cur_ot": cur_ot})
 
@@ -328,8 +329,14 @@ def meal_rate_new(request):
 @payroll_only
 def ot_rate_new(request):
     return _done(request, OvertimeRateForm, title="Tarif lembur per jam", back="/payroll/rates/", audit="otrate_set", ok="Tarif lembur disimpan.", redirect_to="/payroll/rates/",
-                 initial={"pay_type": request.GET.get("pay_type", "harian")},
-                 hint="Nominal tetap untuk 1 jam lembur (terbukti scan). Bila diisi, menggantikan rumus upah/jam × pengali untuk tipe gaji itu.")
+                 initial={"pay_type": request.GET.get("pay_type", "harian"), "kind": request.GET.get("kind", "lembur")},
+                 hint="Nominal tetap untuk 1 jam lembur atau stand by (terbukti scan). Bila diisi, menggantikan rumus upah/jam × pengali untuk tipe gaji itu.")
+
+
+@payroll_only
+def edu_allow_new(request):
+    return _done(request, EducationAllowanceForm, title="Tunjangan pendidikan standar", back="/payroll/rates/", audit="eduallow_set", ok="Tunjangan pendidikan disimpan.", redirect_to="/payroll/rates/",
+                 hint="Standar per tingkat pendidikan. Karyawan yang T Pendidikan-nya diisi sendiri di Profil Gaji memakai nilainya sendiri. T Khusus & T Lain-lain selalu diisi per karyawan di Profil Gaji.")
 
 
 # ================================================================ Penyesuaian
@@ -355,7 +362,7 @@ def adjustment_new(request):
 
 
 VOID = {"profile": (PayProfile, "/payroll/profiles/"), "scale": (WageScale, "/payroll/scale/"), "param": (PayParam, "/payroll/params/"), "adjustment": (PayAdjustment, "/payroll/adjustments/"), "rule": (TaliAsihRule, "/payroll/tali-asih/"),
-        "mealperiod": (MealPeriod, "/payroll/rates/"), "mealrate": (MealRate, "/payroll/rates/"), "otrate": (OvertimeRate, "/payroll/rates/")}
+        "mealperiod": (MealPeriod, "/payroll/rates/"), "mealrate": (MealRate, "/payroll/rates/"), "otrate": (OvertimeRate, "/payroll/rates/"), "eduallow": (EducationAllowance, "/payroll/rates/")}
 
 
 @payroll_only
