@@ -16,7 +16,8 @@ from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import get_scoped_or_404, require_roles, scope_by_department
 from . import attendance_calc as calc, attendance_check as checks, attendance_import as imp
-from .attendance_reports import STATUS_FILTERS, STATUS_LABELS
+from .attendance_reports import STATUS_FILTERS, STATUS_LABELS, _shift_label
+from .views import SHIFT_GROUP_FILTERS, apply_shift_filter
 from .models import AttendanceCheck, AttendanceDaily as AD, AttendanceImport, AttendancePin, AttendanceRaw, Department, Employee, Holiday, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))
@@ -54,27 +55,29 @@ def daily_list(request):
     last = calc.latest_date(); d1 = _date(g.get("from")) or _date(g.get("date")) or last or timezone.localdate() - timedelta(days=1); d2 = _date(g.get("to")) or d1
     if d2 < d1: d1, d2 = d2, d1
     if (d2 - d1).days > 92: d2 = d1 + timedelta(days=92)
-    qs = scope_by_department(request.user, AD.objects.select_related("employee", "department", "shift").filter(date__gte=d1, date__lte=d2)).order_by("-date", "department__name", "employee__name")
+    qs = scope_by_department(request.user, AD.objects.select_related("employee", "employee__shift_group", "department", "shift").filter(date__gte=d1, date__lte=d2)).order_by("-date", "department__name", "employee__name")
     status = g.get("status", "")
     if status in STATUS_FILTERS: qs = qs.filter(STATUS_FILTERS[status])     # absent · late · early · incomplete · leave · ot · review (satu sumber dengan Kontrol Harian & Shift Harian)
     elif status in dict(AD.STATUSES): qs = qs.filter(status=status)
-    if g.get("shift", "").isdigit(): qs = qs.filter(shift_id=int(g["shift"]))
+    sh = g.get("shift", "").strip()
+    if sh.isdigit(): qs = qs.filter(shift_id=int(sh))   # tautan lama (id master shift)
+    elif sh: qs = qs.filter(employee__in=apply_shift_filter(Employee.objects.all(), sh))   # GS / GS/N / A7…G7 / A7Pack…G7Pack (selaras Shift Harian & Karyawan)
     if g.get("dept", "").isdigit() and not is_admin: qs = qs.filter(department_id=int(g["dept"]))
     if g.get("q", "").strip(): q = g["q"].strip()[:60]; qs = qs.filter(Q(employee__nik__icontains=q) | Q(employee__name__icontains=q))
     if g.get("export"):
-        rows = [[a.employee.nik, a.employee.name, a.department.name if a.department else "", a.date.isoformat(), a.get_status_display(), a.shift.code or a.shift.name if a.shift else "", _hhmm(a.first_in), _hhmm(a.last_out),
+        rows = [[a.employee.nik, a.employee.name, a.department.name if a.department else "", a.date.isoformat(), a.get_status_display(), _shift_label(a, a.employee), _hhmm(a.first_in), _hhmm(a.last_out),
                  a.scan_count, a.late_minutes, a.early_minutes, a.overtime_minutes, a.standby_minutes, "ya" if a.incomplete else "", a.conflict, a.notes] for a in qs[:50000]]
         log(request, "hr", "attendance_daily_export", None, None, {"rows": len(rows), "from": d1.isoformat(), "to": d2.isoformat()})
         return tabular.export_response(f"absensi-harian-{d1}-{d2}", ["nik", "nama", "departemen", "tanggal", "status", "shift", "masuk", "pulang", "scan", "terlambat_menit", "pulang_cepat_menit",
                                        "lembur_menit", "standby_menit", "tidak_lengkap", "konflik", "catatan"], rows, request, sheet="Absensi harian", num_cols=(8, 9, 10, 11, 12))
     page = Paginator(qs, 50).get_page(g.get("page", 1))
-    for a in page: a.pill = PILL.get(a.status, "pending"); a.fi, a.lo = _hhmm(a.first_in), _hhmm(a.last_out)
+    for a in page: a.pill = PILL.get(a.status, "pending"); a.fi, a.lo = _hhmm(a.first_in), _hhmm(a.last_out); a.shift_label = _shift_label(a, a.employee)
     base = scope_by_department(request.user, AD.objects.filter(date__gte=d1, date__lte=d2))
     k = base.aggregate(**{n: Count("id", filter=f) for n, f in
                           (("total", Q()), ("hadir", Q(status="hadir")), ("telat", Q(late_minutes__gt=0)), ("review", Q(status="tanpa_scan") | Q(incomplete=True) | ~Q(conflict="")), ("alfa", Q(status="alfa")), ("absent", STATUS_FILTERS["absent"]))})
     qd = g.copy(); qd.pop("page", None); qd.pop("export", None)
     ld, stale = _freshness()
-    return render(request, "attendance/daily.html", {"page": page, "qs": qd.urlencode(), "k": k, "d1": d1, "d2": d2, "f": {"status": status, "q": g.get("q", ""), "dept": g.get("dept", ""), "shift": g.get("shift", "")}, "shifts": Shift.objects.filter(active=True).order_by("start"), "status_opts": STATUS_LABELS,
+    return render(request, "attendance/daily.html", {"page": page, "qs": qd.urlencode(), "k": k, "d1": d1, "d2": d2, "f": {"status": status, "q": g.get("q", ""), "dept": g.get("dept", ""), "shift": g.get("shift", "")}, "shift_opts": SHIFT_GROUP_FILTERS, "status_opts": STATUS_LABELS,
                   "statuses": AD.STATUSES, "depts": Department.objects.order_by("name"), "is_admin": is_admin, "last_scan": ld, "stale": stale, "act": any(g.get(x) for x in ("status", "q", "dept", "shift"))})
 
 
