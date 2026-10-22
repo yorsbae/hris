@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.http import Http404, HttpResponse
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -20,7 +21,7 @@ from apps.core import tabular
 from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles
-from apps.hr.models import Department, Employee
+from apps.hr.models import Department, Employee, Shift
 from apps.hrd.models import Separation
 from apps.hrd.views import paginate
 from . import calc, engine, params as P, pdf, readiness as RD, services
@@ -81,19 +82,42 @@ def _audit_data(o):
 # ================================================================ Beranda
 @payroll_only
 def home(request):
+    """Beranda = alur kerja BERTAHAP (waterfall): 1 Aturan gaji → 2 Karyawan → 3 Data bulan ini → 4 Run gaji → 5 Slip. Tiap langkah menunjukkan status dan tombol tindakan berikutnya."""
     today = timezone.localdate(); cur = today.strftime("%Y-%m")
-    live = PayrollRun.objects.exclude(status=PayrollRun.CANCELLED)
-    run = live.filter(period=cur).first()
-    no_profile = Employee.objects.filter(status="aktif").exclude(Exists(PayProfile.objects.filter(employee_id=OuterRef("pk"), voided_at__isnull=True, effective_from__lte=today))).count()
-    with_profile = Employee.objects.filter(status="aktif").filter(Exists(PayProfile.objects.filter(employee_id=OuterRef("pk"), voided_at__isnull=True, effective_from__lte=today))).count()
+    live = PayrollRun.objects.exclude(status=PayrollRun.CANCELLED); run = live.filter(period=cur).first()
+    act = Employee.objects.filter(status="aktif"); has_prof = Exists(PayProfile.objects.filter(employee_id=OuterRef("pk"), voided_at__isnull=True, effective_from__lte=today))
+    no_profile = act.exclude(has_prof).count(); with_profile = act.filter(has_prof).count()
     tali = engine.pending_tali_asih(today + timedelta(days=31))
-    waiting_pay = live.filter(status=PayrollRun.FINALIZED).count()
-    waiting_calc = live.filter(status=PayrollRun.HANDED).count()     # sudah diserahkan HRD, menunggu dihitung Payroll
-    returned = 0
-    steps = {"profil": no_profile == 0, "skala": WageScale.objects.filter(voided_at__isnull=True).exists(), "run": bool(run)}
-    return render(request, "payroll/home.html", {"cur": cur, "run": run, "no_profile": no_profile, "with_profile": with_profile, "tali_n": len(tali), "waiting_pay": waiting_pay, "waiting_calc": waiting_calc, "returned": returned,
-                                                 "runs": PayrollRun.objects.all()[:6], "steps": steps, "scale_n": WageScale.objects.filter(voided_at__isnull=True).count(),
-                                                 "stale": services.run_is_stale(run) if run else False})
+    ok = lambda v: "ok" if v else "todo"   # noqa: E731
+    n = lambda M: M.objects.filter(voided_at__isnull=True).count()   # noqa: E731
+    ready = RD.readiness(cur); rs = RD.summary(ready)
+    stages = [
+        {"no": 1, "title": "Aturan gaji", "when": "Diisi sekali, ubah hanya bila kebijakan berubah", "items": [
+            {"t": "Skala gaji harian", "h": "Upah per hari untuk tiap grade + sub-grade.", "st": ok(n(WageScale)), "d": f"{n(WageScale)} baris", "url": "pay_scale", "lb": "Atur skala"},
+            {"t": "Lembur & stand by per jam", "h": "Nominal 1 jam, beda untuk karyawan harian dan bulanan. Kosong = rumus upah/jam × pengali.", "st": "ok" if n(OvertimeRate) else "opt", "d": f"{n(OvertimeRate)} tarif" if n(OvertimeRate) else "pakai rumus bawaan", "url": "pay_rates", "lb": "Atur tarif"},
+            {"t": "Uang makan (bulan puasa)", "h": "Dibayar hanya pada periode yang Anda tentukan, tarif beda harian/bulanan.", "st": "ok" if n(MealPeriod) and n(MealRate) else "opt", "d": f"{n(MealPeriod)} periode, {n(MealRate)} tarif" if n(MealPeriod) else "belum ada → uang makan Rp 0", "url": "pay_rates", "lb": "Atur uang makan"},
+            {"t": "Tunjangan pendidikan standar", "h": "Nilai standar per tingkat pendidikan; bisa ditimpa di profil tiap karyawan.", "st": "ok" if n(EducationAllowance) else "opt", "d": f"{n(EducationAllowance)} tingkat" if n(EducationAllowance) else "opsional", "url": "pay_rates", "lb": "Atur"},
+            {"t": "Parameter potongan & hitung", "h": "Jamsostek, BPJS, pembagi lembur, dll. Sudah terisi nilai bawaan.", "st": "ok", "d": "nilai bawaan terisi", "url": "pay_params", "lb": "Lihat"}]},
+        {"no": 2, "title": "Data karyawan", "when": "Saat ada karyawan baru atau perubahan gaji", "items": [
+            {"t": "Profil gaji tiap karyawan", "h": "Grade, tipe gaji (harian/bulanan), T Khusus & T Lain-lain per orang, hak uang makan.", "st": ok(no_profile == 0 and with_profile), "d": f"{with_profile} lengkap, {no_profile} belum" , "url": "pay_profiles", "lb": "Isi / impor profil"}]},
+        {"no": 3, "title": f"Data bulan {cur}", "when": "Tiap bulan sebelum run dihitung", "items": [
+            *[{"t": r["title"], "h": r["detail"], "st": {"ok": "ok", "warn": "warn", "bad": "bad"}[r["level"]], "d": (str(r["count"]) if r["count"] and r["level"] != "ok" else ""), "raw": r["url"], "lb": r["label"] or "Buka"} for r in ready],
+            {"t": "Penyesuaian manual", "h": "Insentif, pinjaman, pengobatan, materai, dll.", "st": "opt", "d": f"{PayAdjustment.objects.filter(period=cur, voided_at__isnull=True).count()} isian", "url": "pay_adjustments", "lb": "Isi penyesuaian"}]},
+        {"no": 4, "title": "Run gaji", "when": "Tiap bulan: serahkan → hitung → tetapkan → bayar", "run": run, "items": []},
+        {"no": 5, "title": "Slip & arsip", "when": "Setelah run dibayar", "items": [
+            {"t": "Slip gaji & PDF", "h": "Buka run yang sudah ditetapkan/dibayar lalu cetak slip.", "st": "ok" if live.filter(status__in=("ditetapkan", "dibayar")).exists() else "opt", "d": f"{live.filter(status='dibayar').count()} run dibayar", "url": "pay_runs", "lb": "Daftar run"},
+            {"t": "Tali asih karyawan keluar", "h": "Usulan & pembayaran lewat run gaji.", "st": "warn" if tali else "opt", "d": f"{len(tali)} menunggu" if tali else "tidak ada", "url": "pay_tali", "lb": "Buka"}]}]
+    flow = [("draft", "Draft"), ("diserahkan", "Diserahkan HRD"), ("dihitung", "Dihitung"), ("ditetapkan", "Ditetapkan"), ("dibayar", "Dibayar")]
+    nxt = {None: "Buat run gaji untuk periode ini.", "draft": "HRD: serahkan data periode ke Payroll.", "diserahkan": "Payroll: klik Hitung.", "dihitung": "Payroll: periksa hasil, lalu Tetapkan.", "ditetapkan": "Payroll: bayar (seragam & tali asih otomatis ditandai).", "dibayar": "Selesai — cetak slip."}
+    cur_i = [k for k, _ in flow].index(run.status) if run else -1
+    flow = [{"k": k, "l": l, "state": "done" if i < cur_i or (run and run.status == "dibayar" and i == cur_i) else ("now" if i == cur_i else "")} for i, (k, l) in enumerate(flow)]
+    # tentukan langkah aktif: yang pertama punya item belum siap (todo/bad)
+    for st in stages:
+        for it in st["items"]: it["link"] = it.get("raw") or (reverse(it["url"]) if it.get("url") else "")
+        st["open"] = any(i["st"] in ("todo", "bad") for i in st["items"])
+    first_open = next((st["no"] for st in stages if st["open"]), 4)
+    return render(request, "payroll/home.html", {"cur": cur, "run": run, "stages": stages, "flow": flow, "next_action": nxt[run.status if run else None], "first_open": first_open, "ready_sum": rs,
+                                                 "stale": services.run_is_stale(run) if run else False, "runs": PayrollRun.objects.all()[:6]})
 
 
 # ================================================================ Run gaji
@@ -302,13 +326,15 @@ def param_new(request):
 @payroll_only
 def rates(request):
     today = timezone.localdate()
-    meal_rows = list(MealRate.objects.filter(voided_at__isnull=True).select_related("shift").order_by("pay_type", "shift__code", "-effective_from", "-id"))
+    meal_rows = list(MealRate.objects.filter(voided_at__isnull=True, shift__isnull=True).order_by("pay_type", "-effective_from", "-id"))
+    excluded = set(MealRate.objects.filter(voided_at__isnull=True, shift__isnull=False, amount=0).values_list("shift_id", flat=True))
+    shifts = [{"pk": sh.pk, "name": sh.code or sh.name, "gets": sh.pk not in excluded} for sh in Shift.objects.filter(active=True).order_by("code", "name")]
     ot_rows = list(OvertimeRate.objects.filter(voided_at__isnull=True).order_by("pay_type", "-effective_from", "-id"))
     cur_meal, cur_ot = engine.meal_rates(today), engine.overtime_rates(today)
     edu_rows = list(EducationAllowance.objects.filter(voided_at__isnull=True).order_by("education", "-effective_from", "-id"))
     periods = list(MealPeriod.objects.filter(voided_at__isnull=True).order_by("-start_date"))
     for m in periods: m.active_now = m.start_date <= today <= m.end_date
-    return render(request, "payroll/rates.html", {"meal_rows": meal_rows, "ot_rows": ot_rows, "edu_rows": edu_rows, "periods": periods, "today": today,
+    return render(request, "payroll/rates.html", {"meal_rows": meal_rows, "shifts": shifts, "ot_rows": ot_rows, "edu_rows": edu_rows, "periods": periods, "today": today,
                                                    "cur_meal": [{"pay_type": k[0], "shift": k[1], "amount": v} for k, v in sorted(cur_meal.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0))],
                                                    "cur_ot": cur_ot})
 
@@ -323,7 +349,23 @@ def meal_period_new(request):
 def meal_rate_new(request):
     return _done(request, MealRateForm, title="Tarif uang makan", back="/payroll/rates/", audit="mealrate_set", ok="Tarif uang makan disimpan.", redirect_to="/payroll/rates/",
                  initial={"pay_type": request.GET.get("pay_type", "harian")},
-                 hint="Tarif per HARI HADIR. Bedakan karyawan harian vs bulanan. Untuk shift yang kadang tidak dapat uang makan, buat baris khusus shift itu dengan nominal 0 (atau nominal berbeda).")
+                 hint="Tarif per HARI HADIR, satu angka untuk karyawan harian dan satu untuk bulanan. Shift mana yang dapat uang makan diatur lewat kotak centang di halaman sebelumnya.")
+
+
+@payroll_only
+@require_POST
+def meal_shifts(request):
+    """Kotak centang: shift yang DAPAT uang makan. Yang tidak dicentang = tarif 0 (baris khusus shift, dibuat/dibatalkan otomatis)."""
+    gets = set(request.POST.getlist("shift")); since = date(2020, 1, 1); changed = 0
+    for sh in Shift.objects.filter(active=True):
+        zero = list(MealRate.objects.filter(voided_at__isnull=True, shift=sh, amount=0))
+        if str(sh.pk) in gets:
+            for z in zero: services.void_record(MealRate, z.pk, "Shift dicentang: dapat uang makan", request.user); changed += 1
+        elif not zero:
+            for t, _ in PayProfile.PAY_TYPES: MealRate.objects.create(pay_type=t, shift=sh, amount=0, effective_from=since, note="Shift tidak dapat uang makan", created_by=request.user)
+            changed += 1
+    log(request, "payroll", "mealshift_set", None, None, {"dapat": sorted(gets)})
+    messages.success(request, "Pengaturan shift disimpan." if changed else "Tidak ada perubahan."); return redirect("/payroll/rates/")
 
 
 @payroll_only

@@ -29,6 +29,7 @@ urlpatterns = [
     path("rates/", v.rates, name="pay_rates"),
     path("rates/period/new/", v.meal_period_new, name="pay_meal_period_new"),
     path("rates/meal/new/", v.meal_rate_new, name="pay_meal_rate_new"),
+    path("rates/meal/shifts/", v.meal_shifts, name="pay_meal_shifts"),
     path("rates/overtime/new/", v.ot_rate_new, name="pay_ot_rate_new"),
     path("rates/education/new/", v.edu_allow_new, name="pay_edu_allow_new"),
     path("adjustments/", v.adjustments, name="pay_adjustments"),

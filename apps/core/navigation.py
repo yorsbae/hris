@@ -44,9 +44,9 @@ def _company():
 def _payroll(full):
     """Menu Payroll (Tahap 7, putaran 57). Payroll & Superadmin: semua; HRD: hanya Run Gaji (periksa, setujui/kembalikan)."""
     if not full: return [("Run Gaji (serahkan ke Payroll)", "/payroll/runs/", "briefcase"), ("Usulan Tali Asih", "/payroll/tali-asih/", "clipboard", True)]
-    return [("Payroll", "/payroll/", "briefcase"), ("Run Gaji (per periode)", "/payroll/runs/", "calendar", True), ("Profil Gaji Karyawan", "/payroll/profiles/", "users", True),
-            ("Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("Lembur & Uang Makan", "/payroll/rates/", "sliders", True), ("Parameter & Komponen", "/payroll/params/", "sliders", True),
-            ("Penyesuaian (insentif/potongan)", "/payroll/adjustments/", "clipboard", True), ("Tali Asih", "/payroll/tali-asih/", "clipboard", True)]
+    return [("Alur Payroll (mulai di sini)", "/payroll/", "briefcase"), ("1 · Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("1 · Lembur, Makan & Tunjangan", "/payroll/rates/", "sliders", True),
+            ("1 · Parameter & Komponen", "/payroll/params/", "sliders", True), ("2 · Profil Gaji Karyawan", "/payroll/profiles/", "users", True),
+            ("3 · Penyesuaian (insentif/potongan)", "/payroll/adjustments/", "clipboard", True), ("3 · Tali Asih", "/payroll/tali-asih/", "clipboard", True), ("4 · Run Gaji (per periode)", "/payroll/runs/", "calendar", True)]
 
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 

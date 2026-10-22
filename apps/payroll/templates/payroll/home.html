@@ -1,20 +1,38 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Payroll{% endblock %}{% block content %}
+<style>
+.wf{display:flex;flex-direction:column;gap:14px;margin:14px 0}
+.wf-s{border:1px solid rgba(128,128,128,.3);border-radius:12px;overflow:hidden}
+.wf-h{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(128,128,128,.2)}
+.wf-n{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:rgba(128,128,128,.2)}
+.wf-s.cur{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.18)}.wf-s.cur .wf-n{background:#2563eb;color:#fff}
+.wf-s.fin .wf-n{background:#16a34a;color:#fff}
+.wf-h b{font-size:1.05em}.wf-h small{display:block;opacity:.7}
+.wf-r{display:grid;grid-template-columns:28px 1fr auto auto;gap:10px;align-items:center;padding:9px 16px;border-top:1px solid rgba(128,128,128,.12)}
+.wf-r:first-of-type{border-top:0}.wf-r small{display:block;opacity:.7}
+.wf-i{font-size:1.1em;text-align:center}.wf-d{opacity:.8;white-space:nowrap}
+.wf-flow{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px}
+.wf-flow span{padding:6px 12px;border-radius:999px;border:1px solid rgba(128,128,128,.35);font-size:.9em}
+.wf-flow .done{background:#16a34a;color:#fff;border-color:#16a34a}.wf-flow .now{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:700}
+.wf-act{padding:0 16px 14px}
+@media(max-width:700px){.wf-r{grid-template-columns:28px 1fr}.wf-r .wf-d,.wf-r .btn{grid-column:2}}
+</style>
 <h2>Payroll</h2>
-<p class="sub">Gaji harian karyawan: skala gaji → profil karyawan → penyesuaian → run per periode (HRD menyerahkan data → Payroll menghitung & menetapkan) → dibayar → slip.</p>
-{% if not steps.skala %}{% flow_steps "Skala gaji harian|Upah per grade|/payroll/scale/" "Profil karyawan|Grade & tunjangan|/payroll/profiles/" "Penyesuaian|Insentif, potongan|/payroll/adjustments/" "Run gaji|Hitung → bayar|/payroll/runs/" now=1 note="Mulai dengan mengisi Skala Gaji Harian (atau impor dari CSV/XLSX). Parameter hitung (lembur, tunjangan masa kerja, Jamsostek, BPJS) sudah terisi nilai bawaan dari slip contoh — periksa di Parameter & Komponen." %}
-{% elif no_profile %}{% flow_steps "Skala gaji harian|Upah per grade|/payroll/scale/" "Profil karyawan|Grade & tunjangan|/payroll/profiles/" "Penyesuaian|Insentif, potongan|/payroll/adjustments/" "Run gaji|Hitung → bayar|/payroll/runs/" now=2 note="Masih ada karyawan aktif tanpa profil gaji — mereka tidak ikut run sampai profilnya diisi." %}
-{% else %}{% flow_steps "Skala gaji harian|Upah per grade|/payroll/scale/" "Profil karyawan|Grade & tunjangan|/payroll/profiles/" "Penyesuaian|Insentif, potongan|/payroll/adjustments/" "Run gaji|Hitung → bayar|/payroll/runs/" now=4 %}{% endif %}
-<div class="sepkpi">
-{% if run %}<a href="{% url 'pay_run' run.pk %}"{% if run.status == 'ditetapkan' %} class="warn"{% endif %}><b>{{ cur }}</b> <span class="pill {{ run.status }}">{{ run.get_status_display }}</span></a>
-{% else %}<a class="warn" href="{% url 'pay_runs' %}"><b>{{ cur }}</b> belum ada run gaji</a>{% endif %}
-<a{% if no_profile %} class="warn"{% endif %} href="{% url 'pay_profiles' %}?state=tanpa"><b>{{ no_profile }}</b> karyawan aktif tanpa profil gaji <small>({{ with_profile }} sudah)</small></a>
-<a{% if tali_n %} class="warn"{% endif %} href="{% url 'pay_tali' %}"><b>{{ tali_n }}</b> tali asih menunggu dibayar</a>
-</div>
+<p class="sub">Ikuti urutan <b>1 → 5</b> dari atas ke bawah. Langkah yang bertanda biru adalah yang sedang perlu dikerjakan; ✅ = siap, ⚠️ = perlu dicek, ⛔ = harus diperbaiki, ➖ = opsional.</p>
 {% if stale %}<p class="note wait">Ada perubahan data setelah run {{ cur }} terakhir dihitung — hitung ulang sebelum menetapkan.</p>{% endif %}
-{% if waiting_pay %}<p class="note now"><b>{{ waiting_pay }}</b> run sudah ditetapkan dan siap dibayar. <a href="{% url 'pay_runs' %}">Buka daftar run</a></p>{% endif %}
-{% if waiting_calc %}<p class="note now"><b>{{ waiting_calc }}</b> run sudah diserahkan HRD dan menunggu dihitung. <a href="{% url 'pay_runs' %}">Buka daftar run</a></p>{% endif %}
+<div class="wf">
+{% for st in stages %}<section class="wf-s{% if st.no == first_open %} cur{% endif %}{% if st.no < first_open %} fin{% endif %}">
+<div class="wf-h"><span class="wf-n">{% if st.no < first_open %}✓{% else %}{{ st.no }}{% endif %}</span><div><b>{{ st.title }}</b><small>{{ st.when }}</small></div></div>
+{% if st.no == 4 %}
+<div class="wf-flow">{% for f in flow %}<span class="{{ f.state }}">{{ f.l }}</span>{% endfor %}</div>
+<div class="wf-act"><p><b>Langkah berikutnya:</b> {{ next_action }}</p>
+{% if run %}<a class="btn" href="{% url 'pay_run' run.pk %}">Buka run {{ run.period }}</a>{% else %}<a class="btn" href="{% url 'pay_runs' %}">Buat run {{ cur }}</a>{% endif %} <a class="btn ghost" href="{% url 'pay_runs' %}">Semua run</a>
+{% if ready_sum.bad %}<p class="note wait">{{ ready_sum.bad }} masalah data di langkah 3 harus diperbaiki sebelum run dihitung.</p>{% endif %}</div>
+{% else %}{% for it in st.items %}<div class="wf-r"><span class="wf-i">{% if it.st == 'ok' %}✅{% elif it.st == 'warn' %}⚠️{% elif it.st == 'bad' %}⛔{% elif it.st == 'opt' %}➖{% else %}⭕{% endif %}</span>
+<div><b>{{ it.t }}</b>{% if it.h %}<small>{{ it.h }}</small>{% endif %}</div><span class="wf-d">{{ it.d }}</span>{% if it.link %}<a class="btn sm ghost" href="{{ it.link }}">{{ it.lb }}</a>{% else %}<span></span>{% endif %}</div>{% endfor %}{% endif %}
+</section>{% endfor %}
+</div>
 <h3>Run terakhir</h3>
 <div class="wrap"><table><thead><tr><th class="nw">Periode</th><th class="nw">Status</th><th class="num">Slip</th><th class="num">Total bersih</th><th class="acts"></th></tr></thead><tbody>
 {% for r in runs %}<tr><td class="nw">{{ r.period }}</td><td class="nw"><span class="pill {{ r.status }}">{{ r.get_status_display }}</span></td><td class="num">{{ r.n_slips }}</td><td class="num nw">{{ r.total_net|rupiah }}</td><td class="acts"><a class="btn sm ghost" href="{% url 'pay_run' r.pk %}">Buka</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="5">Belum ada run gaji. Mulai di <a href="{% url 'pay_runs' %}">Run Gaji</a> setelah skala dan profil siap.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada run gaji.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

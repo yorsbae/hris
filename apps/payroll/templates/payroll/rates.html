@@ -9,7 +9,8 @@
 {% endblock %}{% block content %}
 <p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
 <h2>Master Lembur &amp; Uang Makan</h2>
-<p class="sub">Tarif lembur per jam dan uang makan per hari, dibedakan untuk karyawan <b>harian</b> dan <b>bulanan</b>. Uang makan hanya dibayar pada <b>periode uang makan</b> (mis. bulan puasa) dan bisa berbeda per shift. Perubahan = baris baru bertanggal; riwayat tidak ditimpa.</p>
+<p class="sub">Langkah 1 · Aturan gaji. Semua tarif dibedakan hanya untuk karyawan <b>harian</b> dan <b>bulanan</b> (tipe gaji diatur di Profil Gaji tiap karyawan). Perubahan = baris baru bertanggal; riwayat tidak ditimpa.</p>
+<p class="note now"><b>Cara kerja:</b> uang makan = jumlah hari hadir <u>di dalam periode puasa</u> × tarif per hari. Lembur &amp; stand by = jam × tarif per jam. Tunjangan pendidikan = nilai di profil karyawan, atau standar di bawah bila profil kosong.</p>
 
 <h3>1. Periode uang makan (mis. bulan puasa)</h3>
 <div class="tools"><a class="btn" href="{% url 'pay_meal_period_new' %}">+ Tambah periode</a></div>
@@ -21,11 +22,14 @@
 
 <h3>2. Tarif uang makan per hari hadir</h3>
 <div class="tools"><a class="btn" href="{% url 'pay_meal_rate_new' %}">+ Tambah / ubah tarif</a></div>
-<div class="wrap"><table><thead><tr><th class="nw">Tipe gaji</th><th class="nw">Shift</th><th class="num">Per hari</th><th class="nw">Sejak</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
-{% for r in meal_rows %}<tr><td class="nw"><b>{{ r.get_pay_type_display }}</b></td><td class="nw">{% if r.shift %}{{ r.shift.code|default:r.shift.name }}{% else %}<i>semua shift (umum)</i>{% endif %}</td>
-<td class="num nw">{% if r.amount == 0 %}<span class="pill pending">tidak dapat</span>{% else %}{{ r.amount|rupiah }}{% endif %}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td class="fill"><small>{{ r.note }}</small></td>
+<div class="wrap"><table><thead><tr><th class="nw">Tipe gaji</th><th class="num">Per hari</th><th class="nw">Sejak</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
+{% for r in meal_rows %}<tr><td class="nw"><b>{{ r.get_pay_type_display }}</b></td><td class="num nw">{{ r.amount|rupiah }}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td class="fill"><small>{{ r.note }}</small></td>
 <td class="acts"><form method="post" action="{% url 'pay_void' 'mealrate' r.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
-{% empty %}<tr><td class="empty" colspan="6">Belum ada tarif. Tanpa tarif, uang makan Rp 0.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada tarif. Tanpa tarif, uang makan Rp 0.</td></tr>{% endfor %}</tbody></table></div>
+{% if shifts %}<form method="post" action="{% url 'pay_meal_shifts' %}" style="margin:10px 0">{% csrf_token %}
+<p><b>Shift yang dapat uang makan</b> <small>(hilangkan centang untuk shift yang tidak dapat, mis. sudah disediakan makan)</small></p>
+<p style="display:flex;flex-wrap:wrap;gap:6px 18px">{% for sh in shifts %}<label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" name="shift" value="{{ sh.pk }}"{% if sh.gets %} checked{% endif %}> {{ sh.name }}</label>{% endfor %}</p>
+<button class="btn sm">Simpan shift</button></form>{% endif %}
 
 <h3>3. Tarif lembur &amp; stand by per jam</h3>
 <div class="tools"><a class="btn" href="{% url 'pay_ot_rate_new' %}">+ Tambah / ubah tarif lembur / stand by</a></div>

@@ -256,22 +256,19 @@ class MealPeriodForm(forms.Form):
 
 class MealRateForm(forms.Form):
     pay_type = forms.ChoiceField(label="Tipe gaji", choices=PayProfile.PAY_TYPES)
-    shift = forms.ModelChoiceField(label="Shift", required=False, queryset=None, empty_label="Semua shift (tarif umum)", help_text="Kosongkan = tarif umum. Isi shift tertentu bila tarifnya berbeda; nominal 0 = shift itu tidak dapat uang makan.")
     amount = RupiahField(label="Uang makan per hari hadir (Rp)", min_value=0, max_value=10_000_000)
     effective_from = forms.DateField(label="Berlaku sejak", initial=timezone.localdate, widget=DATE())
     note = forms.CharField(label="Keterangan", required=False, max_length=300)
 
     def __init__(self, *a, instance=None, user=None, **k):
-        from apps.hr.models import Shift
         super().__init__(*a, **k); self.instance, self.user = instance, user
-        self.fields["shift"].queryset = Shift.objects.filter(active=True).order_by("code", "name")
 
     @transaction.atomic
     def save(self):
-        d = self.cleaned_data; old = MealRate.objects.select_for_update().filter(pay_type=d["pay_type"], shift=d.get("shift"), effective_from=d["effective_from"], voided_at__isnull=True).first()
+        d = self.cleaned_data; old = MealRate.objects.select_for_update().filter(pay_type=d["pay_type"], shift__isnull=True, effective_from=d["effective_from"], voided_at__isnull=True).first()
         if old and same_values(old, {"amount": d["amount"], "note": d.get("note", "").strip()}): self.unchanged = True; return old
         if old: self.replaced = True; _void(old, self.user)
-        return MealRate.objects.create(pay_type=d["pay_type"], shift=d.get("shift"), amount=d["amount"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
+        return MealRate.objects.create(pay_type=d["pay_type"], shift=None, amount=d["amount"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
 
 
 class OvertimeRateForm(forms.Form):

@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from apps.hr import periods
 from apps.hr.models import AttendanceDaily, Employee, Holiday
-from apps.hrd.models import BpjsDeduction, BpjsMembership
+from apps.hrd.models import BpjsDeduction, BpjsMembership, UniformPurchase
 from . import calc, engine
 from .models import PayComponent, PayrollRun, Payslip
 
@@ -56,6 +56,9 @@ def readiness(period):
     n_ded = BpjsDeduction.objects.filter(period=period).values("employee_id").distinct().count()
     if members and not n_ded: out.append(_c("warn", "Potongan BPJS periode ini belum diisi", "Dipakai perhitungan otomatis dari persentase; isi bila BPJS menagih angka pasti.", members, reverse("hrd_bpjs_deductions"), "Isi Potongan BPJS"))
     elif members: out.append(_c("ok", f"Potongan BPJS terisi untuk {n_ded} karyawan"))
+    # 7b. seragam (potongan otomatis)
+    n_uni = UniformPurchase.objects.filter(voided_at__isnull=True, deduction_status="belum", purchase_date__lte=end).values("employee_id").distinct().count()
+    out.append(_c("ok", f"Pembelian seragam: {n_uni} karyawan akan dipotong otomatis" if n_uni else "Tidak ada potongan seragam", "Potongan seragam diambil dari catatan Seragam (HRD) dan ditandai 'sudah dipotong' saat run dibayar." if n_uni else "", n_uni))
     # 8. info hari libur
     hol = list(Holiday.objects.filter(active=True, date__gte=start, date__lte=end))
     if hol:
