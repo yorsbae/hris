@@ -641,8 +641,13 @@ class Command(BaseCommand):
             g = grade_of.get(e.position.name, 4)
             tn = "A" if (e.id % 3) else "B"
             pm.PayProfile.objects.create(employee=e, effective_from=since, grade=g, tier=tn, allowance_position=(g - 5) * 50000 if g > 5 else 0, allowance_education=60000 if e.education in ("D3", "S1") else 0,
-                                         meal_allowance=e.department.code in ("PRD", "PKG", "GDG"), created_by=pu); n += 1
+                                         meal_allowance=True, pay_type="bulanan" if g >= 7 else "harian", created_by=pu); n += 1   # hak uang makan; kapan & berapa → master Lembur & Uang Makan
         prev = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m"); cur = today.strftime("%Y-%m")
+        # master Lembur & Uang Makan + absensi (lembur, stand by, hari libur) + bulan puasa terakhir yang sudah lewat, supaya slip contoh LENGKAP
+        from apps.payroll.management.commands.seed_payroll_demo import Command as PayDemo, RAMADAN
+        pdemo = PayDemo(); pdemo.seed_masters(pu)
+        past = [b.strftime("%Y-%m") for _, _, b in RAMADAN if b.strftime("%Y-%m") < prev]; ram = past[-1] if past else None
+        pdemo.seed_attendance({"periods": ([ram] if ram else []) + [prev, cur]}, today, pu)
         manual = {c.code: c for c in pm.PayComponent.objects.filter(kind="manual")}
         active = [e for e in self.emps if e.status == "aktif"]
         for per in (prev, cur):
@@ -651,9 +656,11 @@ class Command(BaseCommand):
             for e in self.r.sample(active, min(4, len(active))):
                 if "pot_lain" in manual: ps_.save_adjustment(e, per, manual["pot_lain"], self.r.choice([25000, 42240, 60000]), None, "Potongan contoh", pu)
         try:
+            if ram:
+                rr = ps_.create_run(ram, self.hrd_u); ps_.hand_over_run(rr.pk, self.hrd_u); ps_.calculate_run(rr.pk, pu); ps_.finalize_run(rr.pk, pu); ps_.pay_run(rr.pk, today, pu)
             run = ps_.create_run(prev, self.hrd_u); ps_.hand_over_run(run.pk, self.hrd_u); ps_.calculate_run(run.pk, pu); ps_.finalize_run(run.pk, pu); ps_.pay_run(run.pk, today, pu)
             run2 = ps_.create_run(cur, self.hrd_u); ps_.hand_over_run(run2.pk, self.hrd_u); ps_.calculate_run(run2.pk, pu)
-            self.stat += f", payroll: {n} profil gaji, run {prev} dibayar + run {cur} dihitung"
+            self.stat += f", payroll: {n} profil gaji, run {ram + " (puasa) + " if ram else ""}{prev} dibayar + run {cur} dihitung"
         except ValueError as ex: self.stat += f", payroll: run tidak dibuat ({ex})"
 
     # ---------- audit contoh

@@ -13,12 +13,17 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from apps.core.models import Role, User
-from apps.hr.models import Employee
+from apps.hr.attendance_calc import HOLIDAY_WORK_NOTE
+from apps.hr.models import AttendanceDaily, Employee, Shift
 from apps.payroll import calc, defaults, engine, services
-from apps.payroll.models import PayProfile, PayrollRun, WageScale
+from apps.payroll.models import MealPeriod, MealRate, OvertimeRate, PayProfile, PayrollRun, WageScale
 
 SINCE = date(2020, 1, 1)
 GRADE_OF = {"Operator": 3, "Staf": 5, "Teknisi": 6, "Leader": 7, "Supervisor": 8, "Manager": 9, "Perawat": 6, "Bidan": 6}
+
+
+# Ramadan 2026 (±18 Feb–19 Mar) dan 2027 (±8 Feb–9 Mar): perkiraan, sesuaikan dengan penetapan resmi perusahaan.
+RAMADAN = [("Ramadan 1447 H", date(2026, 2, 18), date(2026, 3, 19)), ("Ramadan 1448 H", date(2027, 2, 8), date(2027, 3, 9))]
 
 
 def demo_wage(grade, tier): return Decimal(60000 + (grade - 3) * 4200 + (2500 if tier != "A" else 0)) + Decimal("0.87") * (grade % 2)
@@ -54,11 +59,13 @@ class Command(BaseCommand):
             WageScale.objects.create(grade=g, tier=t, daily_wage=demo_wage(g, t), effective_from=SINCE, note="Contoh demo — ganti dengan skala resmi", created_by=actor); n_scale += 1
         for e, g, t in plan:
             PayProfile.objects.create(employee=e, effective_from=SINCE, grade=g, tier=t, allowance_position=(g - 5) * 50000 if g > 5 else 0,
-                                      allowance_education=60000 if e.education in ("D3", "S1") else 0, meal_allowance=e.department.code in ("PRD", "PKG", "GDG"), note="Profil demo", created_by=actor)
+                                      allowance_education=60000 if e.education in ("D3", "S1") else 0, meal_allowance=True, pay_type="bulanan" if g >= 7 else "harian", note="Profil demo", created_by=actor)
         self.stdout.write(f"Skala gaji ditambah: {n_scale}. Profil gaji dibuat: {len(plan)} dari {len(emps)} karyawan aktif.")
+        self.seed_masters(actor); n_att = self.seed_attendance(o, today, actor)
+        self.stdout.write(f"Absensi demo (hadir, lembur, stand by, masuk hari libur): {n_att} baris ditambah.")
         if o["no_runs"]: return
         prev = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-        for per in (o["periods"] or [prev, today.strftime("%Y-%m")]):
+        for per in self.periods(o, today):
             if not calc.valid_period(per): raise CommandError(f"Periode tidak valid: {per}")
             run = PayrollRun.objects.filter(period=per).exclude(status=PayrollRun.CANCELLED).first()
             try:
@@ -68,3 +75,40 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"Run {per}: {run.get_status_display()}, {run.n_slips} slip, total bersih Rp {run.total_net:,.0f}".replace(",", ".")))
                 for w in run.warnings: self.stdout.write(self.style.WARNING(f"  ⚠ {w}"))
             except ValueError as ex: self.stdout.write(self.style.ERROR(f"Run {per}: {ex}"))
+
+    def periods(self, o, today):
+        prev = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        return o["periods"] or ["2026-03", prev, today.strftime("%Y-%m")]   # 2026-03 = bulan puasa (menunjukkan uang makan)
+
+    def seed_masters(self, actor):
+        """Master Lembur & Uang Makan CONTOH (hanya bila masih kosong): periode puasa, tarif makan per tipe gaji/shift, tarif lembur per jam."""
+        if not MealPeriod.objects.filter(voided_at__isnull=True).exists():
+            for name, a, b in RAMADAN: MealPeriod.objects.create(name=name, start_date=a, end_date=b, note="Contoh demo — sesuaikan", created_by=actor)
+        if not MealRate.objects.filter(voided_at__isnull=True).exists():
+            for t, amt in (("harian", 10000), ("bulanan", 15000)): MealRate.objects.create(pay_type=t, amount=amt, effective_from=SINCE, note="Contoh demo: tarif umum", created_by=actor)
+            for sh in Shift.objects.filter(active=True):   # shift Pagi tidak dapat uang makan (contoh "kadang ada kadang tidak"); shift lain mengikuti tarif umum
+                if "PAGI" in (sh.code or sh.name).upper() or sh.is_gs: 
+                    for t in ("harian", "bulanan"): MealRate.objects.create(pay_type=t, shift=sh, amount=0, effective_from=SINCE, note="Contoh demo: tidak dapat", created_by=actor)
+        if not OvertimeRate.objects.filter(voided_at__isnull=True).exists():
+            for t, amt in (("harian", 15000), ("bulanan", 20000)): OvertimeRate.objects.create(pay_type=t, amount=amt, effective_from=SINCE, note="Contoh demo", created_by=actor)
+
+    def seed_attendance(self, o, today, actor):
+        """Rekap absensi CONTOH untuk karyawan berprofil yang belum punya rekap di periode itu: hadir Sen–Sab (Minggu libur), lembur berkala, stand by, 1 hari masuk di hari libur."""
+        n = 0
+        for per in self.periods(o, today):
+            start, end = calc.period_bounds(per); end = min(end, today); profs = engine.current_profiles(end)
+            have = set(AttendanceDaily.objects.filter(date__gte=start, date__lte=end).values_list("employee_id", flat=True))
+            rows = []
+            for e in Employee.objects.filter(status="aktif", join_date__lte=end).select_related("department"):
+                if e.pk not in profs or e.pk in have: continue
+                d = max(start, e.join_date)
+                while d <= end:
+                    if d.weekday() != 6:
+                        k = (e.pk + d.day) % 9
+                        holiday = d.day == 17 and e.pk % 2 == 0
+                        rows.append(AttendanceDaily(employee=e, date=d, department=e.department, shift_id=e.shift_id, status="hadir", source="demo", scan_count=2,
+                                                    overtime_minutes=(0 if holiday else (60, 90, 120, 45)[k] if k < 4 else 0), standby_minutes=30 if k == 7 else 0,
+                                                    notes=HOLIDAY_WORK_NOTE + " (demo)" if holiday else ""))
+                    d += timedelta(days=1)
+            AttendanceDaily.objects.bulk_create(rows, batch_size=1000, ignore_conflicts=True); n += len(rows)
+        return n

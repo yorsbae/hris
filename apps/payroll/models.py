@@ -65,6 +65,7 @@ class WageScale(Voidable):
 class PayProfile(Voidable):
     """Profil gaji karyawan berlaku-sejak: grade + sub-grade (upah harian dari skala) atau upah harian khusus, tunjangan tetap, hak uang makan.
     Yang berlaku pada periode = baris tidak batal dengan `effective_from` terbesar ≤ akhir periode."""
+    PAY_TYPES = [("harian", "Harian"), ("bulanan", "Bulanan")]
     employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="pay_profiles")
     effective_from = models.DateField()
     grade = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -74,7 +75,8 @@ class PayProfile(Voidable):
     allowance_education = models.DecimalField(max_digits=14, decimal_places=0, default=0)   # T Pendidikan
     allowance_special = models.DecimalField(max_digits=14, decimal_places=0, default=0)     # T Khusus
     allowance_other = models.DecimalField(max_digits=14, decimal_places=0, default=0)       # T Lain-lain
-    meal_allowance = models.BooleanField("Dibayar uang makan", default=False)
+    meal_allowance = models.BooleanField("Berhak uang makan", default=False)   # hak; nominal & kapan dibayar ditentukan master Uang Makan (periode puasa, tarif per tipe gaji/shift)
+    pay_type = models.CharField("Tipe gaji", max_length=8, choices=PAY_TYPES, default="harian")
     note = models.CharField(max_length=300, blank=True)
 
     class Meta:
@@ -86,6 +88,43 @@ class PayProfile(Voidable):
 
     @property
     def grade_label(self): return f"{self.grade} {self.tier}".strip() if self.grade is not None else "khusus"
+
+
+class MealPeriod(Voidable):
+    """Periode uang makan dibayar (mis. bulan puasa/Ramadan, saat perusahaan tidak menyediakan makan). DI LUAR periode ini uang makan = Rp 0 untuk semua karyawan."""
+    name = models.CharField("Nama periode", max_length=60)
+    start_date = models.DateField(); end_date = models.DateField()
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-start_date", "-id"]
+        constraints = [models.CheckConstraint(condition=models.Q(end_date__gte=models.F("start_date")), name="mealperiod_dates_ok")]
+
+
+class MealRate(Voidable):
+    """Tarif uang makan per HARI HADIR berlaku-sejak, per tipe gaji (harian/bulanan) dan per shift. Shift kosong = tarif umum tipe itu (dipakai bila shift tidak punya baris sendiri).
+    Nominal 0 = shift itu tidak mendapat uang makan (mis. shift yang sudah disediakan makan). Tanpa baris sama sekali = Rp 0."""
+    pay_type = models.CharField(max_length=8, choices=PayProfile.PAY_TYPES)
+    shift = models.ForeignKey("hr.Shift", null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    amount = models.DecimalField("Uang makan per hari (Rp)", max_digits=12, decimal_places=0)
+    effective_from = models.DateField()
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["pay_type", "shift_id", "-effective_from", "-id"]
+        constraints = [models.CheckConstraint(condition=models.Q(amount__gte=0), name="mealrate_nonneg")]
+
+
+class OvertimeRate(Voidable):
+    """Tarif lembur per JAM (nominal tetap) berlaku-sejak, per tipe gaji. Bila ada, lembur = jam terbukti scan × tarif ini; bila tidak ada, dipakai rumus upah/jam × pengali (params)."""
+    pay_type = models.CharField(max_length=8, choices=PayProfile.PAY_TYPES)
+    amount = models.DecimalField("Lembur per jam (Rp)", max_digits=12, decimal_places=0)
+    effective_from = models.DateField()
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["pay_type", "-effective_from", "-id"]
+        constraints = [models.CheckConstraint(condition=models.Q(amount__gt=0), name="otrate_positive")]
 
 
 class PayComponent(models.Model):

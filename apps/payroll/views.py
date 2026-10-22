@@ -24,8 +24,8 @@ from apps.hr.models import Department, Employee
 from apps.hrd.models import Separation
 from apps.hrd.views import paginate
 from . import calc, engine, params as P, pdf, readiness as RD, services
-from .forms import AdjustmentForm, PayDateForm, ProfileForm, ReasonForm, RunForm, ScaleForm, ParamForm, TaliRuleForm
-from .models import PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, PayslipItem, TaliAsihRule, WageScale
+from .forms import MealPeriodForm, MealRateForm, OvertimeRateForm, AdjustmentForm, PayDateForm, ProfileForm, ReasonForm, RunForm, ScaleForm, ParamForm, TaliRuleForm
+from .models import MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, PayslipItem, TaliAsihRule, WageScale
 
 EXPORT_MAX = 20000
 PDF_MAX = 400
@@ -71,6 +71,8 @@ def _audit_data(o):
     for f in ("period", "key", "grade", "tier", "kind", "effective_from"):
         if hasattr(o, f): d[f] = str(getattr(o, f))
     if getattr(o, "employee_id", None): d["employee"] = o.employee.nik
+    for f in ("pay_type", "start_date", "end_date"):
+        if hasattr(o, f): d[f] = str(getattr(o, f))
     for f in ("daily_wage", "value", "amount", "wage_override", "days_per_year"):
         if hasattr(o, f) and getattr(o, f) is not None: d[f] = str(getattr(o, f))   # master gaji: nominal dicatat (akuntabilitas perubahan); audit hanya terbaca Superadmin
     return d
@@ -296,6 +298,40 @@ def param_new(request):
                  hint="Nilai baru berlaku untuk periode yang berakhir pada/setelah tanggal berlaku. Run yang sudah dihitung perlu dihitung ulang. Tulis dasar aturan di Alasan.")
 
 
+# ================================================================ Master Lembur & Uang Makan
+@payroll_only
+def rates(request):
+    today = timezone.localdate()
+    meal_rows = list(MealRate.objects.filter(voided_at__isnull=True).select_related("shift").order_by("pay_type", "shift__code", "-effective_from", "-id"))
+    ot_rows = list(OvertimeRate.objects.filter(voided_at__isnull=True).order_by("pay_type", "-effective_from", "-id"))
+    cur_meal, cur_ot = engine.meal_rates(today), engine.overtime_rates(today)
+    periods = list(MealPeriod.objects.filter(voided_at__isnull=True).order_by("-start_date"))
+    for m in periods: m.active_now = m.start_date <= today <= m.end_date
+    return render(request, "payroll/rates.html", {"meal_rows": meal_rows, "ot_rows": ot_rows, "periods": periods, "today": today,
+                                                   "cur_meal": [{"pay_type": k[0], "shift": k[1], "amount": v} for k, v in sorted(cur_meal.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0))],
+                                                   "cur_ot": cur_ot})
+
+
+@payroll_only
+def meal_period_new(request):
+    return _done(request, MealPeriodForm, title="Periode uang makan", back="/payroll/rates/", audit="mealperiod_set", ok="Periode uang makan disimpan.", redirect_to="/payroll/rates/",
+                 hint="Uang makan HANYA dibayar untuk hari hadir di dalam periode ini (mis. bulan puasa, saat tidak ada makan). Di luar periode = Rp 0. Run gaji yang sudah dihitung perlu dihitung ulang.")
+
+
+@payroll_only
+def meal_rate_new(request):
+    return _done(request, MealRateForm, title="Tarif uang makan", back="/payroll/rates/", audit="mealrate_set", ok="Tarif uang makan disimpan.", redirect_to="/payroll/rates/",
+                 initial={"pay_type": request.GET.get("pay_type", "harian")},
+                 hint="Tarif per HARI HADIR. Bedakan karyawan harian vs bulanan. Untuk shift yang kadang tidak dapat uang makan, buat baris khusus shift itu dengan nominal 0 (atau nominal berbeda).")
+
+
+@payroll_only
+def ot_rate_new(request):
+    return _done(request, OvertimeRateForm, title="Tarif lembur per jam", back="/payroll/rates/", audit="otrate_set", ok="Tarif lembur disimpan.", redirect_to="/payroll/rates/",
+                 initial={"pay_type": request.GET.get("pay_type", "harian")},
+                 hint="Nominal tetap untuk 1 jam lembur (terbukti scan). Bila diisi, menggantikan rumus upah/jam × pengali untuk tipe gaji itu.")
+
+
 # ================================================================ Penyesuaian
 @payroll_only
 def adjustments(request):
@@ -318,7 +354,8 @@ def adjustment_new(request):
                  hint="Insentif, premi produksi, pinjaman, pengobatan, materai, dst. untuk SATU karyawan pada SATU periode. Untuk banyak baris gunakan Impor. Setelah mengubah, hitung ulang run periode itu.")
 
 
-VOID = {"profile": (PayProfile, "/payroll/profiles/"), "scale": (WageScale, "/payroll/scale/"), "param": (PayParam, "/payroll/params/"), "adjustment": (PayAdjustment, "/payroll/adjustments/"), "rule": (TaliAsihRule, "/payroll/tali-asih/")}
+VOID = {"profile": (PayProfile, "/payroll/profiles/"), "scale": (WageScale, "/payroll/scale/"), "param": (PayParam, "/payroll/params/"), "adjustment": (PayAdjustment, "/payroll/adjustments/"), "rule": (TaliAsihRule, "/payroll/tali-asih/"),
+        "mealperiod": (MealPeriod, "/payroll/rates/"), "mealrate": (MealRate, "/payroll/rates/"), "otrate": (OvertimeRate, "/payroll/rates/")}
 
 
 @payroll_only

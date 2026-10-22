@@ -1284,3 +1284,11 @@ Kebijakan berikut dipilih karena VISION tidak menyebutnya; semuanya nilai di `co
 4. **Operasi & keamanan produksi**: Nginx + systemd, backup harian + mingguan + salinan lokasi lain (termasuk `media/`), uji restore (`pg_dump/pg_restore` masih belum diuji), halaman penelusuran audit, pelaporan/export, manajemen user di UI
 5. **Tahap 6 — Absensi**: impor mesin fingerprint, status "cuti hamil" otomatis dari `MaternityLeave`, jadwal dari `effective_schedule()`, konfirmasi alpa oleh Admin Departemen, koreksi, terlambat, lembur, rekap; izin/sakit mulai berefek di sini
 6. **Tahap 7 — Payroll**: komponen gaji, tunjangan, potongan, BPJS (memakai `BpjsMembership`), bantuan (`Aid`), upah proyek (`ProjectDailyLog`), periode, slip gaji (tabel terpisah dari karyawan)
+
+## Payroll — Master Lembur & Uang Makan (patch)
+- **Uang makan hanya pada Periode Uang Makan** (mis. bulan puasa/Ramadan, karena tidak ada makan). Di luar periode = Rp 0, walau profil berhak. Master: Payroll → *Lembur & Uang Makan* (`/payroll/rates/`).
+- **Tarif uang makan per hari hadir** dibedakan per **tipe gaji (harian/bulanan)** dan per **shift** (baris tanpa shift = tarif umum; nominal 0 = shift itu tidak dapat). Tanpa tarif = Rp 0. Parameter lama `uang_makan` dihapus.
+- **Tarif lembur per jam** (nominal tetap) per tipe gaji. Bila ada → lembur = jam terbukti scan × tarif (tanpa pengali 1,5/2). Bila tidak ada → rumus lama (upah/jam × pengali) tetap dipakai.
+- `PayProfile.pay_type` (harian/bulanan) baru; impor profil menerima kolom `tipe_gaji`.
+- Data demo: `seed_demo` / `seed_payroll_demo` kini mengisi periode puasa, tarif, absensi (lembur, stand by, masuk hari libur), dan run bulan puasa (slip lengkap: gaji pokok, tunjangan, lembur, hari libur, uang makan, potongan).
+- ASUMSI (konfirmasi pemilik produk): nominal demo hanyalah contoh; tanggal Ramadan 2026/2027 perkiraan; tarif lembur tetap tidak memakai pengali jam pertama/berikutnya; uang makan bulanan juga per hari hadir (hanya tarifnya berbeda).

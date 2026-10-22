@@ -6,10 +6,10 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.core.models import Role, User
-from apps.hr.models import AttendanceDaily, Department, Employee, Position
+from apps.hr.models import AttendanceDaily, Department, Employee, Position, Shift
 from apps.hrd.models import BpjsDeduction, BpjsMembership, Separation, UniformPurchase, UniformSize, UniformType
 from . import calc, engine, services
-from .models import PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, WageScale
+from .models import MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, WageScale
 
 PERIOD = "2025-10"
 D1 = datetime.date
@@ -122,15 +122,37 @@ class EngineSampleSlipTests(Base):
         self.profile(e, tier="A", on=D1(2021, 4, 1)); self.profile(e, tier="B", on=D1(2025, 10, 1)); self.profile(e, tier="A", on=D1(2025, 11, 1), allowance_position=999_999)
         s = Payslip.objects.get(run=self.run_calc()); self.assertEqual(s.grade_label, "9 B"); self.assertIsNone(self.item(s, "t_jabatan"))
 
-    def test_allowances_and_meal_follow_profile_and_attendance(self):
+    def test_allowances_follow_profile(self):
         e = self.emp(); self.scale(); self.profile(e, allowance_position=100_000, allowance_education=50_000, meal_allowance=True)
         for i in range(10): self.att(e, D1(2025, 10, 1 + i))
         s = Payslip.objects.get(run=self.run_calc())
         self.assertEqual((self.item(s, "t_jabatan").amount, self.item(s, "t_pendidikan").amount), (100_000, 50_000))
-        self.assertEqual((self.item(s, "uang_makan").amount, self.item(s, "uang_makan").qty), (37_500, 10))
+        self.assertIsNone(self.item(s, "uang_makan"))   # bukan periode uang makan → Rp 0 walau berhak
+
+    def test_meal_only_inside_meal_period_with_type_and_shift_rates(self):
+        pagi, malam = Shift.objects.create(name="Pagi", code="PAGI", start="07:00", end="15:00"), Shift.objects.create(name="Malam", code="MALAM", start="23:00", end="07:00", crosses_midnight=True)
+        MealPeriod.objects.create(name="Ramadan", start_date=D1(2025, 10, 10), end_date=D1(2025, 10, 19))
+        on = D1(2021, 1, 1)
+        MealRate.objects.create(pay_type="harian", amount=10_000, effective_from=on); MealRate.objects.create(pay_type="harian", shift=pagi, amount=0, effective_from=on)   # pagi tidak dapat
+        MealRate.objects.create(pay_type="bulanan", amount=20_000, effective_from=on)
+        self.scale()
+        h, b = self.emp("H1"), self.emp("B1"); self.profile(h, meal_allowance=True, pay_type="harian"); self.profile(b, meal_allowance=True, pay_type="bulanan")
+        for e in (h, b):
+            for d in range(8, 13): self.att(e, D1(2025, 10, d), shift=malam if d % 2 else pagi)   # 8–9 di luar periode; 10,11,12 di dalam: pagi, malam, pagi
+        run = self.run_calc(); sh, sb = Payslip.objects.get(run=run, employee=h), Payslip.objects.get(run=run, employee=b)
+        self.assertEqual((self.item(sh, "uang_makan").amount, self.item(sh, "uang_makan").qty), (10_000, 1))   # hanya 1 hari malam; pagi tarif 0
+        self.assertEqual((self.item(sb, "uang_makan").amount, self.item(sb, "uang_makan").qty), (60_000, 3))   # bulanan: tarif umum semua shift
 
     def test_no_meal_without_profile_flag(self):
+        MealPeriod.objects.create(name="R", start_date=D1(2025, 10, 1), end_date=D1(2025, 10, 31)); MealRate.objects.create(pay_type="harian", amount=10_000, effective_from=D1(2021, 1, 1))
         e = self.emp(); self.scale(); self.profile(e); self.att(e, D1(2025, 10, 1)); self.assertIsNone(self.item(Payslip.objects.get(run=self.run_calc()), "uang_makan"))
+
+    def test_flat_overtime_rate_per_hour_by_pay_type(self):
+        self.scale(); h, b = self.emp("H1"), self.emp("B1"); self.profile(h, pay_type="harian"); self.profile(b, pay_type="bulanan")
+        OvertimeRate.objects.create(pay_type="harian", amount=15_000, effective_from=D1(2021, 1, 1)); OvertimeRate.objects.create(pay_type="bulanan", amount=20_000, effective_from=D1(2021, 1, 1))
+        for e in (h, b): self.att(e, D1(2025, 10, 1), ot=120); self.att(e, D1(2025, 10, 2), ot=30)   # 2,5 jam
+        run = self.run_calc(); sh, sb = Payslip.objects.get(run=run, employee=h), Payslip.objects.get(run=run, employee=b)
+        self.assertEqual((self.item(sh, "lembur_overtime").amount, self.item(sh, "lembur_overtime").qty), (37_500, D("2.50"))); self.assertEqual(self.item(sb, "lembur_overtime").amount, 50_000)
 
     def test_alfa_deduction_and_standby(self):
         e = self.emp(); self.scale("90000"); self.profile(e)
@@ -355,7 +377,7 @@ class ViewAccessTests(Base):
         self.run = PayrollRun.objects.create(period=PERIOD, status="diserahkan"); services.calculate_run(self.run.pk, self.payroll)
         self.slip = self.run.slips.first()
         self.dept_admin = make_user("da", Role.DEPT_ADMIN, department=self.dept); self.poli = make_user("pl", Role.POLI)
-        self.pages = ["pay_home", "pay_runs", "pay_profiles", "pay_profile_new", "pay_scale", "pay_scale_new", "pay_params", "pay_param_new", "pay_adjustments", "pay_adjustment_new", "pay_tali", "pay_tali_rule_new"]
+        self.pages = ["pay_home", "pay_runs", "pay_profiles", "pay_profile_new", "pay_scale", "pay_scale_new", "pay_rates", "pay_meal_period_new", "pay_meal_rate_new", "pay_ot_rate_new", "pay_params", "pay_param_new", "pay_adjustments", "pay_adjustment_new", "pay_tali", "pay_tali_rule_new"]
 
     def get(self, user, name, *a, **kw):
         self.client.force_login(user); return self.client.get(reverse(name, args=a), **kw)
@@ -374,7 +396,7 @@ class ViewAccessTests(Base):
         for n in ("pay_runs", "pay_tali"): self.assertEqual(self.get(self.hrd, n).status_code, 200, n)
         self.assertEqual(self.get(self.hrd, "pay_run", self.run.pk).status_code, 200)
         self.assertEqual(self.get(self.hrd, "pay_slip", self.slip.pk).status_code, 200)
-        for n in ("pay_profiles", "pay_scale", "pay_params", "pay_adjustments", "pay_profile_new", "pay_scale_new"): self.assertEqual(self.get(self.hrd, n).status_code, 403, n)
+        for n in ("pay_profiles", "pay_scale", "pay_rates", "pay_params", "pay_adjustments", "pay_profile_new", "pay_scale_new"): self.assertEqual(self.get(self.hrd, n).status_code, 403, n)
 
     def test_other_roles_denied_everywhere(self):
         for u in (self.dept_admin, self.poli):

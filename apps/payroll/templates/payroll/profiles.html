@@ -12,7 +12,7 @@
 <div class="wrap"><table id="profiles"><thead><tr><th class="fill">Karyawan</th><th class="nw">Grade<small>upah harian</small></th><th class="num">Tunjangan tetap<small>/ bulan</small></th><th class="nw">Uang makan</th><th class="nw">Berlaku sejak</th><th class="acts"></th></tr></thead><tbody>
 {% for r in rows %}{% with p=r.p %}<tr><td class="fill">{{ r.e.name }}<small>{{ r.e.nik }} · {{ r.e.department.name }}</small></td>
 {% if p %}<td class="nw">{{ p.grade_label }}<small>{% if r.wage %}{{ r.wage|rupiah }}{% else %}<span class="pill rejected">skala tidak ada</span>{% endif %}</small></td>
-<td class="num nw">{{ p.allowance_position|add:p.allowance_education|add:p.allowance_special|add:p.allowance_other|rupiah }}</td><td class="nw">{% if p.meal_allowance %}ya{% else %}tidak{% endif %}</td><td class="nw">{{ p.effective_from|date:"d-m-Y" }}</td>
+<td class="num nw">{{ p.allowance_position|add:p.allowance_education|add:p.allowance_special|add:p.allowance_other|rupiah }}</td><td class="nw">{{ p.get_pay_type_display }} · makan {% if p.meal_allowance %}ya{% else %}tidak{% endif %}</td><td class="nw">{{ p.effective_from|date:"d-m-Y" }}</td>
 <td class="acts"><a class="btn sm ghost" href="{% url 'pay_profile_detail' r.e.pk %}">Riwayat</a></td>
 {% else %}<td class="nw"><span class="pill pending">belum ada</span></td><td></td><td></td><td></td><td class="acts"><a class="btn sm" href="{% url 'pay_profile_new' %}?nik={{ r.e.nik }}">Atur</a></td>{% endif %}</tr>{% endwith %}
 {% empty %}<tr><td class="empty" colspan="6">{% if f.q or f.department or f.state %}Tidak ada karyawan yang cocok. <a href="?">Reset filter</a>{% else %}Belum ada karyawan aktif.{% endif %}</td></tr>{% endfor %}</tbody></table></div>

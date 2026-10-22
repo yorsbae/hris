@@ -20,10 +20,10 @@ from django.db.models import Count, Q, Sum
 
 from apps.hr import leave
 from apps.hr.attendance_calc import HOLIDAY_WORK_NOTE
-from apps.hr.models import AttendanceDaily, Employee
+from apps.hr.models import AttendanceDaily, Employee, Shift
 from apps.hrd.models import BpjsDeduction, BpjsMembership, Separation, UniformPurchase
 from . import calc, params as P
-from .models import PayAdjustment, PayComponent, PayParam, PayProfile, Payslip, PayslipItem, WageScale
+from .models import MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, Payslip, PayslipItem, WageScale
 
 CHUNK = 500
 
@@ -60,6 +60,42 @@ def wage_scale(on):
 def daily_wage_of(profile, scale):
     if profile.wage_override is not None: return profile.wage_override
     return scale.get((profile.grade, profile.tier))
+
+
+def meal_rates(on):
+    """{(pay_type, shift_id|None): Rp/hari} berlaku pada `on` (baris tidak batal terbaru per kunci)."""
+    out = {}
+    for r in MealRate.objects.filter(voided_at__isnull=True, effective_from__lte=on).order_by("effective_from", "id"): out[(r.pay_type, r.shift_id)] = r.amount
+    return out
+
+
+def meal_rate_for(rates, pay_type, shift_id):
+    """Tarif shift itu bila ada barisnya, kalau tidak tarif umum tipe gaji itu, kalau tidak 0."""
+    if (pay_type, shift_id) in rates: return rates[(pay_type, shift_id)]
+    return rates.get((pay_type, None), D(0))
+
+
+def overtime_rates(on):
+    """{pay_type: Rp/jam} berlaku pada `on`."""
+    out = {}
+    for r in OvertimeRate.objects.filter(voided_at__isnull=True, effective_from__lte=on).order_by("effective_from", "id"): out[r.pay_type] = r.amount
+    return out
+
+
+def meal_windows(start, end):
+    """Potongan periode uang makan (tidak batal) yang beririsan dengan [start, end] → [(awal, akhir)]."""
+    return [(max(m.start_date, start), min(m.end_date, end)) for m in MealPeriod.objects.filter(voided_at__isnull=True, start_date__lte=end, end_date__gte=start)]
+
+
+def _meal_days(ids, windows):
+    """{employee_id: {shift_id|None: jumlah hari hadir di dalam periode uang makan}}."""
+    out = defaultdict(lambda: defaultdict(int))
+    if not windows: return out
+    cond = Q()
+    for a, b in windows: cond |= Q(date__gte=a, date__lte=b)
+    for part in chunks(ids):
+        for eid, sid in AttendanceDaily.objects.filter(cond, employee_id__in=part, status="hadir").values_list("employee_id", "shift_id"): out[eid][sid] += 1
+    return out
 
 
 # ---------------------------------------------------------------- pembacaan data periode
@@ -114,6 +150,7 @@ def build(period):
     seps = {s.employee_id: s for s in Separation.objects.filter(voided_at__isnull=True)}
     tali = pending_tali_asih(end)
     profs = current_profiles(end)
+    mrates, orates, windows = meal_rates(end), overtime_rates(end), meal_windows(start, end)
     emps = {e.pk: e for e in Employee.objects.filter(join_date__lte=end).select_related("department", "position")}
     warnings = []
 
@@ -128,6 +165,8 @@ def build(period):
     ids = [e.pk for e, _ in todo]
     att, ot = _attendance(ids, start, end)
     if ids and not att: warnings.append("Absensi periode ini belum diolah (tidak ada rekap harian): lembur, hari libur, uang makan, dan potongan alfa bernilai Rp 0. Jalankan Absensi → olah dulu bila perlu.")
+    mdays = _meal_days([e.pk for e, p in todo if p.meal_allowance], windows)
+    shift_names = {sh.pk: (sh.code or sh.name) for sh in Shift.objects.all()} if windows else {}
     bpjs_amt, bpjs_off = _bpjs(ids, period); uni = _uniform(ids, end); adj = _adjustments(ids, period)
     slips, missing_scale, no_items = [], [], []
     if not comps: warnings.append("Tidak ada komponen slip aktif (biasanya setelah `manage.py flush`); slip tidak dapat dibuat. Jalankan: python manage.py seed_payroll_demo (demo) atau aktifkan komponen di Payroll → Komponen.")
@@ -151,11 +190,21 @@ def build(period):
         add("t_khusus", pf.allowance_special * ratio, source="profil"); add("t_lain", pf.allowance_other * ratio, source="profil")
         years = calc.full_years(e.join_date, end)
         if days > 0: add("t_masa_kerja", years * prm["tunj_masa_kerja"] * ratio, qty=D(years), rate=prm["tunj_masa_kerja"], source="hitung")
-        hours = calc.weighted_hours(ot.get(e.pk, []), prm["lembur_jam1"], prm["lembur_jam2"])
-        if hours > 0: add("lembur_overtime", hours * hourly, qty=hours, rate=calc.q2(hourly), source="absensi")
+        flat = orates.get(pf.pay_type)
+        if flat:   # master Lembur per jam (nominal tetap): jam terbukti scan × tarif
+            hours = calc.q2(sum((D(int(m)) for m in ot.get(e.pk, []) if m and m > 0), D(0)) / 60)
+            if hours > 0: add("lembur_overtime", hours * flat, qty=hours, rate=flat, source="absensi", note=f"tarif tetap {pf.get_pay_type_display().lower()}")
+        else:
+            hours = calc.weighted_hours(ot.get(e.pk, []), prm["lembur_jam1"], prm["lembur_jam2"])
+            if hours > 0: add("lembur_overtime", hours * hourly, qty=hours, rate=calc.q2(hourly), source="absensi")
         if a and a["libur_kerja"]: add("lembur_libur", daily * a["libur_kerja"], qty=D(a["libur_kerja"]), rate=calc.q2(daily), source="absensi")
         if a and a["standby"]: add("lembur_standby", D(a["standby"]) / 60 * hourly * prm["standby_pengali"], qty=calc.q2(D(a["standby"]) / 60), rate=calc.q2(hourly), source="absensi")
-        if pf.meal_allowance and a and a["hadir"]: add("uang_makan", a["hadir"] * prm["uang_makan"], qty=D(a["hadir"]), rate=prm["uang_makan"], source="absensi")
+        if pf.meal_allowance and mdays.get(e.pk):   # hanya hari hadir di dalam Periode Uang Makan; tarif menurut tipe gaji + shift hari itu (0 = shift tanpa uang makan)
+            tot, n, parts = D(0), 0, []
+            for sid, cnt in sorted(mdays[e.pk].items(), key=lambda kv: (kv[0] is None, kv[0] or 0)):
+                r = meal_rate_for(mrates, pf.pay_type, sid)
+                if r > 0: tot += r * cnt; n += cnt; parts.append(f"{shift_names.get(sid, 'tanpa shift')} {cnt}×{int(r):,}".replace(",", "."))
+            if n: add("uang_makan", tot, qty=D(n), rate=calc.q2(tot / n), source="absensi", note=("; ".join(parts))[:200])
         if sep and prm["sisa_cuti_dibayar"] and start <= last <= end:
             bal = leave.balance(e, last.year)
             if bal > 0: add("sisa_cuti", bal * daily, qty=bal, rate=calc.q2(daily), source="hitung", note=f"saldo cuti {last.year}")

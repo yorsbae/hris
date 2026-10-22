@@ -24,17 +24,18 @@ class SeedDemoTests(TestCase):
     def test_payroll_seeded(self):
         from apps.payroll.models import PayrollRun, PayProfile, Payslip
         self.assertTrue(User.objects.filter(role=Role.PAYROLL).exists())
-        self.assertEqual(sorted(PayrollRun.objects.values_list("status", flat=True)), ["dibayar", "dihitung"])
-        paid = PayrollRun.objects.get(status="dibayar"); self.assertTrue(paid.locked); self.assertTrue(Payslip.objects.filter(run=paid).exists())
+        st = sorted(PayrollRun.objects.values_list("status", flat=True)); self.assertEqual(st[-1], "dihitung"); self.assertTrue(st[:-1] and set(st[:-1]) == {"dibayar"})   # bulan ini dihitung; bulan lalu (+ bulan puasa terakhir) dibayar
+        paid = PayrollRun.objects.filter(status="dibayar").order_by("-period").first(); self.assertTrue(paid.locked); self.assertTrue(Payslip.objects.filter(run=paid).exists())
         self.assertTrue(PayProfile.objects.exists())
 
     def test_payslips_complete_and_printable(self):
-        """Putaran 58: data demo sampai cetak slip — absensi sebulan penuh terolah, slip bulan lalu punya uang makan + lembur, tiap slip bisa dicetak PDF."""
+        """Putaran 58: data demo sampai cetak slip — absensi sebulan penuh terolah, slip punya lembur + (bulan puasa) uang makan, tiap slip bisa dicetak PDF."""
         from apps.payroll.models import PayrollRun, Payslip
         from apps.payroll import pdf
-        paid = PayrollRun.objects.get(status="dibayar"); slips = Payslip.objects.filter(run=paid)
+        paid = PayrollRun.objects.filter(status="dibayar").order_by("-period").first(); slips = Payslip.objects.filter(run=paid)
         self.assertFalse(any("belum diolah" in f for x in slips for f in x.flags))   # absensi bulan lalu sudah diolah
-        secs = {i.section for x in slips for i in x.items.all()}; self.assertTrue({"pokok", "tunjangan", "makan", "lembur", "potongan"} <= secs, secs)
+        secs = {i.section for x in Payslip.objects.filter(run__status="dibayar") for i in x.items.all()}   # uang makan hanya ada di slip bulan puasa (periode uang makan)
+        self.assertTrue({"pokok", "tunjangan", "makan", "lembur", "potongan"} <= secs, secs)
         self.assertLess(slips.filter(flagged=True).count(), slips.count() // 2)   # sebagian besar slip bersih (tidak semua berflag)
         self.assertFalse(Payslip.objects.filter(net_pay__lte=0).exists())
         self.client.force_login(User.objects.get(username="payroll"))

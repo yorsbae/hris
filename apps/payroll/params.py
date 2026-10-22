@@ -13,7 +13,6 @@ PARAMS = {
     "lembur_jam2": ("Pengali lembur jam berikutnya", D("2"), "× upah/jam", "Jam lembur kedua dan seterusnya pada hari yang sama (Kepmenaker 102/2004: 2)."),
     "standby_pengali": ("Pengali jam Stand By", D("1"), "× upah/jam", "Stand By (kerja saat waktu istirahat) disetujui HRD dibayar per jam sekian kali upah per jam. Usulan: 1 (belum ada ketentuan)."),
     "tunj_masa_kerja": ("Tunjangan masa kerja per tahun penuh", D("3000"), "Rp / tahun", "Masa kerja penuh pada akhir periode × nilai ini (slip contoh: 4 tahun → Rp 12.000)."),
-    "uang_makan": ("Uang makan per hari hadir", D("3750"), "Rp / hari", "Hanya untuk karyawan yang profil gajinya mencentang 'uang makan'; dikalikan jumlah hari hadir di rekap Absensi."),
     "jamsostek_persen": ("Potongan Jamsostek (JHT + JP) karyawan", D("3"), "% gaji pokok", "Slip contoh: Rp 76.030 ≈ 3% × gaji pokok Rp 2.534.426 (dibulatkan ke bawah)."),
     "jamsostek_bulat": ("Pembulatan ke bawah Jamsostek", D("10"), "Rp", "Hasil dibulatkan ke bawah ke kelipatan nilai ini."),
     "bpjs_kes_persen": ("Potongan BPJS Kesehatan karyawan", D("2"), "% gaji pokok", "Slip contoh: Rp 50.688 = 2% × gaji pokok Rp 2.534.426 (dibulatkan ke bawah). Konfirmasi: tarif resmi karyawan 1% — angka slip 2%."),

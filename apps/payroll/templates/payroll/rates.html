@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Lembur & Uang Makan{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>Master Lembur &amp; Uang Makan</h2>
+<p class="sub">Tarif lembur per jam dan uang makan per hari, dibedakan untuk karyawan <b>harian</b> dan <b>bulanan</b>. Uang makan hanya dibayar pada <b>periode uang makan</b> (mis. bulan puasa) dan bisa berbeda per shift. Perubahan = baris baru bertanggal; riwayat tidak ditimpa.</p>
+
+<h3>1. Periode uang makan (mis. bulan puasa)</h3>
+<div class="tools"><a class="btn" href="{% url 'pay_meal_period_new' %}">+ Tambah periode</a></div>
+<div class="wrap"><table><thead><tr><th class="fill">Nama</th><th class="nw">Mulai</th><th class="nw">Sampai</th><th class="nw">Status</th><th class="acts"></th></tr></thead><tbody>
+{% for m in periods %}<tr><td class="fill"><b>{{ m.name }}</b>{% if m.note %}<small> · {{ m.note }}</small>{% endif %}</td><td class="nw">{{ m.start_date|date:"d-m-Y" }}</td><td class="nw">{{ m.end_date|date:"d-m-Y" }}</td>
+<td class="nw">{% if m.active_now %}<span class="pill ok">berlaku sekarang</span>{% elif m.start_date > today %}<span class="pill pending">akan datang</span>{% else %}<span class="pill">selesai</span>{% endif %}</td>
+<td class="acts"><form method="post" action="{% url 'pay_void' 'mealperiod' m.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada periode. Selama kosong, uang makan Rp 0 untuk semua karyawan.</td></tr>{% endfor %}</tbody></table></div>
+
+<h3>2. Tarif uang makan per hari hadir</h3>
+<div class="tools"><a class="btn" href="{% url 'pay_meal_rate_new' %}">+ Tambah / ubah tarif</a></div>
+<div class="wrap"><table><thead><tr><th class="nw">Tipe gaji</th><th class="nw">Shift</th><th class="num">Per hari</th><th class="nw">Sejak</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
+{% for r in meal_rows %}<tr><td class="nw"><b>{{ r.get_pay_type_display }}</b></td><td class="nw">{% if r.shift %}{{ r.shift.code|default:r.shift.name }}{% else %}<i>semua shift (umum)</i>{% endif %}</td>
+<td class="num nw">{% if r.amount == 0 %}<span class="pill pending">tidak dapat</span>{% else %}{{ r.amount|rupiah }}{% endif %}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td class="fill"><small>{{ r.note }}</small></td>
+<td class="acts"><form method="post" action="{% url 'pay_void' 'mealrate' r.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada tarif. Tanpa tarif, uang makan Rp 0.</td></tr>{% endfor %}</tbody></table></div>
+
+<h3>3. Tarif lembur per jam</h3>
+<div class="tools"><a class="btn" href="{% url 'pay_ot_rate_new' %}">+ Tambah / ubah tarif lembur</a></div>
+<div class="wrap"><table><thead><tr><th class="nw">Tipe gaji</th><th class="num">Per jam</th><th class="nw">Sejak</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
+{% for r in ot_rows %}<tr><td class="nw"><b>{{ r.get_pay_type_display }}</b></td><td class="num nw">{{ r.amount|rupiah }}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td class="fill"><small>{{ r.note }}</small></td>
+<td class="acts"><form method="post" action="{% url 'pay_void' 'otrate' r.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada tarif tetap: lembur memakai rumus upah/jam × pengali (lihat <a href="{% url 'pay_params' %}">Parameter</a>).</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

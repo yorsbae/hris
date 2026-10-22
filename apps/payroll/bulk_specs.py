@@ -9,14 +9,14 @@ def _profile_data(r, ctx):
     yes = (r.get("uang_makan") or "").strip().lower() in ("1", "y", "ya", "yes", "true", "x")
     return {"nik": r.get("nik", ""), "effective_from": r.get("berlaku_sejak", ""), "grade": r.get("grade", ""), "tier": r.get("subgrade", ""), "wage_override": r.get("upah_harian_khusus", ""),
             "allowance_position": r.get("t_jabatan", ""), "allowance_education": r.get("t_pendidikan", ""), "allowance_special": r.get("t_khusus", ""), "allowance_other": r.get("t_lain", ""),
-            "meal_allowance": "on" if yes else "", "note": r.get("keterangan", "")}
+            "meal_allowance": "on" if yes else "", "pay_type": (r.get("tipe_gaji") or "harian").strip().lower(), "note": r.get("keterangan", "")}
 
 
 PROFILE = Spec("profil-gaji", "payroll", "profil gaji karyawan", "/payroll/profiles/", None, "key", ProfileForm,
-               ["nik", "berlaku_sejak", "grade", "subgrade", "upah_harian_khusus", "t_jabatan", "t_pendidikan", "t_khusus", "t_lain", "uang_makan", "keterangan"], ["nik", "berlaku_sejak"],
+               ["nik", "berlaku_sejak", "grade", "subgrade", "upah_harian_khusus", "t_jabatan", "t_pendidikan", "t_khusus", "t_lain", "uang_makan", "tipe_gaji", "keterangan"], ["nik", "berlaku_sejak"],
                ["001", "2025-10-01", "9", "A", "", "0", "0", "0", "0", "tidak", ""], _profile_data,
                key_fn=lambda r: f"{r.get('nik', '').strip()}|{r.get('berlaku_sejak', '').strip()}",
-               hint="Isi grade + subgrade (upah mengikuti Skala Gaji Harian) ATAU upah_harian_khusus. Tunjangan per bulan penuh dalam rupiah. uang_makan: ya/tidak. Tanggal YYYY-MM-DD. "
+               hint="Isi grade + subgrade (upah mengikuti Skala Gaji Harian) ATAU upah_harian_khusus. Tunjangan per bulan penuh dalam rupiah. uang_makan: ya/tidak (hak; dibayar hanya pada Periode Uang Makan). tipe_gaji: harian/bulanan (kosong = harian). Tanggal YYYY-MM-DD. "
                     "NIK + berlaku_sejak yang sudah ada MENGGANTI profil lama (yang lama dibatalkan, tidak dihapus).")
 
 

@@ -12,7 +12,7 @@ from apps.core.money import RupiahField, parse_rupiah
 from apps.hr.models import Employee
 from apps.hrd.models import Separation
 from . import calc, params as P
-from .models import PayAdjustment, PayComponent, PayParam, PayProfile, TaliAsihRule, WageScale
+from .models import MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, TaliAsihRule, WageScale
 from . import services
 
 DATE = lambda: forms.DateInput(attrs={"type": "date"})  # noqa: E731
@@ -96,7 +96,8 @@ class ProfileForm(ByNik):
     allowance_education = RupiahField(label="T Pendidikan / bulan (Rp)", required=False, min_value=0, max_value=1_000_000_000)
     allowance_special = RupiahField(label="T Khusus / bulan (Rp)", required=False, min_value=0, max_value=1_000_000_000)
     allowance_other = RupiahField(label="T Lain-lain / bulan (Rp)", required=False, min_value=0, max_value=1_000_000_000)
-    meal_allowance = forms.BooleanField(label="Dibayar uang makan", required=False)
+    pay_type = forms.ChoiceField(label="Tipe gaji", choices=PayProfile.PAY_TYPES, initial="harian", required=False, help_text="Menentukan tarif Uang Makan & Lembur di master (Payroll → Lembur & Uang Makan).")
+    meal_allowance = forms.BooleanField(label="Berhak uang makan", required=False, help_text="Hanya dibayar pada Periode Uang Makan (mis. bulan puasa), dengan tarif sesuai tipe gaji & shift.")
     note = forms.CharField(label="Keterangan", required=False, max_length=300)
 
     def __init__(self, *a, instance=None, user=None, **k):
@@ -118,12 +119,12 @@ class ProfileForm(ByNik):
         old = PayProfile.objects.select_for_update().filter(employee=self.employee, effective_from=d["effective_from"], voided_at__isnull=True).first()
         new = {"grade": d.get("grade"), "tier": d.get("tier") or "", "wage_override": d.get("wage_override"), "allowance_position": d.get("allowance_position") or 0,
                "allowance_education": d.get("allowance_education") or 0, "allowance_special": d.get("allowance_special") or 0, "allowance_other": d.get("allowance_other") or 0,
-               "meal_allowance": bool(d.get("meal_allowance")), "note": d.get("note", "").strip()}
+               "meal_allowance": bool(d.get("meal_allowance")), "pay_type": d.get("pay_type") or "harian", "note": d.get("note", "").strip()}
         if old and same_values(old, new): self.unchanged = True; return old
         if old: self.replaced = True; old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
         return PayProfile.objects.create(employee=self.employee, effective_from=d["effective_from"], grade=d.get("grade"), tier=d.get("tier") or "", wage_override=d.get("wage_override"),
                                          allowance_position=d.get("allowance_position") or 0, allowance_education=d.get("allowance_education") or 0, allowance_special=d.get("allowance_special") or 0,
-                                         allowance_other=d.get("allowance_other") or 0, meal_allowance=bool(d.get("meal_allowance")), note=d.get("note", "").strip(), created_by=self.user)
+                                         allowance_other=d.get("allowance_other") or 0, meal_allowance=bool(d.get("meal_allowance")), pay_type=d.get("pay_type") or "harian", note=d.get("note", "").strip(), created_by=self.user)
 
 
 # ---------------------------------------------------------------- skala gaji harian
@@ -225,3 +226,66 @@ class TaliRuleForm(forms.Form):
         if old: self.replaced = True; old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
         return TaliAsihRule.objects.create(kind=d["kind"], min_years=d["min_years"], days_per_year=d["days_per_year"], max_days=d.get("max_days"), effective_from=d["effective_from"],
                                            note=d.get("note", "").strip(), created_by=self.user)
+
+
+# ---------------------------------------------------------------- master lembur & uang makan
+def _void(obj, user, why="Diganti nilai baru"):
+    obj.voided_at, obj.voided_by, obj.void_reason = timezone.now(), user, why; obj.save(update_fields=["voided_at", "voided_by", "void_reason"])
+
+
+class MealPeriodForm(forms.Form):
+    name = forms.CharField(label="Nama periode", max_length=60, initial="Ramadan")
+    start_date = forms.DateField(label="Mulai", widget=DATE()); end_date = forms.DateField(label="Sampai", widget=DATE())
+    note = forms.CharField(label="Keterangan", required=False, max_length=300)
+
+    def __init__(self, *a, instance=None, user=None, **k):
+        super().__init__(*a, **k); self.instance, self.user = instance, user
+
+    def clean(self):
+        d = super().clean(); s, e = d.get("start_date"), d.get("end_date")
+        if s and e:
+            if e < s: self.add_error("end_date", "Tanggal selesai tidak boleh sebelum tanggal mulai.")
+            elif (e - s).days > 62: self.add_error("end_date", "Periode uang makan maksimal 62 hari (mis. satu bulan puasa).")
+            elif MealPeriod.objects.filter(voided_at__isnull=True, start_date__lte=e, end_date__gte=s).exists(): self.add_error("start_date", "Tumpang tindih dengan periode uang makan lain. Batalkan yang lama dahulu.")
+        return d
+
+    def save(self):
+        d = self.cleaned_data
+        return MealPeriod.objects.create(name=d["name"].strip(), start_date=d["start_date"], end_date=d["end_date"], note=d.get("note", "").strip(), created_by=self.user)
+
+
+class MealRateForm(forms.Form):
+    pay_type = forms.ChoiceField(label="Tipe gaji", choices=PayProfile.PAY_TYPES)
+    shift = forms.ModelChoiceField(label="Shift", required=False, queryset=None, empty_label="Semua shift (tarif umum)", help_text="Kosongkan = tarif umum. Isi shift tertentu bila tarifnya berbeda; nominal 0 = shift itu tidak dapat uang makan.")
+    amount = RupiahField(label="Uang makan per hari hadir (Rp)", min_value=0, max_value=10_000_000)
+    effective_from = forms.DateField(label="Berlaku sejak", initial=timezone.localdate, widget=DATE())
+    note = forms.CharField(label="Keterangan", required=False, max_length=300)
+
+    def __init__(self, *a, instance=None, user=None, **k):
+        from apps.hr.models import Shift
+        super().__init__(*a, **k); self.instance, self.user = instance, user
+        self.fields["shift"].queryset = Shift.objects.filter(active=True).order_by("code", "name")
+
+    @transaction.atomic
+    def save(self):
+        d = self.cleaned_data; old = MealRate.objects.select_for_update().filter(pay_type=d["pay_type"], shift=d.get("shift"), effective_from=d["effective_from"], voided_at__isnull=True).first()
+        if old and same_values(old, {"amount": d["amount"], "note": d.get("note", "").strip()}): self.unchanged = True; return old
+        if old: self.replaced = True; _void(old, self.user)
+        return MealRate.objects.create(pay_type=d["pay_type"], shift=d.get("shift"), amount=d["amount"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
+
+
+class OvertimeRateForm(forms.Form):
+    pay_type = forms.ChoiceField(label="Tipe gaji", choices=PayProfile.PAY_TYPES)
+    amount = RupiahField(label="Lembur per jam (Rp)", min_value=1, max_value=10_000_000, help_text="Nominal tetap per 1 jam lembur terbukti scan. Menggantikan rumus upah/jam × pengali untuk tipe gaji ini.")
+    effective_from = forms.DateField(label="Berlaku sejak", initial=timezone.localdate, widget=DATE())
+    note = forms.CharField(label="Keterangan", required=False, max_length=300)
+
+    def __init__(self, *a, instance=None, user=None, **k):
+        super().__init__(*a, **k); self.instance, self.user = instance, user
+
+    @transaction.atomic
+    def save(self):
+        d = self.cleaned_data; old = OvertimeRate.objects.select_for_update().filter(pay_type=d["pay_type"], effective_from=d["effective_from"], voided_at__isnull=True).first()
+        if old and same_values(old, {"amount": d["amount"], "note": d.get("note", "").strip()}): self.unchanged = True; return old
+        if old: self.replaced = True; _void(old, self.user)
+        return OvertimeRate.objects.create(pay_type=d["pay_type"], amount=d["amount"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
