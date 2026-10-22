@@ -10,7 +10,7 @@ from apps.hrd.test_base import KEY
 from apps.core.models import AuditLog, Role, User
 from apps.hr import attendance_calc as calc
 from apps.hr.attendance_import import _stage_path as _stage
-from apps.hr.models import AttendanceCheck, AttendanceDaily, AttendanceImport, AttendancePin, AttendanceRaw, Holiday
+from apps.hr.models import AttendanceCheck, AttendanceDaily, AttendanceImport, AttendancePin, AttendanceRaw, Department, Holiday
 from apps.hr.test_attendance import Base, LOG_HDR, csv_bytes, workday, xlsx_bytes
 
 
@@ -114,6 +114,16 @@ class PinHolidayTests(PageBase):
         self.client.post(reverse("att_process"), {"from": d.isoformat(), "to": d.isoformat()}); self.assertEqual(AttendanceDaily.objects.get(employee=self.e1, date=d).status, "libur_nasional")
         h = Holiday.objects.get(); self.client.post(reverse("att_holidays"), {"action": "toggle", "id": h.pk}); self.assertFalse(Holiday.objects.get().active)
         r = self.client.post(reverse("att_holidays"), {"action": "delete", "id": h.pk}, follow=True); self.assertContains(r, "sudah lewat"); self.assertEqual(Holiday.objects.count(), 1)
+
+    def test_holiday_duty_dept_requires_department_and_rolls_back(self):
+        self.login("hrd"); d = workday()
+        r = self.client.post(reverse("att_holidays"), {"action": "add", "date": d.isoformat(), "name": "Libur Dept", "duty": "dept"}, follow=True)
+        self.assertContains(r, "minimal satu departemen"); self.assertEqual(Holiday.objects.count(), 0)   # tidak tersimpan setengah jalan
+        dept = Department.objects.first() or Department.objects.create(code="X", name="Dept X")
+        self.client.post(reverse("att_holidays"), {"action": "add", "date": d.isoformat(), "name": "Libur Dept", "duty": "dept", "duty_departments": [dept.pk], "duty_premium": "1"})
+        h = Holiday.objects.get(); self.assertEqual(h.duty, "dept"); self.assertEqual(list(h.duty_departments.all()), [dept])
+        r = self.client.get(reverse("att_holidays"), {"year": d.year}); self.assertContains(r, "Libur Dept"); self.assertContains(r, "Ubah pengaturan masuk"); self.assertContains(r, dept.name)
+        self.client.post(reverse("att_holidays"), {"action": "duty", "id": h.pk, "duty": "dept"}); self.assertEqual(Holiday.objects.get().duty, "dept")   # gagal validasi: data lama utuh
 
     def test_holiday_form_rejects_garbage(self):
         self.login("hrd"); self.client.post(reverse("att_holidays"), {"action": "add", "date": "bukan", "name": "x"}); self.assertEqual(Holiday.objects.count(), 0)

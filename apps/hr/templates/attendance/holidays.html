@@ -1,13 +1,58 @@
 {% extends "base.html" %}{% block title %}Hari Libur{% endblock %}{% block content %}
+<style>
+.hl-years{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 14px}.hl-years .btn{margin:0}.hl-years .cur{background:var(--ac);color:#fff!important;border-color:var(--ac)}
+.hl-stats{display:flex;gap:8px 18px;flex-wrap:wrap;color:var(--mu);font-size:14px;margin:0 0 14px}.hl-stats b{color:inherit;font-size:inherit;display:inline;color:var(--tx,inherit)}
+.hl-add{max-width:880px;margin:0 0 18px}.hl-add h3{margin:0 0 4px}.hl-add>.help{margin:0 0 12px;font-size:13px}
+.hl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:4px 14px}.hl-grid .fld{margin-bottom:10px}.hl-grid .fld input,.hl-grid .fld select{width:100%}
+.hl-box{border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;margin:2px 0 12px}.hl-box h4{margin:0 0 8px;font-size:14px}
+.hl-box .roster{max-height:150px}.hl-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.hl-actions .btn,.hl-actions button{margin:0}
+table.hl td{vertical-align:top}table.hl td small{display:block;color:var(--mu);font-size:12px}table.hl tr.past td{color:var(--mu)}table.hl tr.off td:not(.acts){opacity:.65}
+td.hl-acts{white-space:nowrap}td.hl-acts form{display:inline;margin:0}td.hl-acts .btn,td.hl-acts button{margin:0 0 0 6px;padding:4px 10px;font-size:13px;min-height:30px}
+tr.hl-edit td{background:var(--hov);padding:14px}tr.hl-edit[hidden]{display:none}
+@media(max-width:600px){td.hl-acts{white-space:normal}}
+</style>
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Hari libur {{ year }}</h2>
-<p class="sub"><b>Libur yang tetap berangkat:</b> atur kolom <i>Wajib masuk</i> bila perusahaan tetap beroperasi pada libur nasional (semua departemen atau hanya departemen tertentu). Yang wajib masuk diperlakukan seperti hari kerja biasa — tanpa scan masuk antrean tinjau, bukan libur — dan yang masuk dihitung <i>Hari Libur</i> di Payroll kecuali dimatikan. Tanpa scan di hari libur bukan tanpa-scan/alfa. Pilih berlaku untuk <b>karyawan non-rotasi</b> (shift bergilir tetap jalan) atau <b>semua karyawan</b>. Setelah mengubah, olah ulang rekap tanggal itu.</p>
-<div class="tools"><a class="btn ghost" style="margin-left:0" href="?year={{ year|add:'-1' }}">‹ {{ year|add:"-1" }}</a><a class="btn ghost" href="?year={{ year|add:'1' }}">{{ year|add:"1" }} ›</a></div>
-<form method="post" class="bar">{% csrf_token %}<input type="hidden" name="action" value="add"><input type="date" name="date" required aria-label="Tanggal"><input name="name" placeholder="Nama (mis. Idul Fitri)" required maxlength="100">
-<select name="kind">{% for k, v in kinds %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><select name="applies">{% for k, v in applies %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><select name="duty" aria-label="Wajib masuk">{% for k, v in duty_choices %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><select name="duty_departments" multiple size="3" aria-label="Departemen wajib masuk" title="Dipakai bila memilih 'Hanya departemen tertentu'">{% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select><label class="nw"><input type="checkbox" name="duty_premium" value="1" checked> hitung Hari Libur</label><button class="btn" type="submit">+ Tambah</button></form>
-<div class="wrap"><table class="sepfit"><thead><tr><th>Tanggal</th><th>Nama</th><th>Jenis</th><th>Berlaku</th><th>Wajib masuk</th><th>Status</th><th></th></tr></thead><tbody>
-{% for h in items %}<tr><td class="nw">{{ h.date|date:"D d M Y" }}</td><td>{{ h.name }}</td><td>{{ h.get_kind_display }}</td><td>{{ h.get_applies_display }}</td><td>{{ h.get_duty_display }}{% if h.duty == 'dept' %}: {% for d in h.duty_departments.all %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}{% if h.duty != 'none' %} · {% if h.duty_premium %}dihitung Hari Libur{% else %}hari kerja biasa{% endif %}{% endif %}
-<details><summary>ubah</summary><form method="post">{% csrf_token %}<input type="hidden" name="action" value="duty"><input type="hidden" name="id" value="{{ h.pk }}"><select name="duty">{% for k, v in duty_choices %}<option value="{{ k }}" {% if h.duty == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select><select name="duty_departments" multiple size="3">{% for d in departments %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}</select><label><input type="checkbox" name="duty_premium" value="1" {% if h.duty_premium %}checked{% endif %}> hitung Hari Libur</label> <button class="btn ghost">Simpan</button></form></details></td><td><span class="pill {% if h.active %}approved{% else %}nonaktif{% endif %}">{% if h.active %}Aktif{% else %}Nonaktif{% endif %}</span></td>
-<td class="nw"><form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ h.pk }}"><button class="btn ghost" name="action" value="toggle">{% if h.active %}Nonaktifkan{% else %}Aktifkan{% endif %}</button> <button class="btn ghost" name="action" value="delete" data-confirm="Hapus hari libur ini?">Hapus</button></form></td></tr>
-{% empty %}<tr><td class="empty" colspan="7">Belum ada hari libur {{ year }}.</td></tr>{% endfor %}</tbody></table></div>
+<p class="sub">Daftar tanggal merah dan libur perusahaan. Karyawan yang libur tidak dianggap alfa saat tidak scan.</p>
+<details class="quick"><summary>Cara kerja &amp; petunjuk</summary>
+<ol class="hint" style="margin-top:8px">
+<li><b>Tambah tanggal</b> di formulir. Karyawan non-rotasi otomatis libur (atau semua karyawan, sesuai pilihan <i>Libur berlaku untuk</i>).</li>
+<li>Kalau perusahaan <b>tetap beroperasi</b>, ubah <i>Apakah perusahaan tetap beroperasi?</i> menjadi semua departemen atau departemen tertentu. Yang wajib masuk diperlakukan seperti hari kerja biasa: tanpa scan masuk antrean tinjau, bukan libur.</li>
+<li>Yang wajib masuk dan hadir dihitung <i>Hari Libur</i> di Payroll, kecuali centang hitung Hari Libur dimatikan.</li>
+<li>Setelah menambah atau mengubah, <b>olah ulang rekap</b> tanggal itu (Absensi → Lainnya → Olah ulang rekap) agar berlaku.</li>
+<li>Hari libur yang sudah lewat tidak bisa dihapus, hanya dinonaktifkan, agar rekap lama tetap bisa ditelusuri.</li>
+</ol></details>
+<div class="hl-years"><a class="btn ghost" href="?year={{ year|add:'-1' }}">‹ {{ year|add:"-1" }}</a><a class="btn ghost cur" href="?year={{ year }}" aria-current="page">{{ year }}</a><a class="btn ghost" href="?year={{ year|add:'1' }}">{{ year|add:"1" }} ›</a></div>
+
+<form method="post" class="card hl-add">{% csrf_token %}<input type="hidden" name="action" value="add">
+<h3>+ Tambah hari libur</h3><p class="help">Isi tiga langkah di bawah, lalu tekan Tambah.</p>
+<div class="hl-box"><h4>1. Tanggal &amp; nama</h4><div class="hl-grid">
+<div class="fld"><label for="hl-date">Tanggal</label><input id="hl-date" type="date" name="date" required></div>
+<div class="fld"><label for="hl-name">Nama hari libur</label><input id="hl-name" name="name" placeholder="mis. Idul Fitri" required maxlength="100"></div>
+<div class="fld"><label for="hl-kind">Jenis</label><select id="hl-kind" name="kind">{% for k, v in kinds %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div></div></div>
+<div class="hl-box"><h4>2. Siapa yang libur?</h4><div class="fld" style="max-width:520px"><label for="hl-applies">Libur berlaku untuk</label><select id="hl-applies" name="applies">{% for k, v in applies %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+<div class="help">Karyawan shift bergilir (A7…G7, A7Pack…G7Pack) tetap mengikuti jadwal rotasi bila memilih non-rotasi.</div></div></div>
+<div class="hl-box"><h4>3. Ada yang tetap masuk?</h4>{% include "attendance/_holiday_duty.html" %}</div>
+<div class="hl-actions"><button class="btn" type="submit">+ Tambah hari libur</button></div></form>
+
+<p class="hl-stats"><span><b>{{ stats.total }}</b> hari libur</span><span><b>{{ stats.aktif }}</b> aktif</span><span><b>{{ stats.akan }}</b> akan datang</span><span><b>{{ stats.berangkat }}</b> dengan karyawan tetap masuk</span></p>
+<div class="wrap"><table class="sepfit hl"><thead><tr><th>Tanggal</th><th>Nama</th><th>Libur untuk</th><th>Wajib masuk</th><th>Status</th><th>Aksi</th></tr></thead><tbody>
+{% for h in items %}<tr class="{% if h.past %}past{% endif %}{% if not h.active %} off{% endif %}"><td class="nw">{{ h.date|date:"D d M Y" }}{% if h.past %}<small>sudah lewat</small>{% elif h.date == today %}<small>hari ini</small>{% endif %}</td>
+<td>{{ h.name }}<small>{{ h.get_kind_display }}</small></td>
+<td>{% if h.applies == 'all' %}Semua karyawan{% else %}Non-rotasi<small>shift bergilir tetap jalan</small>{% endif %}</td>
+<td>{% if h.duty == 'none' %}Libur penuh{% elif h.duty == 'all' %}Semua departemen{% else %}{{ h.duty_names|default:"—" }}{% endif %}{% if h.duty != 'none' %}<small>{% if h.duty_premium %}dihitung Hari Libur di Payroll{% else %}hari kerja biasa{% endif %}</small>{% endif %}</td>
+<td><span class="pill {% if h.active %}approved{% else %}nonaktif{% endif %}">{% if h.active %}Aktif{% else %}Nonaktif{% endif %}</span></td>
+<td class="acts hl-acts"><button type="button" class="btn ghost" data-edit="{{ h.pk }}" aria-expanded="false">Ubah</button><form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ h.pk }}"><button class="btn ghost" name="action" value="toggle">{% if h.active %}Nonaktifkan{% else %}Aktifkan{% endif %}</button>{% if not h.past %}<button class="btn ghost" name="action" value="delete" data-confirm="Hapus hari libur {{ h.name }}?">Hapus</button>{% endif %}</form></td></tr>
+<tr class="hl-edit" id="edit-{{ h.pk }}" hidden><td colspan="6"><form method="post" style="max-width:640px">{% csrf_token %}<input type="hidden" name="action" value="duty"><input type="hidden" name="id" value="{{ h.pk }}">
+<h4 style="margin:0 0 8px">Ubah pengaturan masuk · {{ h.name }}</h4>{% include "attendance/_holiday_duty.html" %}
+<div class="hl-actions"><button class="btn" type="submit">Simpan</button><button type="button" class="btn ghost" data-edit="{{ h.pk }}">Batal</button></div></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada hari libur {{ year }}. Isi formulir di atas untuk menambahkan.</td></tr>{% endfor %}</tbody></table></div>
+<script>
+(function(){
+function sync(box){var s=box.querySelector("[data-duty]"),d=box.querySelector("[data-dept]"),p=box.querySelector("[data-prem]");if(!s)return;d.hidden=s.value!=="dept";p.hidden=s.value==="none"}
+document.querySelectorAll("[data-hlduty]").forEach(function(b){sync(b);b.addEventListener("change",function(){sync(b)})});
+document.querySelectorAll("[data-edit]").forEach(function(btn){btn.addEventListener("click",function(){var r=document.getElementById("edit-"+btn.dataset.edit);if(!r)return;r.hidden=!r.hidden;
+document.querySelectorAll('button[data-edit="'+btn.dataset.edit+'"][aria-expanded]').forEach(function(x){x.setAttribute("aria-expanded",r.hidden?"false":"true")})})});
+})();
+</script>
 {% endblock %}
