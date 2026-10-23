@@ -1,55 +1,63 @@
 {% extends "base.html" %}{% load money %}{% block title %}Tambah penyesuaian gaji{% endblock %}{% block content %}
 <style>
-.af{max-width:760px}.af b,.af strong{font-size:inherit;display:inline;font-weight:600;line-height:inherit}
-.af input[type=radio]{width:auto;min-height:0;height:auto;margin:0;flex:none;padding:0}
-.af .sec{margin:0 0 18px}.af .sec>.h{font-size:14px;font-weight:600;margin:0 0 8px}.af .sec>.h i{font-style:normal;display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:var(--ac);color:#fff;font-size:12px;margin-right:8px}
-.af .row2{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:10px 12px}.af .row2 label,.af .l{display:block;font-size:13px;color:var(--mu);margin:0 0 4px;font-weight:500}.af .row2 input,.af .fx input,.af .fx select{width:100%}
-.af .kinds{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.af .kind{display:grid!important;grid-template-columns:22px 1fr;column-gap:10px;align-items:start;border:2px solid var(--bd);border-radius:12px;padding:12px 14px;cursor:pointer;margin:0;font-weight:400}
-.af .kind:hover{background:var(--hov)}.af .kind .t{font-weight:700;font-size:16px;color:var(--tx)}.af .kind .d{grid-column:2;color:var(--mu);font-size:13px;line-height:1.4}.af .kind input{grid-row:1/3;margin-top:4px!important}
-.af .kind.plus:has(input:checked){border-color:var(--ok);background:var(--okb)}.af .kind.minus:has(input:checked){border-color:var(--er);background:var(--erb)}
-.af .kind.plus .t{color:var(--ok)}.af .kind.minus .t{color:var(--er)}
-.af .amt{display:flex;align-items:stretch;gap:0}.af .amt .sg{display:flex;align-items:center;padding:0 14px;border:1px solid var(--bd2);border-right:0;border-radius:8px 0 0 8px;font-weight:700;font-size:18px;background:var(--hov)}
-.af .amt input{border-radius:0 8px 8px 0!important}.af .amt.plus .sg{color:var(--ok)}.af .amt.minus .sg{color:var(--er)}
-.af .hlp{color:var(--mu);font-size:12px;margin:4px 0 0}.af .err{color:var(--er);font-size:13px;margin:4px 0 0;padding:0;list-style:none}
-.af .acts2{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.af .acts2 button{margin:0}.af .acts2 .secondary{background:transparent;color:var(--ac);border:1px solid var(--bd2)}
-.af .ex{margin:0 0 16px;max-width:760px}.af .ex h3{margin:0 0 8px;font-size:15px}.af .ex table{width:100%}.af .ex td{padding:5px 8px}.af .ex td.num{text-align:right;font-variant-numeric:tabular-nums}.af .ex .p{color:var(--ok)}.af .ex .m{color:var(--er)}
-.af .info{font-size:13px;color:var(--mu);border-top:1px solid var(--bd);margin-top:16px;padding-top:12px}.af .info a{color:var(--ac)}
-@media(max-width:600px){.af .kinds,.af .row2{grid-template-columns:1fr}}
+.adjf{max-width:980px}.adjf strong,.adjf b{font-size:inherit;display:inline;font-weight:600;line-height:inherit}
+.adjf input:not([type=hidden]),.adjf select{width:100%;min-width:0}.adjf label{margin:0}
+.adj-box{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);padding:16px 18px;margin:0 0 14px}
+.adj-h{font-size:14px;font-weight:600;margin:0 0 10px;display:flex;align-items:center;gap:8px}.adj-h i{font-style:normal;display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:50%;background:var(--ac);color:#fff;font-size:12px}
+.adj-top{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:12px}.adj-lb{display:block;font-size:12px;color:var(--mu);font-weight:500;margin:0 0 4px}
+.adj-hlp{color:var(--mu);font-size:12px;margin:4px 0 0}.adj-err{color:var(--er);font-size:13px;margin:4px 0 0}.adj-errs{background:var(--erb);border:1px solid var(--er);color:var(--er);border-radius:8px;padding:8px 12px;margin:0 0 12px;font-size:14px}.adj-errs ul{margin:0;padding-left:18px}
+.adj-row{display:grid;grid-template-columns:200px minmax(0,1.2fr) 170px minmax(0,1.2fr) 36px;gap:10px;align-items:start;padding:12px 12px 12px 14px;border:1px solid var(--bd);border-left:4px solid var(--bd2);border-radius:10px;margin:0 0 10px;background:var(--card)}
+.adj-row.is-plus{border-left-color:var(--ok)}.adj-row.is-minus{border-left-color:var(--er)}
+.adj-seg{display:flex;border:1px solid var(--bd2);border-radius:8px;overflow:hidden}.adj-seg button{flex:1;margin:0;border:0;border-radius:0;background:transparent;color:var(--mu);padding:8px 6px;font-size:13px;font-weight:600;min-height:38px;white-space:nowrap}
+.adj-seg button:hover{background:var(--hov)}.adj-seg .adj-p[aria-pressed=true]{background:var(--okb);color:var(--ok)}.adj-seg .adj-m[aria-pressed=true]{background:var(--erb);color:var(--er)}
+.adj-amt{display:flex}.adj-sg{display:flex;align-items:center;padding:0 12px;border:1px solid var(--bd2);border-right:0;border-radius:8px 0 0 8px;font-weight:700;font-size:18px;background:var(--hov)}.adj-amt input{border-radius:0 8px 8px 0!important}
+.is-plus .adj-sg{color:var(--ok)}.is-minus .adj-sg{color:var(--er)}
+.adj-del{margin:19px 0 0;width:36px;min-height:38px;padding:0;background:transparent;color:var(--mu);border:1px solid var(--bd2);border-radius:8px}.adj-del:hover{background:var(--erb);color:var(--er);border-color:var(--er)}
+.adj-add{background:transparent;color:var(--ac);border:1px dashed var(--ac);margin:0;padding:8px 14px}.adj-add:hover{background:var(--hov)}
+.adj-sum{display:flex;gap:10px 22px;flex-wrap:wrap;align-items:baseline;margin:14px 0 4px;padding:12px 14px;border-radius:10px;background:var(--hov);font-variant-numeric:tabular-nums}.adj-sum .p{color:var(--ok)}.adj-sum .m{color:var(--er)}.adj-sum .t{font-weight:700;margin-left:auto}
+.adj-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.adj-acts button{margin:0}.adj-acts .adj-sec2{background:transparent;color:var(--ac);border:1px solid var(--bd2)}
+.adj-ex table{width:100%}.adj-ex td{padding:5px 8px}.adj-ex td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.adj-ex .p{color:var(--ok)}.adj-ex .m{color:var(--er)}
+.adj-info{font-size:13px;color:var(--mu);margin-top:14px}.adj-info a{color:var(--ac)}
+@media(max-width:860px){.adj-row{grid-template-columns:1fr 1fr}.adj-c-kind,.adj-c-comp,.adj-c-note{grid-column:1/-1}.adj-c-del{grid-column:2;justify-self:end}.adj-del{margin-top:0}.adj-top{grid-template-columns:1fr}}
 </style>
-<div class="af">
-<p class="back"><a href="{% url 'pay_adjustments' %}?period={{ period }}">‹ Penyesuaian gaji</a></p>
+<div class="adjf">
+<p class="back"><a href="{% url 'pay_adjustments' %}?period={{ period }}">‹ Tambahan &amp; Potongan</a></p>
 <h2>Tambah penyesuaian gaji</h2>
-<p class="sub">Catat tambahan (insentif, premi, dll.) atau potongan (pinjaman, pengobatan, materai, dll.) untuk <strong>satu karyawan</strong> pada <strong>satu periode</strong>. Untuk banyak karyawan sekaligus gunakan <a href="{% url 'pay_adjustment_import' %}">impor</a>.</p>
-{% if emp and existing %}<div class="card ex"><h3>Sudah tercatat untuk {{ emp.name }} · {{ period }}</h3><table><tbody>
-{% for x in existing %}<tr><td>{{ x.component.label }}</td><td class="num {% if x.component.is_deduction %}m{% else %}p{% endif %}">{% if x.component.is_deduction %}−{% else %}+{% endif %}{{ x.amount|rupiah }}</td><td>{{ x.note }}</td></tr>{% endfor %}
-<tr><td><strong>Total</strong></td><td class="num" colspan="2"><span class="p">+{{ plus|rupiah }}</span> &nbsp; <span class="m">−{{ minus|rupiah }}</span></td></tr></tbody></table>
-<p class="hlp">Mengisi komponen yang sama lagi akan <strong>mengganti</strong> nilai lamanya.</p></div>{% endif %}
-<form method="post" class="card" style="max-width:760px;padding:18px 20px" id="adjf">{% csrf_token %}{% if form.non_field_errors %}<ul class="err">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-<div class="sec"><div class="h"><i>1</i>Karyawan dan periode</div><div class="row2">
-<div class="fx"><label for="{{ form.nik.id_for_label }}">NIK atau nama karyawan</label>{{ form.nik }}{% for e in form.nik.errors %}<p class="err">{{ e }}</p>{% endfor %}{% if emp %}<p class="hlp">{{ emp.name }} · {{ emp.department.name }}</p>{% endif %}</div>
-<div class="fx"><label for="{{ form.period.id_for_label }}">Periode</label>{{ form.period }}{% for e in form.period.errors %}<p class="err">{{ e }}</p>{% endfor %}<p class="hlp">Format 2026-10</p></div></div></div>
-<div class="sec"><div class="h"><i>2</i>Menambah atau mengurangi gaji?</div><div class="kinds" role="radiogroup" aria-label="Jenis">
-<label class="kind plus"><input type="radio" name="kind" value="tambah"{% if kind == 'tambah' %} checked{% endif %}><span class="t">+ Tambahan</span><span class="d">Menambah gaji: insentif, premi produksi, lembur manual, koreksi.</span></label>
-<label class="kind minus"><input type="radio" name="kind" value="potongan"{% if kind == 'potongan' %} checked{% endif %}><span class="t">− Potongan</span><span class="d">Mengurangi gaji: pinjaman, pengobatan, materai, grade D, lain-lain.</span></label></div>{% for e in form.kind.errors %}<p class="err">{{ e }}</p>{% endfor %}</div>
-<div class="sec"><div class="h"><i>3</i>Komponen dan nominal</div>
-<div class="fx" style="margin-bottom:12px"><label for="id_component">Komponen</label>
-<select name="component" id="id_component" required><option value="" data-kind="">Pilih komponen…</option>{% for k, lbl, items in form.groups %}{% for pk, name, signed in items %}<option value="{{ pk }}" data-kind="{{ k }}" data-signed="{% if signed %}1{% endif %}"{% if form.component.value|stringformat:"s" == pk|stringformat:"s" %} selected{% endif %}>{{ name }}</option>{% endfor %}{% endfor %}</select>
-{% for e in form.component.errors %}<p class="err">{{ e }}</p>{% endfor %}<p class="hlp" id="signedhint" hidden>Khusus komponen ini boleh diketik dengan tanda minus (mis. −20.000) untuk koreksi kelebihan bayar.</p></div>
-<div class="row2"><div class="fx"><label for="{{ form.amount.id_for_label }}">Nominal (Rp)</label><div class="amt plus" id="amt"><span class="sg" id="sg">+</span>{{ form.amount }}</div>{% for e in form.amount.errors %}<p class="err">{{ e }}</p>{% endfor %}<p class="hlp" id="amthint">Ketik angka saja, mis. 150.000. Tanda + / − mengikuti jenis di atas.</p></div>
-<div class="fx"><label for="{{ form.qty.id_for_label }}">Jumlah (opsional)</label>{{ form.qty }}{% for e in form.qty.errors %}<p class="err">{{ e }}</p>{% endfor %}<p class="hlp">Hari/jam, hanya keterangan di slip.</p></div></div>
-<div class="fx" style="margin-top:12px"><label for="{{ form.note.id_for_label }}">Keterangan (opsional)</label>{{ form.note }}{% for e in form.note.errors %}<p class="err">{{ e }}</p>{% endfor %}</div></div>
-<div class="acts2"><button type="submit" class="btn" style="margin:0">Simpan</button><button type="submit" name="again" value="1" class="secondary">Simpan &amp; tambah lagi (karyawan sama)</button></div>
-<div class="info"><strong>Tidak perlu diisi di sini:</strong> Seragam (diambil otomatis dari <a href="{% url 'hrd_uniforms' %}">catatan Seragam</a>), BPJS/Jamsostek, potongan absensi, lembur terhitung, dan tunjangan tetap (T Khusus, T Lain-lain di Profil Gaji). Setelah menyimpan, <strong>hitung ulang run</strong> periode itu.</div></form>
-</div>
+<p class="sub">Pilih satu karyawan dan periode, lalu isi <strong>satu atau banyak baris</strong>: tiap baris bisa Tambahan (+) atau Potongan (−). Banyak karyawan sekaligus? Gunakan <a href="{% url 'pay_adjustment_import' %}">impor</a>.</p>
+{% if top %}<div class="adj-errs" role="alert"><strong>Belum bisa disimpan:</strong><ul>{% for e in top %}<li>{{ e }}</li>{% endfor %}</ul></div>{% elif posted %}<div class="adj-errs" role="alert"><strong>Periksa baris yang bertanda merah di bawah.</strong></div>{% endif %}
+<form method="post" id="adjf">{% csrf_token %}
+<div class="adj-box"><div class="adj-h"><i>1</i>Karyawan dan periode</div><div class="adj-top">
+<div><label class="adj-lb" for="adj-nik">NIK atau nama karyawan</label><input id="adj-nik" name="nik" value="{{ nik }}" data-lookup="employee" placeholder="Ketik NIK atau nama…" autocomplete="off" required>{% if emp %}<p class="adj-hlp">{{ emp.name }} · {{ emp.department.name }}</p>{% endif %}</div>
+<div><label class="adj-lb" for="adj-per">Periode</label><input id="adj-per" name="period" value="{{ period }}" placeholder="2026-10" maxlength="7" required><p class="adj-hlp">Format 2026-10</p></div></div></div>
+{% if emp and existing %}<div class="adj-box adj-ex"><div class="adj-h">Sudah tercatat untuk {{ emp.name }} · {{ period }}</div><table><tbody>
+{% for x in existing %}<tr><td>{{ x.component.label }}</td><td class="n {% if x.component.is_deduction %}m{% else %}p{% endif %}">{% if x.component.is_deduction %}−{% else %}+{% endif %}{{ x.amount|rupiah }}</td><td>{{ x.note }}</td></tr>{% endfor %}
+<tr><td><strong>Total</strong></td><td class="n" colspan="2"><span class="p">+{{ plus|rupiah }}</span> &nbsp; <span class="m">−{{ minus|rupiah }}</span></td></tr></tbody></table><p class="adj-hlp">Mengisi komponen yang sama lagi akan <strong>mengganti</strong> nilai lamanya.</p></div>{% endif %}
+<div class="adj-box"><div class="adj-h"><i>2</i>Tambahan dan potongan</div>
+<div id="adj-rows">{% for r in rows %}{% include "payroll/_adj_row.html" with r=r groups=groups %}{% endfor %}</div>
+<button type="button" class="adj-add" id="adj-add">+ Tambah baris</button>
+<div class="adj-sum" aria-live="polite"><span>Tambahan <b class="p" id="s-plus">+Rp 0</b></span><span>Potongan <b class="m" id="s-minus">−Rp 0</b></span><span class="t">Bersih <b id="s-net">Rp 0</b></span></div>
+<p class="adj-hlp">Bersih = tambahan − potongan, hanya dari baris di formulir ini.</p></div>
+<div class="adj-acts"><button type="submit" class="btn" style="margin:0">Simpan semua</button><button type="submit" name="next" value="other" class="adj-sec2">Simpan &amp; isi karyawan lain</button></div>
+<p class="adj-info"><strong>Tidak perlu diisi di sini:</strong> Seragam (otomatis dari <a href="{% url 'hrd_uniforms' %}">catatan Seragam</a>), BPJS/Jamsostek, potongan absensi, lembur terhitung, dan tunjangan tetap (T Khusus, T Lain-lain di Profil Gaji). Setelah menyimpan, <strong>hitung ulang run</strong> periode itu.</p>
+</form></div>
+<template id="adj-tpl">{% include "payroll/_adj_row.html" with r=blank groups=groups %}</template>
 <script>
 (function(){
-var f=document.getElementById("adjf"),sel=document.getElementById("id_component"),amt=document.getElementById("amt"),sg=document.getElementById("sg"),sh=document.getElementById("signedhint");
-function kind(){var r=f.querySelector("input[name=kind]:checked");return r?r.value:"tambah"}
-function sync(){var k=kind();[].forEach.call(sel.options,function(o){if(!o.value)return;var ok=o.dataset.kind===k;o.hidden=!ok;o.disabled=!ok});
- var cur=sel.options[sel.selectedIndex];if(cur&&cur.value&&cur.dataset.kind!==k)sel.value="";
- amt.className="amt "+(k==="potongan"?"minus":"plus");sg.textContent=k==="potongan"?"−":"+";var c=sel.options[sel.selectedIndex];sh.hidden=!(c&&c.dataset.signed==="1")}
-f.addEventListener("change",function(e){if(e.target.name==="kind"||e.target===sel)sync()});sync();
+var host=document.getElementById("adj-rows"),tpl=document.getElementById("adj-tpl"),rp=function(n){return "Rp "+String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g,".")};
+function setKind(row,k){row.classList.toggle("is-minus",k==="potongan");row.classList.toggle("is-plus",k!=="potongan");row.querySelector("input[name=kind]").value=k;
+ row.querySelectorAll(".adj-seg button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.k===k?"true":"false")});row.querySelector(".adj-sg").textContent=k==="potongan"?"−":"+";
+ var sel=row.querySelector("select");[].forEach.call(sel.options,function(o){if(!o.value)return;var ok=o.dataset.kind===k;o.hidden=!ok;o.disabled=!ok});
+ var c=sel.options[sel.selectedIndex];if(c&&c.value&&c.dataset.kind!==k)sel.value=""}
+function totals(){var p=0,m=0;host.querySelectorAll("[data-row]").forEach(function(r){var v=parseInt((r.querySelector("input[name=amount]").value||"").replace(/\D/g,""),10)||0;if(r.querySelector("input[name=kind]").value==="potongan")m+=v;else p+=v});
+ document.getElementById("s-plus").textContent="+"+rp(p);document.getElementById("s-minus").textContent="−"+rp(m);var n=p-m;document.getElementById("s-net").textContent=(n<0?"−":"")+rp(n)}
+function init(row){setKind(row,row.querySelector("input[name=kind]").value||"tambah")}
+host.querySelectorAll("[data-row]").forEach(init);totals();
+host.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;var row=b.closest("[data-row]");
+ if(b.dataset.k){setKind(row,b.dataset.k);totals()}
+ else if(b.hasAttribute("data-del")){if(host.querySelectorAll("[data-row]").length>1){row.remove()}else{row.querySelectorAll("input[name=amount],input[name=note]").forEach(function(i){i.value=""});row.querySelector("select").value=""}totals()}});
+host.addEventListener("input",function(e){if(e.target.name==="amount")totals()});host.addEventListener("focusout",function(e){if(e.target.name==="amount")setTimeout(totals,0)});
+document.getElementById("adj-add").addEventListener("click",function(){var last=host.querySelector("[data-row]:last-child"),k=last?last.querySelector("input[name=kind]").value:"tambah";
+ var node=tpl.content.firstElementChild.cloneNode(true);host.appendChild(node);setKind(node,k);node.querySelector("select").focus()});
 })();
 </script>
 {% endblock %}

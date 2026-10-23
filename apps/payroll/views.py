@@ -389,41 +389,78 @@ def adjustments(request):
     f = {"q": request.GET.get("q", "").strip(), "period": period, "component": request.GET.get("component", "").strip(), "kind": request.GET.get("kind", "").strip()}
     if f["kind"] not in ("tambah", "potongan"): f["kind"] = ""
     base = PayAdjustment.objects.filter(period=period, voided_at__isnull=True)
-    qs = base.select_related("employee", "employee__department", "component").order_by("employee__name", "employee_id", "component__section", "component__order")   # dikelompokkan per karyawan
-    if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
-    if f["kind"] == "tambah": qs = qs.exclude(component__section="potongan")
-    elif f["kind"] == "potongan": qs = qs.filter(component__section="potongan")
-    if _int(f["component"]): qs = qs.filter(component_id=_int(f["component"]))
-    tot = qs.aggregate(plus=Sum("amount", filter=~Q(component__section="potongan")), minus=Sum("amount", filter=Q(component__section="potongan")), n=Count("id"), people=Count("employee_id", distinct=True))
+    adj = base
+    if f["kind"] == "tambah": adj = adj.exclude(component__section="potongan")
+    elif f["kind"] == "potongan": adj = adj.filter(component__section="potongan")
+    if _int(f["component"]): adj = adj.filter(component_id=_int(f["component"]))
+    emps = Employee.objects.select_related("department").filter(Exists(adj.filter(employee=OuterRef("pk")))).order_by("name", "pk")
+    if f["q"]: emps = emps.filter(Q(name__icontains=f["q"]) | Q(nik__startswith=f["q"]))
+    page = paginate(request, emps)
+    for e in page: e.plus_items, e.minus_items, e.plus, e.minus = [], [], 0, 0
+    by = {e.pk: e for e in page}
+    for a in adj.filter(employee_id__in=list(by)).select_related("component").order_by("component__section", "component__order", "id"):
+        e = by[a.employee_id]
+        if a.component.is_deduction: e.minus_items.append(a); e.minus += a.amount
+        else: e.plus_items.append(a); e.plus += a.amount
+    for e in page: e.net = e.plus - e.minus
+    tot = adj.filter(employee__in=emps).aggregate(plus=Sum("amount", filter=~Q(component__section="potongan")), minus=Sum("amount", filter=Q(component__section="potongan")), n=Count("id"), people=Count("employee_id", distinct=True))
+    tot["plus"], tot["minus"] = tot["plus"] or 0, tot["minus"] or 0; tot["net"] = tot["plus"] - tot["minus"]
     cnt = base.aggregate(a=Count("id", filter=~Q(component__section="potongan")), b=Count("id", filter=Q(component__section="potongan")))
     run = PayrollRun.objects.filter(period=period).exclude(status="dibatalkan").first()
-    return render(request, "payroll/adjustments.html", {"page": paginate(request, qs), "f": f, "tot": tot, "cnt": cnt, "run": run, "open": services.period_open_for_edit(period),
+    return render(request, "payroll/adjustments.html", {"page": page, "f": f, "tot": tot, "cnt": cnt, "run": run, "open": services.period_open_for_edit(period),
                                                        "comps": PayComponent.objects.filter(kind="manual", active=True).order_by("section", "order"), "qs": urlencode({k: v for k, v in f.items() if v})})
 
 
 def _rp(n): return "Rp " + f"{int(abs(n)):,}".replace(",", ".")
 
 
+ADJ_ROW_FIELDS = ("kind", "component", "amount", "note")
+
+
+def _adj_rows(post):
+    """Baris isian (kind[], component[], amount[], note[]) → list dict; baris yang benar-benar kosong dibuang."""
+    cols = {n: post.getlist(n) for n in ADJ_ROW_FIELDS}; rows = []
+    for i in range(max((len(v) for v in cols.values()), default=0)):
+        r = {n: (cols[n][i].strip() if i < len(cols[n]) else "") for n in ADJ_ROW_FIELDS}
+        if r["kind"] not in ("tambah", "potongan"): r["kind"] = "tambah"
+        if r["component"] or r["amount"] or r["note"]: rows.append(r)
+    return rows
+
+
 @payroll_only
 def adjustment_new(request):
-    """Satu form untuk dua jenis: Tambahan (+) dan Potongan (−). 'Simpan & tambah lagi' mempertahankan karyawan + periode supaya beberapa potongan (materai, pinjaman, dst.) bisa diisi berurutan."""
-    cur = timezone.localdate().strftime("%Y-%m")
-    initial = {"period": request.GET.get("period", cur), "nik": request.GET.get("nik", ""), "kind": request.GET.get("kind", "tambah")}
-    form = AdjustmentForm(request.POST or None, user=request.user, initial=initial)
-    if request.method == "POST" and form.is_valid():
-        with transaction.atomic():
-            obj = form.save(); log(request, "payroll", "adjustment_set", obj, None, _audit_data(obj))
-        sign = "−" if obj.component.is_deduction else "+"
-        messages.success(request, f"{obj.component.label} {sign}{_rp(obj.amount)} untuk {obj.employee.name} disimpan" + (" (menggantikan nilai sebelumnya)." if getattr(form, "replaced", False) else "."))
-        if request.POST.get("again"):
-            return redirect(f"/payroll/adjustments/new/?{urlencode({'period': obj.period, 'nik': obj.employee.nik, 'kind': request.POST.get('kind') or ('potongan' if obj.component.is_deduction else 'tambah')})}")
-        return redirect(f"/payroll/adjustments/?period={obj.period}")
-    nik = (request.POST.get("nik") if request.method == "POST" else initial["nik"]) or ""
-    per = (request.POST.get("period") if request.method == "POST" else initial["period"]) or cur
+    """Satu karyawan + satu periode, BANYAK baris: tiap baris = Tambahan (+) atau Potongan (−) + komponen + nominal. Semua baris divalidasi dulu; tersimpan semua atau tidak sama sekali."""
+    cur = timezone.localdate().strftime("%Y-%m"); groups = AdjustmentForm(user=request.user).groups
+    nik, per = request.GET.get("nik", ""), request.GET.get("period", cur)
+    rows, top, posted = [{"kind": request.GET.get("kind") if request.GET.get("kind") in ("tambah", "potongan") else "tambah", "component": "", "amount": "", "note": "", "errors": {}}], [], False
+    if request.method == "POST":
+        posted = True; nik, per = request.POST.get("nik", "").strip(), request.POST.get("period", "").strip(); rows = _adj_rows(request.POST)
+        head = AdjustmentForm({"nik": nik, "period": per}, user=request.user); head.is_valid()
+        for k in ("nik", "period"): top += [f"{head.fields[k].label}: {e}" for e in head.errors.get(k, [])]
+        forms, seen = [], set()
+        if not rows: top.append("Isi minimal satu baris (komponen dan nominal).")
+        for r in rows:
+            f = AdjustmentForm({"nik": nik, "period": per, **r}, user=request.user); f.is_valid(); forms.append(f)
+            r["errors"] = {k: [str(e) for e in f.errors.get(k, [])] for k in ADJ_ROW_FIELDS}
+            if r["component"] in seen: r["errors"]["component"].append("Komponen ini sudah ada di baris lain. Gabungkan nominalnya.")
+            seen.add(r["component"])
+            for e in f.errors.get("__all__", []): top.append(str(e)) if str(e) not in top else None
+        if not top and rows and not any(any(r["errors"].values()) for r in rows):
+            plus = minus = 0
+            with transaction.atomic():
+                for f in forms:
+                    obj = f.save(); log(request, "payroll", "adjustment_set", obj, None, _audit_data(obj))
+                    if obj.component.is_deduction: minus += obj.amount
+                    else: plus += obj.amount
+                emp = forms[0].employee
+            messages.success(request, f"{len(forms)} penyesuaian untuk {emp.name} ({per}) disimpan: tambahan +{_rp(plus)}, potongan −{_rp(minus)}, bersih {'+' if plus >= minus else '−'}{_rp(plus - minus)}. Hitung ulang run periode itu.")
+            if request.POST.get("next") == "other": return redirect(f"/payroll/adjustments/new/?{urlencode({'period': per})}")
+            return redirect(f"/payroll/adjustments/?period={per}")
+    for r in rows: r.setdefault("errors", {})
     emp = Employee.objects.select_related("department").filter(nik=nik.strip()).first() if nik.strip() else None
     existing = list(PayAdjustment.objects.filter(employee=emp, period=per, voided_at__isnull=True).select_related("component").order_by("component__order")) if emp and calc.valid_period(per) else []
-    kind = (request.POST.get("kind") if request.method == "POST" else initial["kind"]) or "tambah"
-    return render(request, "payroll/adjustment_form.html", {"form": form, "emp": emp, "existing": existing, "kind": kind if kind in ("tambah", "potongan") else "tambah", "period": per,
+    blank = {"kind": "tambah", "component": "", "amount": "", "note": "", "errors": {}}
+    return render(request, "payroll/adjustment_form.html", {"nik": nik, "period": per, "emp": emp, "existing": existing, "rows": rows, "blank": blank, "groups": groups, "top": top, "posted": posted,
                                                            "plus": sum((x.amount for x in existing if not x.component.is_deduction), 0), "minus": sum((x.amount for x in existing if x.component.is_deduction), 0)})
 
 
