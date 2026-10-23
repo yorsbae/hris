@@ -4,7 +4,7 @@ from collections import OrderedDict
 from datetime import date
 from urllib.parse import urlencode
 from django.contrib import messages
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -12,8 +12,8 @@ from apps.core import tabular
 from apps.core.audit import log
 from apps.hr.models import Department
 from . import services
-from .forms import BillLineFormSet, PartnerBillForm, PartnerForm
-from .models import Diagnosis, Partner, PartnerBill
+from .forms import BillLineFormSet, CoverageRuleForm, PartnerBillForm, PartnerForm
+from .models import CoverageRule, Diagnosis, Partner, PartnerBill
 from .pages import paginate, poli_only
 
 EXPORT_MAX = 20000
@@ -51,14 +51,14 @@ def _qs(f):
 
 
 SUMMARY_HEADER = ["mitra", "nomor_tagihan", "tanggal_tagihan", "tanggal_layanan", "nik", "nama", "departemen", "jenis_layanan", "penanggung", "total", "potongan", "tagihan_aktif",
-                  "bpjs_aktif", "ditanggung_perusahaan", "ditanggung_karyawan", "status", "tanggal_bayar", "nomor_bukti"]
+                  "bpjs_aktif", "persen_perusahaan", "ditanggung_perusahaan", "ditanggung_karyawan", "status", "tanggal_bayar", "nomor_bukti"]
 MONEY = ("total", "potongan", "tagihan_aktif", "ditanggung_perusahaan", "ditanggung_karyawan")
 DETAIL_HEADER = SUMMARY_HEADER + ["diagnosa", "keluhan"]
 
 
 def _row(b, medical):
     base = [b.partner.name, b.bill_number, b.bill_date, b.service_date, b.employee.nik, b.employee.name, b.employee.department.name, b.get_service_type_display(), b.get_payer_display(),
-            b.total_amount, b.discount_amount, b.net_amount, "ya" if b.has_bpjs else "tidak", b.company_amount, b.employee_amount, b.get_status_display(), b.paid_date or "", b.payment_ref]
+            b.total_amount, b.discount_amount, b.net_amount, "ya" if b.has_bpjs else "tidak", services.pct_clean(b.company_pct), b.company_amount, b.employee_amount, b.get_status_display(), b.paid_date or "", b.payment_ref]
     return base + [str(b.diagnosis) if b.diagnosis else "", b.complaint] if medical else base
 
 
@@ -70,7 +70,7 @@ def bills(request):
         log(request, "poli", "bill_export", None, None, {"kind": "detail" if medical else "summary", "period": f["period"], "rows": qs.count()})   # isi medis tidak masuk audit
         rows = [_row(b, medical) for b in qs.order_by("service_date", "id")[:EXPORT_MAX]]
         return tabular.export_response(f"tagihan-mitra-{f['period'] or 'semua'}" + ("-medis" if medical else ""), DETAIL_HEADER if medical else SUMMARY_HEADER, rows, request,
-                                       sheet="Tagihan Mitra", money_cols=MONEY)
+                                       sheet="Tagihan Mitra", money_cols=MONEY, num_cols=("persen_perusahaan",))
     if request.GET.get("print"): return bills_print(request, f, qs)
     live = qs.exclude(status="ditolak")        # rekap uang tidak menghitung yang ditolak
     by_status = OrderedDict((k, {"label": lbl, "n": 0, "total": 0}) for k, lbl in PartnerBill.STATUSES)
@@ -83,13 +83,16 @@ def bills(request):
            "by_diag": list(live.order_by().values("diagnosis__code", "diagnosis__name").annotate(n=Count("id"), total=Sum("total_amount"), company=Sum("company_amount"), employee=Sum("employee_amount")).order_by("-total")[:50]),
            "employees": list(live.order_by().values("employee__nik", "employee__name", "employee__department__name").annotate(n=Count("id"), total=Sum("total_amount"), company=Sum("company_amount"), employee=Sum("employee_amount")).order_by("-total")[:TOP_EMPLOYEES]),
            "partners": Partner.objects.order_by("name"), "departments": Department.objects.order_by("name"), "statuses": PartnerBill.STATUSES, "payers": PartnerBill.PAYERS, "services": PartnerBill.SERVICES,
-           "qs": urlencode({k: v for k, v in f.items() if v or k == "period"}), **_pct()}
+           "qs": urlencode({k: v for k, v in f.items() if v or k == "period"})}
     return render(request, "poli/bills.html", ctx)
 
 
-def _pct():
-    from django.conf import settings
-    return {"pct_co": settings.POLI_BPJS_COMPANY_PCT, "pct_emp": 100 - settings.POLI_BPJS_COMPANY_PCT}
+def _cover_now():
+    """Porsi tanggungan yang berlaku HARI INI per penanggung (info di form; tagihan memakai aturan menurut tanggal pelayanannya)."""
+    out = []
+    for code, label in PartnerBill.PAYERS:
+        pct = services.company_pct_for(code, date.today()); out.append({"code": code, "label": label, "company": services.pct_clean(pct), "employee": services.pct_clean(100 - pct), "default": services.pct_clean(services.default_company_pct(code))})
+    return out
 
 
 def bills_print(request, f, qs):
@@ -115,14 +118,14 @@ def bill_new(request):
             messages.success(request, "Tagihan dicatat." + (" Perhatian: jumlah rincian berbeda dari total tagihan." if b.mismatch else ""))
             return redirect("poli_bill_detail", pk=b.pk)
         except ValueError as e: messages.error(request, str(e))
-    return render(request, "poli/bill_form.html", {"form": form, "fs": fs, **_pct()})
+    return render(request, "poli/bill_form.html", {"form": form, "fs": fs, "cover": _cover_now()})
 
 
 @poli_only
 def bill_detail(request, pk):
     b = get_object_or_404(PartnerBill.objects.select_related("partner", "employee", "employee__department", "diagnosis", "created_by"), pk=pk)
     log(request, "poli", "bill_view", b)                 # membuka tagihan (memuat keluhan/diagnosa) tercatat; isinya tidak
-    return render(request, "poli/bill_detail.html", {**_pct(), "b": b, "lines": b.lines.all(), "events": b.events.select_related("user"), "next": sorted(PartnerBill.FLOW.get(b.status, ())), "today": date.today()})
+    return render(request, "poli/bill_detail.html", {"b": b, "lines": b.lines.all(), "events": b.events.select_related("user"), "next": sorted(PartnerBill.FLOW.get(b.status, ())), "today": date.today()})
 
 
 @poli_only
@@ -162,3 +165,38 @@ def partners(request):
                     messages.success(request, "Status mitra diubah."); return redirect("poli_partners")
             messages.error(request, "Mitra tidak ditemukan.")
     return render(request, "poli/partners.html", {"partners": Partner.objects.annotate(n=Count("bills")).order_by("name"), "form": form})
+
+
+@poli_only
+def coverage(request):
+    """Master Tanggungan: porsi perusahaan (%) per penanggung (BPJS / Non BPJS) mulai tanggal tertentu.
+    Menambah aturan baru = mengubah persen mulai tanggal itu; aturan lama tidak ditimpa. Tagihan yang sudah tercatat tidak bergeser (persennya disalin saat dicatat).
+    Hanya aturan yang BELUM berlaku (tanggal mulai di masa depan) yang boleh dibatalkan."""
+    adding = request.POST.get("action") == "add"
+    form = CoverageRuleForm(request.POST) if adding else CoverageRuleForm(initial={"effective_from": date.today()})
+    if request.method == "POST":
+        if adding and form.is_valid():
+            d = form.cleaned_data
+            try:
+                with transaction.atomic():
+                    r = CoverageRule.objects.create(payer=d["payer"], company_pct=d["company_pct"], effective_from=d["effective_from"], note=d["note"].strip(),
+                                                    created_by=request.user)
+                    log(request, "poli", "coverage_add", r, None, {"payer": r.payer, "company_pct": r.company_pct, "from": str(r.effective_from)})
+                messages.success(request, f"Aturan tanggungan ditambahkan. Berlaku untuk tagihan dengan tanggal pelayanan mulai {r.effective_from:%d-%m-%Y}.")
+                return redirect("poli_coverage")
+            except IntegrityError:        # dua simpan serentak untuk penanggung + tanggal yang sama
+                form.add_error("effective_from", "Sudah ada aturan untuk penanggung ini pada tanggal yang sama.")
+        if request.POST.get("action") == "delete":
+            with transaction.atomic():
+                r = CoverageRule.objects.select_for_update().filter(pk=_int(request.POST.get("id"))).first()
+                if not r: messages.error(request, "Aturan tidak ditemukan.")
+                elif r.effective_from <= date.today():
+                    messages.error(request, "Aturan yang sudah berlaku tidak dapat dibatalkan; tambahkan aturan baru dengan tanggal mulai yang baru.")
+                else:
+                    log(request, "poli", "coverage_cancel", r, {"payer": r.payer, "company_pct": r.company_pct, "from": str(r.effective_from)}, None); r.delete()
+                    messages.success(request, "Aturan yang belum berlaku dibatalkan."); return redirect("poli_coverage")
+    today = date.today(); rules = list(CoverageRule.objects.select_related("created_by"))
+    current = {c: services.coverage_rule_for(c, today) for c, _ in PartnerBill.PAYERS}
+    cur_ids = {r.pk for r in current.values() if r}
+    for r in rules: r.state = "berlaku" if r.pk in cur_ids else ("akan berlaku" if r.effective_from > today else "diganti")
+    return render(request, "poli/coverage.html", {"form": form, "rules": rules, "cover": _cover_now(), "today": today})

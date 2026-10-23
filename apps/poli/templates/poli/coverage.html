@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Master Tanggungan{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'poli_bills' %}">‹ Tagihan Mitra</a></p>
+<h2>Master Tanggungan</h2>
+<p style="color:var(--mu)">Porsi tagihan yang ditanggung <b>perusahaan</b> per penanggung; sisanya ditanggung karyawan. Persen dipakai menurut <b>tanggal pelayanan</b> tagihan: aturan dengan tanggal mulai terbaru yang sudah lewat. Mengubah persen = menambah aturan baru dengan tanggal mulai; aturan lama tetap tersimpan sebagai riwayat dan tagihan yang sudah tercatat tidak berubah.</p>
+<div class="card"><table id="cover-now"><thead><tr><th>Penanggung</th><th>Perusahaan</th><th>Karyawan</th><th>Bawaan bila belum ada aturan</th></tr></thead><tbody>
+{% for c in cover %}<tr><td>{{ c.label }}</td><td><b>{{ c.company|floatformat:"-2" }}%</b></td><td><b>{{ c.employee|floatformat:"-2" }}%</b></td><td>perusahaan {{ c.default|floatformat:"-2" }}%</td></tr>{% endfor %}</tbody></table>
+<small style="color:var(--mu)">Berlaku hari ini ({{ today|date:"d-m-Y" }}).</small></div>
+<h3>Riwayat aturan</h3>
+<div class="wrap"><table id="rules"><thead><tr><th>Penanggung</th><th>Berlaku mulai</th><th>Perusahaan</th><th>Karyawan</th><th>Status</th><th>Catatan</th><th>Dibuat</th><th></th></tr></thead><tbody>
+{% for r in rules %}<tr><td>{{ r.get_payer_display }}</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td><td>{{ r.company_pct }}%</td><td>{{ r.employee_pct }}%</td>
+<td><span class="pill {% if r.state == 'berlaku' %}approved{% elif r.state == 'akan berlaku' %}pending{% else %}rejected{% endif %}">{{ r.state }}</span></td><td>{{ r.note }}</td><td class="nw">{{ r.created_at|date:"d-m-Y" }}{% if r.created_by %} · {{ r.created_by.username }}{% endif %}</td>
+<td>{% if r.effective_from > today %}<form method="post" style="display:inline" onsubmit="return confirm('Batalkan aturan yang belum berlaku ini?')">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="{{ r.pk }}"><button class="secondary">Batalkan</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="8">Belum ada aturan; tagihan memakai persen bawaan di atas.</td></tr>{% endfor %}</tbody></table></div>
+<form method="post" class="card form">{% csrf_token %}<input type="hidden" name="action" value="add"><h3>Tambah aturan / ubah persen mulai tanggal</h3>{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
+<p><button>Simpan aturan</button></p></form>
+{% endblock %}

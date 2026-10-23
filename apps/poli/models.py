@@ -170,7 +170,7 @@ class PartnerBill(models.Model):
     """Tagihan satu mitra untuk satu pelayanan karyawan. Alur: diterima → diverifikasi → disetujui → dibayar; ditolak dari diterima/diverifikasi/disetujui (alasan wajib).
     Tidak ada ubah/hapus isi tagihan: salah catat = tolak (alasan) lalu catat ulang (nomor tagihan yang ditolak boleh dipakai lagi). Perpindahan status tercatat di `PartnerBillEvent`."""
     SERVICES = [("rawat_jalan", "Rawat jalan"), ("rawat_inap", "Rawat inap"), ("lab", "Laboratorium"), ("obat", "Obat / apotek"), ("kacamata", "Kacamata / optik"), ("lainnya", "Lainnya")]
-    PAYERS = [("perusahaan", "Perusahaan"), ("bpjs", "BPJS"), ("karyawan", "Karyawan")]
+    PAYERS = [("bpjs", "BPJS"), ("non_bpjs", "Non BPJS")]       # persen tanggungan per penanggung: Master Tanggungan (CoverageRule), berlaku per tanggal pelayanan
     STATUSES = [("diterima", "Diterima"), ("diverifikasi", "Diverifikasi"), ("disetujui", "Disetujui bayar"), ("dibayar", "Dibayar"), ("ditolak", "Ditolak")]
     FLOW = {"diterima": {"diverifikasi", "ditolak"}, "diverifikasi": {"disetujui", "ditolak"}, "disetujui": {"dibayar", "ditolak"}}
     partner = models.ForeignKey(Partner, on_delete=models.PROTECT, related_name="bills")
@@ -181,7 +181,8 @@ class PartnerBill(models.Model):
     service_type = models.CharField(max_length=12, choices=SERVICES, default="rawat_jalan")
     complaint = EncryptedTextField(blank=True)                                   # MEDIS, terenkripsi
     diagnosis = models.ForeignKey(Diagnosis, null=True, blank=True, on_delete=models.PROTECT, related_name="+")  # MEDIS
-    payer = models.CharField(max_length=10, choices=PAYERS, default="perusahaan")
+    payer = models.CharField(max_length=10, choices=PAYERS, default="non_bpjs")
+    company_pct = models.DecimalField("Porsi perusahaan (%)", max_digits=5, decimal_places=2, default=100)   # salinan (snapshot) aturan Master Tanggungan saat dicatat; sisanya = porsi karyawan
     total_amount = models.DecimalField(max_digits=14, decimal_places=2)          # sesuai tagihan mitra (Tagihan RS, sebelum potongan)
     discount_amount = models.DecimalField("Potongan mitra", max_digits=14, decimal_places=2, default=0)  # mis. "Potongan Dr RS": tagihan aktif = total − potongan
     has_bpjs = models.BooleanField("BPJS Kesehatan aktif saat dicatat", default=False)  # salinan (snapshot) status BPJS karyawan saat tagihan dicatat; dasar pembagian beban
@@ -209,6 +210,29 @@ class PartnerBill(models.Model):
     def mismatch(self): return bool(self.lines_total) and self.lines_total != self.total_amount
 
     def delete(self, *a, **k): raise PermissionError("Tagihan tidak boleh dihapus; tolak dengan alasan.")
+
+
+class CoverageRule(models.Model):
+    """Master tanggungan: persen yang ditanggung PERUSAHAAN per penanggung (BPJS / Non BPJS), berlaku mulai `effective_from` sampai ada aturan berikutnya.
+    Dasar pencarian = TANGGAL PELAYANAN tagihan. Tidak ada aturan berlaku → bawaan (BPJS = POLI_BPJS_COMPANY_PCT / 75, Non BPJS = 100).
+    Perubahan = menambah aturan baru dengan tanggal mulai; aturan lama tidak ditimpa (riwayat tetap ada) dan tagihan yang sudah tercatat tidak bergeser
+    (persennya disalin ke tagihan). Aturan yang belum berlaku (tanggal mulai di masa depan) boleh dibatalkan."""
+    payer = models.CharField(max_length=10, choices=PartnerBill.PAYERS)
+    company_pct = models.PositiveSmallIntegerField("Porsi perusahaan (%)")
+    effective_from = models.DateField("Berlaku mulai")
+    note = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["payer", "effective_from"], name="uniq_coverage_rule_payer_date"),
+                       models.CheckConstraint(condition=models.Q(company_pct__gte=0, company_pct__lte=100), name="coverage_rule_pct_0_100")]
+        ordering = ["payer", "-effective_from"]
+
+    @property
+    def employee_pct(self): return 100 - self.company_pct
+
+    def __str__(self): return f"{self.get_payer_display()} {self.company_pct}/{self.employee_pct} sejak {self.effective_from:%d-%m-%Y}"
 
 
 class PartnerBillLine(models.Model):

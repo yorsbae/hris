@@ -59,4 +59,4 @@ class PoliBillLockTests(PeriodTests):
         PeriodClose.objects.create(period="2026-09")
         p = Partner.objects.create(name="RS Uji")
         with self.assertRaisesMessage(ValueError, "sudah ditutup"):
-            services.create_partner_bill(self.hrd, p, "INV-1", date(2026, 10, 1), self.e, date(2026, 9, 10), "rawat_jalan", "", None, "perusahaan", 100000)
+            services.create_partner_bill(self.hrd, p, "INV-1", date(2026, 10, 1), self.e, date(2026, 9, 10), "rawat_jalan", "", None, "non_bpjs", 100000)

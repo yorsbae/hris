@@ -6,7 +6,7 @@ from django.forms import formset_factory
 from django.utils import timezone
 from apps.core.money import RupiahField
 from apps.hr.models import Employee
-from .models import Diagnosis, MedicalRecord, Medicine, Partner, PartnerBill, PatientAllergy, PatientVisit, Referral, SickLeaveLetter
+from .models import CoverageRule, Diagnosis, MedicalRecord, Medicine, Partner, PartnerBill, PatientAllergy, PatientVisit, Referral, SickLeaveLetter
 from . import services
 
 TA = lambda rows=3: forms.Textarea(attrs={"rows": rows})
@@ -300,7 +300,7 @@ class PartnerBillForm(forms.Form):
     service_type = forms.ChoiceField(label="Jenis layanan", choices=PartnerBill.SERVICES)
     complaint = forms.CharField(label="Keluhan", required=False, widget=TA(), max_length=2000)
     diagnosis_code = forms.CharField(label="Kode diagnosa", required=False, max_length=10, help_text="Kode dari Master Diagnosa (mis. A09). Kosong bila belum ada.")
-    payer = forms.ChoiceField(label="Penanggung", choices=PartnerBill.PAYERS)
+    payer = forms.ChoiceField(label="Penanggung", choices=PartnerBill.PAYERS, help_text="BPJS / Non BPJS. Porsi perusahaan & karyawan mengikuti Master Tanggungan menurut tanggal pelayanan.")
     total_amount = RupiahField(label="Total tagihan (Rp)", min_value=1, max_value=5_000_000_000)
     discount_amount = RupiahField(label="Potongan mitra (Rp)", required=False, min_value=0, max_value=5_000_000_000,
                                   help_text="Mis. potongan dokter/RS. Beban perusahaan & karyawan dihitung dari total − potongan. Kosong = 0.")
@@ -366,6 +366,22 @@ class PartnerForm(forms.Form):
         v = " ".join(self.cleaned_data["name"].split())
         if Partner.objects.filter(name__iexact=v).exists(): raise forms.ValidationError("Mitra dengan nama ini sudah ada.")
         return v
+
+
+class CoverageRuleForm(forms.Form):
+    """Master Tanggungan: porsi perusahaan (%) untuk BPJS / Non BPJS mulai tanggal tertentu. Porsi karyawan = 100 − porsi perusahaan."""
+    payer = forms.ChoiceField(label="Penanggung", choices=PartnerBill.PAYERS)
+    company_pct = forms.IntegerField(label="Porsi perusahaan (%)", min_value=0, max_value=100,
+                                     help_text="Sisanya ditanggung karyawan. Mis. BPJS 75 → karyawan 25; Non BPJS 100 → karyawan 0.")
+    effective_from = forms.DateField(label="Berlaku mulai", widget=forms.DateInput(attrs={"type": "date"}),
+                                     help_text="Dipakai untuk tagihan dengan TANGGAL PELAYANAN pada/setelah tanggal ini, sampai ada aturan berikutnya.")
+    note = forms.CharField(label="Catatan", required=False, max_length=200)
+
+    def clean(self):
+        d = super().clean()
+        if d.get("payer") and d.get("effective_from") and CoverageRule.objects.filter(payer=d["payer"], effective_from=d["effective_from"]).exists():
+            self.add_error("effective_from", "Sudah ada aturan untuk penanggung ini pada tanggal yang sama. Pilih tanggal lain (aturan lama tidak ditimpa).")
+        return d
 
 
 class AllergyForm(forms.Form):

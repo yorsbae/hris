@@ -213,10 +213,10 @@ def _rp(n): return "Rp " + f"{int(n):,}".replace(",", ".") if n else "Rp -"
 def bills_pdf(bills, period, partner, user):
     """Daftar karyawan berobat per mitra/bulan (A4 lanskap) + lembar REKAP pembayaran, mengikuti formulir Personalia/Keuangan.
     Kolom: Tgl periksa, NIK, Nama, Jabatan, Dept, Pelayanan, Tagihan RS, Potongan, Tagihan Aktif, Ditanggung Karyawan, Kebijakan Perusahaan, Keterangan (aturan BPJS).
-    Beban: karyawan ber-BPJS aktif → perusahaan 75% / karyawan 25%; tanpa BPJS → 100% perusahaan (services.split_bill). Tanpa keluhan/diagnosa (bukan data medis)."""
+    Beban: sesuai penanggung (BPJS / Non BPJS) & Master Tanggungan pada tanggal pelayanan (services.split_bill), disalin ke tiap tagihan. Tanpa keluhan/diagnosa (bukan data medis)."""
     from collections import OrderedDict
     from reportlab.lib.pagesizes import landscape
-    from django.conf import settings
+    from . import services
     buf = BytesIO(); W, H = landscape(A4); c = canvas.Canvas(buf, pagesize=(W, H)); L = 12 * mm
     lh = letterhead.info(user)
     mitra = partner.name if partner else "Semua Mitra"
@@ -228,7 +228,6 @@ def bills_pdf(bills, period, partner, user):
     xs = [L]
     for _, w in cols: xs.append(xs[-1] + w * mm)
     num = {6, 7, 8, 9, 10}
-    pct = settings.POLI_BPJS_COMPANY_PCT
 
     def head(first):
         c.setFont("Helvetica-Bold", 11); y = H - 14 * mm
@@ -247,8 +246,7 @@ def bills_pdf(bills, period, partner, user):
         if y - rowh < 40 * mm:
             c.showPage(); y = head(False); c.setFont("Helvetica", 6.8)
         e = b.employee
-        if b.payer == "perusahaan": ket = f"BPJS: prs {pct}% / kry {100 - pct}%" if b.has_bpjs else "Tanpa BPJS: prs 100%"
-        else: ket = {"karyawan": "Ditanggung karyawan 100%", "bpjs": "Dibayar BPJS"}.get(b.payer, "")
+        pct = services.pct_clean(b.company_pct); ket = f"{b.get_payer_display()}: prs {pct}% / kry {services.pct_clean(100 - b.company_pct)}%"
         cells = [_fmt(b.service_date), e.nik, e.name, e.position.name if e.position_id else "-", e.department.name, b.get_service_type_display(), _rp(b.total_amount), _rp(b.discount_amount),
                  _rp(b.net_amount), _rp(b.employee_amount), _rp(b.company_amount), ket]
         for i, t in enumerate(cells):
@@ -277,7 +275,6 @@ def _rekap_page(c, W, H, bills, mitra, label, tot, lh, today):
     """Lembar REKAP (formulir pembayaran): baris 1 = Hutang Pengobatan ditanggung Karyawan (piutang yang dipotong dari karyawan), lalu satu baris per departemen = beban pengobatan
     perusahaan. Jumlah = seluruh tagihan aktif yang dibayarkan ke mitra (perusahaan membayar penuh; bagian karyawan menjadi piutang)."""
     from collections import OrderedDict
-    from django.conf import settings
     L = 20 * mm; R = W - 20 * mm; y = H - 22 * mm
     c.setFont("Helvetica-Bold", 16); c.drawCentredString(W / 2, y, "REKAP"); y -= 12 * mm
     c.setFont("Helvetica", 10)
@@ -304,5 +301,5 @@ def _rekap_page(c, W, H, bills, mitra, label, tot, lh, today):
     y -= 12 * mm; c.setFont("Helvetica", 9)
     for i, role in enumerate(("Pembukuan", "Disetujui", "Diketahui", "Pemohon", "Penerima")):
         x = L + i * ((R - L) / 5); c.drawString(x, y, role); c.drawString(x, y - 20 * mm, "(................)")
-    c.setFont("Helvetica", 7.5); c.drawString(L, y - 30 * mm, f"Dicetak {_id(today)}. Beban: karyawan ber-BPJS aktif perusahaan {settings.POLI_BPJS_COMPANY_PCT}% / karyawan {100 - settings.POLI_BPJS_COMPANY_PCT}%; tanpa BPJS 100% perusahaan.")
+    c.setFont("Helvetica", 7.5); c.drawString(L, y - 30 * mm, f"Dicetak {_id(today)}.")
     c.showPage()

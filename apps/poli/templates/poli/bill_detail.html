@@ -13,7 +13,7 @@
 {% if b.discount_amount %}<tr><th>Potongan mitra</th><td>{{ b.discount_amount|rupiah }}</td></tr>{% endif %}
 <tr><th>Tagihan aktif</th><td id="net"><b>{{ b.net_amount|rupiah }}</b></td></tr>
 <tr><th>BPJS Kesehatan</th><td>{% if b.has_bpjs %}Aktif saat dicatat{% else %}Tidak ada / nonaktif{% endif %}</td></tr>
-<tr><th>Ditanggung perusahaan</th><td id="co"><b>{{ b.company_amount|rupiah }}</b>{% if b.payer == "perusahaan" %} <small>{% if b.has_bpjs %}({{ pct_co }}% — karyawan ber-BPJS){% else %}(100% — karyawan tanpa BPJS){% endif %}</small>{% endif %}</td></tr>
+<tr><th>Ditanggung perusahaan</th><td id="co"><b>{{ b.company_amount|rupiah }}</b> <small>({{ b.company_pct|floatformat:"-2" }}% — {{ b.get_payer_display }})</small></td></tr>
 <tr><th>Ditanggung karyawan</th><td id="emp"><b>{{ b.employee_amount|rupiah }}</b></td></tr>
 {% if b.status == "ditolak" %}<tr><th>Alasan ditolak</th><td>{{ b.status_note }}</td></tr>{% endif %}
 {% if b.status == "dibayar" %}<tr><th>Dibayar</th><td>{{ b.paid_date|date:"d-m-Y" }} · bukti {{ b.payment_ref }}</td></tr>{% endif %}

@@ -38,6 +38,7 @@ urlpatterns = [
     path("billing/", bv.bills, name="poli_bills"),
     path("billing/new/", bv.bill_new, name="poli_bill_new"),
     path("billing/partners/", bv.partners, name="poli_partners"),
+    path("billing/coverage/", bv.coverage, name="poli_coverage"),
     path("billing/import/", bulk_import_view(BILL, poli_only), name="poli_bill_import"),
     path("billing/import/template.csv", bulk_template_view(BILL, poli_only)),
     path("billing/<int:pk>/", bv.bill_detail, name="poli_bill_detail"),

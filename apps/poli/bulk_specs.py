@@ -13,9 +13,10 @@ DIAGNOSIS = Spec("diagnosa", "poli", "diagnosa", "/poli/diagnoses/", Diagnosis, 
 
 # ---------------------------------------------------------------- Tagihan mitra (putaran 24, P6): satu baris = satu tagihan (tanpa rincian)
 def _choice(v, choices):
-    v = (v or "").strip().lower()
+    norm = lambda t: "_".join((t or "").strip().lower().replace("-", " ").split())   # "Non BPJS" / "non-bpjs" / "non_bpjs" → non_bpjs
+    v = norm(v)
     for code, label in choices:
-        if v in (code.lower(), label.lower()): return code
+        if v in (norm(code), norm(label)): return code
     return v
 
 
@@ -30,8 +31,8 @@ def _bill_to_data(r, ctx):
 BILL = Spec("tagihan-mitra", "poli", "tagihan mitra", "/poli/billing/", None, "key", PartnerBillForm,
             ["mitra", "nomor_tagihan", "tanggal_tagihan", "nik", "tanggal_layanan", "jenis_layanan", "kode_diagnosa", "penanggung", "total", "potongan", "keluhan"],
             ["mitra", "nomor_tagihan", "tanggal_tagihan", "nik", "tanggal_layanan", "total"],
-            ["RS Contoh", "INV-001", "2026-10-05", "001", "2026-10-03", "rawat_jalan", "A09", "perusahaan", "450000", "0", ""], _bill_to_data,
+            ["RS Contoh", "INV-001", "2026-10-05", "001", "2026-10-03", "rawat_jalan", "A09", "bpjs", "450000", "0", ""], _bill_to_data,
             key_fn=lambda r: f"{(r.get('mitra') or '').strip().lower()}|{' '.join((r.get('nomor_tagihan') or '').split()).lower()}",
             hint="Satu baris = satu tagihan (tanpa rincian biaya; rincian diisi lewat form). DATA MEDIS: berkas ini memuat keluhan/diagnosa — perlakukan sebagai rahasia. "
-                 "Hanya MENAMBAH; nomor tagihan yang sudah tercatat dari mitra yang sama ditolak. Jenis layanan: rawat_jalan, rawat_inap, lab, obat, kacamata, lainnya. Penanggung: perusahaan, bpjs, karyawan. "
-                 "potongan (opsional) = potongan mitra, mis. potongan dokter RS. Beban otomatis: penanggung perusahaan + karyawan ber-BPJS aktif → perusahaan 75% / karyawan 25%; tanpa BPJS → 100% perusahaan.")
+                 "Hanya MENAMBAH; nomor tagihan yang sudah tercatat dari mitra yang sama ditolak. Jenis layanan: rawat_jalan, rawat_inap, lab, obat, kacamata, lainnya. Penanggung: bpjs, non_bpjs (boleh ditulis \"Non BPJS\"). "
+                 "potongan (opsional) = potongan mitra, mis. potongan dokter RS. Beban otomatis menurut Master Tanggungan pada tanggal pelayanan (bawaan: BPJS → perusahaan 75% / karyawan 25%; Non BPJS → 100% perusahaan).")

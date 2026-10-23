@@ -33,12 +33,12 @@ class Base(PoliBase):
 
     def post(self, lines=(), **kw):
         d = {"partner": self.partner.pk, "bill_number": "INV-1", "bill_date": BILLD.isoformat(), "nik": "001", "service_date": SVC.isoformat(), "service_type": "rawat_jalan",
-             "complaint": SECRET, "diagnosis_code": "A09", "payer": "perusahaan", "total_amount": "450.000", **self.lines(*lines)}; d.update(kw)
+             "complaint": SECRET, "diagnosis_code": "A09", "payer": "bpjs", "total_amount": "450.000", **self.lines(*lines)}; d.update(kw)
         return self.client.post(reverse("poli_bill_new"), d)
 
     def bill(self, **kw):
         d = dict(user=self.poli, partner=self.partner, bill_number="B-%d" % (PartnerBill.objects.count() + 1), bill_date=BILLD, employee=self.e1, service_date=SVC, service_type="rawat_jalan",
-                 complaint=SECRET, diagnosis=self.diag, payer="perusahaan", total=Decimal(450000)); d.update(kw)
+                 complaint=SECRET, diagnosis=self.diag, payer="bpjs", total=Decimal(450000)); d.update(kw)
         return services.create_partner_bill(d["user"], d["partner"], d["bill_number"], d["bill_date"], d["employee"], d["service_date"], d["service_type"], d["complaint"], d["diagnosis"], d["payer"], d["total"], d.get("lines", ()))
 
     def act(self, b, action, **kw): return self.client.post(reverse("poli_bill_action", args=[b.pk, action]), kw)
@@ -249,7 +249,7 @@ class ImportTests(Base):
     def upload(self, text, mode="import"): return self.client.post(reverse("poli_bill_import"), {"file": SimpleUploadedFile("t.csv", text.encode()), "mode": mode})
 
     def row(self, **kw):
-        d = {"mitra": "RS Sehat", "no": "INV-9", "td": BILLD.isoformat(), "nik": "001", "sd": SVC.isoformat(), "jl": "rawat_jalan", "kd": "A09", "py": "perusahaan", "tot": "450000", "kel": "batuk"}; d.update(kw)
+        d = {"mitra": "RS Sehat", "no": "INV-9", "td": BILLD.isoformat(), "nik": "001", "sd": SVC.isoformat(), "jl": "rawat_jalan", "kd": "A09", "py": "bpjs", "tot": "450000", "kel": "batuk"}; d.update(kw)
         return ",".join([d["mitra"], d["no"], d["td"], d["nik"], d["sd"], d["jl"], d["kd"], d["py"], d["tot"], d["kel"]]) + "\n"
 
     def test_check_only_saves_nothing(self):

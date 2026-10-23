@@ -17,8 +17,8 @@ HRD_SIGNER_NAME = env("HRD_SIGNER_NAME", default="")  # penanda tangan HRD (mis.
 HRD_SIGNER_TITLE = env("HRD_SIGNER_TITLE", default="Manager HRD")
 PERSONALIA_SIGNER_NAME = env("PERSONALIA_SIGNER_NAME", default="")  # persetujuan cuti hamil
 PERSONALIA_SIGNER_TITLE = env("PERSONALIA_SIGNER_TITLE", default="Kabag Personalia")
-# Pembagian beban tagihan berobat (Poli → Tagihan Mitra): karyawan dengan BPJS Kesehatan aktif → perusahaan menanggung PCT% dan karyawan sisanya;
-# karyawan tanpa BPJS → 100% perusahaan. Diubah lewat .env bila kebijakan berubah (tagihan yang sudah dicatat tidak bergeser).
+# Pembagian beban tagihan berobat (Poli → Tagihan Mitra) menurut PENANGGUNG: BPJS → perusahaan menanggung PCT% dan karyawan sisanya; Non BPJS → 100% perusahaan.
+# Ini hanya persen BAWAAN (dipakai bila belum ada aturan). Persen per tanggal berlaku: Poli → Master Tanggungan (tagihan yang sudah dicatat tidak bergeser).
 POLI_BPJS_COMPANY_PCT = env.int("POLI_BPJS_COMPANY_PCT", default=75)
 APP_VERSION = "1.1.0"
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")  # enkripsi kolom sensitif; lihat apps/core/crypto.py

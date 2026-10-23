@@ -612,7 +612,7 @@ class Command(BaseCommand):
         for i, rec in enumerate(r.sample(recs[:40], 6)):
             bd = min(timezone.localdate(), rec.visit_at.date() + timedelta(days=1)); total = Decimal(r.choice([185_000, 320_000, 450_000, 1_250_000]))
             b = ps.create_partner_bill(self.poli_u, partners[i % 3], f"DEMO-{2026}{i + 1:03d}", bd, rec.employee, rec.visit_at.date(), r.choice(["rawat_jalan", "lab", "obat"]), rec.complaint,
-                                       rec.diagnosis, r.choice(["perusahaan", "perusahaan", "bpjs"]), total, [("Pelayanan (demo)", 1, total)] if i % 2 == 0 else ())
+                                       rec.diagnosis, r.choice(["bpjs", "bpjs", "non_bpjs"]), total, [("Pelayanan (demo)", 1, total)] if i % 2 == 0 else ())
             for st in flows[i]:
                 ps.bill_transition(b.pk, st, self.poli_u, note="Data demo" if st == "ditolak" else "", paid_date=timezone.localdate() if st == "dibayar" else None, payment_ref="TRF-DEMO" if st == "dibayar" else "")
         # rekap visit pasien (putaran 46): tiga jenis, status beragam (berjalan / selesai / batal), dibuat lewat servis yang sama dengan aplikasi
