@@ -173,8 +173,13 @@ class ParamForm(forms.Form):
 
 # ---------------------------------------------------------------- penyesuaian
 class AdjustmentForm(ByNik):
+    """Penyesuaian = DUA jenis: Tambahan (+, menambah gaji) dan Potongan (−, mengurangi gaji). Jenis menentukan daftar komponen; nominal selalu diketik positif
+    (kecuali komponen 'boleh negatif' = Koreksi). `kind` opsional: bila kosong (impor massal) jenis dibaca dari komponen."""
+    KINDS = [("tambah", "Tambahan (+)"), ("potongan", "Potongan (−)")]
+    DISPLAY = {"lembur_otomatis": "Lembur (diisi manual)"}   # label tampilan di form; label slip tidak berubah
     nik = forms.CharField(label="NIK karyawan", max_length=20, widget=NIK())
     period = forms.CharField(label="Periode (YYYY-MM)", max_length=7, initial=lambda: timezone.localdate().strftime("%Y-%m"))
+    kind = forms.ChoiceField(label="Jenis", choices=KINDS, required=False, widget=forms.RadioSelect)
     component = forms.ModelChoiceField(label="Komponen", queryset=PayComponent.objects.none())
     amount = SignedRupiahField(label="Nominal (Rp)", min_value=-1_000_000_000, max_value=1_000_000_000)
     qty = forms.DecimalField(label="Jumlah (opsional)", required=False, min_value=0, max_digits=8, decimal_places=2, help_text="Mis. jumlah hari/jam; hanya keterangan di slip.")
@@ -182,7 +187,11 @@ class AdjustmentForm(ByNik):
 
     def __init__(self, *a, instance=None, user=None, **k):
         super().__init__(*a, **k); self.instance, self.employee, self.user = instance, None, user
-        self.fields["component"].queryset = PayComponent.objects.filter(kind="manual", active=True).order_by("section", "order")
+        qs = PayComponent.objects.filter(kind="manual", active=True).order_by("section", "order")
+        self.fields["component"].queryset = qs
+        self.fields["component"].label_from_instance = lambda c: self.DISPLAY.get(c.code, c.label)
+        self.groups = [("tambah", "Tambahan (+)", [(c.pk, self.DISPLAY.get(c.code, c.label), c.signed) for c in qs if not c.is_deduction]),
+                       ("potongan", "Potongan (−)", [(c.pk, self.DISPLAY.get(c.code, c.label), c.signed) for c in qs if c.is_deduction])]
 
     def clean_period(self):
         v = self.cleaned_data["period"].strip()
@@ -192,9 +201,11 @@ class AdjustmentForm(ByNik):
     def clean(self):
         d = super().clean(); self._employee(d)
         c, a = d.get("component"), d.get("amount")
+        if c is not None and d.get("kind") and (d["kind"] == "potongan") != c.is_deduction:
+            self.add_error("component", "Komponen ini bukan %s. Pilih komponen yang sesuai jenisnya." % ("potongan" if d["kind"] == "potongan" else "tambahan"))
         if c is not None and a is not None:
             if a == 0: self.add_error("amount", "Nominal 0 tidak perlu dicatat.")
-            elif a < 0 and not c.signed: self.add_error("amount", f"Nominal {c.label} tidak boleh negatif.")
+            elif a < 0 and not c.signed: self.add_error("amount", f"Ketik nominal {c.label} tanpa tanda minus; jenisnya sudah menentukan menambah atau mengurangi gaji.")
         if d.get("period") and not services.period_open_for_edit(d["period"]): self.add_error("period", "Run gaji periode ini sudah diajukan/disetujui/dibayar; tarik atau batalkan run dulu.")
         if self.employee and d.get("period") and d["period"] < self.employee.join_date.strftime("%Y-%m"): self.add_error("period", "Periode sebelum bulan masuk karyawan.")
         return d

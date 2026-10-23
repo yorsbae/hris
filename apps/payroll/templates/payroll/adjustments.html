@@ -1,16 +1,29 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Penyesuaian Gaji{% endblock %}{% block content %}
+<style>
+.ad .tabs2{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.ad .tabs2 a{padding:5px 14px;border:1px solid var(--bd2);border-radius:999px;text-decoration:none;color:var(--ac);font-size:14px}.ad .tabs2 a.cur{background:var(--ac);border-color:var(--ac);color:#fff}
+.ad .tabs2 a small{opacity:.8;margin-left:4px}.ad .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
+.ad .kp div{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:10px 14px}.ad .kp .n{display:block;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}.ad .kp .l{color:var(--mu);font-size:13px}
+.ad .kp .p .n{color:var(--ok)}.ad .kp .m .n{color:var(--er)}
+.ad td.num.p{color:var(--ok)}.ad td.num.m{color:var(--er)}.ad td small{display:block;color:var(--mu);font-size:12px}.ad tr.first td{border-top:2px solid var(--bd)}.ad .pill.plus{background:var(--okb);color:var(--ok)}.ad .pill.minus{background:var(--erb);color:var(--er)}
+.ad form.bar{align-items:center}
+</style>
+<div class="ad">
 <p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
-<h2>Penyesuaian Gaji — {{ f.period }}</h2>
-<p class="sub">Isian manual per karyawan per periode: insentif, premi produksi, koreksi, pinjaman, pengobatan, materai, dst.</p>
-<div class="tools"><a class="btn" href="{% url 'pay_adjustment_new' %}?period={{ f.period }}">+ Tambah penyesuaian</a>
-<details class="more"><summary>Lainnya ▾</summary><div><small>Data massal</small><a href="{% url 'pay_adjustment_import' %}">Impor penyesuaian dari CSV/XLSX</a></div></details></div>
-{% if not open %}<p class="note wait">Run gaji periode ini sudah <b>{{ run.get_status_display|lower }}</b>; penyesuaian terkunci. Tarik atau batalkan run dulu bila perlu mengubah.</p>{% elif run %}<p class="note wait">Run {{ f.period }} berstatus {{ run.get_status_display|lower }} — hitung ulang setelah mengubah penyesuaian.</p>{% endif %}
-<div class="sepkpi"><span><b>{{ tot.n }}</b> baris</span><span><b>{{ tot.plus|rupiah }}</b> tambahan</span><span><b>{{ tot.minus|rupiah }}</b> potongan</span></div>
-<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama"><input type="month" name="period" value="{{ f.period }}" aria-label="Periode">
-<select name="component" aria-label="Komponen"><option value="">Semua komponen</option>{% for c in comps %}<option value="{{ c.pk }}"{% if f.component == c.pk|stringformat:"s" %} selected{% endif %}>{{ c.label }}</option>{% endfor %}</select><button>Terapkan</button>{% if f.q or f.component %}<a class="chip" href="?period={{ f.period }}">Reset</a>{% endif %}</form>
+<h2>Tambahan &amp; Potongan Gaji — {{ f.period }}</h2>
+<p class="sub">Isian manual per karyawan untuk periode ini. <b>Tambahan (+)</b> menambah gaji, <b>Potongan (−)</b> mengurangi gaji.</p>
+<div class="tools"><a class="btn" href="{% url 'pay_adjustment_new' %}?period={{ f.period }}&amp;kind=tambah">+ Tambahan</a><a class="btn" style="background:var(--er)" href="{% url 'pay_adjustment_new' %}?period={{ f.period }}&amp;kind=potongan">− Potongan</a>
+<details class="more"><summary>Lainnya ▾</summary><div><small>Data massal</small><a href="{% url 'pay_adjustment_import' %}">Impor dari CSV/XLSX</a></div></details></div>
+{% if not open %}<p class="note wait">Run gaji periode ini sudah <b>{{ run.get_status_display|lower }}</b>; penyesuaian terkunci. Tarik atau batalkan run dulu bila perlu mengubah.</p>{% elif run %}<p class="note wait">Run {{ f.period }} berstatus {{ run.get_status_display|lower }}. Hitung ulang run setelah mengubah penyesuaian.</p>{% endif %}
+<div class="kp"><div><span class="n">{{ tot.people }}</span><span class="l">karyawan · {{ tot.n }} baris</span></div><div class="p"><span class="n">+{{ tot.plus|rupiah }}</span><span class="l">total tambahan</span></div><div class="m"><span class="n">−{{ tot.minus|rupiah }}</span><span class="l">total potongan</span></div></div>
+<div class="tabs2"><a href="?period={{ f.period }}"{% if not f.kind %} class="cur"{% endif %}>Semua<small>{{ cnt.a|add:cnt.b }}</small></a><a href="?period={{ f.period }}&amp;kind=tambah"{% if f.kind == 'tambah' %} class="cur"{% endif %}>+ Tambahan<small>{{ cnt.a }}</small></a><a href="?period={{ f.period }}&amp;kind=potongan"{% if f.kind == 'potongan' %} class="cur"{% endif %}>− Potongan<small>{{ cnt.b }}</small></a></div>
+<form method="get" data-fbar class="bar"><input type="hidden" name="kind" value="{{ f.kind }}"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama"><input type="month" name="period" value="{{ f.period }}" aria-label="Periode">
+<select name="component" aria-label="Komponen"><option value="">Semua komponen</option>{% for c in comps %}<option value="{{ c.pk }}"{% if f.component == c.pk|stringformat:"s" %} selected{% endif %}>{{ c.label }}</option>{% endfor %}</select><button>Terapkan</button>{% if f.q or f.component %}<a class="chip" href="?period={{ f.period }}&amp;kind={{ f.kind }}">Reset</a>{% endif %}</form>
 <div class="wrap"><table id="adjustments"><thead><tr><th class="fill">Karyawan</th><th class="nw">Komponen</th><th class="num">Nominal</th><th class="fill">Keterangan</th><th class="acts"></th></tr></thead><tbody>
-{% for a in page %}<tr><td class="fill">{{ a.employee.name }}<small>{{ a.employee.nik }} · {{ a.employee.department.name }}</small></td><td class="nw">{{ a.component.label }}{% if a.component.section == 'potongan' %}<small>potongan</small>{% endif %}</td><td class="num nw">{{ a.amount|rupiah }}</td><td class="fill">{{ a.note }}{% if a.qty %}<small>jumlah {{ a.qty|floatformat:"-2" }}</small>{% endif %}</td>
-<td class="acts">{% if open %}<form method="post" action="{% url 'pay_void' 'adjustment' a.pk %}" class="inline">{% csrf_token %}<input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">Batalkan</button></form>{% endif %}</td></tr>
-{% empty %}<tr><td class="empty" colspan="5">{% if f.q or f.component %}Tidak ada yang cocok. <a href="?period={{ f.period }}">Reset filter</a>{% else %}Belum ada penyesuaian untuk periode ini. Klik <b>+ Tambah penyesuaian</b> atau impor.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% for a in page %}{% ifchanged a.employee_id %}<tr class="first">{% else %}<tr>{% endifchanged %}<td class="fill">{% ifchanged a.employee_id %}{{ a.employee.name }}<small>{{ a.employee.nik }} · {{ a.employee.department.name }}</small>{% endifchanged %}</td>
+<td class="nw">{{ a.component.label }} <span class="pill {% if a.component.section == 'potongan' %}minus{% else %}plus{% endif %}">{% if a.component.section == 'potongan' %}−{% else %}+{% endif %}</span></td>
+<td class="num nw {% if a.component.section == 'potongan' %}m{% else %}p{% endif %}">{% if a.component.section == 'potongan' %}−{% else %}+{% endif %}{{ a.amount|rupiah }}</td><td class="fill">{{ a.note }}{% if a.qty %}<small>jumlah {{ a.qty|floatformat:"-2" }}</small>{% endif %}</td>
+<td class="acts">{% if open %}<a class="btn ghost sm" href="{% url 'pay_adjustment_new' %}?period={{ a.period }}&amp;nik={{ a.employee.nik }}&amp;kind={% if a.component.section == 'potongan' %}potongan{% else %}tambah{% endif %}">+ Tambah lagi</a><form method="post" action="{% url 'pay_void' 'adjustment' a.pk %}" class="inline">{% csrf_token %}<input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">Batalkan</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="5">{% if f.q or f.component or f.kind %}Tidak ada yang cocok. <a href="?period={{ f.period }}">Reset filter</a>{% else %}Belum ada tambahan atau potongan untuk periode ini. Klik <b>+ Tambahan</b> atau <b>− Potongan</b>, atau impor.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
+</div>
 {% endblock %}

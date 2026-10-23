@@ -46,7 +46,7 @@ def _payroll(full):
     if not full: return [("Run Gaji (serahkan ke Payroll)", "/payroll/runs/", "briefcase"), ("Usulan Tali Asih", "/payroll/tali-asih/", "clipboard", True)]
     return [("Alur Payroll (mulai di sini)", "/payroll/", "briefcase"), ("1 · Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("1 · Lembur, Makan & Tunjangan", "/payroll/rates/", "sliders", True),
             ("1 · Parameter & Komponen", "/payroll/params/", "sliders", True), ("2 · Profil Gaji Karyawan", "/payroll/profiles/", "users", True),
-            ("3 · Penyesuaian (insentif/potongan)", "/payroll/adjustments/", "clipboard", True), ("3 · Tali Asih", "/payroll/tali-asih/", "clipboard", True), ("4 · Run Gaji (per periode)", "/payroll/runs/", "calendar", True)]
+            ("3 · Tambahan & Potongan", "/payroll/adjustments/", "clipboard", True), ("3 · Tali Asih", "/payroll/tali-asih/", "clipboard", True), ("4 · Run Gaji (per periode)", "/payroll/runs/", "calendar", True)]
 
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 

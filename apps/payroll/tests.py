@@ -356,6 +356,21 @@ class RunWorkflowTests(Base):
         comp = PayComponent.objects.get(code="insentif"); a1 = services.save_adjustment(self.e, PERIOD, comp, 1000, None, "", self.payroll); a2 = services.save_adjustment(self.e, PERIOD, comp, 2000, None, "", self.payroll)
         a1.refresh_from_db(); self.assertEqual((a1.is_void, a1.void_reason, a2.amount), (True, "Diganti nilai baru", 2000)); self.assertEqual(PayAdjustment.objects.filter(voided_at__isnull=True).count(), 1)
 
+    def test_adjustment_form_two_kinds_and_add_again(self):
+        self.client.force_login(self.payroll); url = reverse("pay_adjustment_new")
+        r = self.client.get(url, {"period": PERIOD}); self.assertContains(r, "Tambahan"); self.assertContains(r, "Potongan"); self.assertContains(r, "Simpan &amp; tambah lagi")
+        self.assertNotContains(r, "Gaji Pokok")                                                                              # komponen otomatis tidak ditawarkan
+        mat, ins = PayComponent.objects.get(code="pot_materai"), PayComponent.objects.get(code="insentif")
+        post = lambda **kw: self.client.post(url, {"nik": self.e.nik, "period": PERIOD, **kw})
+        r = post(kind="tambah", component=mat.pk, amount="6000"); self.assertContains(r, "bukan tambahan")                  # jenis dan komponen harus cocok
+        r = post(kind="potongan", component=mat.pk, amount="6000", again="1"); self.assertEqual(r.status_code, 302); self.assertIn("kind=potongan", r["Location"]); self.assertIn(self.e.nik, r["Location"])
+        post(kind="potongan", component=PayComponent.objects.get(code="pot_pinjaman").pk, amount="250.000"); post(kind="tambah", component=ins.pk, amount="100000")
+        self.assertEqual(PayAdjustment.objects.filter(employee=self.e, period=PERIOD, voided_at__isnull=True).count(), 3)       # beberapa potongan + tambahan untuk satu karyawan
+        r = self.client.get(url, {"period": PERIOD, "nik": self.e.nik, "kind": "potongan"}); self.assertContains(r, "Sudah tercatat"); self.assertContains(r, "Materai")
+        r = post(kind="potongan", component=mat.pk, amount="-5"); self.assertContains(r, "tanpa tanda minus")
+        r = self.client.get(reverse("pay_adjustments"), {"period": PERIOD, "kind": "potongan"}); self.assertContains(r, "Materai"); self.assertNotContains(r, "Insentif</td>")
+        self.assertEqual(self.client.post(url, {"nik": self.e.nik, "period": PERIOD, "component": mat.pk, "amount": "1000"}).status_code, 302)   # tanpa `kind` (impor/lama) tetap diterima
+
     def test_adjustment_rules(self):
         c = PayComponent.objects.get(code="insentif")
         with self.assertRaisesMessage(ValueError, "negatif"): services.save_adjustment(self.e, PERIOD, c, -5, None, "", self.payroll)

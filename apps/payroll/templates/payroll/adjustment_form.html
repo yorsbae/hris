@@ -1,0 +1,55 @@
+{% extends "base.html" %}{% load money %}{% block title %}Tambah penyesuaian gaji{% endblock %}{% block content %}
+<style>
+.af{max-width:760px}.af b,.af strong{font-size:inherit;display:inline;font-weight:600;line-height:inherit}
+.af input[type=radio]{width:auto;min-height:0;height:auto;margin:0;flex:none;padding:0}
+.af .sec{margin:0 0 18px}.af .sec>.h{font-size:14px;font-weight:600;margin:0 0 8px}.af .sec>.h i{font-style:normal;display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:var(--ac);color:#fff;font-size:12px;margin-right:8px}
+.af .row2{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:10px 12px}.af .row2 label,.af .l{display:block;font-size:13px;color:var(--mu);margin:0 0 4px;font-weight:500}.af .row2 input,.af .fx input,.af .fx select{width:100%}
+.af .kinds{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.af .kind{display:grid!important;grid-template-columns:22px 1fr;column-gap:10px;align-items:start;border:2px solid var(--bd);border-radius:12px;padding:12px 14px;cursor:pointer;margin:0;font-weight:400}
+.af .kind:hover{background:var(--hov)}.af .kind .t{font-weight:700;font-size:16px;color:var(--tx)}.af .kind .d{grid-column:2;color:var(--mu);font-size:13px;line-height:1.4}.af .kind input{grid-row:1/3;margin-top:4px!important}
+.af .kind.plus:has(input:checked){border-color:var(--ok);background:var(--okb)}.af .kind.minus:has(input:checked){border-color:var(--er);background:var(--erb)}
+.af .kind.plus .t{color:var(--ok)}.af .kind.minus .t{color:var(--er)}
+.af .amt{display:flex;align-items:stretch;gap:0}.af .amt .sg{display:flex;align-items:center;padding:0 14px;border:1px solid var(--bd2);border-right:0;border-radius:8px 0 0 8px;font-weight:700;font-size:18px;background:var(--hov)}
+.af .amt input{border-radius:0 8px 8px 0!important}.af .amt.plus .sg{color:var(--ok)}.af .amt.minus .sg{color:var(--er)}
+.af .hlp{color:var(--mu);font-size:12px;margin:4px 0 0}.af .err{color:var(--er);font-size:13px;margin:4px 0 0;padding:0;list-style:none}
+.af .acts2{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.af .acts2 button{margin:0}.af .acts2 .secondary{background:transparent;color:var(--ac);border:1px solid var(--bd2)}
+.af .ex{margin:0 0 16px;max-width:760px}.af .ex h3{margin:0 0 8px;font-size:15px}.af .ex table{width:100%}.af .ex td{padding:5px 8px}.af .ex td.num{text-align:right;font-variant-numeric:tabular-nums}.af .ex .p{color:var(--ok)}.af .ex .m{color:var(--er)}
+.af .info{font-size:13px;color:var(--mu);border-top:1px solid var(--bd);margin-top:16px;padding-top:12px}.af .info a{color:var(--ac)}
+@media(max-width:600px){.af .kinds,.af .row2{grid-template-columns:1fr}}
+</style>
+<div class="af">
+<p class="back"><a href="{% url 'pay_adjustments' %}?period={{ period }}">‹ Penyesuaian gaji</a></p>
+<h2>Tambah penyesuaian gaji</h2>
+<p class="sub">Catat tambahan (insentif, premi, dll.) atau potongan (pinjaman, pengobatan, materai, dll.) untuk <strong>satu karyawan</strong> pada <strong>satu periode</strong>. Untuk banyak karyawan sekaligus gunakan <a href="{% url 'pay_adjustment_import' %}">impor</a>.</p>
+{% if emp and existing %}<div class="card ex"><h3>Sudah tercatat untuk {{ emp.name }} · {{ period }}</h3><table><tbody>
+{% for x in existing %}<tr><td>{{ x.component.label }}</td><td class="num {% if x.component.is_deduction %}m{% else %}p{% endif %}">{% if x.component.is_deduction %}−{% else %}+{% endif %}{{ x.amount|rupiah }}</td><td>{{ x.note }}</td></tr>{% endfor %}
+<tr><td><strong>Total</strong></td><td class="num" colspan="2"><span class="p">+{{ plus|rupiah }}</span> &nbsp; <span class="m">−{{ minus|rupiah }}</span></td></tr></tbody></table>
+<p class="hlp">Mengisi komponen yang sama lagi akan <strong>mengganti</strong> nilai lamanya.</p></div>{% endif %}
+<form method="post" class="card" style="max-width:760px;padding:18px 20px" id="adjf">{% csrf_token %}{% if form.non_field_errors %}<ul class="err">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+<div class="sec"><div class="h"><i>1</i>Karyawan dan periode</div><div class="row2">
+<div class="fx"><label for="{{ form.nik.id_for_label }}">NIK atau nama karyawan</label>{{ form.nik }}{% for e in form.nik.errors %}<p class="err">{{ e }}</p>{% endfor %}{% if emp %}<p class="hlp">{{ emp.name }} · {{ emp.department.name }}</p>{% endif %}</div>
+<div class="fx"><label for="{{ form.period.id_for_label }}">Periode</label>{{ form.period }}{% for e in form.period.errors %}<p class="err">{{ e }}</p>{% endfor %}<p class="hlp">Format 2026-10</p></div></div></div>
+<div class="sec"><div class="h"><i>2</i>Menambah atau mengurangi gaji?</div><div class="kinds" role="radiogroup" aria-label="Jenis">
+<label class="kind plus"><input type="radio" name="kind" value="tambah"{% if kind == 'tambah' %} checked{% endif %}><span class="t">+ Tambahan</span><span class="d">Menambah gaji: insentif, premi produksi, lembur manual, koreksi.</span></label>
+<label class="kind minus"><input type="radio" name="kind" value="potongan"{% if kind == 'potongan' %} checked{% endif %}><span class="t">− Potongan</span><span class="d">Mengurangi gaji: pinjaman, pengobatan, materai, grade D, lain-lain.</span></label></div>{% for e in form.kind.errors %}<p class="err">{{ e }}</p>{% endfor %}</div>
+<div class="sec"><div class="h"><i>3</i>Komponen dan nominal</div>
+<div class="fx" style="margin-bottom:12px"><label for="id_component">Komponen</label>
+<select name="component" id="id_component" required><option value="" data-kind="">Pilih komponen…</option>{% for k, lbl, items in form.groups %}{% for pk, name, signed in items %}<option value="{{ pk }}" data-kind="{{ k }}" data-signed="{% if signed %}1{% endif %}"{% if form.component.value|stringformat:"s" == pk|stringformat:"s" %} selected{% endif %}>{{ name }}</option>{% endfor %}{% endfor %}</select>
+{% for e in form.component.errors %}<p class="err">{{ e }}</p>{% endfor %}<p class="hlp" id="signedhint" hidden>Khusus komponen ini boleh diketik dengan tanda minus (mis. −20.000) untuk koreksi kelebihan bayar.</p></div>
+<div class="row2"><div class="fx"><label for="{{ form.amount.id_for_label }}">Nominal (Rp)</label><div class="amt plus" id="amt"><span class="sg" id="sg">+</span>{{ form.amount }}</div>{% for e in form.amount.errors %}<p class="err">{{ e }}</p>{% endfor %}<p class="hlp" id="amthint">Ketik angka saja, mis. 150.000. Tanda + / − mengikuti jenis di atas.</p></div>
+<div class="fx"><label for="{{ form.qty.id_for_label }}">Jumlah (opsional)</label>{{ form.qty }}{% for e in form.qty.errors %}<p class="err">{{ e }}</p>{% endfor %}<p class="hlp">Hari/jam, hanya keterangan di slip.</p></div></div>
+<div class="fx" style="margin-top:12px"><label for="{{ form.note.id_for_label }}">Keterangan (opsional)</label>{{ form.note }}{% for e in form.note.errors %}<p class="err">{{ e }}</p>{% endfor %}</div></div>
+<div class="acts2"><button type="submit" class="btn" style="margin:0">Simpan</button><button type="submit" name="again" value="1" class="secondary">Simpan &amp; tambah lagi (karyawan sama)</button></div>
+<div class="info"><strong>Tidak perlu diisi di sini:</strong> Seragam (diambil otomatis dari <a href="{% url 'hrd_uniforms' %}">catatan Seragam</a>), BPJS/Jamsostek, potongan absensi, lembur terhitung, dan tunjangan tetap (T Khusus, T Lain-lain di Profil Gaji). Setelah menyimpan, <strong>hitung ulang run</strong> periode itu.</div></form>
+</div>
+<script>
+(function(){
+var f=document.getElementById("adjf"),sel=document.getElementById("id_component"),amt=document.getElementById("amt"),sg=document.getElementById("sg"),sh=document.getElementById("signedhint");
+function kind(){var r=f.querySelector("input[name=kind]:checked");return r?r.value:"tambah"}
+function sync(){var k=kind();[].forEach.call(sel.options,function(o){if(!o.value)return;var ok=o.dataset.kind===k;o.hidden=!ok;o.disabled=!ok});
+ var cur=sel.options[sel.selectedIndex];if(cur&&cur.value&&cur.dataset.kind!==k)sel.value="";
+ amt.className="amt "+(k==="potongan"?"minus":"plus");sg.textContent=k==="potongan"?"−":"+";var c=sel.options[sel.selectedIndex];sh.hidden=!(c&&c.dataset.signed==="1")}
+f.addEventListener("change",function(e){if(e.target.name==="kind"||e.target===sel)sync()});sync();
+})();
+</script>
+{% endblock %}
