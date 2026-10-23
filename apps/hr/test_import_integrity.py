@@ -73,7 +73,7 @@ class NoDuplicateTests(DupBase):
 
     def test_export_then_import_roundtrip_adds_nothing(self):
         imp.commit(self.stage(csv_bytes(LOG_HDR, "001,Budi,2026-10-01 07:02:11,F,M1", "003,Dewi,2026-10-01 07:00:00,F,M2")), self.hrd)
-        self.login("hrd"); r = self.client.get(reverse("att_scanlog"), {"from": "2026-10-01", "to": "2026-10-01", "export": "1"}); self.assertEqual(r.status_code, 200)
+        self.login("hrd"); r = self.client.get(reverse("att_scans"), {"from": "2026-10-01", "to": "2026-10-01", "export": "1"}); self.assertEqual(r.status_code, 200)
         j = self.stage(r.content, "scanlog.csv"); imp.analyze(j); self.assertEqual((j.taps_new, j.taps_duplicate), (0, 2))
 
 

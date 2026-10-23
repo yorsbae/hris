@@ -181,7 +181,7 @@ def import_home(request):
                 return redirect("att_import_detail", pk=i.pk)
             except ValueError as e: messages.error(request, str(e))
     ld, stale = _freshness()
-    return render(request, "attendance/import_home.html", {"history": AttendanceImport.objects.exclude(state="dibatalkan").select_related("created_by")[:20], "last_scan": ld, "stale": stale, "max_mb": imp.MAX_BYTES // 1024 // 1024})
+    return render(request, "attendance/import_home.html", {"history": AttendanceImport.objects.exclude(state="dibatalkan").select_related("created_by")[:5], "last_scan": ld, "stale": stale, "max_mb": imp.MAX_BYTES // 1024 // 1024})
 
 
 @hrd

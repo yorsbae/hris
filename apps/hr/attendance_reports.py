@@ -10,7 +10,7 @@ from xml.sax.saxutils import quoteattr
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count, Exists, Max, OuterRef, Q
+from django.db.models import Count, Exists, Max, OuterRef, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -20,7 +20,7 @@ from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles, scope_by_department
 from .views import SHIFT_GROUP_FILTERS, apply_shift_filter
-from .models import AttendanceDaily as AD, AttendanceDevice, AttendanceRaw, Department, Employee, Shift
+from .models import AttendanceDaily as AD, AttendanceDevice, AttendanceImport, AttendanceRaw, Department, Employee, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))   # noqa: E731
 hrd = lambda fn: login_required(require_roles(Role.HRD)(fn))                       # noqa: E731
@@ -103,12 +103,43 @@ def _fingerspot_xml(rows):
     return xml.encode("utf-8")
 
 
+HIST_PER_PAGE = 20
+
+
 @hrd
 def scanlog(request):
+    """Riwayat Impor Scanlog: tiap kali berkas Fingerspot diunggah → berapa baris, berapa scan baru / duplikat / gagal, rentang tanggal, PIN yang belum dipetakan.
+    Scan mentahnya dibuka per impor lewat `scans` (Data Scan)."""
     g = request.GET
-    d1, d2 = _range(g, MAX_LOG_DAYS if not g.get("export") else 93, _latest_scan_date())
+    state, q = g.get("state", ""), g.get("q", "").strip()[:60]
+    qs = AttendanceImport.objects.select_related("created_by")
+    qs = qs.filter(state=state) if state in ("selesai", "draft", "dibatalkan") else qs.exclude(state="dibatalkan")
+    if q: qs = qs.filter(original_name__icontains=q)
+    f1, f2 = _date(g.get("from")), _date(g.get("to"))                          # tanggal impor (bukan tanggal scan)
+    if f1: qs = qs.filter(created_at__date__gte=f1)
+    if f2: qs = qs.filter(created_at__date__lte=f2)
+    page = Paginator(qs, HIST_PER_PAGE).get_page(g.get("page", 1))
+    for i in page: i.when = i.committed_at or i.created_at; i.by = (i.created_by.get_full_name() or i.created_by.get_username()) if i.created_by_id else "—"; i.gagal_pct = round(100 * i.rows_invalid / i.rows_total) if i.rows_total else 0
+    k = AttendanceImport.objects.filter(state="selesai").aggregate(n=Count("id"), baru=Sum("taps_new"), dup=Sum("taps_duplicate"), gagal=Sum("rows_invalid"), last=Max("committed_at"))
+    for n in ("baru", "dup", "gagal"): k[n] = k[n] or 0
+    k["last"] = timezone.localtime(k["last"]) if k["last"] else None
+    um = AttendanceRaw.objects.filter(employee__isnull=True).aggregate(scans=Count("id"), pins=Count("pin", distinct=True))
+    latest = _latest_scan_date(); stale = (timezone.localdate() - latest).days if latest else None
+    qd = g.copy(); qd.pop("page", None)
+    return render(request, "attendance/import_history.html", {"page": page, "k": k, "um": um, "latest": latest, "stale": stale, "qs": qd.urlencode(), "n_rows": page.paginator.count,
+                  "f": {"q": q, "state": state, "from": g.get("from", ""), "to": g.get("to", "")}, "act": any((q, state, f1, f2)), "states": (("selesai", "Selesai"), ("draft", "Draft (belum diimpor)"), ("dibatalkan", "Dibatalkan"))})
+
+
+@hrd
+def scans(request):
+    g = request.GET
+    batch = AttendanceImport.objects.filter(pk=int(g["batch"])).first() if g.get("batch", "").isdigit() else None
+    gr = g.copy()
+    if batch and batch.date_min and not (g.get("from") or g.get("date")): gr["from"], gr["to"] = batch.date_min.isoformat(), batch.date_max.isoformat()   # dari riwayat: langsung tampilkan rentang berkas itu
+    d1, d2 = _range(gr, MAX_LOG_DAYS if not g.get("export") else 93, _latest_scan_date())
     a, b = _bounds(d1, d2)
     qs = AttendanceRaw.objects.select_related("employee__department", "employee__position").filter(punched_at__gte=a, punched_at__lt=b)
+    if batch: qs = qs.filter(batch=batch)
     q, dept, dev = g.get("q", "").strip()[:60], g.get("dept", ""), g.get("device", "")
     if q: qs = qs.filter(Q(pin__icontains=q) | Q(employee__nik__icontains=q) | Q(employee__name__icontains=q))
     if dept.isdigit(): qs = qs.filter(employee__department_id=int(dept))
@@ -134,13 +165,13 @@ def scanlog(request):
     seen = AttendanceRaw.objects.filter(punched_at__gte=a, punched_at__lt=b).values_list("device_id", flat=True).distinct()
     codes = sorted(set(seen) | set(devices))
     # Ringkasan rentang (tanpa filter pencarian) + pintasan rentang tanggal, supaya jelas "apa isi data ini" dan "apa langkah berikutnya"
-    k = AttendanceRaw.objects.filter(punched_at__gte=a, punched_at__lt=b).aggregate(total=Count("id"), unmapped=Count("id", filter=Q(employee__isnull=True)), pins=Count("pin", distinct=True), last=Max("punched_at"))
+    k = AttendanceRaw.objects.filter(punched_at__gte=a, punched_at__lt=b, **({"batch": batch} if batch else {})).aggregate(total=Count("id"), unmapped=Count("id", filter=Q(employee__isnull=True)), pins=Count("pin", distinct=True), last=Max("punched_at"))
     k["last"] = timezone.localtime(k["last"]) if k["last"] else None
     latest = _latest_scan_date()
     def _rng(x, y): q = g.copy(); [q.pop(n, None) for n in ("page", "export", "format", "date")]; q["from"], q["to"] = x.isoformat(), y.isoformat(); return q.urlencode()
     ranges = [(lbl, _rng(x, y), (x, y) == (d1, d2)) for lbl, x, y in (("Hari scan terakhir", latest, latest), ("7 hari terakhir", latest - timedelta(days=6), latest), ("31 hari terakhir", latest - timedelta(days=30), latest))] if latest else []
     uq = g.copy(); [uq.pop(n, None) for n in ("page", "export", "format")]; uq["unmapped"] = "1"; uq.setdefault("from", d1.isoformat()); uq.setdefault("to", d2.isoformat())
-    return render(request, "attendance/scanlog.html", {"k": k, "ranges": ranges, "unmapped_qs": uq.urlencode(), "n_rows": page.paginator.count,
+    return render(request, "attendance/scanlog.html", {"batch": batch, "k": k, "ranges": ranges, "unmapped_qs": uq.urlencode(), "n_rows": page.paginator.count,
         "page": page, "qs": _qs_without(g, "export", "format"), "d1": d1, "d2": d2, "f": {"q": q, "dept": dept, "device": dev, "unmapped": g.get("unmapped", ""), "sort": g.get("sort", "")},
         "depts": Department.objects.order_by("name"), "device_opts": [(c, devices[c].name if c in devices else c) for c in codes], "capped": (d2 - d1).days + 1 >= MAX_LOG_DAYS and bool(g.get("to")),
         "act": any((q, dept, dev, g.get("unmapped"))), "limits": EXPORT_LIMIT})

@@ -40,7 +40,8 @@ urlpatterns = [
     path("validasi/<int:pk>/cancel/", av7.check_cancel, name="attcheck_cancel"),
     path("validasi/<int:pk>/correct/", av7.check_correct, name="attcheck_correct"),
     path("absensi/", ap.daily_list, name="att_daily"),
-    path("absensi/scanlog/", ar.scanlog, name="att_scanlog"),
+    path("absensi/scanlog/", ar.scanlog, name="att_scanlog"),   # Riwayat Impor Scanlog
+    path("absensi/scanlog/data/", ar.scans, name="att_scans"),   # scan mentah (bisa difilter per impor: ?batch=)
     path("absensi/shift/", ar.shift_grid, name="att_shift"),
     path("absensi/kontrol/", ar.control, name="att_control"),
     path("absensi/mesin/", ar.devices, name="att_devices"),

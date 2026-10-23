@@ -22,7 +22,7 @@ def _absensi(full):
     """Menu Absensi (Tahap 6, putaran 48). HRD: rekap + Data Scanlog (impor lewat tombol di halamannya) + PIN + hari libur. Admin Dept: hanya rekap departemennya."""
     items = [("Absensi", "/absensi/", "clock"), ("Kontrol Harian", "/absensi/kontrol/", "shield", True), ("Shift Harian", "/absensi/shift/", "calendar", True),
              ("Rekap Bulanan", "/absensi/bulanan/", "calendar", True)]
-    if full: items += [("Data Scanlog", "/absensi/scanlog/", "file", True), ("Mesin", "/absensi/mesin/", "clock", True), ("Pemetaan PIN", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True), ("Tutup Periode", "/absensi/periode/", "shield", True)]
+    if full: items += [("Riwayat Impor", "/absensi/scanlog/", "file", True), ("Mesin", "/absensi/mesin/", "clock", True), ("Pemetaan PIN", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True), ("Tutup Periode", "/absensi/periode/", "shield", True)]
     return items
 
 
@@ -104,7 +104,7 @@ def build(user, path):
         for it in items:
             url = it[1]
             prefix = "/master/" if url.startswith("/master/") else url  # Master: semua jenis master tetap satu butir
-            m = (path == "/") if url == "/" else path.startswith(prefix) or (url == "/employees/" and path.startswith("/schedule/")) or (url == "/absensi/scanlog/" and path.startswith("/absensi/impor/"))  # Impor Fingerspot = bagian Data Scanlog (tombol "+ Impor"), bukan submenu sendiri
+            m = (path == "/") if url == "/" else path.startswith(prefix) or (url == "/employees/" and path.startswith("/schedule/")) or (url == "/absensi/scanlog/" and path.startswith("/absensi/impor/"))  # Impor Fingerspot = bagian Riwayat Impor (tombol "+ Impor"), bukan submenu sendiri
             if m and len(prefix) > best_len: best, best_len = it, len(prefix)
     out = [{"title": t, "tree": _tree(items, best), "items": [{"label": i[0], "url": i[1], "icon": i[2], "active": i is best, "sub": len(i) > 3} for i in items]} for t, items in groups]
     return out, (best[0] if best and best[1] != "/" else "")

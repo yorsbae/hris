@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block title %}Riwayat Impor{% endblock %}{% block content %}
+<style>
+.ih .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
+.ih .kpi{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh)}
+.ih .kpi .n{display:block;font-size:24px;font-weight:700;line-height:1.2;color:var(--tx)}.ih .kpi .l{display:block;color:var(--mu);font-size:13px;margin-top:2px}.ih .kpi .s{display:block;color:var(--mu);font-size:12px;margin-top:2px}
+.ih a.kpi{text-decoration:none;color:inherit}.ih a.kpi:hover{border-color:var(--ac)}.ih .kpi.warn{border-color:var(--wnb);background:var(--wnb)}.ih .kpi.warn .n,.ih .kpi.warn .l{color:var(--wn)}
+.ih .note.warn{border-left-color:var(--er)}.ih .tools .btn{margin-left:0}
+.ih form.bar{align-items:flex-end}.ih .fl{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mu);font-weight:500}.ih .fl input,.ih .fl select{min-width:0}
+.ih .nres{color:var(--mu);font-size:13px;margin:0 0 8px}
+.ih table td{vertical-align:top}.ih td small{display:block;color:var(--mu);font-size:12px;margin-top:2px}.ih td.num{text-align:right;font-variant-numeric:tabular-nums}.ih td.num.zero{color:var(--mu)}
+.ih td.bad a,.ih td.bad{color:var(--er)}.ih td.acts{white-space:nowrap;text-align:right}.ih td.acts .btn{margin:0 0 0 6px;padding:4px 10px;font-size:13px;min-height:30px}
+.ih .bar2{height:6px;border-radius:3px;background:var(--bd);overflow:hidden;margin-top:5px;min-width:90px}.ih .bar2 i{display:block;height:100%;background:var(--ok)}
+</style>
+<div class="ih">
+<p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
+<h2>Riwayat Impor Scanlog</h2>
+<p class="sub">Catatan setiap berkas Fingerspot yang pernah diunggah: kapan, oleh siapa, berapa data yang masuk, dan apa yang dilewati atau gagal.</p>
+<div class="tools"><a class="btn" href="{% url 'att_import' %}">+ Impor Fingerspot</a><a class="btn ghost" href="{% url 'att_scans' %}">Lihat semua scan mentah</a></div>
+{% if stale is not None and stale > 2 %}<div class="note warn" role="status"><strong>Data scan terakhir {{ latest|date:"d M Y" }} ({{ stale }} hari lalu).</strong> Impor berkas Fingerspot terbaru supaya rekap absensi tidak tertinggal.</div>{% elif stale is None %}<div class="note warn" role="status"><strong>Belum ada data scan.</strong> Mulai dengan mengimpor berkas dari Fingerspot Personnel.</div>{% endif %}
+<div class="kpis">
+<div class="kpi"><span class="n">{{ k.n }}</span><span class="l">impor selesai</span><span class="s">{% if k.last %}terakhir {{ k.last|date:"d M Y H:i" }}{% else %}belum ada{% endif %}</span></div>
+<div class="kpi"><span class="n">{{ k.baru }}</span><span class="l">scan masuk</span><span class="s">total dari semua impor</span></div>
+<div class="kpi"><span class="n">{{ k.dup }}</span><span class="l">duplikat dilewati</span><span class="s">sudah ada sebelumnya, tidak digandakan</span></div>
+<a class="kpi{% if k.gagal %} warn{% endif %}" href="?state=selesai"><span class="n">{{ k.gagal }}</span><span class="l">baris gagal</span><span class="s">lihat alasannya di Detail</span></a>
+<a class="kpi{% if um.scans %} warn{% endif %}" href="{% if um.scans %}{% url 'att_pins' %}{% else %}{% url 'att_scans' %}{% endif %}"><span class="n">{{ um.scans }}</span><span class="l">scan belum terhubung</span><span class="s">{% if um.scans %}{{ um.pins }} PIN perlu dipetakan ›{% else %}semua PIN sudah dipetakan{% endif %}</span></a>
+</div>
+<form method="get" data-fbar class="bar"><label class="fl">Cari berkas<input name="q" value="{{ f.q }}" placeholder="Nama berkas" maxlength="60"></label>
+<label class="fl">Diimpor dari<input type="date" name="from" value="{{ f.from }}"></label><label class="fl">Diimpor sampai<input type="date" name="to" value="{{ f.to }}"></label>
+<label class="fl">Status<select name="state"><option value="">Selesai &amp; draft</option>{% for v, l in states %}<option value="{{ v }}"{% if f.state == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label></form>
+<p class="nres">{% if act %}{{ n_rows }} impor cocok dengan filter · <a href="{% url 'att_scanlog' %}">Reset filter</a>{% else %}{{ n_rows }} impor{% endif %}</p>
+{% if page %}<div class="wrap"><table class="sepfit"><thead><tr><th>Waktu impor</th><th>Berkas</th><th>Rentang scan</th><th class="num">Baris</th><th class="num">Scan baru</th><th class="num">Duplikat</th><th class="num">Gagal</th><th class="num">PIN belum dipetakan</th><th>Status</th><th class="acts">Aksi</th></tr></thead><tbody>
+{% for i in page %}<tr><td class="nw">{{ i.when|date:"d M Y H:i" }}<small>{{ i.by }}</small></td>
+<td>{{ i.original_name }}<small>{{ i.size|filesizeformat }}{% if i.layout == 'harian' %} · format harian{% elif i.layout %} · log scan{% endif %}</small>{% if i.state == 'selesai' and i.rows_total %}<div class="bar2" title="{{ i.taps_new }} baru dari {{ i.rows_total }} baris"><i style="width:{% widthratio i.taps_new i.rows_total 100 %}%"></i></div>{% endif %}</td>
+<td class="nw">{% if i.date_min %}{{ i.date_min|date:"d M Y" }}{% if i.date_max != i.date_min %}<small>s.d. {{ i.date_max|date:"d M Y" }}</small>{% endif %}{% else %}—{% endif %}</td>
+<td class="num">{{ i.rows_total }}</td><td class="num{% if not i.taps_new %} zero{% endif %}">{{ i.taps_new }}</td><td class="num{% if not i.taps_duplicate %} zero{% endif %}">{{ i.taps_duplicate }}</td>
+<td class="num{% if i.rows_invalid %} bad{% else %} zero{% endif %}">{% if i.rows_invalid %}<a href="{% url 'att_import_detail' i.pk %}">{{ i.rows_invalid }}</a>{% else %}0{% endif %}</td>
+<td class="num{% if not i.pins_unmapped %} zero{% endif %}">{{ i.pins_unmapped }}</td>
+<td><span class="pill {% if i.state == 'selesai' %}approved{% elif i.state == 'draft' %}pending{% else %}nonaktif{% endif %}">{{ i.get_state_display }}</span></td>
+<td class="acts">{% if i.state == 'draft' %}<a class="btn" href="{% url 'att_import_detail' i.pk %}">Lanjutkan</a>{% else %}<a class="btn ghost" href="{% url 'att_import_detail' i.pk %}">Detail</a>{% if i.state == 'selesai' and i.taps_new %}<a class="btn ghost" href="{% url 'att_scans' %}?batch={{ i.pk }}">Lihat scan</a>{% endif %}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}
+{% else %}<p class="empty">{% if act %}Tidak ada impor yang cocok. <a href="{% url 'att_scanlog' %}">Reset filter</a>.{% else %}Belum ada impor. <a href="{% url 'att_import' %}">Impor berkas Fingerspot pertama</a>.{% endif %}</p>{% endif %}
+</div>
+{% endblock %}

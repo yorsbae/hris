@@ -3,6 +3,7 @@ import os, re
 from datetime import timedelta
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from django.utils import timezone
 from apps.core.models import AuditLog
 from apps.hr import attendance_calc as calc, attendance_import as imp
 from apps.hr.models import AttendanceDaily, AttendanceDevice, AttendanceImport, AttendanceRaw
@@ -39,12 +40,36 @@ class FingerspotFormatTests(Base):
         self.assertEqual(set(AttendanceRaw.objects.values_list("device_id", flat=True)), {"Mesin 1"})
 
 
+class ImportHistoryTests(Base):
+    def make(self, name, state="selesai", **kw):
+        d = workday(); return AttendanceImport.objects.create(original_name=name, sha256="x" * 64, size=2048, state=state, layout="log", rows_total=kw.pop("rows_total", 10), taps_new=kw.pop("taps_new", 8), taps_duplicate=kw.pop("taps_duplicate", 1),
+                                                              rows_invalid=kw.pop("rows_invalid", 1), pins_unmapped=kw.pop("pins_unmapped", 0), date_min=d, date_max=d, committed_at=timezone.now() if state == "selesai" else None, **kw)
+
+    def test_history_lists_imports_with_totals_and_links(self):
+        a = self.make("senin.xlsx"); self.make("batal.xlsx", state="dibatalkan"); self.make("draf.xlsx", state="draft", taps_new=0)
+        AttendanceRaw.objects.create(employee=None, pin="999", device_id="FP2", punched_at=at(workday(), 9, 0))
+        self.login("hrd"); r = self.client.get(reverse("att_scanlog")); self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Riwayat Impor Scanlog"); self.assertContains(r, "senin.xlsx"); self.assertContains(r, "draf.xlsx"); self.assertNotContains(r, "batal.xlsx")   # dibatalkan disembunyikan bawaan
+        self.assertEqual((r.context["k"]["n"], r.context["k"]["baru"], r.context["k"]["dup"], r.context["k"]["gagal"]), (1, 8, 1, 1)); self.assertEqual(r.context["um"]["scans"], 1)
+        self.assertContains(r, f"{reverse('att_scans')}?batch={a.pk}"); self.assertContains(r, "Lanjutkan")
+        self.assertContains(self.client.get(reverse("att_scanlog"), {"state": "dibatalkan"}), "batal.xlsx"); self.assertNotContains(self.client.get(reverse("att_scanlog"), {"q": "zzz"}), "senin.xlsx")
+
+    def test_history_empty_state_and_permissions(self):
+        self.login("hrd"); self.assertContains(self.client.get(reverse("att_scanlog")), "Belum ada impor")
+        for who in ("adm", "poli"): self.login(who); self.assertEqual(self.client.get(reverse("att_scanlog")).status_code, 403, who)
+
+    def test_scans_can_be_filtered_by_import_batch(self):
+        a = self.make("a.xlsx"); d = workday(); t1 = AttendanceRaw.objects.create(employee=self.e1, pin="1", device_id="FP1", punched_at=at(d, 7, 0), batch=a); AttendanceRaw.objects.create(employee=self.e1, pin="1", device_id="FP1", punched_at=at(d, 15, 0))
+        self.login("hrd"); r = self.client.get(reverse("att_scans"), {"batch": a.pk}); self.assertEqual(r.context["page"].paginator.count, 1); self.assertContains(r, "a.xlsx")
+        self.assertEqual(self.client.get(reverse("att_scans"), {"from": d, "to": d}).context["page"].paginator.count, 2)
+
+
 class ScanlogTests(Base):
     def setUp(self):
         self.d = workday(); self.scan(self.e1, self.d, (7, 5), (15, 0)); self.scan(self.e2, self.d, (8, 0))
         AttendanceRaw.objects.create(employee=None, pin="999", device_id="FP2", punched_at=at(self.d, 9, 0))
 
-    def get(self, **kw): self.login("hrd"); return self.client.get(reverse("att_scanlog"), {"from": self.d, "to": self.d, **kw})
+    def get(self, **kw): self.login("hrd"); return self.client.get(reverse("att_scans"), {"from": self.d, "to": self.d, **kw})
 
     def test_lists_rows_and_unmapped(self):
         r = self.get(); self.assertEqual(r.status_code, 200); self.assertEqual(r.context["page"].paginator.count, 4); self.assertContains(r, "PIN belum dipetakan")
@@ -63,11 +88,11 @@ class ScanlogTests(Base):
 
     def test_only_hrd_can_open(self):
         for who, code in (("adm", 403), ("poli", 403)):
-            self.login(who); self.assertEqual(self.client.get(reverse("att_scanlog")).status_code, code, who)
-        self.client.logout(); self.assertIn(self.client.get(reverse("att_scanlog")).status_code, (302, 401))
+            self.login(who); self.assertEqual(self.client.get(reverse("att_scans")).status_code, code, who)
+        self.client.logout(); self.assertIn(self.client.get(reverse("att_scans")).status_code, (302, 401))
 
     def test_range_is_capped(self):
-        self.login("hrd"); r = self.client.get(reverse("att_scanlog"), {"from": self.d - timedelta(days=200), "to": self.d}); self.assertEqual((r.context["d2"] - r.context["d1"]).days, 30)
+        self.login("hrd"); r = self.client.get(reverse("att_scans"), {"from": self.d - timedelta(days=200), "to": self.d}); self.assertEqual((r.context["d2"] - r.context["d1"]).days, 30)
 
     def test_csv_export_has_exact_fingerspot_columns_and_is_audited(self):
         r = self.get(export=1); self.assertEqual(r.status_code, 200); head = r.content.decode("utf-8-sig").splitlines()[0]
