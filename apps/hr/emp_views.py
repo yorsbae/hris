@@ -12,7 +12,7 @@ from .views import BULK_MAX
 from datetime import date, timedelta
 from django.utils import timezone
 from . import leave, schedule
-from .models import ChangeRequest, Contract, Employee, EmployeeHistory, ShiftAssignment
+from .models import ChangeRequest, Contract, Employee, EmployeeHistory, MedicalCheckup, ShiftAssignment
 
 TRACKED = ("department", "position", "status", "shift", "shift_group", "pay_basis", "off_weekday", "gsn_week", "grade", "grade_tier")  # perubahan field ini selalu masuk EmployeeHistory
 ACTIVE_REQ = ("submitted", "pending", "approved")
@@ -80,6 +80,8 @@ def employee_detail_page(request, pk):
         from .models import AttendanceDaily as _AD
         ctx["att"] = (_calc.summary(_AD.objects.filter(employee=e, date__year=today.year, date__month=today.month)) or [None])[0]  # rekap absensi bulan ini (Tahap 6)
         ctx["schedule_rows"] = ShiftAssignment.objects.filter(employee=e, date__gte=today - timedelta(days=7)).select_related("shift").order_by("date")[:30]
+    if full or request.user.role == Role.POLI:  # MCU: HRD menginput, Poli hanya melihat (Admin Dept tidak melihat)
+        ctx["mcu"] = MedicalCheckup.objects.filter(employee=e).first(); ctx["show_mcu"] = True
     if request.user.role in (Role.POLI, Role.SUPERADMIN):  # riwayat Poli hanya untuk Poli (Superadmin lolos seperti di /poli/); akses tercatat, isi medis tidak masuk audit
         from apps.poli.pages import medical_summary
         log(request, "poli", "view_history", e); ctx["medical"] = medical_summary(e)

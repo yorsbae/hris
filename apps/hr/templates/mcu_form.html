@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}MCU karyawan baru{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'employee_detail_page' e.pk %}">‹ {{ e.nik }} · {{ e.name }}</a></p>
+<h2>{% if editing %}Ubah{% else %}Input{% endif %} MCU karyawan baru</h2>
+<p class="hint">MCU dilakukan sekali saat karyawan baru masuk. Catat ringkasan saja (kesimpulan kelayakan, catatan singkat, berkas hasil); tidak perlu diagnosa rinci. Poliklinik dapat melihat data ini.</p>
+<form method="post" enctype="multipart/form-data" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+<p><button>Simpan MCU</button></p></form>
+{% endblock %}

@@ -73,7 +73,7 @@ def _bpjs_status_sq(scheme):
 
 @hrd_only
 def bpjs_list(request):
-    f = {k: request.GET.get(k, "").strip() for k in ("q", "kes", "tk", "emp", "department", "anomaly")}
+    f = {k: request.GET.get(k, "").strip() for k in ("q", "kes", "tk", "emp", "department", "anomaly", "bpjs")}
     f["emp"] = f["emp"] or "aktif"
     qs = Employee.objects.select_related("department").annotate(kes_status=_bpjs_status_sq("kes"), tk_status=_bpjs_status_sq("tk"))
     if f["emp"] in ("aktif", "nonaktif"): qs = qs.filter(status=f["emp"])
@@ -83,15 +83,16 @@ def bpjs_list(request):
         v = f[scheme]
         if v == "belum": qs = qs.filter(**{f"{scheme}_status__isnull": True})
         elif v in ("aktif", "nonaktif"): qs = qs.filter(**{f"{scheme}_status": v})
+    if f["bpjs"] == "nonaktif": qs = qs.filter(Q(kes_status="nonaktif") | Q(tk_status="nonaktif"))  # kartu Dashboard "BPJS nonaktif": karyawan yang salah satu programnya nonaktif
     if f["anomaly"]:  # anomali: karyawan NONAKTIF tetapi masih ada BPJS yang aktif (perlu dinonaktifkan)
         qs = qs.filter(Q(status="nonaktif") & (Q(kes_status="aktif") | Q(tk_status="aktif")))
     page = paginate(request, qs.order_by("name", "nik"))
     for e in page:  # nomor TIDAK ditampilkan; hanya penanda terisi/kosong (maks 50 dekripsi per halaman)
         e.has_kes, e.has_tk = bool(e.bpjs_kes), bool(e.bpjs_tk)
     g = request.GET  # "act": pengguna memilih filter sendiri (karyawan "aktif" adalah bawaan) → filter lanjutan terbuka + Reset muncul
-    act = bool(g.get("q") or g.get("department") or g.get("kes") or g.get("tk") or g.get("anomaly") or g.get("emp", "aktif") not in ("", "aktif"))
+    act = bool(g.get("q") or g.get("department") or g.get("kes") or g.get("tk") or g.get("anomaly") or g.get("bpjs") or g.get("emp", "aktif") not in ("", "aktif"))
     return render(request, "hrd/bpjs_list.html", {"page": page, "f": f, "act": act, "departments": Department.objects.order_by("name"),
-                                                   "qs": _qs(request, "q", "kes", "tk", "emp", "department", "anomaly")})
+                                                   "qs": _qs(request, "q", "kes", "tk", "emp", "department", "anomaly", "bpjs")})
 
 
 @hrd_only
@@ -236,11 +237,13 @@ def aid_delete(request, pk):
 def maternity_list(request):
     f = {k: request.GET.get(k, "").strip() for k in ("q", "state")}
     qs = MaternityLeave.objects.select_related("employee", "employee__department")
-    if f["state"]: qs = qs.filter(state=f["state"])
+    today = date.today()
+    if f["state"] == "berjalan": qs = qs.filter(state="aktif", start_date__lte=today, end_date__gte=today)  # = kartu Dashboard "Cuti hamil berjalan"
+    elif f["state"]: qs = qs.filter(state=f["state"])
     if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
-    today = date.today(); page = paginate(request, qs)
+    page = paginate(request, qs)
     for m in page: m.phase_label = m.phase(today)
-    return render(request, "hrd/maternity_list.html", {"page": page, "f": f, "states": MaternityLeave.STATES, "qs": _qs(request, "q", "state")})
+    return render(request, "hrd/maternity_list.html", {"page": page, "f": f, "states": [("berjalan", "Sedang cuti (berjalan)")] + list(MaternityLeave.STATES), "qs": _qs(request, "q", "state")})
 
 
 def _warn_overlap(request, emp, start, end):

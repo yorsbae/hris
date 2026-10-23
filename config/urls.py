@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap, attendance_reports as ar
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, mcu_views as mcuv, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap, attendance_reports as ar
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import health, lookup, search_views
@@ -58,6 +58,8 @@ urlpatterns = [
     path("employees/", hr.employees_page),
     path("employees/import/", iv2.employee_import, name="employee_import"),
     path("employees/import/template.csv", iv2.import_template),
+    path("employees/<int:pk>/mcu/", mcuv.mcu_edit, name="mcu_edit"),
+    path("employees/<int:pk>/mcu/file/", mcuv.mcu_file, name="mcu_file"),
     path("employees/<int:pk>/documents/new/", dv.document_new, name="document_new"),
     path("employees/<int:pk>/documents/<int:doc_id>/", dv.document_download, name="document_download"),
     path("employees/<int:pk>/documents/<int:doc_id>/delete/", dv.document_delete, name="document_delete"),

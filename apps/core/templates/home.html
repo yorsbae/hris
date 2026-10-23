@@ -42,9 +42,12 @@ const KPI={
 const L={att_review:"Absensi perlu ditinjau (7 hari)",att_unmapped:"PIN mesin belum dipetakan",dept_req_pending:"Pengajuan departemen menunggu HRD",sep_paklaring:"Paklaring belum terbit (karyawan keluar)",sep_tali:"Tali asih belum dibayar",sep_soon:"Hari terakhir kerja ≤ 7 hari",attcheck_todo:"Validasi kehadiran menunggu jawaban",attcheck_to_verify:"Validasi kehadiran perlu verifikasi",attcheck_late:"Validasi kehadiran terlambat",contract_expired:"Kontrak berakhir",contract_le_7:"Kontrak ≤ 7 hari",contract_le_30:"Kontrak ≤ 30 hari",contract_le_60:"Kontrak ≤ 60 hari",users:"User aktif",audit_24h:"Aktivitas 24 jam",
 accidents_month:"Kecelakaan kerja (bulan ini)",open_referrals:"Rujukan terbuka",low_stock:"Obat stok minimum",maternity_active:"Cuti hamil berjalan",warnings_active:"Surat Peringatan aktif",
 bpjs_inactive:"BPJS nonaktif (karyawan aktif)",unread_notifications:"Notifikasi belum dibaca",pending_requests:"Pengajuan menunggu",visits_today:"Kunjungan hari ini",employees:"Total karyawan",active:"Karyawan aktif"};
-const H={att_review:"/absensi/?status=review&from=&to=",att_unmapped:"/absensi/pin/",dept_req_pending:"/requests/?status=pending",sep_paklaring:"/hrd/separations/?year=&paklaring=belum",sep_tali:"/hrd/separations/?year=&tali=belum",sep_soon:"/hrd/separations/",attcheck_todo:"/validasi/",attcheck_to_verify:"/validasi/?status=dijawab",attcheck_late:"/validasi/?status=late",employees:"/employees/",active:"/employees/",contract_expired:"/employees/",contract_le_7:"/employees/",contract_le_30:"/employees/",contract_le_60:"/employees/",
-pending_requests:"/requests/?status=pending",req_wait:"/requests/?status=pending",req_ok:"/requests/?status=approved",req_no:"/requests/?status=rejected",users:"/users/",audit_24h:"/audit/",visits_today:"/poli/records/",
-accidents_month:"/poli/records/",open_referrals:"/poli/referrals/",low_stock:"/poli/medicines/",maternity_active:"/hrd/maternity/",warnings_active:"/hrd/warnings/",bpjs_inactive:"/hrd/bpjs/",unread_notifications:"/notifications/"};
+const _d=n=>{const x=new Date();x.setDate(x.getDate()+n);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
+// Setiap kartu → daftar yang SUDAH TERSARING persis seperti angka di kartu (klik "1 cuti hamil berjalan" = 1 baris saja).
+const H={att_review:()=>"/absensi/?status=review&from="+_d(-7)+"&to="+_d(0),att_unmapped:"/absensi/pin/",dept_req_pending:"/requests/?status=open",sep_paklaring:"/hrd/separations/?year=&paklaring=belum&applied=ya",sep_tali:"/hrd/separations/?year=&tali=belum",sep_soon:"/hrd/separations/?year=&soon=7",attcheck_todo:"/validasi/?status=todo",attcheck_to_verify:"/validasi/?status=dijawab",attcheck_late:"/validasi/?status=late",employees:"/employees/",active:"/employees/?status=aktif",contract_expired:"/employees/?status=aktif&contract=expired",contract_le_7:"/employees/?status=aktif&contract=le7",contract_le_30:"/employees/?status=aktif&contract=expiring",contract_le_60:"/employees/?status=aktif&contract=le60",
+pending_requests:"/requests/?status=pending",req_wait:"/requests/?status=pending",req_ok:"/requests/?status=approved",req_no:"/requests/?status=rejected",users:"/users/",audit_24h:"/audit/",visits_today:()=>"/poli/records/?date_from="+_d(0)+"&date_to="+_d(0),
+accidents_month:()=>"/poli/records/?kind=kecelakaan_kerja&date_from="+_d(0).slice(0,8)+"01&date_to="+_d(0),open_referrals:"/poli/referrals/?status=berjalan",low_stock:"/poli/medicines/?low=1",maternity_active:"/hrd/maternity/?state=berjalan",warnings_active:"/hrd/warnings/?state=aktif",bpjs_inactive:"/hrd/bpjs/?bpjs=nonaktif",unread_notifications:"/notifications/?unread=1"};
+const hf=k=>{const h=H[k];return typeof h==="function"?h():h};
 const WARN=new Set(["att_review","att_unmapped","dept_req_pending","sep_paklaring","sep_tali","sep_soon","attcheck_todo","attcheck_to_verify","contract_le_60","contract_le_30","pending_requests","warnings_active","low_stock","open_referrals"]),BAD=new Set(["attcheck_late","contract_expired","contract_le_7","bpjs_inactive"]);
 const nf=new Intl.NumberFormat("id-ID");
 function clock(){const n=new Date();$("dt").textContent=n.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});$("tm").textContent=n.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}).replace(".",":")}
@@ -56,14 +59,14 @@ function renderKpi(d){const role=d.role,defs=KPI[role]||[];const v={...d};
  if(role==="dept_admin"){const m=d.my_requests||{};v.req_wait=(m.submitted||0)+(m.pending||0);v.req_ok=(m.approved||0)+(m.executed||0);v.req_no=m.rejected||0}
  const used=new Set(["role"]);const out=[];
  for(const[k,label,ic,tone]of defs){if(!(k in v))continue;used.add(k);
-  const c=el(H[k]?"a":"div","kpi "+tone);if(H[k])c.href=H[k];const i=el("span","ico");i.appendChild(icon(ic));const b=el("div");
+  const c=el(H[k]?"a":"div","kpi "+tone);if(H[k])c.href=hf(k);const i=el("span","ico");i.appendChild(icon(ic));const b=el("div");
   b.append(el("span","lb",label),el("span","v",nf.format(Number(v[k])||0)));
   const dl=D.p&&D.p.deltas&&D.p.deltas[k];if(dl){const x=dl.diff;b.append(el("span","dl "+(x>0?"up":x<0?"dn":""),(x>0?"▲ ":x<0?"▼ ":"")+(x===0?"Sama dengan ":Math.abs(x)+" dari ")+dl.vs))}
   c.append(i,b);out.push(c)}
  $("kpis").replaceChildren(...out);
  if(role==="dept_admin")used.add("my_requests");
  const rest=Object.entries(d).filter(([k])=>!used.has(k));const g=$("g");
- g.replaceChildren(...rest.map(([k,x])=>{const c=el(H[k]?"a":"div","card"+(BAD.has(k)&&Number(x)>0?" bad":WARN.has(k)&&Number(x)>0?" warn":""));if(H[k])c.href=H[k];
+ g.replaceChildren(...rest.map(([k,x])=>{const c=el(H[k]?"a":"div","card"+(BAD.has(k)&&Number(x)>0?" bad":WARN.has(k)&&Number(x)>0?" warn":""));if(H[k])c.href=hf(k);
   c.append(el("b",null,typeof x==="object"?Object.entries(x).map(([a,n])=>a+": "+n).join(", ")||"0":x),el("span",null,L[k]||k));return c}));
  $("attn").hidden=!rest.length}
 

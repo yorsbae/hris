@@ -1,7 +1,7 @@
 """Karyawan Keluar (putaran 38): rekap mengundurkan diri / habis kontrak / PHK / pensiun, dengan identitas karyawan, tanggal masuk & keluar, masa kerja,
 tali asih, dan paklaring (surat keterangan kerja, PDF). Hanya HRD/Superadmin. Catatan tidak diubah/dihapus: salah catat = dibatalkan dengan alasan;
 nominal tali asih diubah lewat aksi khusus (tercatat di audit) dan terkunci setelah dibayar."""
-from datetime import date
+from datetime import date, timedelta
 from urllib.parse import urlencode
 from django.contrib import messages
 from django.db import transaction
@@ -26,7 +26,7 @@ MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agust
 
 
 def _filters(request):
-    f = {k: request.GET.get(k, "").strip() for k in ("q", "year", "month", "kind", "department", "paklaring", "tali", "batal")}
+    f = {k: request.GET.get(k, "").strip() for k in ("q", "year", "month", "kind", "department", "paklaring", "tali", "batal", "applied", "soon")}
     if "year" not in request.GET: f["year"] = str(date.today().year)       # bawaan tahun ini; "year=" (kosong) = semua tahun
     return f
 
@@ -43,6 +43,9 @@ def _base(f):
     if f["tali"] == "belum": qs = qs.filter(tali_asih__gt=0, tali_asih_paid_on__isnull=True)
     elif f["tali"] == "sudah": qs = qs.filter(tali_asih_paid_on__isnull=False)
     elif f["tali"] == "ada": qs = qs.filter(tali_asih__gt=0)
+    if f["applied"] == "ya": qs = qs.filter(applied_at__isnull=False)      # sudah benar-benar keluar (status karyawan sudah nonaktif)
+    elif f["applied"] == "belum": qs = qs.filter(applied_at__isnull=True)  # terjadwal
+    if f["soon"].isdigit(): qs = qs.filter(applied_at__isnull=True, last_date__gte=date.today(), last_date__lte=date.today() + timedelta(days=min(int(f["soon"]), 365)))  # hari terakhir kerja ≤ N hari lagi
     if f["q"]: qs = qs.filter(Q(emp_name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
     return qs
 

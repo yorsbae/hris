@@ -3,6 +3,7 @@ from apps.core.bulk import import_view as bulk_import_view, template_view as bul
 from . import billing_views as bv, pages as v, visit_views as vv
 from .bulk_specs import BILL, DIAGNOSIS, MEDICINE
 from .pages import poli_only
+from apps.hr.mcu_views import mcu_list
 
 urlpatterns = [
     path("", v.hub, name="poli_hub"),
@@ -45,6 +46,7 @@ urlpatterns = [
     path("visits/new/", vv.visit_new, name="poli_visit_new"),
     path("visits/<int:pk>/", vv.visit_detail, name="poli_visit_detail"),
     path("visits/<int:pk>/<str:action>/", vv.visit_action, name="poli_visit_action"),
+    path("mcu/", mcu_list, name="poli_mcu"),
     path("referrals/", v.referral_list, name="poli_referrals"),
     path("referrals/<int:pk>/", v.referral_detail, name="poli_referral_detail"),
     path("referrals/<int:pk>/letter.pdf", v.referral_letter, name="poli_referral_letter"),

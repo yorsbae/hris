@@ -14,11 +14,13 @@ from . import services
 PUBLIC = ("id", "nik", "name", "department__name", "position__name", "status")
 FULL = PUBLIC + ("join_date", "gender", "marital_status", "education")  # tanpa data sensitif
 
+CONTRACT_WINDOWS = {"le7": 7, "expiring": 30, "le60": 60}  # kontrak aktif yang berakhir dalam N hari (expiring = nilai lama ≤ 30 hari)
+
 def _contract_filter(qs, kind):
     act = Contract.objects.filter(employee=OuterRef("pk"), status="aktif"); today = date.today()
     if kind == "none": return qs.filter(~Exists(act))
     if kind == "aktif": return qs.filter(Exists(act.filter(Q(end__isnull=True) | Q(end__gte=today))))
-    if kind == "expiring": return qs.filter(Exists(act.filter(end__gte=today, end__lte=today + timedelta(days=30))))
+    if kind in CONTRACT_WINDOWS: return qs.filter(Exists(act.filter(end__gte=today, end__lte=today + timedelta(days=CONTRACT_WINDOWS[kind]))))  # kartu Dashboard memakai fungsi yang sama → angka kartu = jumlah baris daftar
     if kind == "expired": return qs.filter(Exists(act.filter(end__lt=today)))
     return qs
 

@@ -528,3 +528,27 @@ class PeriodClose(models.Model):
     reopened_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"); reopened_at = models.DateTimeField(null=True, blank=True)
     class Meta: ordering = ["-period"]
     def __str__(self): return f"{self.period} {'ditutup' if self.closed else 'dibuka'}"
+
+
+def mcu_path(instance, filename):
+    """Nama file di disk diacak (uuid); nama asli tidak pernah dipakai sebagai path."""
+    return f"employee_mcu/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{os.path.splitext(filename)[1].lower()}"
+
+
+class MedicalCheckup(models.Model):
+    """MCU karyawan baru (pra-kerja): SATU data per karyawan, dilakukan saat masuk, tidak berulang. Diinput & boleh diedit HRD di info karyawan;
+    Poliklinik hanya MELIHAT (/poli/mcu/ dan tab MCU di detail karyawan). Hanya ringkasan administratif (tanggal, pelaksana, kesimpulan kelayakan, catatan singkat, berkas hasil), bukan diagnosa."""
+    RESULTS = [("fit", "Fit"), ("fit_catatan", "Fit dengan catatan"), ("unfit_sementara", "Unfit sementara"), ("unfit", "Unfit"), ("menunggu", "Hasil menunggu")]
+    employee = models.OneToOneField(Employee, on_delete=models.PROTECT, related_name="mcu")
+    checkup_date = models.DateField("Tanggal MCU", db_index=True)
+    provider = models.CharField("Klinik / RS pelaksana", max_length=150, blank=True)
+    result = models.CharField("Kesimpulan kelayakan", max_length=20, choices=RESULTS, default="menunggu")
+    notes = models.CharField("Catatan / rekomendasi (tanpa diagnosa rinci)", max_length=500, blank=True)
+    file = models.FileField("Berkas hasil (PDF/JPG/PNG, maks 5 MB)", upload_to=mcu_path, blank=True)
+    original_name = models.CharField(max_length=200, blank=True); size = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta: ordering = ["-checkup_date", "-id"]

@@ -37,7 +37,8 @@ def request_list(request, grp=None):
     if f["batch"]:
         if not re.fullmatch(r"[0-9a-f]{32}", f["batch"]): raise Http404
         qs = qs.filter(payload__batch=f["batch"])
-    if f["status"]: qs = qs.filter(status=f["status"])
+    if f["status"] == "open": qs = qs.filter(status__in=("submitted", "pending"))  # kartu Dashboard "Pengajuan departemen menunggu"
+    elif f["status"]: qs = qs.filter(status=f["status"])
     if f["type"]: qs = qs.filter(type=f["type"])
     if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
     if request.GET.get("export"):
