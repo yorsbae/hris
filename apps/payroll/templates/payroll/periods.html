@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Periode dari HRD{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>Periode dari HRD</h2>
+<p class="sub">Setiap kali HRD <b>menutup periode</b> (rentang tanggal bebas), sistem membuat berkas XLSX serah-terima: <b>Rekap Absensi · Lembur &amp; Standby · BPJS · Seragam · Bantuan &amp; Lainnya</b>. Unduh untuk dicocokkan, lalu buat run gaji untuk bulan gaji itu. Run menghitung data pada <b>rentang tanggal</b> periode ini. Bila HRD membuka kembali periode, Anda mendapat notifikasi dan harus menunggu penutupan ulang.</p>
+<div class="wrap"><table><thead><tr><th class="nw">Rentang tanggal</th><th class="nw">Gaji bulan</th><th class="nw">Status</th><th>Berkas XLSX</th><th class="nw">Run gaji</th></tr></thead><tbody>
+{% for r in rows %}<tr{% if not r.closed %} style="opacity:.7"{% endif %}>
+<td class="nw"><b>{{ r.start_date|date:"d-m-Y" }}</b> s/d <b>{{ r.end_date|date:"d-m-Y" }}</b><small>{{ r.days }} hari{% if r.note %} · {{ r.note }}{% endif %}</small></td>
+<td class="nw">{{ r.period }}</td>
+<td class="nw">{% if r.closed %}<span class="pill approved">Ditutup</span><small>{{ r.closed_at|date:"d-m-Y H:i" }}</small>{% else %}<span class="pill pending">Dibuka kembali HRD</span><small>{{ r.reopened_at|date:"d-m-Y H:i" }}</small>{% endif %}</td>
+<td>{% if r.export_file %}<a href="{% url 'att_period_download' r.pk %}">Unduh XLSX</a><small>{{ r.export_at|date:"d-m-Y H:i" }}</small>{% if r.sheets %}<small>{% for name, n in r.sheets %}{{ name }}: {{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}</small>{% endif %}{% else %}<span style="color:var(--mu)">belum ada berkas</span>{% endif %}</td>
+<td class="nw">{% if r.run %}<a href="{% url 'pay_run' r.run.pk %}"><span class="pill {{ r.run.status }}">{{ r.run.get_status_display }}</span></a>{% elif r.closed %}<a class="btn sm ghost" href="{% url 'pay_runs' %}">Buat run</a>{% else %}—{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="5">HRD belum menutup periode apa pun.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

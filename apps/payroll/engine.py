@@ -151,7 +151,7 @@ def pending_tali_asih(end):
 # ---------------------------------------------------------------- inti
 def build(period):
     """→ {"slips": [dict], "warnings": [str], "params": {kunci: str}}. Tidak menulis apa pun."""
-    start, end = calc.period_bounds(period)
+    start, end = calc.data_bounds(period)   # putaran 59: rentang yang ditutup HRD (bisa bukan 1–akhir bulan)
     prm = load_params(end); basis = prm["hari_dasar"]
     scale = wage_scale(end); comps = {c.code: c for c in PayComponent.objects.filter(active=True)}
     seps = {s.employee_id: s for s in Separation.objects.filter(voided_at__isnull=True)}

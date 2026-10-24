@@ -39,7 +39,7 @@ def lang_of(request):
 def is_preview(request):
     """Pratinjau draf: hanya di aplikasi internal, hanya HRD/Superadmin yang login. Mode public tidak pernah menampilkan draf."""
     u = getattr(request, "user", None)
-    return settings.SITE_MODE != "public" and u is not None and u.is_authenticated and u.role in (Role.HRD, Role.SUPERADMIN)
+    return settings.SITE_MODE != "public" and u is not None and u.is_authenticated and u.role == Role.SUPERADMIN
 
 
 def pub(qs, request, field="status", value=Status.PUBLISHED):
@@ -266,7 +266,7 @@ def contact(request):
             d = form.cleaned_data
             ContactMessage.objects.create(name=d["name"], email=d["email"], phone=d["phone"], subject=d["subject"], message=d["message"], lang=lang, ip_hash=hash_ip(client_ip(request)))
             Notification.objects.bulk_create([Notification(user=u, kind="info", title=f"Pesan baru dari situs: {d['name']}"[:200], link="/company/messages/")
-                                              for u in User.objects.filter(is_active=True, role__in=(Role.HRD, Role.SUPERADMIN))])
+                                              for u in User.objects.filter(is_active=True, role=Role.SUPERADMIN)])
             return redirect(reverse(f"{lang}:contact_done"))
     else:
         form = ContactForm(initial={"ts": stamp()})

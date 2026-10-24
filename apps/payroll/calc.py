@@ -44,6 +44,13 @@ def period_bounds(p):
     return start, end
 
 
+def data_bounds(p):
+    """Rentang tanggal DATA untuk bulan gaji `p`: rentang yang ditutup HRD (Absensi → Tutup Periode; bisa mis. 26 Sep–25 Okt) bila ada, selain itu satu bulan kalender."""
+    from apps.hr import periods
+    if not valid_period(p): raise ValueError("Periode harus berformat YYYY-MM.")
+    return periods.bounds_for(p)
+
+
 def period_label(p):
     """'2025-10' → 'Oct-25' (seperti slip contoh)."""
     s, _ = period_bounds(p); return s.strftime("%b-%y")

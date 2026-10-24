@@ -321,36 +321,63 @@ def holidays(request):
                                                           "modes": Holiday.MODES, "departments": Department.objects.order_by("name")})
 
 
-# ---------------------------------------------------------------- tutup periode (tutup buku)
+# ---------------------------------------------------------------- tutup periode (tutup buku) — rentang tanggal bebas + riwayat + snapshot XLSX (putaran 59)
 @hrd
 def periods_page(request):
-    """Daftar bulan + checklist akhir bulan. HRD & Superadmin menutup; HANYA Superadmin membuka kembali."""
+    """Tutup periode dengan rentang tanggal BEBAS (mis. 26 Sep – 25 Okt). HRD & Superadmin menutup; HANYA Superadmin membuka kembali.
+    Menutup membuat snapshot XLSX 5 sheet (absensi, lembur/stand by, BPJS, seragam, bantuan & lainnya) yang diunduh Payroll. Setiap penutupan = satu baris riwayat."""
+    from urllib.parse import urlencode
+    from django.urls import reverse
     from . import periods
     from .models import PeriodClose
     sup = request.user.role == Role.SUPERADMIN
     if request.method == "POST":
-        per, act = request.POST.get("period", ""), request.POST.get("action")
-        if not periods.valid(per): messages.error(request, "Periode tidak valid."); return redirect("att_periods")
-        row = PeriodClose.objects.filter(period=per).first()
-        if act == "close":
-            blockers = [i for i in periods.checklist(per) if i["blocking"] and not i["ok"]]
-            if row and row.closed: messages.info(request, f"Periode {per} sudah ditutup.")
-            elif blockers and request.POST.get("force") != "1": messages.error(request, "Belum bisa ditutup: " + "; ".join(f"{i['label']} ({i['n']})" for i in blockers) + ". Selesaikan dulu, atau centang 'Tutup paksa'.")
-            else:
-                PeriodClose.objects.update_or_create(period=per, defaults=dict(closed=True, note=request.POST.get("note", "").strip()[:300], closed_by=request.user, closed_at=timezone.now(), reopened_by=None, reopened_at=None))
-                log(request, "hr", "period_close", None, None, {"period": per, "forced": bool(blockers)}); messages.success(request, f"Periode {per} ditutup. Rekap absensi dan tagihan Poli bulan itu terkunci.")
-        elif act == "reopen":
-            if not sup: messages.error(request, "Hanya Superadmin yang boleh membuka kembali periode.")
-            elif row and row.closed:
-                row.closed, row.reopened_by, row.reopened_at = False, request.user, timezone.now(); row.save(update_fields=["closed", "reopened_by", "reopened_at"])
-                log(request, "hr", "period_reopen", None, None, {"period": per}); messages.success(request, f"Periode {per} dibuka kembali.")
-        return redirect("att_periods")
-    today = timezone.localdate(); rows, y, m = [], today.year, today.month
-    saved = {r.period: r for r in PeriodClose.objects.all()}
-    for _ in range(12):
-        per = periods.key(date(y, m, 1)); cl = periods.checklist(per) if per == request.GET.get("period") or per not in saved or saved[per].closed is False else []
-        rows.append({"period": per, "label": f"{MONTHS[m - 1]} {y}", "row": saved.get(per), "closed": bool(saved.get(per) and saved[per].closed), "checklist": cl,
-                     "blocking": sum(1 for i in cl if i["blocking"] and not i["ok"]), "warn": sum(1 for i in cl if not i["blocking"] and not i["ok"])})
-        m -= 1
-        if m == 0: m, y = 12, y - 1
-    return render(request, "attendance/periods.html", {"rows": rows, "sup": sup})
+        act, back = request.POST.get("action"), {}
+        try:
+            if act == "close":
+                back = {k: request.POST.get(k, "") for k in ("start", "end", "label")}
+                row, forced = periods.close(_date(request.POST.get("start")), _date(request.POST.get("end")), request.POST.get("label", ""), request.user, request.POST.get("note", ""), request.POST.get("force") == "1")
+                log(request, "hr", "period_close", row, None, {"period": row.period, "start": str(row.start_date), "end": str(row.end_date), "forced": forced, "rows": row.export_counts})
+                messages.success(request, f"Periode {periods.fmt_range(row.start_date, row.end_date)} (gaji {row.period}) ditutup. Rekap absensi dan tagihan Poli pada rentang itu terkunci; berkas XLSX untuk Payroll sudah dibuat."); back = {}
+            elif act == "reopen":
+                if not sup: messages.error(request, "Hanya Superadmin yang boleh membuka kembali periode.")
+                else:
+                    row = periods.reopen(_int(request.POST.get("id")), request.user)
+                    log(request, "hr", "period_reopen", row, None, {"period": row.period, "start": str(row.start_date), "end": str(row.end_date)})
+                    messages.success(request, f"Periode {periods.fmt_range(row.start_date, row.end_date)} dibuka kembali. Payroll diberi tahu.")
+            elif act == "rebuild":
+                row = periods.rebuild(_int(request.POST.get("id")), request.user)
+                log(request, "hr", "period_export_rebuild", row, None, {"period": row.period, "rows": row.export_counts})
+                messages.success(request, "Berkas XLSX dibuat ulang dari data terkini.")
+        except ValueError as e: messages.error(request, str(e))
+        return redirect(f"{reverse('att_periods')}?{urlencode(back)}" if back else "att_periods")
+    start, end, label = _date(request.GET.get("start")), _date(request.GET.get("end")), (request.GET.get("label") or "").strip()
+    checklist = None
+    if start and end:
+        if end < start: messages.error(request, "Tanggal akhir tidak boleh sebelum tanggal mulai.")
+        else: checklist = periods.checklist(start, end, label if periods.valid(label) else periods.key(end))
+    sugg = periods.next_start(); today = timezone.localdate()
+    rows = list(PeriodClose.objects.select_related("closed_by", "reopened_by")[:80])
+    for r in rows: r.sheets = list((r.export_counts or {}).items())
+    return render(request, "attendance/periods.html", {"rows": rows, "sup": sup, "start": start or sugg, "end": end, "label": label, "checklist": checklist, "blocking": len(periods.blockers(checklist)) if checklist else 0,
+                                                       "warn": sum(1 for i in checklist if not i["blocking"] and not i["ok"]) if checklist else 0, "suggested": sugg, "today": today, "max_days": periods.MAX_DAYS})
+
+
+@login_required
+@require_roles(Role.HRD, Role.PAYROLL)
+def period_download(request, pk):
+    """Unduh snapshot XLSX periode (HRD, Payroll, Superadmin). Setiap unduhan tercatat di audit (tanpa isi)."""
+    from django.http import FileResponse
+    from .models import PeriodClose
+    row = PeriodClose.objects.filter(pk=pk).first()
+    if row is None or not row.export_file: raise Http404
+    try: fh = row.export_file.open("rb")
+    except (FileNotFoundError, ValueError): raise Http404
+    log(request, "hr", "period_export_download", row, None, {"period": row.period, "start": str(row.start_date), "end": str(row.end_date)})
+    r = FileResponse(fh, as_attachment=True, filename=f"tutup-periode_{row.start_date}_{row.end_date}_gaji-{row.period}.xlsx", content_type=tabular.XLSX)
+    r["Cache-Control"] = "private, no-store"; return r
+
+
+def _int(v):
+    try: return int(v)
+    except (TypeError, ValueError): return None

@@ -518,16 +518,32 @@ class SavedFilter(models.Model):
         ordering = ["name"]
 
 
+def period_export_path(instance, filename):
+    """Snapshot XLSX tutup periode: nama di disk diacak (uuid); disajikan hanya lewat view ber-permission (HRD, Payroll, Superadmin)."""
+    return f"period_exports/{timezone.now():%Y/%m}/{uuid.uuid4().hex}.xlsx"
+
+
 class PeriodClose(models.Model):
-    """Tutup periode (tutup buku) per bulan: setelah ditutup, rekap absensi bulan itu tidak dihitung ulang dan tagihan Poli bertanggal pelayanan bulan itu tidak bisa dicatat.
-    Dibuka kembali hanya oleh Superadmin (tercatat di audit). Satu baris per bulan; `closed` False = pernah ditutup lalu dibuka kembali."""
-    period = models.CharField("Periode (YYYY-MM)", max_length=7, unique=True)
+    """Tutup periode (tutup buku) dengan RENTANG TANGGAL BEBAS (putaran 59): tutup buku tidak harus tanggal 1–akhir bulan (mis. 26 Sep – 25 Okt).
+    Setelah ditutup, rekap absensi pada rentang itu tidak dihitung ulang dan tagihan Poli bertanggal pelayanan di rentang itu tidak bisa dicatat.
+    Saat ditutup dibuat SNAPSHOT XLSX (5 sheet: absensi, lembur/stand by, BPJS, seragam, bantuan & lainnya) = data serah-terima HRD → Payroll.
+    `period` = label bulan gaji (YYYY-MM) yang dipakai Payroll untuk menemukan rentang ini; hanya satu periode TERTUTUP per label dan rentang tertutup tidak boleh saling tumpang tindih.
+    Setiap penutupan = satu baris (riwayat). Dibuka kembali hanya oleh Superadmin (tercatat di audit); `closed` False = pernah ditutup lalu dibuka kembali."""
+    period = models.CharField("Untuk gaji bulan (YYYY-MM)", max_length=7, db_index=True)
+    start_date = models.DateField("Dari tanggal"); end_date = models.DateField("Sampai tanggal")
     closed = models.BooleanField(default=True, db_index=True)
     note = models.CharField(max_length=300, blank=True)
+    export_file = models.FileField(upload_to=period_export_path, blank=True); export_at = models.DateTimeField(null=True, blank=True)
+    export_counts = models.JSONField(default=dict, blank=True)   # jumlah baris per sheet saat snapshot dibuat (ringkasan di riwayat; tanpa data pribadi)
     closed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+"); closed_at = models.DateTimeField(null=True, blank=True)
     reopened_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"); reopened_at = models.DateTimeField(null=True, blank=True)
-    class Meta: ordering = ["-period"]
-    def __str__(self): return f"{self.period} {'ditutup' if self.closed else 'dibuka'}"
+    class Meta:
+        ordering = ["-end_date", "-id"]
+        constraints = [models.UniqueConstraint(fields=["period"], condition=models.Q(closed=True), name="uniq_periodclose_period_closed"),
+                       models.CheckConstraint(condition=models.Q(end_date__gte=models.F("start_date")), name="periodclose_range_valid")]
+    def __str__(self): return f"{self.start_date:%d-%m-%Y} s/d {self.end_date:%d-%m-%Y} ({self.period}) {'ditutup' if self.closed else 'dibuka'}"
+    @property
+    def days(self): return (self.end_date - self.start_date).days + 1
 
 
 def mcu_path(instance, filename):

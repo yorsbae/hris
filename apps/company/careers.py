@@ -99,7 +99,7 @@ def create_application(job, data, cv_upload, ip, lang="id"):
 
 
 def notify_hrd(app):
-    users = User.objects.filter(is_active=True, role__in=(Role.HRD, Role.SUPERADMIN))
+    users = User.objects.filter(is_active=True, role=Role.SUPERADMIN)
     Notification.objects.bulk_create([Notification(user=u, kind="info", title=f"Lamaran baru: {app.job.title} ({app.ref})"[:200], link=f"/recruitment/applicants/{app.pk}/") for u in users])
 
 

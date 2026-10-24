@@ -76,7 +76,7 @@ class PublicSiteTests(Base):
         self.assertEqual(self.client.get(f"/produk/{self.draft.slug}/").status_code, 404)
         with self.settings(ROOT_URLCONF="config.urls"):   # pratinjau di aplikasi internal (/situs/)
             self.login("adm"); self.assertEqual(self.client.get(f"/situs/produk/{self.draft.slug}/").status_code, 404)   # Admin Dept tidak melihat draf
-            self.client.logout(); self.login("hrd")
+            self.client.logout(); self.login("sa")
             r = self.client.get("/situs/produk/"); self.assertContains(r, "Rahasia Draf"); self.assertContains(r, "PRATINJAU")
             self.assertIn("noindex", r["X-Robots-Tag"])
 
@@ -127,7 +127,7 @@ class PublicSiteTests(Base):
         from django.db import connection
         with connection.cursor() as c: c.execute("SELECT email, message FROM company_contactmessage"); raw = c.fetchone()
         self.assertTrue(raw[0].startswith("enc1:") and raw[1].startswith("enc1:"))   # terenkripsi di database
-        self.assertTrue(Notification.objects.filter(user=self.hrd, title__contains="Pesan baru").exists())
+        self.assertTrue(Notification.objects.filter(user=self.sa, title__contains="Pesan baru").exists())
         for bad in ({"website": "http://spam"}, {"ts": "bukan-cap"}, {"message": "pendek"}, {"email": "x"}):
             self.assertEqual(self.client.post(url, {**data, **bad}).status_code, 200); 
         self.assertEqual(ContactMessage.objects.count(), 1)
@@ -161,7 +161,7 @@ class ApplyFlowTests(Base):
         url = self.token_from_mail()
         r = self.client.get(url); self.assertContains(r, a.ref); self.assertContains(r, "Diterima"); self.assertEqual(r["Referrer-Policy"], "no-referrer")
         a.refresh_from_db(); self.assertEqual(a.stage, Stage.NEW); self.assertIsNotNone(a.verified_at)
-        self.assertTrue(Notification.objects.filter(user=self.hrd, title__contains="Lamaran baru").exists())
+        self.assertTrue(Notification.objects.filter(user=self.sa, title__contains="Lamaran baru").exists())
         self.assertEqual(ApplicationEvent.objects.filter(application=a, kind="verified").count(), 1)
         self.assertEqual(self.client.get(url).status_code, 200); self.assertEqual(ApplicationEvent.objects.filter(application=a, kind="verified").count(), 1)  # idempoten
 
@@ -246,7 +246,7 @@ class ApplyFlowTests(Base):
 
     def test_preview_never_creates_application(self):
         with self.settings(ROOT_URLCONF="config.urls"):
-            self.login("hrd"); self.client.post(f"/situs/karir/{self.j.slug}/lamar/", self.apply_data(self.j)); self.assertEqual(Application.objects.count(), 0)
+            self.login("sa"); self.client.post(f"/situs/karir/{self.j.slug}/lamar/", self.apply_data(self.j)); self.assertEqual(Application.objects.count(), 0)
 
 
 from django.core.mail.backends.base import BaseEmailBackend  # noqa: E402
@@ -281,24 +281,28 @@ class BackendTests(Base):
             self.client.logout()
         self.a.refresh_from_db(); self.assertIsNone(self.a.anonymized_at); self.assertEqual(self.a.stage, Stage.NEW)
 
-    def test_hrd_and_superadmin_pages_ok(self):
-        for who in ("hrd", "sa"):
+    def test_only_superadmin_opens_company_and_recruitment(self):
+        self.login("sa")
+        for u in self.urls():
+            if u.endswith("/cv/"): continue
+            self.assertEqual(self.client.get(u).status_code, 200, f"sa {u}")
+        self.client.logout()
+        for who in ("hrd", "adm", "poli"):   # putaran 59: HRD pun ditolak (dipisah dari HR; kelak bisa beda database/proyek)
             self.login(who)
-            for u in self.urls():
-                if u.endswith("/cv/"): continue
-                self.assertEqual(self.client.get(u).status_code, 200, f"{who} {u}")
+            for u in self.urls(): self.assertEqual(self.client.get(u).status_code, 403, f"{who} {u}")
             self.client.logout()
 
-    def test_sidebar_menu_for_hrd_only(self):
-        self.login("hrd"); self.assertContains(self.client.get("/"), "/company/products/")
-        self.client.logout(); self.login("adm"); self.assertNotContains(self.client.get("/"), "/company/")
+    def test_sidebar_menu_for_superadmin_only(self):
+        self.login("sa"); self.assertContains(self.client.get("/"), "/company/products/"); self.assertContains(self.client.get("/"), "/recruitment/")
+        for who in ("hrd", "adm"):
+            self.client.logout(); self.login(who); r = self.client.get("/"); self.assertNotContains(r, "/company/"); self.assertNotContains(r, "/recruitment/")
 
     def test_move_stage_notifies_applicant_and_audits(self):
-        self.login("hrd"); mail.outbox.clear()
+        self.login("sa"); mail.outbox.clear()
         r = self.client.post(f"/recruitment/applicants/{self.a.pk}/move/", {"to": "interview", "public_message": "Datang Senin 09.00 ya", "note": "bagus"})
         self.assertRedirects(r, f"/recruitment/applicants/{self.a.pk}/"); self.a.refresh_from_db(); self.assertEqual(self.a.stage, Stage.INTERVIEW)
         self.assertEqual(len(mail.outbox), 1); self.assertIn("Datang Senin 09.00 ya", mail.outbox[0].body)
-        ev = self.a.events.filter(kind="stage").last(); self.assertEqual((ev.from_stage, ev.to_stage, ev.by), ("new", "interview", self.hrd))
+        ev = self.a.events.filter(kind="stage").last(); self.assertEqual((ev.from_stage, ev.to_stage, ev.by), ("new", "interview", self.sa))
         log = AuditLog.objects.filter(module="recruitment", action="move").last(); self.assertEqual(log.after, {"stage": "interview"})
         page = self.client.get(f"/recruitment/applicants/{self.a.pk}/"); self.assertContains(page, "Wawancara")
         self.client.logout()
@@ -308,7 +312,7 @@ class BackendTests(Base):
         self.assertContains(pub, "Datang Senin 09.00 ya"); self.assertNotContains(pub, "bagus")
 
     def test_move_rules(self):
-        self.login("hrd")
+        self.login("sa")
         for to in ("unverified", "withdrawn", "ngawur"): self.client.post(f"/recruitment/applicants/{self.a.pk}/move/", {"to": to}); self.a.refresh_from_db(); self.assertEqual(self.a.stage, Stage.NEW)
 
     def test_events_are_append_only(self):
@@ -319,27 +323,27 @@ class BackendTests(Base):
         with self.assertRaises(PermissionError): self.a.delete()
 
     def test_bulk_move_and_cap(self):
-        self.login("hrd")
+        self.login("sa")
         self.client.post("/recruitment/applicants/bulk/", {"ids": [self.a.pk], "to": "rejected", "public_message": "Terima kasih"}); self.a.refresh_from_db(); self.assertEqual(self.a.stage, Stage.REJECTED)
         r = self.client.post("/recruitment/applicants/bulk/", {"ids": [self.a.pk], "to": "unverified", "next": "https://evil.example/"}); self.assertRedirects(r, "/recruitment/applicants/", fetch_redirect_response=False)
 
     def test_cv_download_is_attachment_and_logged(self):
-        self.login("hrd"); r = self.client.get(f"/recruitment/applicants/{self.a.pk}/cv/")
+        self.login("sa"); r = self.client.get(f"/recruitment/applicants/{self.a.pk}/cv/")
         self.assertEqual(r.content, PDF); self.assertIn("attachment", r["Content-Disposition"]); self.assertEqual(r["X-Content-Type-Options"], "nosniff"); self.assertIn("no-store", r["Cache-Control"])
-        self.assertTrue(self.a.events.filter(kind="download", by=self.hrd).exists()); self.assertTrue(AuditLog.objects.filter(module="recruitment", action="download").exists())
+        self.assertTrue(self.a.events.filter(kind="download", by=self.sa).exists()); self.assertTrue(AuditLog.objects.filter(module="recruitment", action="download").exists())
 
     def test_audit_never_contains_personal_data(self):
-        self.login("hrd"); self.client.get(f"/recruitment/applicants/{self.a.pk}/"); self.client.get(f"/recruitment/applicants/{self.a.pk}/export/")
+        self.login("sa"); self.client.get(f"/recruitment/applicants/{self.a.pk}/"); self.client.get(f"/recruitment/applicants/{self.a.pk}/export/")
         blob = " ".join(f"{l.before} {l.after}" for l in AuditLog.objects.filter(module="recruitment"))
         for secret in ("budi@example.com", "Budi Santoso", "0812"): self.assertNotIn(secret, blob)
 
     def test_anonymize_by_hrd(self):
-        self.login("hrd"); self.client.post(f"/recruitment/applicants/{self.a.pk}/anonymize/", {"reason": "x"}); self.a.refresh_from_db()
+        self.login("sa"); self.client.post(f"/recruitment/applicants/{self.a.pk}/anonymize/", {"reason": "x"}); self.a.refresh_from_db()
         self.assertIsNotNone(self.a.anonymized_at); self.assertEqual(self.client.get(f"/recruitment/applicants/{self.a.pk}/cv/").status_code, 404)
         self.assertEqual(self.client.post(f"/recruitment/applicants/{self.a.pk}/move/", {"to": "hired"}).status_code, 302); self.a.refresh_from_db(); self.assertNotEqual(self.a.stage, Stage.HIRED)
 
     def test_product_crud_with_image_and_cleanup(self):
-        self.login("hrd")
+        self.login("sa")
         r = self.client.post("/company/products/new/", {"name": "Sarung Baru", "summary_id": "x", "status": "published", "order": 100, "show_price": "", "image": SimpleUploadedFile("a.png", PNG)})
         p = Product.objects.get(name="Sarung Baru"); self.assertRedirects(r, f"/company/products/{p.pk}/"); self.assertTrue(p.image.name.startswith("company/product/"))
         old = Path(TMP, p.image.name); self.assertTrue(old.exists())
@@ -351,13 +355,13 @@ class BackendTests(Base):
         self.assertTrue(AuditLog.objects.filter(module="company", action="delete").exists())
 
     def test_delete_requires_post(self):
-        self.login("hrd"); p = Product.objects.create(name="X"); self.assertEqual(self.client.get(f"/company/products/{p.pk}/delete/").status_code, 405); self.assertTrue(Product.objects.filter(pk=p.pk).exists())
+        self.login("sa"); p = Product.objects.create(name="X"); self.assertEqual(self.client.get(f"/company/products/{p.pk}/delete/").status_code, 405); self.assertTrue(Product.objects.filter(pk=p.pk).exists())
 
     def test_unknown_kind_404(self):
-        self.login("hrd"); self.assertEqual(self.client.get("/company/ngawur/").status_code, 404)
+        self.login("sa"); self.assertEqual(self.client.get("/company/ngawur/").status_code, 404)
 
     def test_job_form_questions_and_slug(self):
-        self.login("hrd")
+        self.login("sa")
         r = self.client.post("/recruitment/jobs/new/", {"title": "Staf Gudang", "employment_type": "kontrak", "openings": 2, "status": "open", "questions_text": "*Punya SIM?\nBisa shift?"})
         j = Job.objects.get(title="Staf Gudang"); self.assertEqual(j.questions, [{"label": "Punya SIM?", "required": True}, {"label": "Bisa shift?", "required": False}]); self.assertEqual(j.slug, "staf-gudang")
         self.assertContains(self.client.get(f"/situs/karir/{j.slug}/lamar/"), "Punya SIM?")
@@ -365,15 +369,15 @@ class BackendTests(Base):
         bad = self.client.post("/recruitment/jobs/new/", {"title": "Z", "employment_type": "kontrak", "openings": 1, "status": "draft", "questions_text": "\n".join(f"Pertanyaan {i}" for i in range(12))}); self.assertEqual(bad.status_code, 200)
 
     def test_settings_save_and_banner(self):
-        self.login("hrd"); data = {"brand_name": "Wadimor", "banner_active": "on", "banner_id": "Website Dalam Pengembangan", "whatsapp": "+62 812-345-678"}
+        self.login("sa"); data = {"brand_name": "Wadimor", "banner_active": "on", "banner_id": "Website Dalam Pengembangan", "whatsapp": "+62 812-345-678"}
         r = self.client.post("/company/settings/", data); self.assertRedirects(r, "/company/settings/"); s = SiteSetting.get(); self.assertEqual(s.whatsapp, "62812345678")
         self.assertContains(self.client.get("/situs/"), "Website Dalam Pengembangan"); self.assertEqual(SiteSetting.objects.count(), 1)
         with self.assertRaises(PermissionError): s.delete()
 
     def test_messages_inbox(self):
         m = ContactMessage.objects.create(name="Ani", email="a@b.co", message="halo halo")
-        self.login("hrd"); self.assertContains(self.client.get(f"/company/messages/{m.pk}/"), "halo halo"); m.refresh_from_db(); self.assertEqual(m.status, "read")
-        self.client.post(f"/company/messages/{m.pk}/", {"status": "done", "note": "dibalas"}); m.refresh_from_db(); self.assertEqual((m.status, m.handled_by), ("done", self.hrd))
+        self.login("sa"); self.assertContains(self.client.get(f"/company/messages/{m.pk}/"), "halo halo"); m.refresh_from_db(); self.assertEqual(m.status, "read")
+        self.client.post(f"/company/messages/{m.pk}/", {"status": "done", "note": "dibalas"}); m.refresh_from_db(); self.assertEqual((m.status, m.handled_by), ("done", self.sa))
 
 
 @ov()
@@ -666,7 +670,7 @@ class Putaran55BackendTests(Base):
         super().setUp(); call_command("seed_company", stdout=io.StringIO())
 
     def test_hrd_manages_looks_and_categories(self):
-        self.login("hrd")
+        self.login("sa")
         self.assertContains(self.client.get("/company/looks/"), "Salat Jumat"); self.assertContains(self.client.get("/company/"), "Lookbook")
         ids = list(Product.objects.filter(slug__in=("sarung-wadimor-klasik", "peci-hitam-beludru")).values_list("pk", flat=True))
         r = self.client.post("/company/looks/new/", {"title_id": "Setelan Baru", "title_en": "", "story_id": "x", "story_en": "", "occasion_id": "Kondangan", "occasion_en": "", "products": ids, "status": "published", "order": 5})
@@ -680,7 +684,7 @@ class Putaran55BackendTests(Base):
         self.assertFalse(ProductCategory.objects.filter(name_id="Cucu").exists())
 
     def test_product_form_lists_categories_grouped_and_has_model_photo_field(self):
-        self.login("hrd"); h = self.client.get("/company/products/new/").content.decode()
+        self.login("sa"); h = self.client.get("/company/products/new/").content.decode()
         self.assertIn("Bawahan › Sarung Tenun", h); self.assertIn("Atasan › Baju Koko", h); self.assertIn('name="model_image"', h); self.assertIn("model_caption_id", h)
         self.assertLess(h.index(">Bawahan<"), h.index("Atasan › Baju Koko"))
 
@@ -690,7 +694,7 @@ class Putaran55BackendTests(Base):
             self.assertEqual(self.client.post("/company/looks/new/", {"title_id": "x"}).status_code, 403, u)
 
     def test_deleting_a_group_keeps_its_subcategories(self):
-        self.login("hrd"); g = ProductCategory.objects.get(slug="atasan"); n = ProductCategory.objects.filter(parent=g).count(); self.assertEqual(n, 2)
+        self.login("sa"); g = ProductCategory.objects.get(slug="atasan"); n = ProductCategory.objects.filter(parent=g).count(); self.assertEqual(n, 2)
         self.assertEqual(self.client.post(f"/company/categories/{g.pk}/delete/").status_code, 302)
         self.assertEqual(ProductCategory.objects.filter(name_id__in=("Baju Koko", "Kemeja Muslim"), parent__isnull=True).count(), 2)
 
@@ -817,7 +821,7 @@ class Putaran56BackendTests(Base):
             self.assertEqual(self.client.post(f"/company/products/{self.p.pk}/colors/add/", {"name_id": "X", "hex": "#112233"}).status_code, 403)
 
     def test_hrd_manages_motifs(self):
-        self.login("hrd"); r = self.client.get("/company/motifs/"); self.assertContains(r, "Grandmaster"); self.assertContains(self.client.get("/company/"), "Motif / seri")
+        self.login("sa"); r = self.client.get("/company/motifs/"); self.assertContains(r, "Grandmaster"); self.assertContains(self.client.get("/company/"), "Motif / seri")
         cat = ProductCategory.objects.get(slug="sarung-printing")
         r = self.client.post("/company/motifs/new/", {"category": cat.pk, "name_id": "Kotak Baru", "name_en": "New Check", "hint_id": "", "hint_en": "", "order": 5, "active": "on"}); self.assertEqual(r.status_code, 302)
         m = Motif.objects.get(name_id="Kotak Baru"); self.assertEqual(m.slug, "kotak-baru"); self.assertEqual(m.category, cat)
@@ -825,14 +829,14 @@ class Putaran56BackendTests(Base):
         self.assertEqual(self.client.post(f"/company/motifs/{m.pk}/delete/").status_code, 302); self.assertFalse(Motif.objects.filter(pk=m.pk).exists())
 
     def test_deleting_motif_keeps_products(self):
-        self.login("hrd"); self.client.post(f"/company/motifs/{Motif.objects.get(slug='grandmaster').pk}/delete/"); self.p.refresh_from_db(); self.assertIsNone(self.p.series_id)
+        self.login("sa"); self.client.post(f"/company/motifs/{Motif.objects.get(slug='grandmaster').pk}/delete/"); self.p.refresh_from_db(); self.assertIsNone(self.p.series_id)
 
     def test_product_form_has_series_and_edit_page_shows_colours(self):
-        self.login("hrd"); r = self.client.get(f"/company/products/{self.p.pk}/"); self.assertContains(r, "Motif / seri (menu Produk)"); self.assertContains(r, "Pilihan warna"); self.assertContains(r, "Marun")
+        self.login("sa"); r = self.client.get(f"/company/products/{self.p.pk}/"); self.assertContains(r, "Motif / seri (menu Produk)"); self.assertContains(r, "Pilihan warna"); self.assertContains(r, "Marun")
         r = self.client.get("/company/products/"); self.assertContains(r, "Grandmaster SGE"); self.assertContains(r, "Motif / seri")
 
     def test_add_and_delete_colour_with_validation(self):
-        self.login("hrd"); n = self.p.color_options.count(); url = f"/company/products/{self.p.pk}/colors/add/"
+        self.login("sa"); n = self.p.color_options.count(); url = f"/company/products/{self.p.pk}/colors/add/"
         self.client.post(url, {"name_id": "Merah Bata", "name_en": "Brick", "hex": "#B5472F", "order": 5}); self.assertEqual(self.p.color_options.count(), n + 1)
         self.assertEqual(self.p.color_options.get(name_id="Merah Bata").hex, "#b5472f")
         for bad in ("red", "#12", "javascript:1", "#12345g", '"><script>'):
@@ -841,7 +845,7 @@ class Putaran56BackendTests(Base):
         self.assertEqual(self.client.post(f"/company/products/{Product.objects.exclude(pk=self.p.pk).first().pk}/colors/{k.pk}/delete/").status_code, 404)
 
     def test_colour_limit_12_and_bad_image_rejected(self):
-        self.login("hrd"); url = f"/company/products/{self.p.pk}/colors/add/"
+        self.login("sa"); url = f"/company/products/{self.p.pk}/colors/add/"
         for i in range(12): ProductColor.objects.get_or_create(product=self.p, name_id=f"W{i}", defaults={"hex": "#101010"})
         self.client.post(url, {"name_id": "Ke-13", "hex": "#202020"}); self.assertFalse(self.p.color_options.filter(name_id="Ke-13").exists())
         ProductColor.objects.filter(product=self.p, name_id__startswith="W").delete()

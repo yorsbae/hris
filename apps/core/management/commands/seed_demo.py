@@ -657,9 +657,9 @@ class Command(BaseCommand):
                 if "pot_lain" in manual: ps_.save_adjustment(e, per, manual["pot_lain"], self.r.choice([25000, 42240, 60000]), None, "Potongan contoh", pu)
         try:
             if ram:
-                rr = ps_.create_run(ram, self.hrd_u); ps_.hand_over_run(rr.pk, self.hrd_u); ps_.calculate_run(rr.pk, pu); ps_.finalize_run(rr.pk, pu); ps_.pay_run(rr.pk, today, pu)
-            run = ps_.create_run(prev, self.hrd_u); ps_.hand_over_run(run.pk, self.hrd_u); ps_.calculate_run(run.pk, pu); ps_.finalize_run(run.pk, pu); ps_.pay_run(run.pk, today, pu)
-            run2 = ps_.create_run(cur, self.hrd_u); ps_.hand_over_run(run2.pk, self.hrd_u); ps_.calculate_run(run2.pk, pu)
+                rr = ps_.create_run(ram, pu, require_closed=False); ps_.calculate_run(rr.pk, pu); ps_.finalize_run(rr.pk, pu); ps_.pay_run(rr.pk, today, pu)
+            run = ps_.create_run(prev, pu, require_closed=False); ps_.calculate_run(run.pk, pu); ps_.finalize_run(run.pk, pu); ps_.pay_run(run.pk, today, pu)
+            run2 = ps_.create_run(cur, pu, require_closed=False); ps_.calculate_run(run2.pk, pu)
             self.stat += f", payroll: {n} profil gaji, run {ram + " (puasa) + " if ram else ""}{prev} dibayar + run {cur} dihitung"
         except ValueError as ex: self.stat += f", payroll: run tidak dibuat ({ex})"
 

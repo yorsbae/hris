@@ -1,7 +1,6 @@
-"""Halaman Payroll (putaran 57). Akses:
-  • Payroll (+ Superadmin): semua halaman Payroll; menghitung, mengajukan, menarik, membayar, membatalkan run; mengelola master & penyesuaian
-  • HRD: hanya melihat run + slip, menyetujui / mengembalikan / membatalkan run, dan melihat usulan tali asih
-  • Admin Departemen & Poli: 403 di semua halaman
+"""Halaman Payroll (putaran 57). Akses (putaran 59: Payroll berdiri sendiri):
+  • Payroll (+ Superadmin): semua halaman Payroll; membuat, menghitung, menetapkan, membayar, membatalkan run; mengelola master & penyesuaian; mengunduh berkas Tutup Periode dari HRD
+  • HRD, Admin Departemen & Poli: 403 di semua halaman Payroll (HRD menyerahkan data lewat Absensi → Tutup Periode)
 Membuka slip (data upah per orang), mencetak slip, dan mengekspor run SELALU tercatat di audit (tanpa nominal)."""
 from datetime import date, timedelta
 from functools import wraps
@@ -21,7 +20,7 @@ from apps.core import tabular
 from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles
-from apps.hr.models import Department, Employee, Shift
+from apps.hr.models import Department, Employee, PeriodClose, Shift
 from apps.hrd.models import Separation
 from apps.hrd.views import paginate
 from . import calc, engine, params as P, pdf, readiness as RD, services
@@ -30,7 +29,7 @@ from .models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayA
 
 EXPORT_MAX = 20000
 PDF_MAX = 400
-STATUS_STEP = {"draft": 1, "diserahkan": 2, "dihitung": 3, "ditetapkan": 4, "dibayar": 5}
+STATUS_STEP = {"draft": 1, "dihitung": 2, "ditetapkan": 3, "dibayar": 4}
 
 
 def payroll_only(fn):
@@ -42,16 +41,11 @@ def payroll_only(fn):
 
 
 def viewer(fn):
-    """Payroll + HRD (+ Superadmin)."""
-    @wraps(fn)
-    @login_required
-    @require_roles(Role.PAYROLL, Role.HRD)
-    def wrap(*a, **k): return fn(*a, **k)
-    return wrap
+    """Sama dengan payroll_only (HRD tidak lagi punya akses Payroll sejak putaran 59); nama dipertahankan untuk halaman lihat-saja."""
+    return payroll_only(fn)
 
 
 def _is_payroll(user): return user.role in (Role.PAYROLL, Role.SUPERADMIN)
-def _is_hrd(user): return user.role in (Role.HRD, Role.SUPERADMIN)
 def _int(v):
     try: return int(v)
     except (TypeError, ValueError): return None
@@ -101,14 +95,15 @@ def home(request):
         {"no": 2, "title": "Data karyawan", "when": "Saat ada karyawan baru atau perubahan gaji", "items": [
             {"t": "Profil gaji tiap karyawan", "h": "Grade, tipe gaji (harian/bulanan), T Khusus & T Lain-lain per orang, hak uang makan.", "st": ok(no_profile == 0 and with_profile), "d": f"{with_profile} lengkap, {no_profile} belum" , "url": "pay_profiles", "lb": "Isi / impor profil"}]},
         {"no": 3, "title": f"Data bulan {cur}", "when": "Tiap bulan sebelum run dihitung", "items": [
+            {"t": "Periode ditutup HRD (berkas serah-terima)", "h": "Rentang tanggal data + berkas XLSX: absensi, lembur, BPJS, seragam, bantuan.", "st": "ok" if PeriodClose.objects.filter(closed=True, period=cur).exists() else "warn", "d": cur, "url": "pay_periods", "lb": "Lihat periode"},
             *[{"t": r["title"], "h": r["detail"], "st": {"ok": "ok", "warn": "warn", "bad": "bad"}[r["level"]], "d": (str(r["count"]) if r["count"] and r["level"] != "ok" else ""), "raw": r["url"], "lb": r["label"] or "Buka"} for r in ready],
             {"t": "Tambahan & potongan manual", "h": "Tambahan (+): insentif, premi. Potongan (−): pinjaman, pengobatan, materai, dll.", "st": "opt", "d": f"{PayAdjustment.objects.filter(period=cur, voided_at__isnull=True).count()} isian", "url": "pay_adjustments", "lb": "Isi penyesuaian"}]},
-        {"no": 4, "title": "Run gaji", "when": "Tiap bulan: serahkan → hitung → tetapkan → bayar", "run": run, "items": []},
+        {"no": 4, "title": "Run gaji", "when": "Tiap bulan: HRD tutup periode → buat run → hitung → tetapkan → bayar", "run": run, "items": []},
         {"no": 5, "title": "Slip & arsip", "when": "Setelah run dibayar", "items": [
             {"t": "Slip gaji & PDF", "h": "Buka run yang sudah ditetapkan/dibayar lalu cetak slip.", "st": "ok" if live.filter(status__in=("ditetapkan", "dibayar")).exists() else "opt", "d": f"{live.filter(status='dibayar').count()} run dibayar", "url": "pay_runs", "lb": "Daftar run"},
             {"t": "Tali asih karyawan keluar", "h": "Usulan & pembayaran lewat run gaji.", "st": "warn" if tali else "opt", "d": f"{len(tali)} menunggu" if tali else "tidak ada", "url": "pay_tali", "lb": "Buka"}]}]
-    flow = [("draft", "Draft"), ("diserahkan", "Diserahkan HRD"), ("dihitung", "Dihitung"), ("ditetapkan", "Ditetapkan"), ("dibayar", "Dibayar")]
-    nxt = {None: "Buat run gaji untuk periode ini.", "draft": "HRD: serahkan data periode ke Payroll.", "diserahkan": "Payroll: klik Hitung.", "dihitung": "Payroll: periksa hasil, lalu Tetapkan.", "ditetapkan": "Payroll: bayar (seragam & tali asih otomatis ditandai).", "dibayar": "Selesai — cetak slip."}
+    flow = [("draft", "Draft"), ("dihitung", "Dihitung"), ("ditetapkan", "Ditetapkan"), ("dibayar", "Dibayar")]
+    nxt = {None: "Buat run gaji untuk bulan gaji ini (HRD harus sudah menutup periodenya).", "draft": "Klik Hitung.", "dihitung": "Periksa hasil, lalu Tetapkan.", "ditetapkan": "Bayar (seragam & tali asih otomatis ditandai).", "dibayar": "Selesai — cetak slip."}
     cur_i = [k for k, _ in flow].index(run.status) if run else -1
     flow = [{"k": k, "l": l, "state": "done" if i < cur_i or (run and run.status == "dibayar" and i == cur_i) else ("now" if i == cur_i else "")} for i, (k, l) in enumerate(flow)]
     # tentukan langkah aktif: yang pertama punya item belum siap (todo/bad)
@@ -123,26 +118,32 @@ def home(request):
 # ================================================================ Run gaji
 @viewer
 def runs(request):
-    form = None
-    if request.method == "POST":
-        if not _is_hrd(request.user): return HttpResponse(status=403)    # alur HRD → Payroll: HRD yang membuka run periode
-        form = RunForm(request.POST)
-        if form.is_valid():
-            try:
-                with transaction.atomic():
-                    r = services.create_run(form.cleaned_data["period"], request.user, form.cleaned_data.get("pay_date"), form.cleaned_data.get("note", ""))
-                    log(request, "payroll", "run_create", r, None, {"period": r.period})
-                messages.success(request, f"Run gaji {r.period} dibuat. Langkah berikutnya: pastikan data periode lengkap lalu Serahkan ke Payroll."); return redirect("pay_run", pk=r.pk)
-            except ValueError as e: form.add_error("period", str(e))
-    elif _is_hrd(request.user): form = RunForm()
-    return render(request, "payroll/runs.html", {"page": paginate(request, PayrollRun.objects.all()), "form": form, "qs": ""})
+    form = RunForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            with transaction.atomic():
+                r = services.create_run(form.cleaned_data["period"], request.user, form.cleaned_data.get("pay_date"), form.cleaned_data.get("note", ""))
+                log(request, "payroll", "run_create", r, None, {"period": r.period})
+            messages.success(request, f"Run gaji {r.period} dibuat. Langkah berikutnya: periksa kesiapan data lalu Hitung."); return redirect("pay_run", pk=r.pk)
+        except ValueError as e: form.add_error("period", str(e))
+    closed = [c for c in PeriodClose.objects.filter(closed=True) if not PayrollRun.objects.filter(period=c.period).exclude(status=PayrollRun.CANCELLED).exists()]
+    return render(request, "payroll/runs.html", {"page": paginate(request, PayrollRun.objects.all()), "form": form, "qs": "", "ready_periods": closed})
+
+
+@payroll_only
+def periods_list(request):
+    """Periode yang ditutup HRD (rentang tanggal + berkas XLSX serah-terima) beserta status run gajinya. Tombol 'Buat run' membuka formulir Run Gaji dengan bulan gaji terisi."""
+    rows = list(PeriodClose.objects.select_related("closed_by", "reopened_by")[:60])
+    live = {r.period: r for r in PayrollRun.objects.exclude(status=PayrollRun.CANCELLED)}
+    for r in rows: r.sheets = list((r.export_counts or {}).items()); r.run = live.get(r.period) if r.closed else None
+    return render(request, "payroll/periods.html", {"rows": rows})
 
 
 def _can(user, run):
-    """Aksi yang boleh dilakukan `user` pada `run` saat ini."""
-    s, p, h = run.status, _is_payroll(user), _is_hrd(user)
-    return {"handover": h and s == "draft", "calculate": p and s in ("diserahkan", "dihitung"), "finalize": p and s == "dihitung", "reopen": p and s == "ditetapkan",
-            "return": p and s in ("diserahkan", "dihitung"), "pay": p and s == "ditetapkan", "cancel": (p or h) and s in ("draft", "diserahkan", "dihitung", "ditetapkan")}
+    """Aksi yang boleh dilakukan `user` pada `run` saat ini (hanya Payroll/Superadmin)."""
+    s, p = run.status, _is_payroll(user)
+    return {"calculate": p and s in ("draft", "dihitung"), "finalize": p and s == "dihitung", "reopen": p and s == "ditetapkan", "pay": p and s == "ditetapkan",
+            "cancel": p and s in ("draft", "dihitung", "ditetapkan")}
 
 
 def _slip_filters(request):
@@ -173,14 +174,13 @@ def _export_rows(slips):
 def run_detail(request, pk):
     run = get_object_or_404(PayrollRun, pk=pk); f = _slip_filters(request); qs = _slips(run, f)
     if request.GET.get("export"):
-        if not request.user.role == Role.SUPERADMIN and request.user.role not in (Role.PAYROLL, Role.HRD): raise Http404
         log(request, "payroll", "run_export", run, None, {"period": run.period, "rows": qs.count()})
         rows = _export_rows(list(qs.order_by("department_name", "emp_name")[:EXPORT_MAX]))
         return tabular.export_response(f"gaji-{run.period}", EXPORT_HEADER, rows, request, sheet=f"Gaji {run.period}",
                                        money_cols=("upah_harian", "gaji_pokok", "tunjangan", "premi", "lembur", "uang_makan", "lain_lain", "total_pendapatan", "total_potongan", "gaji_bersih"), num_cols=("hari_dibayar",))
     by_dept = list(run.slips.order_by().values("department_name").annotate(n=Count("id"), gross=Sum("total_earnings"), net=Sum("net_pay")).order_by("department_name"))
     flagged = run.slips.filter(flagged=True).count(); can = _can(request.user, run); stale = services.run_is_stale(run)
-    ready = RD.readiness(run.period) if run.status in ("draft", "diserahkan", "dihitung") else None
+    ready = RD.readiness(run.period) if run.status in ("draft", "dihitung") else None
     ctx = {"run": run, "f": f, "page": paginate(request, qs), "by_dept": by_dept, "flagged": flagged, "can": can, "stale": stale, "step_now": STATUS_STEP.get(run.status, 0),
            "events": run.events.select_related("by"), "depts": [d["department_name"] for d in by_dept], "reason_form": ReasonForm(), "pay_form": PayDateForm(),
            "qs": urlencode({k: v for k, v in f.items() if v}), "is_payroll": _is_payroll(request.user),
@@ -198,13 +198,8 @@ def run_action(request, pk, action):
     try:
         if action == "calculate":
             r = services.calculate_run(pk, u); messages.success(request, f"Dihitung: {r.n_slips} slip, total bersih {calc_fmt(r.total_net)}." + (" Ada peringatan — baca di bawah." if r.warnings else ""))
-        elif action == "handover": services.hand_over_run(pk, u); messages.success(request, "Data periode diserahkan ke Payroll. Payroll akan menghitung.")
         elif action == "finalize": services.finalize_run(pk, u); messages.success(request, "Run ditetapkan. Langkah berikutnya: bayar lalu tandai dibayar.")
         elif action == "reopen": services.reopen_run(pk, u); messages.success(request, "Run dibuka kembali. Perbaiki lalu hitung ulang dan tetapkan lagi.")
-        elif action == "return":
-            f = ReasonForm(request.POST)
-            if not f.is_valid(): raise ValueError("Alasan wajib diisi.")
-            services.return_to_hrd(pk, f.cleaned_data["reason"], u); messages.success(request, "Run dikembalikan ke HRD beserta alasannya.")
         elif action == "pay":
             f = PayDateForm(request.POST)
             if not f.is_valid(): raise ValueError("Tanggal bayar tidak valid.")
@@ -491,7 +486,7 @@ def tali_asih(request):
     recent = list(Separation.objects.filter(voided_at__isnull=True, tali_asih=0, last_date__gte=today - timedelta(days=120)).select_related("employee").order_by("-last_date")[:100])
     for s in pending + recent: s.suggest, s.basis = services.suggest_tali_asih(s)
     rules = list(TaliAsihRule.objects.filter(voided_at__isnull=True).order_by("kind", "-effective_from"))
-    return render(request, "payroll/tali.html", {"pending": pending, "recent": recent, "rules": rules, "is_payroll": _is_payroll(request.user), "is_hrd": _is_hrd(request.user)})
+    return render(request, "payroll/tali.html", {"pending": pending, "recent": recent, "rules": rules, "is_payroll": _is_payroll(request.user), "is_hrd": False})
 
 
 @payroll_only

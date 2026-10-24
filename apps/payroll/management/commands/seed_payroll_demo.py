@@ -69,9 +69,8 @@ class Command(BaseCommand):
             if not calc.valid_period(per): raise CommandError(f"Periode tidak valid: {per}")
             run = PayrollRun.objects.filter(period=per).exclude(status=PayrollRun.CANCELLED).first()
             try:
-                if run is None: run = services.create_run(per, actor)
-                if run.status == PayrollRun.DRAFT: run = services.hand_over_run(run.pk, actor)
-                if run.status in (PayrollRun.HANDED, PayrollRun.CALCULATED): run = services.calculate_run(run.pk, actor)
+                if run is None: run = services.create_run(per, actor, require_closed=False)
+                if run.status in (PayrollRun.DRAFT, PayrollRun.CALCULATED): run = services.calculate_run(run.pk, actor)
                 self.stdout.write(self.style.SUCCESS(f"Run {per}: {run.get_status_display()}, {run.n_slips} slip, total bersih Rp {run.total_net:,.0f}".replace(",", ".")))
                 for w in run.warnings: self.stdout.write(self.style.WARNING(f"  ⚠ {w}"))
             except ValueError as ex: self.stdout.write(self.style.ERROR(f"Run {per}: {ex}"))

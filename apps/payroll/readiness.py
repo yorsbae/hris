@@ -26,7 +26,7 @@ def _nik_list(niks, n=6): return ", ".join(niks[:n]) + ("…" if len(niks) > n e
 
 
 def readiness(period):
-    start, end = calc.period_bounds(period); out = []
+    start, end = calc.data_bounds(period); out = []
     scale = engine.wage_scale(end); profs = engine.current_profiles(end)
     active = list(Employee.objects.filter(status="aktif", join_date__lte=end).order_by("nik").values_list("pk", "nik"))
     # 1. profil gaji
@@ -48,9 +48,10 @@ def readiness(period):
     # 5. tanpa scan belum divalidasi
     n_ts = AttendanceDaily.objects.filter(date__gte=start, date__lte=end, status="tanpa_scan", employee__status="aktif").count()
     if n_ts: out.append(_c("warn", "Hari kerja tanpa scan belum divalidasi", "Tidak dihitung hadir (tanpa uang makan) sampai divalidasi sebagai hadir/izin/alfa.", n_ts, reverse("att_daily"), "Validasi Kehadiran"))
-    # 6. tutup periode absensi
-    if periods.is_closed(start): out.append(_c("ok", "Periode absensi sudah ditutup"))
-    else: out.append(_c("warn", "Periode absensi belum ditutup", "Rekap masih bisa berubah setelah gaji dihitung.", 0, reverse("att_periods"), "Tutup Periode"))
+    # 6. tutup periode (HRD) = serah-terima data
+    closed = periods.closed_for_label(period)
+    if closed: out.append(_c("ok", f"Periode ditutup HRD ({periods.fmt_range(closed.start_date, closed.end_date)})", "Data mengikuti rentang tanggal itu.", 0, reverse("pay_periods"), "Lihat periode dari HRD"))
+    else: out.append(_c("warn", "HRD belum menutup periode untuk bulan gaji ini", "Rentang data dipakai satu bulan kalender; rekap masih bisa berubah setelah gaji dihitung.", 0, reverse("pay_periods"), "Periode dari HRD"))
     # 7. potongan BPJS
     members = BpjsMembership.objects.filter(status="aktif").values("employee_id").distinct().count()
     n_ded = BpjsDeduction.objects.filter(period=period).values("employee_id").distinct().count()

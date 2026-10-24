@@ -35,17 +35,16 @@ def _ophrd():
             ("Karyawan Keluar", "/hrd/separations/", "users", True)]
 
 def _company():
-    """Company Profile (situs publik) + Rekrutmen (lowongan & pelamar) — putaran 48, Tahap 11. Hanya HRD & Superadmin."""
+    """Company Profile (situs publik) + Rekrutmen (lowongan & pelamar) — putaran 48, Tahap 11. Hanya Superadmin (putaran 59: dipisah dari HRD karena kelak bisa berbeda database/proyek)."""
     return [("Company Profile", "/company/", "briefcase"), ("Produk", "/company/products/", "clipboard", True), ("Artikel", "/company/articles/", "file", True),
             ("Halaman", "/company/pages/", "file", True), ("FAQ", "/company/faqs/", "file", True), ("Lokasi Toko", "/company/stores/", "file", True), ("Pesan Masuk", "/company/messages/", "chat", True),
             ("Pengaturan Situs", "/company/settings/", "sliders", True),
             ("Rekrutmen", "/recruitment/", "users"), ("Lowongan", "/recruitment/jobs/", "clipboard", True), ("Pelamar", "/recruitment/applicants/", "users", True)]
 
-def _payroll(full):
-    """Menu Payroll (Tahap 7, putaran 57). Payroll & Superadmin: semua; HRD: hanya Run Gaji (periksa, setujui/kembalikan)."""
-    if not full: return [("Run Gaji (serahkan ke Payroll)", "/payroll/runs/", "briefcase"), ("Usulan Tali Asih", "/payroll/tali-asih/", "clipboard", True)]
-    return [("Alur Payroll (mulai di sini)", "/payroll/", "briefcase"), ("1 · Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("1 · Lembur, Makan & Tunjangan", "/payroll/rates/", "sliders", True),
-            ("1 · Parameter & Komponen", "/payroll/params/", "sliders", True), ("2 · Profil Gaji Karyawan", "/payroll/profiles/", "users", True),
+def _payroll():
+    """Menu Payroll (Tahap 7; putaran 59: departemen sendiri, hanya Payroll & Superadmin — HRD tidak punya menu/akses Payroll)."""
+    return [("Alur Payroll (mulai di sini)", "/payroll/", "briefcase"), ("Periode dari HRD", "/payroll/periods/", "calendar", True), ("1 · Skala Gaji Harian", "/payroll/scale/", "sliders", True),
+            ("1 · Lembur, Makan & Tunjangan", "/payroll/rates/", "sliders", True), ("1 · Parameter & Komponen", "/payroll/params/", "sliders", True), ("2 · Profil Gaji Karyawan", "/payroll/profiles/", "users", True),
             ("3 · Tambahan & Potongan", "/payroll/adjustments/", "clipboard", True), ("3 · Tali Asih", "/payroll/tali-asih/", "clipboard", True), ("4 · Run Gaji (per periode)", "/payroll/runs/", "calendar", True)]
 
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
@@ -54,18 +53,17 @@ def _groups(role):
     if role == Role.SUPERADMIN:
         return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True),
                            *_ophrd(), *_bpjs(), *_validasi()]),
-                ("Payroll", _payroll(True)),
-                ("Situs & Rekrutmen", _company()),
+                ("Payroll", _payroll()),
+                ("Situs & Rekrutmen (Superadmin)", _company()),
                 ("Poliklinik", _poli(True)),
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
         return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True),
                         *_ophrd(), *_bpjs(), *_validasi(), ("Master Data", "/master/department/", "sliders")]),
-                ("Payroll", _payroll(False)),
-                ("Situs & Rekrutmen", _company()), _INFO]
+                _INFO]
     if role == Role.PAYROLL:
-        return [("Payroll", _payroll(True))]
+        return [("Payroll", _payroll())]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
                                       *_req("Pengajuan & Monitoring", False), *_absensi(False), *_validasi()]), _INFO]

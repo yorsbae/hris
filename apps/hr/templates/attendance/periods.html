@@ -1,20 +1,46 @@
 {% extends "base.html" %}{% block title %}Tutup Periode{% endblock %}{% block content %}
 <style>
-.closebar{gap:10px 14px}.closebar input[name=note]{flex:1 1 220px;max-width:380px;min-width:0}
+.pform{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 14px;align-items:end}
+.pform .fld{margin:0}.pform input{width:100%}
+.closebar{gap:10px 14px;margin-top:10px}.closebar input[name=note]{flex:1 1 220px;max-width:380px;min-width:0}
 .closebar label.force{flex:none;white-space:nowrap;padding:6px 10px;border:1px solid var(--bd2);border-radius:8px;color:var(--er)}.closebar label.force input{width:auto;min-height:0;margin:0;flex:none}
 .closebar .btn{margin-left:0;flex:none;white-space:nowrap;border:0;font-family:inherit}
+.sheets{display:flex;flex-wrap:wrap;gap:4px 10px;margin:0;padding:0;list-style:none;color:var(--mu);font-size:.85em}
 @media(max-width:600px){.closebar input[name=note]{flex-basis:100%;max-width:none}.closebar .btn{flex:1 1 100%;text-align:center}}
 </style>
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Tutup Periode</h2>
-<p class="sub">Setelah satu bulan selesai diperiksa, <b>tutup periodenya</b> agar angkanya tidak bergeser: rekap absensi bulan itu tidak dihitung ulang dan tagihan Poli bertanggal pelayanan bulan itu tidak bisa dicatat. Dibuka kembali hanya oleh Superadmin dan tercatat di audit. Checklist di bawah menunjukkan yang harus beres dulu.</p>
-{% for r in rows %}<div class="card" style="margin-bottom:10px"><h3 style="margin:0">{{ r.label }}
-{% if r.closed %}<span class="pill approved">Ditutup</span>{% elif r.row %}<span class="pill pending">Dibuka kembali</span>{% else %}<span class="pill nonaktif">Terbuka</span>{% endif %}
-{% if r.blocking %}<span class="pill rejected">{{ r.blocking }} butir menghalangi</span>{% elif r.warn %}<span class="pill pending">{{ r.warn }} butir peringatan</span>{% elif r.checklist %}<span class="pill approved">Siap ditutup</span>{% endif %}</h3>
-{% if r.closed %}<p class="help">Ditutup {{ r.row.closed_at|date:"d M Y H:i" }}{% if r.row.closed_by %} oleh {{ r.row.closed_by.get_full_name|default:r.row.closed_by.get_username }}{% endif %}{% if r.row.note %} — {{ r.row.note }}{% endif %}.</p>
-{% if sup %}<form method="post">{% csrf_token %}<input type="hidden" name="period" value="{{ r.period }}"><button class="btn ghost" name="action" value="reopen" onclick="return confirm('Buka kembali periode {{ r.period }}? Rekap & tagihan bulan itu bisa berubah lagi.')">Buka kembali (Superadmin)</button></form>{% endif %}
-{% else %}{% if r.checklist %}<table class="sepfit"><tbody>{% for i in r.checklist %}<tr><td style="width:2em">{% if i.ok %}✅{% elif i.blocking %}⛔{% else %}⚠️{% endif %}</td><td>{{ i.label }}{% if not i.ok %}<small style="display:block;color:var(--mu)">{{ i.hint }}</small>{% endif %}</td><td class="num">{{ i.n }}</td><td>{% if not i.ok and i.url %}<a href="{{ i.url }}">Buka ›</a>{% endif %}</td></tr>{% endfor %}</tbody></table>
-<form method="post" class="bar closebar" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="period" value="{{ r.period }}"><input name="note" maxlength="300" placeholder="Catatan (opsional)" aria-label="Catatan">
-{% if r.blocking %}<label class="chk force" title="Tutup walau masih ada butir yang menghalangi"><input type="checkbox" name="force" value="1"> Tutup paksa</label>{% endif %}<button class="btn" name="action" value="close">Tutup periode {{ r.period }}</button></form>
-{% else %}<p class="help"><a href="?period={{ r.period }}">Tampilkan checklist</a></p>{% endif %}{% endif %}</div>{% endfor %}
+<p class="sub">Tutup buku tidak harus tanggal 1 sampai akhir bulan: <b>tentukan sendiri dari tanggal berapa sampai tanggal berapa</b> (mis. 26 September – 25 Oktober). Setelah ditutup, rekap absensi dan tagihan Poli pada rentang itu terkunci, dan sistem membuat <b>berkas XLSX 5 sheet</b> (Rekap Absensi · Lembur &amp; Standby · BPJS · Seragam · Bantuan &amp; Lainnya) yang diunduh <b>Payroll</b>. Dibuka kembali hanya oleh Superadmin dan tercatat di audit. Semua penutupan tersimpan di Riwayat.</p>
+
+<form method="get" class="card" style="margin-bottom:12px"><h3 style="margin-top:0">Periode baru</h3>
+<div class="pform">
+<div class="fld"><label for="ps">Dari tanggal</label><input id="ps" type="date" name="start" value="{{ start|date:'Y-m-d' }}" required></div>
+<div class="fld"><label for="pe">Sampai tanggal</label><input id="pe" type="date" name="end" value="{{ end|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" required></div>
+<div class="fld"><label for="pl">Untuk gaji bulan <small>(YYYY-MM, opsional)</small></label><input id="pl" name="label" value="{{ label }}" pattern="\d{4}-\d{2}" maxlength="7" placeholder="mengikuti tanggal akhir"></div>
+<div class="fld"><button class="btn ghost" type="submit">Periksa checklist</button></div>
+</div>
+{% if suggested %}<p class="help" style="margin-bottom:0">Periode tertutup terakhir berakhir sehari sebelum <b>{{ suggested|date:"d-m-Y" }}</b>, jadi tanggal mulai disarankan {{ suggested|date:"d-m-Y" }}. Rentang tidak boleh tumpang tindih dengan periode yang sudah ditutup; maksimal {{ max_days }} hari.</p>{% endif %}
+</form>
+
+{% if checklist %}<div class="card" style="margin-bottom:12px"><h3 style="margin:0">Checklist {{ start|date:"d-m-Y" }} s/d {{ end|date:"d-m-Y" }}
+{% if blocking %}<span class="pill rejected">{{ blocking }} butir menghalangi</span>{% elif warn %}<span class="pill pending">{{ warn }} butir peringatan</span>{% else %}<span class="pill approved">Siap ditutup</span>{% endif %}</h3>
+<table class="sepfit"><tbody>{% for i in checklist %}<tr><td style="width:2em">{% if i.ok %}✅{% elif i.blocking %}⛔{% else %}⚠️{% endif %}</td><td>{{ i.label }}{% if not i.ok %}<small style="display:block;color:var(--mu)">{{ i.hint }}</small>{% endif %}</td><td class="num">{{ i.n }}</td><td>{% if not i.ok and i.url %}<a href="{{ i.url }}">Buka ›</a>{% endif %}</td></tr>{% endfor %}</tbody></table>
+<form method="post" class="bar closebar">{% csrf_token %}<input type="hidden" name="action" value="close"><input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}"><input type="hidden" name="end" value="{{ end|date:'Y-m-d' }}"><input type="hidden" name="label" value="{{ label }}">
+<input name="note" maxlength="300" placeholder="Catatan (opsional)" aria-label="Catatan">
+{% if blocking %}<label class="chk force" title="Tutup walau masih ada butir yang menghalangi"><input type="checkbox" name="force" value="1"> Tutup paksa</label>{% endif %}
+<button class="btn" onclick="return confirm('Tutup periode {{ start|date:'d-m-Y' }} s/d {{ end|date:'d-m-Y' }}? Rekap absensi dan tagihan Poli pada rentang ini terkunci.')">Tutup periode &amp; buat berkas Payroll</button></form></div>{% endif %}
+
+<h3>Riwayat</h3>
+<div class="wrap"><table><thead><tr><th class="nw">Rentang tanggal</th><th class="nw">Gaji bulan</th><th class="nw">Status</th><th>Ditutup</th><th>Berkas XLSX</th><th class="acts"></th></tr></thead><tbody>
+{% for r in rows %}<tr{% if not r.closed %} style="opacity:.7"{% endif %}>
+<td class="nw"><b>{{ r.start_date|date:"d-m-Y" }}</b> s/d <b>{{ r.end_date|date:"d-m-Y" }}</b><small>{{ r.days }} hari</small></td>
+<td class="nw">{{ r.period }}</td>
+<td class="nw">{% if r.closed %}<span class="pill approved">Ditutup</span>{% else %}<span class="pill pending">Dibuka kembali</span><small>{{ r.reopened_at|date:"d-m-Y H:i" }}{% if r.reopened_by %} · {{ r.reopened_by.get_full_name|default:r.reopened_by.get_username }}{% endif %}</small>{% endif %}</td>
+<td>{{ r.closed_at|date:"d-m-Y H:i" }}{% if r.closed_by %}<small>{{ r.closed_by.get_full_name|default:r.closed_by.get_username }}{% if r.note %} — {{ r.note }}{% endif %}</small>{% elif r.note %}<small>{{ r.note }}</small>{% endif %}</td>
+<td>{% if r.export_file %}<a href="{% url 'att_period_download' r.pk %}">Unduh XLSX</a><small>{{ r.export_at|date:"d-m-Y H:i" }}</small>
+{% if r.sheets %}<ul class="sheets">{% for name, n in r.sheets %}<li>{{ name }}: {{ n }}</li>{% endfor %}</ul>{% endif %}{% else %}<span style="color:var(--mu)">belum ada berkas</span>{% endif %}</td>
+<td class="acts">
+{% if r.closed %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ r.pk }}"><button class="btn sm ghost" name="action" value="rebuild" title="Susun ulang berkas dari data terkini" onclick="return confirm('Buat ulang berkas XLSX dari data terkini? Payroll akan diberi tahu.')">{% if r.export_file %}Buat ulang{% else %}Buat berkas{% endif %}</button></form>
+{% if sup %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ r.pk }}"><button class="btn sm ghost" name="action" value="reopen" onclick="return confirm('Buka kembali periode {{ r.start_date|date:'d-m-Y' }} s/d {{ r.end_date|date:'d-m-Y' }}? Rekap & tagihan pada rentang ini bisa berubah lagi dan Payroll diberi tahu.')">Buka kembali</button></form>{% endif %}{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada periode yang ditutup. Isi tanggal di atas lalu klik <b>Periksa checklist</b>.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

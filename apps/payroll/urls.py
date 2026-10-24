@@ -9,6 +9,7 @@ only = require_roles(Role.PAYROLL)   # Superadmin lolos otomatis
 
 urlpatterns = [
     path("", v.home, name="pay_home"),
+    path("periods/", v.periods_list, name="pay_periods"),
     path("runs/", v.runs, name="pay_runs"),
     path("runs/<int:pk>/", v.run_detail, name="pay_run"),
     path("runs/<int:pk>/slips.pdf", v.run_pdf, name="pay_run_pdf"),

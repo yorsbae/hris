@@ -278,7 +278,8 @@ def create_partner_bill(user, partner, bill_number, bill_date, employee, service
     from .models import PartnerBill, PartnerBillEvent, PartnerBillLine
     discount = Decimal(discount or 0)
     from apps.hr import periods
-    if periods.is_closed(service_date): raise ValueError(f"Periode {periods.key(service_date)} sudah ditutup; tagihan tidak bisa dicatat. Minta Superadmin membuka kembali periode.")
+    closed = periods.closed_row_for(service_date)
+    if closed: raise ValueError(f"Tanggal pelayanan {service_date:%d-%m-%Y} berada di periode yang sudah ditutup ({periods.fmt_range(closed.start_date, closed.end_date)}); tagihan tidak bisa dicatat. Minta Superadmin membuka kembali periode.")
     if discount < 0 or discount > Decimal(total): raise ValueError("Potongan tidak boleh negatif atau melebihi total tagihan.")
     with transaction.atomic():
         lines_total = sum((Decimal(q) * Decimal(p) for _, q, p in lines), Decimal(0))

@@ -1,9 +1,8 @@
-"""Alur run gaji dan perubahan master Payroll (putaran 57; alur dibalik di putaran 58: HRD → Payroll). Semua perubahan atomik, baris run dikunci (`select_for_update`), setiap transisi menulis jejak append-only.
+"""Alur run gaji dan perubahan master Payroll (putaran 57; putaran 59: Payroll BERDIRI SENDIRI, tanpa HRD di alurnya). Semua perubahan atomik, baris run dikunci (`select_for_update`), setiap transisi menulis jejak append-only.
 
-  draft (HRD buat) → (serahkan, HRD) diserahkan → (hitung, Payroll) dihitung → (tetapkan, Payroll) ditetapkan → (bayar, Payroll) dibayar [terkunci]
-          diserahkan/dihitung → (kembalikan ke HRD, Payroll; alasan wajib) draft      ditetapkan → (buka kembali, Payroll) dihitung
-          draft/diserahkan/dihitung/ditetapkan → (batalkan, alasan wajib) dibatalkan   (dibayar tidak dapat dibatalkan)
-Pemisahan tugas ada pada peran: HRD menyiapkan & menyerahkan data, Payroll menghitung/menetapkan/membayar; Payroll tidak membuat run dan HRD tidak menghitung atau membayar.
+  draft (Payroll buat, SETELAH HRD menutup periode) → (hitung) dihitung → (tetapkan) ditetapkan → (bayar) dibayar [terkunci]
+          ditetapkan → (buka kembali) dihitung        draft/dihitung/ditetapkan → (batalkan, alasan wajib) dibatalkan   (dibayar tidak dapat dibatalkan)
+Serah-terima data HRD → Payroll = TUTUP PERIODE di modul Absensi (berkas XLSX 5 sheet + rentang tanggal data); run hanya boleh dibuat untuk bulan gaji yang periodenya sudah ditutup HRD.
 Saat DIBAYAR (satu transaksi): seragam di slip ditandai sudah dipotong periode itu, tali asih ditandai dibayar pada tanggal bayar — gagal satu = batal semua."""
 from decimal import Decimal as D
 
@@ -11,7 +10,6 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.models import Notification, Role, User
 from apps.hrd import services as hrd_services
 from . import calc, engine
 from .models import PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, PayrollRunEvent, Payslip, PayslipItem, TaliAsihRule, WageScale
@@ -26,51 +24,33 @@ def _need(reason, what="Alasan"):
 def _event(run, action, user, note=""): PayrollRunEvent.objects.create(run=run, action=action, by=user, note=(note or "")[:300])
 
 
-def _notify(roles, title, link):
-    Notification.objects.bulk_create([Notification(user=u, kind="payroll", title=title[:200], link=link) for u in User.objects.filter(role__in=roles, is_active=True)])
-
-
 def _locked(pk):
     try: return PayrollRun.objects.select_for_update().get(pk=pk)
     except PayrollRun.DoesNotExist: raise ValueError("Run gaji tidak ditemukan.")
 
 
 # ---------------------------------------------------------------- run
-def create_run(period, user, pay_date=None, note=""):
+def create_run(period, user, pay_date=None, note="", require_closed=True):
+    """Payroll membuat run untuk bulan gaji `period`. Wajib: HRD sudah MENUTUP periode untuk bulan gaji itu (Absensi → Tutup Periode) = data final yang diserahkan ke Payroll.
+    `require_closed=False` hanya untuk data demo/uji."""
+    from apps.hr import periods
     period = (period or "").strip()
     if not calc.valid_period(period): raise ValueError("Periode harus berformat YYYY-MM (mis. 2026-10).")
     today = timezone.localdate()
     if period > today.strftime("%Y-%m"): raise ValueError("Periode di masa depan belum dapat digaji.")
+    if require_closed and periods.closed_for_label(period) is None:
+        raise ValueError(f"HRD belum menutup periode untuk gaji {period}. Minta HRD menutup periode (Absensi → Tutup Periode) lebih dulu; datanya diunduh dari menu Periode dari HRD.")
     with transaction.atomic():
         if PayrollRun.objects.filter(period=period).exclude(status=PayrollRun.CANCELLED).exists(): raise ValueError(f"Run gaji periode {period} sudah ada (batalkan dulu bila ingin membuat ulang).")
         run = PayrollRun.objects.create(period=period, pay_date=pay_date, note=(note or "")[:300], created_by=user)
         _event(run, "buat", user); return run
 
 
-def handover_issues(period):
-    """Catatan kesiapan data HRD untuk periode (bukan penghalang; dicatat di jejak agar Payroll tahu): validasi kehadiran yang belum diverifikasi."""
-    from apps.hr.models import AttendanceCheck
-    start, end = calc.period_bounds(period)
-    n = AttendanceCheck.objects.filter(date__gte=start, date__lte=end, status__in=("diminta", "dijawab", "dikembalikan")).count()
-    return [f"{n} validasi kehadiran periode ini belum diverifikasi HRD."] if n else []
-
-
-def hand_over_run(pk, user):
-    """HRD menyerahkan data periode (kehadiran terverifikasi, BPJS, seragam, karyawan keluar/tali asih) ke Payroll. Titik awal alur: HRD → Payroll."""
-    with transaction.atomic():
-        run = _locked(pk)
-        if run.status != PayrollRun.DRAFT: raise ValueError("Hanya run berstatus 'Draft' yang dapat diserahkan ke Payroll.")
-        issues = handover_issues(run.period)
-        run.status, run.handed_at, run.handed_by = PayrollRun.HANDED, timezone.now(), user; run.save()
-        _event(run, "serahkan", user, " ".join(issues)); _notify((Role.PAYROLL,), f"Data gaji {run.period} diserahkan HRD — siap dihitung", f"/payroll/runs/{run.pk}/"); return run
-
-
 def calculate_run(pk, user):
-    """(Hitung ulang) seluruh slip dari data terkini. Hanya setelah HRD menyerahkan; boleh diulang selama belum ditetapkan."""
+    """(Hitung ulang) seluruh slip dari data terkini; boleh diulang selama belum ditetapkan."""
     with transaction.atomic():
         run = _locked(pk)
-        if run.status == PayrollRun.DRAFT: raise ValueError("Data periode ini belum diserahkan HRD. Minta HRD menyerahkan run ke Payroll lebih dulu.")
-        if run.status not in (PayrollRun.HANDED, PayrollRun.CALCULATED): raise ValueError(f"Run berstatus '{run.get_status_display()}' tidak dapat dihitung ulang.")
+        if run.status not in (PayrollRun.DRAFT, PayrollRun.CALCULATED): raise ValueError(f"Run berstatus '{run.get_status_display()}' tidak dapat dihitung ulang.")
         built = engine.build(run.period)
         if not built["slips"]:   # jangan tandai "Sudah dihitung" bila hasilnya kosong: itu menyesatkan dan tidak bisa ditetapkan
             raise ValueError("Tidak ada slip yang terbentuk, perhitungan dibatalkan. " + " ".join(built["warnings"]))
@@ -81,7 +61,7 @@ def calculate_run(pk, user):
 
 
 def finalize_run(pk, user):
-    """Payroll menetapkan hasil hitung (terkunci untuk penyesuaian); berikutnya tinggal dibayar. HRD mendapat pemberitahuan."""
+    """Payroll menetapkan hasil hitung (terkunci untuk penyesuaian); berikutnya tinggal dibayar."""
     with transaction.atomic():
         run = _locked(pk)
         if run.status != PayrollRun.CALCULATED: raise ValueError("Hanya run berstatus 'Sudah dihitung' yang dapat ditetapkan.")
@@ -89,7 +69,7 @@ def finalize_run(pk, user):
         if run.total_net < 0: raise ValueError("Total gaji bersih negatif; periksa slip bertanda sebelum menetapkan.")
         if _stale(run): raise ValueError("Ada perubahan data (penyesuaian/profil/skala/parameter) setelah perhitungan terakhir. Hitung ulang dulu.")
         run.status, run.finalized_at, run.finalized_by = PayrollRun.FINALIZED, timezone.now(), user; run.save()
-        _event(run, "tetapkan", user); _notify((Role.HRD,), f"Run gaji {run.period} ditetapkan Payroll ({run.n_slips} slip)", f"/payroll/runs/{run.pk}/"); return run
+        _event(run, "tetapkan", user); return run
 
 
 def reopen_run(pk, user):
@@ -98,16 +78,6 @@ def reopen_run(pk, user):
         run = _locked(pk)
         if run.status != PayrollRun.FINALIZED: raise ValueError("Hanya run yang sudah ditetapkan (belum dibayar) yang dapat dibuka kembali.")
         run.status, run.finalized_at, run.finalized_by = PayrollRun.CALCULATED, None, None; run.save(); _event(run, "buka_kembali", user); return run
-
-
-def return_to_hrd(pk, reason, user):
-    """Payroll mengembalikan run ke HRD karena data periode kurang/janggal (alasan wajib); HRD memperbaiki lalu menyerahkan ulang."""
-    reason = _need(reason)
-    with transaction.atomic():
-        run = _locked(pk)
-        if run.status not in (PayrollRun.HANDED, PayrollRun.CALCULATED): raise ValueError("Hanya run yang sudah diserahkan HRD (belum ditetapkan) yang dapat dikembalikan ke HRD.")
-        run.status, run.handed_at, run.handed_by = PayrollRun.DRAFT, None, None; run.save()
-        _event(run, "kembalikan", user, reason); _notify((Role.HRD,), f"Run gaji {run.period} dikembalikan Payroll: {reason}", f"/payroll/runs/{run.pk}/"); return run
 
 
 def pay_run(pk, paid_on, user):
@@ -156,7 +126,7 @@ def run_is_stale(run): return run.status == PayrollRun.CALCULATED and _stale(run
 def period_open_for_edit(period):
     """Penyesuaian periode ini hanya boleh diubah bila tidak ada run hidup yang diajukan/disetujui/dibayar."""
     r = PayrollRun.objects.filter(period=period).exclude(status=PayrollRun.CANCELLED).first()
-    return r is None or r.status in (PayrollRun.DRAFT, PayrollRun.HANDED, PayrollRun.CALCULATED)
+    return r is None or r.status in (PayrollRun.DRAFT, PayrollRun.CALCULATED)
 
 
 # ---------------------------------------------------------------- master (append-only, batal beralasan)

@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FORM = re.compile(r"<form\b[^>]*>.*?</form>", re.S)
 CONTROL = re.compile(r"<select\b|type=\"(?:date|month|checkbox)\"|type=\"number\"", re.S)
 # form GET yang bukan filter daftar (pemilih/penyusun isian pada halaman form) — beri alasan bila menambah
-ALLOW = {"extra_work_form.html"}
+ALLOW = {"extra_work_form.html", "periods.html"}   # periods.html (Absensi): isian rentang tanggal Tutup Periode + tombol "Periksa checklist", bukan filter daftar
 
 
 def templates():

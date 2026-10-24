@@ -55,6 +55,7 @@ urlpatterns = [
     path("absensi/pin/", ap.pins, name="att_pins"),
     path("absensi/libur/", ap.holidays, name="att_holidays"),
     path("absensi/periode/", ap.periods_page, name="att_periods"),
+    path("absensi/periode/<int:pk>/unduh/", ap.period_download, name="att_period_download"),
     path("employees/", hr.employees_page),
     path("employees/import/", iv2.employee_import, name="employee_import"),
     path("employees/import/template.csv", iv2.import_template),

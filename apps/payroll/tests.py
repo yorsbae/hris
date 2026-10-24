@@ -78,7 +78,7 @@ class CalcTests(TestCase):
 
 class EngineSampleSlipTests(Base):
     def run_calc(self):
-        run = services.create_run(PERIOD, self.payroll) if False else PayrollRun.objects.create(period=PERIOD, status="diserahkan")   # periode lampau boleh dibuat langsung (create_run menolak hanya masa depan)
+        run = services.create_run(PERIOD, self.payroll) if False else PayrollRun.objects.create(period=PERIOD, status="draft")   # periode lampau boleh dibuat langsung (create_run menolak hanya masa depan)
         return services.calculate_run(run.pk, self.payroll)
 
     def test_reproduces_sample_payslip_to_the_rupiah(self):
@@ -188,7 +188,7 @@ class EngineDeductionTests(Base):
     def setUp(self):
         self.e = self.emp(); self.scale(); self.profile(self.e); self.att(self.e, D1(2025, 10, 1))
 
-    def calc(self): return Payslip.objects.get(run=services.calculate_run(PayrollRun.objects.get_or_create(period=PERIOD, defaults={"status": "diserahkan"})[0].pk, self.payroll))
+    def calc(self): return Payslip.objects.get(run=services.calculate_run(PayrollRun.objects.get_or_create(period=PERIOD, defaults={"status": "draft"})[0].pk, self.payroll))
 
     def test_imported_bpjs_overrides_percent_and_inactive_membership_is_skipped(self):
         BpjsDeduction.objects.create(employee=self.e, scheme="kes", period=PERIOD, employee_amount=60_000)
@@ -227,26 +227,26 @@ class EngineDeductionTests(Base):
 
     def test_leaver_before_period_without_tali_asih_is_not_paid(self):
         Separation.objects.create(employee=self.e, kind="resign", last_date=D1(2025, 8, 31), emp_name=self.e.name, department_name="Produksi", join_date=self.e.join_date)
-        Employee.objects.filter(pk=self.e.pk).update(status="nonaktif"); r = PayrollRun.objects.create(period=PERIOD, status="diserahkan")
+        Employee.objects.filter(pk=self.e.pk).update(status="nonaktif"); r = PayrollRun.objects.create(period=PERIOD, status="draft")
         with self.assertRaises(ValueError): services.calculate_run(r.pk, self.payroll)   # tidak ada slip → ditolak, bukan "Sudah dihitung" kosong
-        r.refresh_from_db(); self.assertEqual((r.status, r.n_slips), ("diserahkan", 0))
+        r.refresh_from_db(); self.assertEqual((r.status, r.n_slips), ("draft", 0))
 
     def test_new_hire_mid_month_is_prorated(self):
-        n = self.emp("E050", join=D1(2025, 10, 21)); self.profile(n, on=D1(2025, 10, 21)); run = services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="diserahkan").pk, self.payroll)
+        n = self.emp("E050", join=D1(2025, 10, 21)); self.profile(n, on=D1(2025, 10, 21)); run = services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="draft").pk, self.payroll)
         s = Payslip.objects.get(run=run, employee=n); self.assertEqual(self.item(s, "gaji_pokok").qty, 11); self.assertIsNone(self.item(s, "t_masa_kerja") if calc.full_years(n.join_date, D1(2025, 10, 31)) == 0 else None)
 
     def test_inactive_without_separation_and_future_joiner_are_excluded(self):
         a = self.emp("E060", status="nonaktif"); self.profile(a); b = self.emp("E061", join=D1(2025, 11, 5)); self.profile(b, on=D1(2025, 11, 5))
-        run = services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="diserahkan").pk, self.payroll); self.assertEqual(list(Payslip.objects.filter(run=run).values_list("nik", flat=True)), ["E001"])
+        run = services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="draft").pk, self.payroll); self.assertEqual(list(Payslip.objects.filter(run=run).values_list("nik", flat=True)), ["E001"])
 
 
 class ZeroSlipTests(Base):
     """Run tanpa slip tidak boleh berstatus 'Sudah dihitung' (bug: Slip 0 / Rp 0 diam-diam)."""
-    def setUp(self): self.e = self.emp(); self.run = PayrollRun.objects.create(period=PERIOD, status="diserahkan")
+    def setUp(self): self.e = self.emp(); self.run = PayrollRun.objects.create(period=PERIOD, status="draft")
 
     def test_no_profile_is_rejected_with_reason(self):
         with self.assertRaises(ValueError) as cm: services.calculate_run(self.run.pk, self.payroll)
-        self.assertIn("belum punya profil gaji", str(cm.exception)); self.run.refresh_from_db(); self.assertEqual(self.run.status, "diserahkan")
+        self.assertIn("belum punya profil gaji", str(cm.exception)); self.run.refresh_from_db(); self.assertEqual(self.run.status, "draft")
 
     def test_profile_without_scale_is_rejected_with_reason(self):
         self.profile(self.e)
@@ -264,39 +264,37 @@ class ZeroSlipTests(Base):
 
 
 class RunWorkflowTests(Base):
-    """Alur putaran 58: HRD menyiapkan & menyerahkan → Payroll menghitung, menetapkan, membayar."""
+    """Alur putaran 59: Payroll berdiri sendiri — buat (setelah HRD menutup periode) → hitung → tetapkan → bayar."""
     def setUp(self):
         self.e = self.emp(); self.scale(); self.profile(self.e); self.att(self.e, D1(2025, 10, 1))
         self.run = PayrollRun.objects.create(period=PERIOD)       # draft (disiapkan HRD)
 
-    def handed(self):
-        return services.hand_over_run(self.run.pk, self.hrd)
-
     def to_final(self):
-        self.handed(); services.calculate_run(self.run.pk, self.payroll); return services.finalize_run(self.run.pk, self.payroll)
+        services.calculate_run(self.run.pk, self.payroll); return services.finalize_run(self.run.pk, self.payroll)
 
     def test_happy_path_and_events(self):
         self.to_final(); r = services.pay_run(self.run.pk, datetime.date.today(), self.payroll)
-        self.assertEqual(r.status, "dibayar"); self.assertEqual(list(r.events.values_list("action", flat=True)), ["serahkan", "hitung", "tetapkan", "bayar"])
-        self.assertTrue(r.locked); self.assertEqual((r.handed_by, r.finalized_by), (self.hrd, self.payroll))
+        self.assertEqual(r.status, "dibayar"); self.assertEqual(list(r.events.values_list("action", flat=True)), ["hitung", "tetapkan", "bayar"])
+        self.assertTrue(r.locked); self.assertEqual(r.finalized_by, self.payroll)
 
-    def test_payroll_cannot_calculate_before_hrd_hands_over(self):
-        with self.assertRaisesMessage(ValueError, "belum diserahkan HRD"): services.calculate_run(self.run.pk, self.payroll)
-        self.handed(); self.assertEqual(services.calculate_run(self.run.pk, self.payroll).status, "dihitung")
+    def test_create_run_requires_period_closed_by_hrd(self):
+        from apps.hr.models import PeriodClose
+        PayrollRun.objects.all().delete()
+        with self.assertRaisesMessage(ValueError, "HRD belum menutup periode"): services.create_run(PERIOD, self.payroll)
+        PeriodClose.objects.create(period=PERIOD, start_date=D1(2025, 9, 26), end_date=D1(2025, 10, 25))
+        self.assertEqual(services.create_run(PERIOD, self.payroll).status, "draft")
+
+    def test_run_uses_the_date_range_closed_by_hrd(self):
+        from apps.hr.models import PeriodClose
+        from apps.payroll import calc
+        self.assertEqual(calc.data_bounds(PERIOD), (D1(2025, 10, 1), D1(2025, 10, 31)))
+        PeriodClose.objects.create(period=PERIOD, start_date=D1(2025, 9, 26), end_date=D1(2025, 10, 25))
+        self.assertEqual(calc.data_bounds(PERIOD), (D1(2025, 9, 26), D1(2025, 10, 25)))
 
     def test_cannot_skip_steps(self):
         with self.assertRaisesMessage(ValueError, "ditetapkan"): services.finalize_run(self.run.pk, self.payroll)               # belum dihitung
-        self.handed(); services.calculate_run(self.run.pk, self.payroll)
+        services.calculate_run(self.run.pk, self.payroll)
         with self.assertRaisesMessage(ValueError, "sudah ditetapkan"): services.pay_run(self.run.pk, datetime.date.today(), self.payroll)
-        with self.assertRaisesMessage(ValueError, "Draft"): services.hand_over_run(self.run.pk, self.hrd)                       # sudah diserahkan
-
-    def test_return_to_hrd_needs_reason_and_notifies_hrd(self):
-        from apps.core.models import Notification
-        self.handed()
-        with self.assertRaisesMessage(ValueError, "Alasan wajib"): services.return_to_hrd(self.run.pk, " ", self.payroll)
-        r = services.return_to_hrd(self.run.pk, "Kehadiran Okt belum diverifikasi", self.payroll); self.assertEqual((r.status, r.handed_by), ("draft", None))
-        self.assertTrue(self.run.events.filter(action="kembalikan", note__contains="Kehadiran").exists()); self.assertTrue(Notification.objects.filter(user=self.hrd, kind="payroll", title__contains="dikembalikan").exists())
-        self.handed()      # HRD memperbaiki lalu menyerahkan ulang
 
     def test_reopen_finalized_run_for_recalculation(self):
         self.to_final(); self.assertEqual(services.reopen_run(self.run.pk, self.payroll).status, "dihitung")
@@ -309,20 +307,20 @@ class RunWorkflowTests(Base):
         with self.assertRaisesMessage(ValueError, "sudah dibayar"): services.cancel_run(self.run.pk, "oops", self.payroll)
 
     def test_stale_data_blocks_finalize_until_recalculated(self):
-        self.handed(); services.calculate_run(self.run.pk, self.payroll)
+        services.calculate_run(self.run.pk, self.payroll)
         services.save_adjustment(self.e, PERIOD, PayComponent.objects.get(code="insentif"), 50_000, None, "", self.payroll)
         self.assertTrue(services.run_is_stale(PayrollRun.objects.get(pk=self.run.pk)))
         with self.assertRaisesMessage(ValueError, "Hitung ulang dulu"): services.finalize_run(self.run.pk, self.payroll)
         services.calculate_run(self.run.pk, self.payroll); services.finalize_run(self.run.pk, self.payroll)
 
     def test_one_live_run_per_period_but_cancelled_can_be_recreated(self):
-        with self.assertRaisesMessage(ValueError, "sudah ada"): services.create_run(PERIOD, self.payroll)
-        services.cancel_run(self.run.pk, "Salah periode", self.payroll); self.assertEqual(services.create_run(PERIOD, self.payroll).status, "draft")
+        with self.assertRaisesMessage(ValueError, "sudah ada"): services.create_run(PERIOD, self.payroll, require_closed=False)
+        services.cancel_run(self.run.pk, "Salah periode", self.payroll); self.assertEqual(services.create_run(PERIOD, self.payroll, require_closed=False).status, "draft")
 
     def test_create_run_validates_period(self):
         for bad in ("", "2025-13", "abc"):
-            with self.assertRaises(ValueError): services.create_run(bad, self.payroll)
-        with self.assertRaisesMessage(ValueError, "masa depan"): services.create_run("2099-01", self.payroll)
+            with self.assertRaises(ValueError): services.create_run(bad, self.payroll, require_closed=False)
+        with self.assertRaisesMessage(ValueError, "masa depan"): services.create_run("2099-01", self.payroll, require_closed=False)
 
     def test_pay_date_cannot_be_future_or_missing(self):
         self.to_final()
@@ -387,22 +385,24 @@ class RunWorkflowTests(Base):
             with self.assertRaises(PermissionError): obj.delete()
 
     def test_events_are_append_only(self):
-        self.handed(); services.calculate_run(self.run.pk, self.payroll); ev = self.run.events.first()
+        services.calculate_run(self.run.pk, self.payroll); ev = self.run.events.first()
         ev.note = "x"
         with self.assertRaises(PermissionError): ev.save()
         with self.assertRaises(PermissionError): ev.delete()
 
-    def test_notifications_go_to_the_right_roles(self):
+    def test_closing_a_period_notifies_payroll_not_hrd(self):
         from apps.core.models import Notification
-        self.handed(); self.assertTrue(Notification.objects.filter(user=self.payroll, kind="payroll").exists()); self.assertFalse(Notification.objects.filter(user=self.hrd).exists())   # HRD → Payroll
-        services.calculate_run(self.run.pk, self.payroll); services.finalize_run(self.run.pk, self.payroll); self.assertTrue(Notification.objects.filter(user=self.hrd, kind="payroll").exists())
+        from apps.hr import periods
+        PayrollRun.objects.all().delete()
+        periods.close(D1(2025, 10, 1), D1(2025, 10, 31), PERIOD, self.hrd, force=True)
+        self.assertTrue(Notification.objects.filter(user=self.payroll, kind="payroll", title__contains="ditutup").exists()); self.assertFalse(Notification.objects.filter(user=self.hrd).exists())
 
 
 class ViewAccessTests(Base):
-    """Tes tampilan + RBAC: Payroll/Superadmin penuh; HRD membuat & menyerahkan run, selain itu hanya lihat; peran lain 403."""
+    """Tes tampilan + RBAC (putaran 59): Payroll/Superadmin penuh; HRD, Admin Dept & Poli 403 di seluruh halaman Payroll."""
     def setUp(self):
         self.e = self.emp(); self.scale(); self.profile(self.e); self.att(self.e, D1(2025, 10, 1), ot=60)
-        self.run = PayrollRun.objects.create(period=PERIOD, status="diserahkan"); services.calculate_run(self.run.pk, self.payroll)
+        self.run = PayrollRun.objects.create(period=PERIOD, status="draft"); services.calculate_run(self.run.pk, self.payroll)
         self.slip = self.run.slips.first()
         self.dept_admin = make_user("da", Role.DEPT_ADMIN, department=self.dept); self.poli = make_user("pl", Role.POLI)
         self.pages = ["pay_home", "pay_runs", "pay_profiles", "pay_profile_new", "pay_scale", "pay_scale_new", "pay_rates", "pay_meal_period_new", "pay_meal_rate_new", "pay_ot_rate_new", "pay_edu_allow_new", "pay_params", "pay_param_new", "pay_adjustments", "pay_adjustment_new", "pay_tali", "pay_tali_rule_new"]
@@ -420,11 +420,9 @@ class ViewAccessTests(Base):
         for fmt in ("xlsx", "csv"): self.assertEqual(self.get(self.payroll, "pay_run", self.run.pk, data={"export": fmt}).status_code, 200)
         self.assertEqual(self.get(self.payroll, "pay_slip_pdf", self.slip.pk)["Content-Type"], "application/pdf")
 
-    def test_hrd_views_runs_and_slips_only(self):
-        for n in ("pay_runs", "pay_tali"): self.assertEqual(self.get(self.hrd, n).status_code, 200, n)
-        self.assertEqual(self.get(self.hrd, "pay_run", self.run.pk).status_code, 200)
-        self.assertEqual(self.get(self.hrd, "pay_slip", self.slip.pk).status_code, 200)
-        for n in ("pay_profiles", "pay_scale", "pay_rates", "pay_params", "pay_adjustments", "pay_profile_new", "pay_scale_new"): self.assertEqual(self.get(self.hrd, n).status_code, 403, n)
+    def test_hrd_has_no_payroll_access(self):
+        for n in self.pages: self.assertEqual(self.get(self.hrd, n).status_code, 403, n)
+        self.assertEqual(self.get(self.hrd, "pay_run", self.run.pk).status_code, 403); self.assertEqual(self.get(self.hrd, "pay_slip", self.slip.pk).status_code, 403)
 
     def test_other_roles_denied_everywhere(self):
         for u in (self.dept_admin, self.poli):
@@ -438,20 +436,29 @@ class ViewAccessTests(Base):
         self.run.status = "draft"; self.run.save()
         a = lambda u, act, **d: (self.client.force_login(u), self.client.post(reverse("pay_run_action", args=[self.run.pk, act]), d))[1]   # noqa: E731
         st = lambda: PayrollRun.objects.get(pk=self.run.pk).status   # noqa: E731
-        a(self.payroll, "handover"); self.assertEqual(st(), "draft")                    # Payroll tidak boleh menyerahkan (HRD yang memulai)
-        self.assertEqual(a(self.hrd, "handover").status_code, 302); self.assertEqual(st(), "diserahkan")
-        a(self.hrd, "calculate"); self.assertEqual(st(), "diserahkan")                  # HRD tidak menghitung
+        a(self.hrd, "calculate"); self.assertEqual(st(), "draft")                       # HRD tidak punya akses
+        a(self.payroll, "handover"); self.assertEqual(st(), "draft")                    # tahap serah-terima run sudah tidak ada
         a(self.payroll, "calculate"); self.assertEqual(st(), "dihitung")
-        a(self.hrd, "finalize"); self.assertEqual(st(), "dihitung")                     # HRD tidak menetapkan
+        a(self.hrd, "finalize"); self.assertEqual(st(), "dihitung")
         a(self.payroll, "finalize"); self.assertEqual(st(), "ditetapkan")
-        a(self.hrd, "pay", paid_on="2025-11-01"); self.assertEqual(st(), "ditetapkan")  # HRD tak boleh membayar
+        a(self.hrd, "pay", paid_on="2025-11-01"); self.assertEqual(st(), "ditetapkan")
         a(self.payroll, "pay", paid_on="2025-11-01"); self.assertEqual(st(), "dibayar")
 
-    def test_only_hrd_creates_runs(self):
+    def test_payroll_creates_runs_only_after_hrd_closes_the_period(self):
+        from apps.hr.models import PeriodClose
         PayrollRun.objects.update(status="dibatalkan")
-        self.client.force_login(self.payroll); self.assertEqual(self.client.post(reverse("pay_runs"), {"period": PERIOD}).status_code, 403)
-        self.client.force_login(self.hrd); self.assertEqual(self.client.post(reverse("pay_runs"), {"period": PERIOD}).status_code, 302)
+        self.client.force_login(self.hrd); self.assertEqual(self.client.post(reverse("pay_runs"), {"period": PERIOD}).status_code, 403)
+        self.client.force_login(self.payroll); r = self.client.post(reverse("pay_runs"), {"period": PERIOD}); self.assertEqual(r.status_code, 200); self.assertContains(r, "HRD belum menutup periode")
+        PeriodClose.objects.create(period=PERIOD, start_date=D1(2025, 9, 26), end_date=D1(2025, 10, 25))
+        self.assertEqual(self.client.post(reverse("pay_runs"), {"period": PERIOD}).status_code, 302)
         self.assertEqual(PayrollRun.objects.exclude(status="dibatalkan").get().status, "draft")
+
+    def test_periods_page_lists_hrd_closings_with_download(self):
+        from apps.hr import periods
+        PayrollRun.objects.update(status="dibatalkan")
+        row, _ = periods.close(D1(2025, 9, 26), D1(2025, 10, 25), PERIOD, self.hrd, force=True)
+        r = self.get(self.payroll, "pay_periods"); self.assertContains(r, "26-09-2025"); self.assertContains(r, reverse("att_period_download", args=[row.pk]))
+        self.assertEqual(self.client.get(reverse("att_period_download", args=[row.pk])).status_code, 200)
 
     def test_get_does_not_mutate(self):
         self.get(self.payroll, "pay_run_action", self.run.pk, "finalize"); self.assertEqual(PayrollRun.objects.get(pk=self.run.pk).status, "dihitung")
@@ -485,7 +492,7 @@ class SeedPayrollDemoTests(Base):
 
 
 class ReadinessAndCompareTests(Base):
-    def run_calc(self): return services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="diserahkan").pk, self.payroll)
+    def run_calc(self): return services.calculate_run(PayrollRun.objects.create(period=PERIOD, status="draft").pk, self.payroll)
 
     def test_readiness_flags_missing_profile_and_scale_then_clears(self):
         from . import readiness as RD
@@ -497,7 +504,7 @@ class ReadinessAndCompareTests(Base):
 
     def test_run_detail_shows_readiness_and_comparison(self):
         e = self.emp("R2"); self.profile(e); self.scale()
-        prev = services.calculate_run(PayrollRun.objects.create(period="2025-09", status="diserahkan").pk, self.payroll)
+        prev = services.calculate_run(PayrollRun.objects.create(period="2025-09", status="draft").pk, self.payroll)
         cur = self.run_calc(); Payslip.objects.filter(run=cur).update(net_pay=D("9000000"))   # lonjakan besar
         PayrollRun.objects.filter(pk=cur.pk).update(total_net=D("9000000"))
         self.client.force_login(self.payroll); r = self.client.get(reverse("pay_run", args=[cur.pk])); self.assertContains(r, "Kesiapan data"); self.assertContains(r, "Dibanding 2025-09"); self.assertContains(r, "1 berubah besar")
@@ -505,7 +512,7 @@ class ReadinessAndCompareTests(Base):
     def test_comparison_new_and_gone(self):
         from . import readiness as RD
         a, b = self.emp("R3"), self.emp("R4"); self.profile(a); self.profile(b); self.scale()
-        services.calculate_run(PayrollRun.objects.create(period="2025-09", status="diserahkan").pk, self.payroll)
+        services.calculate_run(PayrollRun.objects.create(period="2025-09", status="draft").pk, self.payroll)
         Employee.objects.filter(pk=a.pk).update(status="nonaktif"); c = self.emp("R5"); self.profile(c)
         cur = self.run_calc(); cmp = RD.comparison(cur)
         self.assertEqual((cmp["n_new"], cmp["n_gone"]), (1, 1)); self.assertEqual(cmp["new"][0].nik, "R5"); self.assertEqual(cmp["gone"][0].nik, "R3")

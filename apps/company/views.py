@@ -1,4 +1,4 @@
-"""Backend kontrol Company Profile & Rekrutmen (aplikasi internal). Hanya HRD/Superadmin (Admin Dept & Poli → 403). Semua perubahan diaudit (ringkasan nama kolom,
+"""Backend kontrol Company Profile & Rekrutmen (aplikasi internal). Hanya SUPERADMIN (putaran 59: HRD, Payroll, Admin Dept & Poli → 403; dipisah karena kelak bisa berbeda database/proyek). Semua perubahan diaudit (ringkasan nama kolom,
 tanpa isi data pribadi). Konten situs tidak dihapus diam-diam: hapus butuh konfirmasi; gambar lama dibersihkan saat diganti/dihapus."""
 import json
 import re
@@ -27,10 +27,10 @@ from .models import (ACTIVE_STAGES, Application, Article, ContactMessage, Faq, J
 PER_PAGE = 30
 
 
-def hrd_only(fn):
+def superadmin_only(fn):
     @wraps(fn)
     @login_required
-    @require_roles(Role.HRD)
+    @require_roles()   # tanpa peran lain = hanya Superadmin
     def wrap(*a, **k): return fn(*a, **k)
     return wrap
 
@@ -180,19 +180,19 @@ def _crud(kind):
     return c
 
 
-@hrd_only
+@superadmin_only
 def crud_list(request, kind): return _crud(kind).list(request)
-@hrd_only
+@superadmin_only
 def crud_new(request, kind): return _crud(kind).edit(request)
-@hrd_only
+@superadmin_only
 def crud_edit(request, kind, pk): return _crud(kind).edit(request, pk)
-@hrd_only
+@superadmin_only
 @require_POST
 def crud_delete(request, kind, pk): return _crud(kind).delete(request, pk)
 
 
 # ------------------------------------------------------------------ Galeri produk
-@hrd_only
+@superadmin_only
 @require_POST
 def product_image_add(request, pk):
     p = get_object_or_404(Product, pk=pk)
@@ -207,7 +207,7 @@ def product_image_add(request, pk):
     return redirect(f"/company/products/{p.pk}/")
 
 
-@hrd_only
+@superadmin_only
 @require_POST
 def product_image_delete(request, pk, image_id):
     img = get_object_or_404(ProductImage, pk=image_id, product_id=pk)
@@ -217,7 +217,7 @@ def product_image_delete(request, pk, image_id):
 
 
 # ------------------------------------------------------------------ Pilihan warna produk
-@hrd_only
+@superadmin_only
 @require_POST
 def product_color_add(request, pk):
     p = get_object_or_404(Product, pk=pk)
@@ -232,7 +232,7 @@ def product_color_add(request, pk):
     return redirect(f"/company/products/{p.pk}/")
 
 
-@hrd_only
+@superadmin_only
 @require_POST
 def product_color_delete(request, pk, color_id):
     c = get_object_or_404(ProductColor, pk=color_id, product_id=pk)
@@ -252,7 +252,7 @@ SETTING_GROUPS = [
 ]
 
 
-@hrd_only
+@superadmin_only
 def hub(request):
     new_apps = Application.objects.filter(stage=Stage.NEW, anonymized_at__isnull=True).count()
     cards = [
@@ -268,7 +268,7 @@ def hub(request):
     return render(request, "company/hub.html", {"cards": cards, "public_url": settings.PUBLIC_BASE_URL, "preview": settings.PUBLIC_PREVIEW})
 
 
-@hrd_only
+@superadmin_only
 def site_settings(request):
     obj = SiteSetting.get()
     form = SiteSettingForm(request.POST or None, request.FILES or None, instance=obj)
@@ -283,7 +283,7 @@ def site_settings(request):
 
 
 # ================================================================ Pesan masuk
-@hrd_only
+@superadmin_only
 def message_list(request):
     f = {"status": request.GET.get("status", ""), "q": request.GET.get("q", "").strip()}
     qs = ContactMessage.objects.all()
@@ -293,7 +293,7 @@ def message_list(request):
     return render(request, "company/messages.html", {"page": page, "f": f, "statuses": MessageStatus.choices, "qs": urlencode({k: v for k, v in f.items() if v})})
 
 
-@hrd_only
+@superadmin_only
 def message_detail(request, pk):
     m = get_object_or_404(ContactMessage, pk=pk)
     if request.method == "POST":
@@ -312,7 +312,7 @@ def message_detail(request, pk):
 
 
 # ================================================================ Rekrutmen
-@hrd_only
+@superadmin_only
 def recruit_hub(request):
     cards = [("Lowongan", "/recruitment/jobs/", Job.objects.filter(status="open").count(), "lowongan dibuka"),
              ("Lamaran baru", "/recruitment/applicants/?stage=new", Application.objects.filter(stage="new", anonymized_at__isnull=True).count(), "belum diproses"),
@@ -332,7 +332,7 @@ def _app_qs(f):
     return qs
 
 
-@hrd_only
+@superadmin_only
 def applicants(request):
     f = _app_filters(request)
     base = _app_qs(f)
@@ -348,14 +348,14 @@ def applicants(request):
                   "qs": urlencode({k: v for k, v in f.items() if v and not (k == "stage" and v == "active")})})
 
 
-@hrd_only
+@superadmin_only
 def applicant_detail(request, pk):
     a = get_object_or_404(Application, pk=pk)
     log(request, "recruitment", "view", a)   # akses data pelamar tercatat (UU PDP); isi tidak masuk audit
     return render(request, "company/applicant_detail.html", {"a": a, "answers": a.answers_list(), "events": a.events.select_related("by"), "move_form": MoveForm(), "closed": bool(a.anonymized_at)})
 
 
-@hrd_only
+@superadmin_only
 @require_POST
 def applicant_move(request, pk):
     a = get_object_or_404(Application, pk=pk)
@@ -370,7 +370,7 @@ def applicant_move(request, pk):
     return redirect(f"/recruitment/applicants/{a.pk}/")
 
 
-@hrd_only
+@superadmin_only
 @require_POST
 def applicant_note(request, pk):
     a = get_object_or_404(Application, pk=pk)
@@ -386,7 +386,7 @@ def _safe_next(request):
     return nxt if re.fullmatch(r"/recruitment/[\w/?&=%.-]*", nxt) and "//" not in nxt else "/recruitment/applicants/"
 
 
-@hrd_only
+@superadmin_only
 @require_POST
 def applicants_bulk(request):
     ids = [i for i in (_int(x) for x in request.POST.getlist("ids")) if i][:100]
@@ -401,7 +401,7 @@ def applicants_bulk(request):
     return redirect(_safe_next(request))
 
 
-@hrd_only
+@superadmin_only
 def applicant_cv(request, pk):
     a = get_object_or_404(Application, pk=pk)
     if a.anonymized_at or not a.cv_path: raise Http404
@@ -416,7 +416,7 @@ def applicant_cv(request, pk):
     return r
 
 
-@hrd_only
+@superadmin_only
 @require_POST
 def applicant_anonymize(request, pk):
     a = get_object_or_404(Application, pk=pk)
@@ -425,7 +425,7 @@ def applicant_anonymize(request, pk):
     return redirect(f"/recruitment/applicants/{a.pk}/")
 
 
-@hrd_only
+@superadmin_only
 def applicant_export(request, pk):
     a = get_object_or_404(Application, pk=pk)
     if a.anonymized_at: raise Http404
