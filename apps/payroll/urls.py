@@ -13,6 +13,7 @@ urlpatterns = [
     path("runs/", v.runs, name="pay_runs"),
     path("runs/<int:pk>/", v.run_detail, name="pay_run"),
     path("runs/<int:pk>/slips.pdf", v.run_pdf, name="pay_run_pdf"),
+    path("runs/<int:pk>/laporan.xlsx", v.run_report, name="pay_run_report"),
     path("runs/<int:pk>/<str:action>/", v.run_action, name="pay_run_action"),
     path("slips/<int:pk>/", v.slip, name="pay_slip"),
     path("slips/<int:pk>/slip.pdf", v.slip_pdf, name="pay_slip_pdf"),

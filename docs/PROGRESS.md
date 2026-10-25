@@ -1317,3 +1317,8 @@ Kebijakan berikut dipilih karena VISION tidak menyebutnya; semuanya nilai di `co
 - **Payroll → Periode dari HRD** (`/payroll/periods/`): daftar periode tertutup + unduhan + tombol buat run.
 - **Company Profile + Rekrutmen hanya Superadmin** (HRD pun 403; notifikasi lamaran/pesan masuk ke Superadmin), karena kelak bisa berbeda database/proyek. Kodenya tetap satu app `apps/company` yang tidak punya FK ke app HR kecuali `Job.department` (opsional) — titik pemisahan nanti.
 - ASUMSI (konfirmasi): isi sheet 3–5 (mis. BPJS: potongan karyawan & porsi perusahaan untuk label gaji; seragam: baru + yang belum dipotong), batas 93 hari, dan "label gaji = bulan tanggal akhir" sebagai bawaan. Manajemen akun Payroll yang lebih rinci (mis. pemisahan penyiap vs penyetuju/pembayar) BELUM dibuat — perlu keputusan alur.
+
+## Putaran 60 — Laporan XLSX Payroll (patch lanjutan putaran 59)
+- Satu akun Payroll menghasilkan keluaran akhir setara HRD: **run dibayar = periode gaji ditutup (terkunci)** + **laporan XLSX 8 sheet** (`apps/payroll/report.py`): Ringkasan · Rekap Gaji · Rincian Komponen · Per Departemen · Potongan · Lembur & Premi · Transfer Bank · Perlu Ditinjau. Tombol di halaman run (`/payroll/runs/<id>/laporan.xlsx`); saat run DIBAYAR satu salinan diarsipkan (`payroll/0007`), `?fresh=1` menyusun ulang. Memuat rekening bank → setiap unduhan diaudit; hanya Payroll/Superadmin.
+- Menambah sheet = satu fungsi + daftar di `REGISTRY`.
+- BELUM ada (perlu keputusan/aturan perusahaan): PPh 21, laporan setoran BPJS/Jamsostek ke instansi, THR/bonus tahunan, jurnal akuntansi, pemisahan penyiap vs penyetuju.

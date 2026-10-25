@@ -99,7 +99,20 @@ def pay_run(pk, paid_on, user):
                         if s.tali_asih_paid_on: raise ValueError("Tali asih sudah ditandai dibayar di tempat lain.")
                         hrd_services.set_tali_asih(ref, s.tali_asih, s.tali_asih_note, paid_on, user)
                 except ValueError as e: raise ValueError(f"Slip {it.slip.nik} ({it.label}): {e} Batalkan run ini lalu buat ulang.")
-        run.status, run.paid_at, run.paid_by, run.paid_on = PayrollRun.PAID, timezone.now(), user, paid_on; run.save(); _event(run, "bayar", user, paid_on.isoformat()); return run
+        run.status, run.paid_at, run.paid_by, run.paid_on = PayrollRun.PAID, timezone.now(), user, paid_on; run.save(); _event(run, "bayar", user, paid_on.isoformat())
+        archive_report(run); return run
+
+
+def archive_report(run):
+    """Simpan salinan laporan XLSX run yang baru dibayar (arsip tak berubah; unduhan segar tetap tersedia). Gagal membuat arsip tidak membatalkan pembayaran."""
+    from django.core.files.base import ContentFile
+    from . import report
+    try:
+        data, _ = report.build(run)
+        run.report_file.save(f"gaji-{run.period}.xlsx", ContentFile(data), save=False); run.report_at = timezone.now(); run.save(update_fields=["report_file", "report_at"])
+    except Exception:   # noqa: BLE001 — arsip pelengkap; unduhan segar tetap bisa dibuat
+        import logging; logging.getLogger(__name__).exception("Arsip laporan gaji %s gagal", run.period)
+    return run
 
 
 def cancel_run(pk, reason, user):

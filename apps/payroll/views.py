@@ -239,6 +239,24 @@ def slip_pdf(request, pk):
 
 
 @viewer
+def run_report(request, pk):
+    """Laporan XLSX lengkap (8 sheet). Run dibayar → arsip yang tersimpan saat pembayaran (?fresh=1 = susun ulang dari data sekarang). Memuat rekening bank: unduhan SELALU diaudit."""
+    from django.http import FileResponse
+    from . import report
+    run = get_object_or_404(PayrollRun, pk=pk)
+    if not run.n_slips: messages.error(request, "Run belum berisi slip; hitung dulu."); return redirect("pay_run", pk=pk)
+    archived = bool(run.report_file) and not request.GET.get("fresh")
+    log(request, "payroll", "run_report", run, None, {"period": run.period, "archived": archived})
+    name = f"laporan-gaji-{run.period}.xlsx"
+    if archived:
+        try: r = FileResponse(run.report_file.open("rb"), as_attachment=True, filename=name, content_type=tabular.XLSX)
+        except (FileNotFoundError, ValueError): archived = False
+    if not archived:
+        data, _ = report.build(run); r = HttpResponse(data, content_type=tabular.XLSX); r["Content-Disposition"] = f'attachment; filename="{name}"'
+    r["Cache-Control"] = "private, no-store"; return r
+
+
+@viewer
 def run_pdf(request, pk):
     run = get_object_or_404(PayrollRun, pk=pk); f = _slip_filters(request)
     qs = _slips(run, f).select_related("run").prefetch_related("items").order_by("department_name", "emp_name")

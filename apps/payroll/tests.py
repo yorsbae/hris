@@ -2,10 +2,12 @@
 import datetime
 from decimal import Decimal as D
 
-from django.test import TestCase
+import tempfile
+
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from apps.core.models import Role, User
+from apps.core.models import AuditLog, Role, User
 from apps.hr.models import AttendanceDaily, Department, Employee, Position, Shift
 from apps.hrd.models import BpjsDeduction, BpjsMembership, Separation, UniformPurchase, UniformSize, UniformType
 from . import calc, engine, services
@@ -521,3 +523,41 @@ class ReadinessAndCompareTests(Base):
         from . import readiness as RD
         e = self.emp("R6"); self.profile(e); self.scale(); self.assertIsNone(RD.comparison(self.run_calc()))
 
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ReportTests(Base):
+    """Laporan XLSX Payroll (putaran 60): 8 sheet, arsip saat dibayar, akses hanya Payroll/Superadmin, unduhan diaudit."""
+    def setUp(self):
+        self.e = self.emp(); self.scale(); self.profile(self.e); self.att(self.e, D1(2025, 10, 1), ot=60)
+        self.e.bank_name = "BCA"; self.e.bank_account = "1234567890"; self.e.save()
+        self.run = PayrollRun.objects.create(period=PERIOD, status="draft"); services.calculate_run(self.run.pk, self.payroll)
+
+    def sheets(self, resp):
+        import io
+        from openpyxl import load_workbook
+        return load_workbook(io.BytesIO(b"".join(resp.streaming_content) if resp.streaming else resp.content))
+
+    def test_report_has_all_sheets_with_totals_and_bank(self):
+        from . import report
+        self.client.force_login(self.payroll); r = self.client.get(reverse("pay_run_report", args=[self.run.pk])); self.assertEqual(r.status_code, 200)
+        wb = self.sheets(r); self.assertEqual(wb.sheetnames, list(report.SHEETS))
+        rekap = list(wb["Rekap Gaji"].iter_rows(values_only=True)); self.assertEqual(rekap[1][0], self.e.nik); self.assertEqual(rekap[1][15], int(Payslip.objects.get(run=self.run).net_pay))
+        bank = list(wb["Transfer Bank"].iter_rows(values_only=True)); self.assertEqual((bank[1][3], bank[1][4]), ("BCA", "1234567890"))
+        self.assertGreater(wb["Rincian Komponen"].max_row, 2); self.assertEqual(wb["Per Departemen"].max_row, 2)
+        self.assertTrue(AuditLog.objects.filter(module="payroll", action="run_report").exists())
+
+    def test_paying_archives_a_report_and_download_serves_it(self):
+        import datetime
+        services.finalize_run(self.run.pk, self.payroll); services.pay_run(self.run.pk, datetime.date.today(), self.payroll)
+        run = PayrollRun.objects.get(pk=self.run.pk); self.assertTrue(run.report_file); self.assertIsNotNone(run.report_at)
+        self.client.force_login(self.payroll); self.assertEqual(self.sheets(self.client.get(reverse("pay_run_report", args=[run.pk]))).sheetnames[0], "Ringkasan")
+        self.assertEqual(self.client.get(reverse("pay_run_report", args=[run.pk]), {"fresh": 1}).status_code, 200)
+
+    def test_only_payroll_and_superadmin(self):
+        for u, code in ((self.hrd, 403), (self.root, 200), (self.payroll, 200)):
+            self.client.force_login(u); self.assertEqual(self.client.get(reverse("pay_run_report", args=[self.run.pk])).status_code, code, u.username)
+
+    def test_empty_run_redirects(self):
+        r2 = PayrollRun.objects.create(period="2025-09", status="draft"); self.client.force_login(self.payroll)
+        self.assertEqual(self.client.get(reverse("pay_run_report", args=[r2.pk])).status_code, 302)

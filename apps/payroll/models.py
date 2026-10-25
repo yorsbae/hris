@@ -5,8 +5,11 @@ Prinsip yang diwarisi dari modul lain:
   • data historis DISALIN saat dicatat (slip membawa nama, jabatan, grade, upah harian, parameter) → slip lama tidak bergeser bila master berubah;
   • transaksi uang tidak dihapus; run yang sudah dibayar terkunci, koreksi lewat penyesuaian di periode berikutnya.
 Asumsi bisnis (belum dikonfirmasi pemilik produk) dicatat di docs/PROGRESS.md putaran 57 (A122–A137)."""
+import uuid
+
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from apps.hr.models import Employee
 from apps.hrd.models import Separation
@@ -199,6 +202,11 @@ class TaliAsihRule(Voidable):
 
 
 # ---------------------------------------------------------------- run gaji
+def report_path(instance, filename):
+    """Arsip laporan XLSX run yang dibayar: nama acak (uuid); disajikan hanya lewat view ber-permission (Payroll)."""
+    return f"payroll_reports/{timezone.now():%Y/%m}/{uuid.uuid4().hex}.xlsx"
+
+
 class PayrollRun(models.Model):
     """Satu run gaji per periode (bulan gaji). Alur (putaran 59, Payroll berdiri sendiri): draft (Payroll membuat run setelah HRD MENUTUP periode) → dihitung → ditetapkan → dibayar (terkunci);
     dibatalkan sebelum dibayar. HRD tidak ikut alur ini: serah-terima data lewat Tutup Periode (berkas XLSX), bukan lewat status run.
@@ -221,6 +229,7 @@ class PayrollRun(models.Model):
     finalized_at = models.DateTimeField(null=True, blank=True); finalized_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # Payroll menetapkan
     paid_at = models.DateTimeField(null=True, blank=True); paid_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     paid_on = models.DateField(null=True, blank=True)
+    report_file = models.FileField(upload_to=report_path, blank=True); report_at = models.DateTimeField(null=True, blank=True)   # arsip laporan XLSX saat dibayar (putaran 60)
     cancelled_at = models.DateTimeField(null=True, blank=True); cancelled_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     cancel_reason = models.CharField(max_length=300, blank=True)
     created_by = models.ForeignKey(USER, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
