@@ -24,8 +24,8 @@ from apps.hr.models import Department, Employee, PeriodClose, Shift
 from apps.hrd.models import Separation
 from apps.hrd.views import paginate
 from . import calc, engine, params as P, pdf, readiness as RD, services
-from .forms import EducationAllowanceForm, MealPeriodForm, MealRateForm, OvertimeRateForm, AdjustmentForm, PayDateForm, ProfileForm, ReasonForm, RunForm, ScaleForm, ParamForm, TaliRuleForm
-from .models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, PayslipItem, TaliAsihRule, WageScale
+from .forms import BracketForm, DeductionRuleForm, EducationAllowanceForm, MealPeriodForm, MealRateForm, OvertimeRateForm, AdjustmentForm, PayDateForm, ProfileForm, ReasonForm, RunForm, ScaleForm, ParamForm, TaliRuleForm
+from .models import DeductionRule, TaxBracket, EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, PayrollRun, Payslip, PayslipItem, TaliAsihRule, WageScale
 
 EXPORT_MAX = 20000
 PDF_MAX = 400
@@ -91,6 +91,7 @@ def home(request):
             {"t": "Lembur & stand by per jam", "h": "Nominal 1 jam, beda untuk karyawan harian dan bulanan. Kosong = rumus upah/jam × pengali.", "st": "ok" if n(OvertimeRate) else "opt", "d": f"{n(OvertimeRate)} tarif" if n(OvertimeRate) else "pakai rumus bawaan", "url": "pay_rates", "lb": "Atur tarif"},
             {"t": "Uang makan (bulan puasa)", "h": "Dibayar hanya pada periode yang Anda tentukan, tarif beda harian/bulanan.", "st": "ok" if n(MealPeriod) and n(MealRate) else "opt", "d": f"{n(MealPeriod)} periode, {n(MealRate)} tarif" if n(MealPeriod) else "belum ada → uang makan Rp 0", "url": "pay_rates", "lb": "Atur uang makan"},
             {"t": "Tunjangan pendidikan standar", "h": "Nilai standar per tingkat pendidikan; bisa ditimpa di profil tiap karyawan.", "st": "ok" if n(EducationAllowance) else "opt", "d": f"{n(EducationAllowance)} tingkat" if n(EducationAllowance) else "opsional", "url": "pay_rates", "lb": "Atur"},
+            {"t": "Master potongan (bawaan & tambahan)", "h": "Jamsostek, BPJS, alfa, iuran koperasi, dll. — semua bisa diubah dengan tanggal berlaku.", "st": "ok" if DeductionRule.objects.filter(voided_at__isnull=True).exists() else "opt", "d": f"{DeductionRule.objects.filter(voided_at__isnull=True).count()} aturan tambahan", "url": "pay_deductions", "lb": "Atur potongan"},
             {"t": "Parameter potongan & hitung", "h": "Jamsostek, BPJS, pembagi lembur, dll. Sudah terisi nilai bawaan.", "st": "ok", "d": "nilai bawaan terisi", "url": "pay_params", "lb": "Lihat"}]},
         {"no": 2, "title": "Data karyawan", "when": "Saat ada karyawan baru atau perubahan gaji", "items": [
             {"t": "Profil gaji tiap karyawan", "h": "Grade, tipe gaji (harian/bulanan), T Khusus & T Lain-lain per orang, hak uang makan.", "st": ok(no_profile == 0 and with_profile), "d": f"{with_profile} lengkap, {no_profile} belum" , "url": "pay_profiles", "lb": "Isi / impor profil"},
@@ -116,6 +117,37 @@ def home(request):
     first_open = next((st["no"] for st in stages if st["open"]), 4)
     return render(request, "payroll/home.html", {"cur": cur, "run": run, "stages": stages, "flow": flow, "next_action": nxt[run.status if run else None], "first_open": first_open, "ready_sum": rs,
                                                  "stale": services.run_is_stale(run) if run else False, "runs": PayrollRun.objects.all()[:6]})
+
+
+# ================================================================ Master Potongan (putaran 61)
+BUILTIN_DED = [("Jamsostek / BPJS Ketenagakerjaan (JHT+JP) karyawan", "jamsostek_persen", "% gaji pokok", "Atau angka pasti dari impor Potongan BPJS HRD."), ("BPJS Kesehatan karyawan", "bpjs_kes_persen", "% gaji pokok", "Atau angka pasti dari impor Potongan BPJS HRD."),
+               ("Potongan alfa", "alfa_pengali", "× upah harian per hari alfa", "Hari alfa terverifikasi dari Validasi Kehadiran."), ("PPh 21", "pph21_aktif", "0 = nonaktif, 1 = aktif", "Detail & tarif di halaman PPh 21.")]
+
+
+@payroll_only
+def deductions(request):
+    today = timezone.localdate(); cur = engine.load_params(today); since = {}
+    for r in PayParam.objects.filter(voided_at__isnull=True, effective_from__lte=today).order_by("effective_from", "id"): since[r.key] = r.effective_from
+    builtin = [{"t": t, "key": k, "value": cur[k], "unit": u, "help": h, "since": since.get(k)} for t, k, u, h in BUILTIN_DED]
+    rules = {}
+    for r in DeductionRule.objects.select_related("component").order_by("component__label", "-effective_from", "-id"): rules.setdefault(r.component, []).append(r)
+    groups = []
+    for comp, rows in rules.items():
+        live = [r for r in rows if not r.voided_at]; now = next((r for r in live if r.effective_from <= today), None)
+        groups.append({"comp": comp, "now": now, "future": [r for r in live if r.effective_from > today], "history": rows})
+    return render(request, "payroll/deductions.html", {"builtin": builtin, "groups": groups})
+
+
+@payroll_only
+def deduction_new(request):
+    return _done(request, DeductionRuleForm, title="Potongan tambahan (master)", back="/payroll/deductions/", hint="Aturan potongan otomatis yang berlaku mulai tanggal tertentu. Tidak mengubah slip lama; hitung ulang run yang masih draft/dihitung untuk memakainya. Nama yang sama = aturan baru untuk potongan itu.",
+                 audit="dedrule_set", ok="Aturan potongan disimpan (berlaku sejak tanggal yang dipilih).", redirect_to="/payroll/deductions/", initial={"name": request.GET.get("name", "")})
+
+
+@payroll_only
+def bracket_new(request):
+    return _done(request, BracketForm, title="Tarif Pasal 17 (PPh 21 setahun)", back="/payroll/pph21/", hint="Lapisan tarif progresif berlaku mulai tanggal tertentu. Dipakai pada perhitungan Desember/masa terakhir.",
+                 audit="bracket_set", ok="Tarif Pasal 17 disimpan.", redirect_to="/payroll/pph21/")
 
 
 # ================================================================ Run gaji
@@ -480,7 +512,7 @@ def adjustment_new(request):
                                                            "plus": sum((x.amount for x in existing if not x.component.is_deduction), 0), "minus": sum((x.amount for x in existing if x.component.is_deduction), 0)})
 
 
-VOID = {"profile": (PayProfile, "/payroll/profiles/"), "scale": (WageScale, "/payroll/scale/"), "param": (PayParam, "/payroll/params/"), "adjustment": (PayAdjustment, "/payroll/adjustments/"), "rule": (TaliAsihRule, "/payroll/tali-asih/"),
+VOID = {"dedrule": (DeductionRule, "/payroll/deductions/"), "profile": (PayProfile, "/payroll/profiles/"), "scale": (WageScale, "/payroll/scale/"), "param": (PayParam, "/payroll/params/"), "adjustment": (PayAdjustment, "/payroll/adjustments/"), "rule": (TaliAsihRule, "/payroll/tali-asih/"),
         "mealperiod": (MealPeriod, "/payroll/rates/"), "mealrate": (MealRate, "/payroll/rates/"), "otrate": (OvertimeRate, "/payroll/rates/"), "eduallow": (EducationAllowance, "/payroll/rates/")}
 
 

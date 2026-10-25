@@ -11,6 +11,13 @@
 <tr><td>✅</td><td>Tabel TER terpasang ({{ ter_n }} baris, berlaku sejak 01-01-2024)</td><td class="num">{{ ter_n }}</td><td></td></tr></tbody></table>
 {% if stat %}<h4>Sebaran status PTKP</h4><p>{% for l, n, c in stat %}<span class="pill">{{ l }} · kategori {{ c }} · {{ n }} orang</span> {% endfor %}</p>{% endif %}
 <p style="color:var(--mu);font-size:.9em">Asumsi: bruto = pendapatan slip tanpa tali asih/pesangon; premi BPJS perusahaan belum ditambahkan; iuran pengurang = potongan Jamsostek karyawan; pembulatan ke bawah. Pesangon/UPMK memakai tarif khusus dan belum dihitung otomatis.</p></div>
+<div class="card" style="margin-bottom:12px"><h3 style="margin-top:0">Aturan pajak (master bertanggal)</h3>
+<p class="sub">Tidak ada angka pajak yang dikunci di program. Saat peraturan berubah, tambahkan nilai baru dengan <b>tanggal berlaku</b>; run lama tetap memakai aturan lama.</p>
+<table class="sepfit"><tbody>
+<tr><td><b>PTKP setahun</b><small style="display:block;color:var(--mu)">{% for l, v, k in ptkp %}{{ l }} {{ v|rupiah }}{% if not forloop.last %} · {% endif %}{% endfor %}</small></td><td><a class="btn sm ghost" href="{% url 'pay_params' %}">Ubah di Parameter ›</a></td></tr>
+<tr><td><b>Biaya jabatan</b><small style="display:block;color:var(--mu)">{{ bj.0 }}% bruto, maks {{ bj.1|rupiah }} / bulan</small></td><td><a class="btn sm ghost" href="{% url 'pay_param_new' %}?key=biaya_jabatan_persen">Ubah ›</a></td></tr>
+<tr><td><b>Tarif Pasal 17 (setahun)</b><small style="display:block;color:var(--mu)">{% for u, r in brackets %}{% if u %}s/d {{ u|rupiah }}{% else %}di atasnya{% endif %}: {% widthratio r 1 100 %}%{% if not forloop.last %} · {% endif %}{% endfor %}</small></td><td><a class="btn sm ghost" href="{% url 'pay_bracket_new' %}">Tambah / ubah ›</a></td></tr>
+<tr><td><b>Tarif TER bulanan</b><small style="display:block;color:var(--mu)">{{ ter_n }} baris kategori A/B/C berlaku sejak 01-01-2024 (master, bukan kode)</small></td><td></td></tr></tbody></table></div>
 <div class="card"><h3 style="margin-top:0">Rekap tahunan (bahan 1721-A1)</h3>
 <form method="get" class="bar"><label>Tahun <input type="number" name="year" value="{{ year }}" min="2001" max="2099"></label><button>Tampilkan</button><button name="download" value="1" class="btn">Unduh XLSX</button></form>
 <p>{{ n_people }} karyawan · bruto <b>{{ tot.0|rupiah }}</b> · iuran <b>{{ tot.1|rupiah }}</b> · PPh 21 dipotong <b>{{ tot.2|rupiah }}</b> (run Ditetapkan/Dibayar tahun {{ year }}).</p>

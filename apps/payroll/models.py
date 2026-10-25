@@ -109,6 +109,34 @@ class TerRate(Voidable):
         indexes = [models.Index(fields=["category", "effective_from"])]
 
 
+class TaxBracket(Voidable):
+    """Master tarif progresif Pasal 17 (PPh 21 setahun): satu baris per lapisan, berlaku-sejak. `upper` kosong = lapisan teratas. Aturan baru = kumpulan baris baru bertanggal."""
+    upper = models.DecimalField("PKP sampai (Rp)", max_digits=16, decimal_places=0, null=True, blank=True)
+    percent = models.DecimalField("Tarif (%)", max_digits=5, decimal_places=2)
+    effective_from = models.DateField()
+
+    class Meta:
+        ordering = ["effective_from", "upper"]
+        indexes = [models.Index(fields=["effective_from"])]
+
+
+class DeductionRule(Voidable):
+    """MASTER POTONGAN tambahan (putaran 61): potongan otomatis per karyawan yang aturannya diisi pengguna, bukan ditanam di kode (mis. iuran koperasi 1% gaji pokok, iuran serikat Rp 10.000).
+    Per komponen potongan, yang berlaku = baris tidak batal dengan `effective_from` terbesar ≤ akhir periode; nilai 0 = potongan dihentikan sejak tanggal itu. Riwayat tidak ditimpa."""
+    METHODS = [("persen_pokok", "% dari gaji pokok"), ("persen_bruto", "% dari total pendapatan"), ("nominal_bulan", "Nominal tetap per bulan"), ("nominal_hari", "Nominal per hari dibayar")]
+    component = models.ForeignKey("PayComponent", on_delete=models.PROTECT, related_name="rules")
+    method = models.CharField("Cara hitung", max_length=14, choices=METHODS)
+    value = models.DecimalField("Nilai", max_digits=14, decimal_places=4)
+    rounding = models.DecimalField("Pembulatan ke bawah (Rp)", max_digits=8, decimal_places=0, default=1)
+    pay_type = models.CharField("Berlaku untuk", max_length=8, blank=True, choices=[("", "Semua"), ("harian", "Karyawan harian"), ("bulanan", "Karyawan bulanan")], default="")
+    effective_from = models.DateField()
+    note = models.CharField("Dasar aturan", max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["component_id", "-effective_from", "-id"]
+        constraints = [models.CheckConstraint(condition=models.Q(value__gte=0), name="dedrule_nonneg")]
+
+
 class MealPeriod(Voidable):
     """Periode uang makan dibayar (mis. bulan puasa/Ramadan, saat perusahaan tidak menyediakan makan). DI LUAR periode ini uang makan = Rp 0 untuk semua karyawan."""
     name = models.CharField("Nama periode", max_length=60)

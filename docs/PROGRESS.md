@@ -1331,3 +1331,8 @@ Kebijakan berikut dipilih karena VISION tidak menyebutnya; semuanya nilai di `co
 - **Laporan run** kini 11 sheet: + BPJS (bagian karyawan), Biaya Tenaga Kerja (per departemen, untuk Finance), PPh 21.
 - **Menu Payroll** disusun menurut alur bulanan (Data HRD → Tambahan/Potongan → THR → Run & Slip → PPh 21 → Tali Asih) dan pengaturan sekali isi di bawahnya; beranda memuat THR & PPh 21.
 - BELUM: bagian BPJS perusahaan, pesangon/UPMK/UPH menurut alasan PHK, pemisahan penyiap vs penyetuju, log pertanyaan/koreksi slip dari karyawan, jurnal akuntansi.
+
+## Putaran 61b — Potongan & angka pajak = master bertanggal (patch 4)
+- **Master Potongan** `/payroll/deductions/`: (1) potongan bawaan (Jamsostek %, BPJS Kes %, alfa ×upah harian, PPh 21) diubah lewat Parameter dengan "berlaku sejak"; (2) **potongan tambahan buatan pengguna** (`DeductionRule`, migrasi payroll/0010): % gaji pokok, % pendapatan, nominal/bulan, nominal/hari; per tipe gaji; pembulatan; nilai 0 = dihentikan; komponen slip `pot_m_*` dibuat otomatis; riwayat tidak ditimpa, batal beralasan; (3) potongan per orang tetap di Tambahan & Potongan.
+- **Angka pajak tidak lagi dikunci di kode**: PTKP per status & biaya jabatan (% dan maks) = parameter bertanggal; tarif Pasal 17 = master `TaxBracket` (disemai) diubah di `/payroll/pph21/tarif/`; TER sudah master. Konstanta di `tax.py` hanya cadangan.
+- ASUMSI: aturan baru berlaku untuk run yang akhir periodenya ≥ tanggal berlaku; run lama tidak berubah kecuali dihitung ulang (draft/dihitung).

@@ -12,7 +12,7 @@ from apps.core.money import RupiahField, parse_rupiah
 from apps.hr.models import Employee
 from apps.hrd.models import Separation
 from . import calc, params as P
-from .models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, TaliAsihRule, WageScale
+from .models import DeductionRule, TaxBracket, EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, TaliAsihRule, WageScale
 from . import services
 
 DATE = lambda: forms.DateInput(attrs={"type": "date"})  # noqa: E731
@@ -170,6 +170,68 @@ class ParamForm(forms.Form):
         if old and same_values(old, {"value": d["value"], "note": d.get("note", "").strip()}): self.unchanged = True; return old
         if old: self.replaced = True; old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
         return PayParam.objects.create(key=d["key"], value=d["value"], effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
+
+
+# ---------------------------------------------------------------- master potongan & tarif pajak (putaran 61)
+class DeductionRuleForm(forms.Form):
+    name = forms.CharField(label="Nama potongan", max_length=50, help_text="Contoh: Iuran koperasi. Nama yang sama = melanjutkan potongan itu dengan aturan baru (riwayat tetap tersimpan).")
+    method = forms.ChoiceField(label="Cara hitung", choices=DeductionRule.METHODS)
+    value = DecimalField2(label="Nilai", min_value=0, max_value=1_000_000_000, max_digits=14, decimal_places=4, help_text="Persen (mis. 1 = 1%) atau rupiah, sesuai cara hitung. Isi 0 untuk MENGHENTIKAN potongan sejak tanggal berlaku.")
+    rounding = forms.DecimalField(label="Pembulatan ke bawah (Rp)", min_value=1, max_value=1_000_000, initial=1, decimal_places=0)
+    pay_type = forms.ChoiceField(label="Berlaku untuk", choices=[("", "Semua karyawan"), ("harian", "Hanya karyawan harian"), ("bulanan", "Hanya karyawan bulanan")], required=False)
+    effective_from = forms.DateField(label="Berlaku mulai", initial=timezone.localdate, widget=DATE(), help_text="Dipakai untuk run gaji yang periode akhirnya pada/setelah tanggal ini.")
+    note = forms.CharField(label="Dasar aturan", required=False, max_length=300)
+
+    def __init__(self, *a, user=None, **k):
+        super().__init__(*a, **k); self.user = user
+
+    def clean_name(self):
+        n = " ".join(self.cleaned_data["name"].split())
+        if PayComponent.objects.filter(label__iexact=n).exclude(code__startswith="pot_m_").exists(): raise forms.ValidationError("Nama ini sudah dipakai komponen bawaan; pilih nama lain.")
+        return n
+
+    @transaction.atomic
+    def save(self):
+        import re
+        d = self.cleaned_data; comp = PayComponent.objects.filter(code__startswith="pot_m_", label__iexact=d["name"]).first()
+        if comp is None:
+            slug = re.sub(r"[^a-z0-9]+", "_", d["name"].lower()).strip("_")[:14] or "x"; code = f"pot_m_{slug}"; n = 1
+            while PayComponent.objects.filter(code=code).exists(): n += 1; code = f"pot_m_{slug}{n}"
+            comp = PayComponent.objects.create(code=code, label=d["name"][:60], section="potongan", kind="auto", order=78)
+        elif not comp.active: comp.active = True; comp.save(update_fields=["active"])
+        old = DeductionRule.objects.select_for_update().filter(component=comp, effective_from=d["effective_from"], voided_at__isnull=True).first()
+        if old: old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
+        return DeductionRule.objects.create(component=comp, method=d["method"], value=d["value"], rounding=d["rounding"], pay_type=d.get("pay_type") or "", effective_from=d["effective_from"], note=d.get("note", "").strip(), created_by=self.user)
+
+
+class BracketForm(forms.Form):
+    effective_from = forms.DateField(label="Berlaku mulai", initial=timezone.localdate, widget=DATE())
+    lines = forms.CharField(label="Lapisan tarif (satu baris per lapisan)", widget=forms.Textarea(attrs={"rows": 7}), initial="60000000;5\n250000000;15\n500000000;25\n5000000000;30\n-;35",
+                            help_text="Format: batas atas PKP setahun (Rp);tarif %. Baris terakhir pakai tanda - sebagai batas atas (tanpa batas). Menyimpan pada tanggal yang sama menggantikan set lama.")
+
+    def __init__(self, *a, user=None, **k):
+        super().__init__(*a, **k); self.user = user
+
+    def clean_lines(self):
+        rows = []
+        for raw in self.cleaned_data["lines"].splitlines():
+            if not raw.strip(): continue
+            try:
+                u, p = [x.strip() for x in raw.split(";")]; digits = re.sub(r"[.\s_]", "", u)
+                upper = None if u in ("-", "") else D(digits); pct = D(p.replace(",", "."))
+            except (ValueError, InvalidOperation): raise forms.ValidationError(f"Baris tidak terbaca: {raw!r}")
+            if pct < 0 or pct > 100: raise forms.ValidationError("Tarif harus 0–100.")
+            rows.append((upper, pct))
+        if not rows or rows[-1][0] is not None or any(u is None for u, _ in rows[:-1]): raise forms.ValidationError("Baris terakhir (dan hanya itu) harus bertanda - sebagai batas atas.")
+        if any(a[0] >= b[0] for a, b in zip(rows[:-1], rows[1:-1])): raise forms.ValidationError("Batas atas harus naik dari atas ke bawah.")
+        return rows
+
+    @transaction.atomic
+    def save(self):
+        d = self.cleaned_data
+        for o in TaxBracket.objects.select_for_update().filter(effective_from=d["effective_from"], voided_at__isnull=True): o.voided_at, o.voided_by, o.void_reason = timezone.now(), self.user, "Diganti set baru"; o.save(update_fields=["voided_at", "voided_by", "void_reason"])
+        objs = [TaxBracket.objects.create(upper=u, percent=p, effective_from=d["effective_from"], created_by=self.user) for u, p in d["lines"]]
+        return objs[0]
 
 
 # ---------------------------------------------------------------- penyesuaian

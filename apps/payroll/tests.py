@@ -666,3 +666,51 @@ class Pph21EngineTests(Base):
     def test_profile_form_and_import_accept_ptkp(self):
         from .bulk_specs import PROFILE
         self.assertIn("status_ptkp", PROFILE.columns if hasattr(PROFILE, "columns") else str(PROFILE.__dict__))
+
+
+class MasterDeductionTests(Base):
+    """Potongan & angka pajak = master bertanggal, bukan kode (putaran 61)."""
+    def setUp(self):
+        self.e = self.emp(); self.scale(wage="100000"); self.profile(self.e); self.att(self.e, D1(2025, 10, 1)); self.client.force_login(self.payroll)
+
+    def post_rule(self, **kw):
+        d = {"name": "Iuran Koperasi", "method": "persen_pokok", "value": "1", "rounding": "1", "pay_type": "", "effective_from": "2025-10-01", "note": "AD/ART"}; d.update(kw)
+        return self.client.post(reverse("pay_deduction_new"), d)
+
+    def slip(self, period=PERIOD):
+        r, _ = PayrollRun.objects.get_or_create(period=period, defaults={"status": "draft"}); services.calculate_run(r.pk, self.payroll); return Payslip.objects.get(run=r)
+
+    def test_custom_rule_creates_component_and_deducts_from_effective_date(self):
+        self.assertEqual(self.post_rule().status_code, 302)
+        s = self.slip(); it = s.items.get(code__startswith="pot_m_"); self.assertEqual((it.section, it.label, it.source), ("potongan", "Iuran Koperasi", "master"))
+        self.assertEqual(it.amount, int(self.item(s, "gaji_pokok").amount) // 100)
+        self.post_rule(value="0", effective_from="2025-11-01"); self.assertTrue(self.slip(PERIOD).items.filter(code__startswith="pot_m_").exists())   # Okt tetap kena
+        self.att(self.e, D1(2025, 11, 3)); self.assertFalse(self.slip("2025-11").items.filter(code__startswith="pot_m_").exists())   # dihentikan sejak 1 Nov
+
+    def test_future_rule_not_applied_and_same_name_reuses_component(self):
+        self.post_rule(effective_from="2026-01-01"); self.assertFalse(self.slip().items.filter(code__startswith="pot_m_").exists())
+        self.post_rule(method="nominal_bulan", value="10000", effective_from="2025-10-01"); self.assertEqual(PayComponent.objects.filter(code__startswith="pot_m_").count(), 1)
+        self.assertEqual(self.slip().items.get(code__startswith="pot_m_").amount, 10000)
+
+    def test_builtin_name_rejected_and_void(self):
+        self.assertEqual(self.post_rule(name="THR").status_code, 200)   # form error: nama komponen bawaan
+        self.post_rule(); from .models import DeductionRule
+        r = DeductionRule.objects.get(); self.client.post(reverse("pay_void", args=["dedrule", r.pk]), {"reason": "salah"}); r.refresh_from_db(); self.assertIsNotNone(r.voided_at)
+        self.assertFalse(self.slip().items.filter(code__startswith="pot_m_").exists())
+
+    def test_tax_masters_drive_calculation(self):
+        from . import tax
+        self.assertEqual(tax.annual_tax(D(120_000_000), D(0), D(54_000_000), 12, D(1), D(5), D(500_000), [(None, D("0.10"))])["pajak"], 6_000_000)
+        r = self.client.post(reverse("pay_bracket_new"), {"effective_from": "2026-01-01", "lines": "100.000.000;10\n-;20"}); self.assertEqual(r.status_code, 302)
+        self.assertEqual(engine.tax_brackets(D1(2026, 6, 1)), [(100_000_000, D("0.1")), (None, D("0.2"))]); self.assertEqual(engine.tax_brackets(D1(2025, 6, 1))[0][0], 60_000_000)
+        self.assertEqual(self.client.post(reverse("pay_bracket_new"), {"effective_from": "2026-01-01", "lines": "100;10\n200;20"}).status_code, 200)   # tanpa lapisan teratas ditolak
+
+    def test_ptkp_is_a_parameter(self):
+        from . import params
+        self.assertEqual(params.defaults()["ptkp_k3"], 72_000_000); PayParam.objects.create(key="ptkp_k3", value=D(80_000_000), effective_from=D1(2026, 1, 1))
+        self.assertEqual(engine.load_params(D1(2026, 2, 1))["ptkp_k3"], 80_000_000); self.assertEqual(engine.load_params(D1(2025, 2, 1))["ptkp_k3"], 72_000_000)
+
+    def test_pages_and_rbac(self):
+        for name in ("pay_deductions", "pay_deduction_new", "pay_bracket_new", "pay_tax"):
+            for u, code in ((self.hrd, 403), (self.root, 200), (self.payroll, 200)): self.client.force_login(u); self.assertEqual(self.client.get(reverse(name)).status_code, code, (name, u.username))
+        self.client.force_login(self.payroll); self.assertContains(self.client.get(reverse("pay_deductions")), "Jamsostek")

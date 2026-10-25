@@ -13,7 +13,7 @@ from apps.core.audit import log
 from apps.hr.models import Employee
 from apps.hr.period_export import _Sheet
 from . import calc, engine, thr, ter_data
-from .models import PayProfile, Payslip, PayslipItem, TerRate
+from .models import PayParam, PayProfile, Payslip, PayslipItem, TaxBracket, TerRate
 from .views import payroll_only
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -97,4 +97,6 @@ def tax_page(request):
     by = recap(year); tot = [sum(sum(v[i] for v in d["months"].values()) for d in by.values()) for i in range(3)]
     tables = [(k, ter_data.TABLES[k][:3], len(ter_data.TABLES[k])) for k in "ABC"]
     return render(request, "payroll/tax.html", {"year": year, "active": active, "no_npwp": no_npwp, "no_prof": no_prof, "stat": [(ter_data.STATUS_LABELS[k], stat[k], ter_data.STATUS[k][0]) for k in ter_data.STATUS if stat[k]],
-                                                "n_people": len(by), "tot": tot, "ter_n": TerRate.objects.filter(voided_at__isnull=True).count(), "tables": tables})
+                                                "n_people": len(by), "tot": tot, "ter_n": TerRate.objects.filter(voided_at__isnull=True).count(), "tables": tables,
+                                                "brackets": engine.tax_brackets(timezone.localdate()) or [], "ptkp": [(ter_data.STATUS_LABELS[k], prm["ptkp_" + k.lower()], k) for k in ter_data.STATUS],
+                                                "bj": (prm["biaya_jabatan_persen"], prm["biaya_jabatan_maks"])})

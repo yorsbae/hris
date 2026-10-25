@@ -23,7 +23,7 @@ from apps.hr.attendance_calc import HOLIDAY_WORK_NOTE
 from apps.hr.models import AttendanceDaily, Employee, Shift
 from apps.hrd.models import BpjsDeduction, BpjsMembership, Separation, UniformPurchase
 from . import calc, params as P, tax, ter_data
-from .models import TerRate, EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, Payslip, PayslipItem, WageScale
+from .models import DeductionRule, TaxBracket, TerRate, EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, Payslip, PayslipItem, WageScale
 
 CHUNK = 500
 
@@ -163,6 +163,28 @@ def ter_tables(on):
 def ptkp_label(pf): return pf.ptkp_status or "TK0"
 
 
+def tax_brackets(on):
+    """[(batas_atas|None, tarif pecahan)] Pasal 17 berlaku pada `on` dari master (set berlaku-sejak terbaru ≤ on); kosong → None (pakai cadangan di tax.py)."""
+    eff = TaxBracket.objects.filter(voided_at__isnull=True, effective_from__lte=on).order_by("-effective_from").values_list("effective_from", flat=True).first()
+    if eff is None: return None
+    rows = TaxBracket.objects.filter(voided_at__isnull=True, effective_from=eff).values_list("upper", "percent")
+    return [(u, p / 100) for u, p in sorted(rows, key=lambda r: (r[0] is None, r[0] or 0))]
+
+
+def deduction_rules(on):
+    """{component_id: DeductionRule} yang berlaku pada `on` (baris tidak batal dengan effective_from terbesar ≤ on); nilai 0 = dihentikan → tidak disertakan."""
+    out = {}
+    for r in DeductionRule.objects.filter(voided_at__isnull=True, effective_from__lte=on).select_related("component").order_by("effective_from", "id"): out[r.component_id] = r
+    return {k: r for k, r in out.items() if r.value > 0 and r.component.active}
+
+
+def apply_rule(rule, gp, gross, paid_days):
+    """Nominal potongan menurut aturan master. Dasar: gaji pokok / total pendapatan / hari dibayar."""
+    m = rule.method
+    base = {"persen_pokok": lambda: gp * rule.value / 100, "persen_bruto": lambda: gross * rule.value / 100, "nominal_bulan": lambda: rule.value, "nominal_hari": lambda: rule.value * paid_days}[m]()
+    return calc.floor_to(D(base), rule.rounding or D(1))
+
+
 def _ytd(emp_ids, period):
     """{employee_id: dict(earn, pph, iuran, n)} dari slip run lain (bukan batal) tahun yang sama sebelum `period`: dasar penyelesaian PPh 21 masa Desember/terakhir."""
     from django.db.models import Count
@@ -207,6 +229,7 @@ def build(period):
     pph_on = bool(prm["pph21_aktif"]); ter = ter_tables(end) if pph_on else {}
     final_ids = [e.pk for e, _ in todo if (end.month == 12 or (seps.get(e.pk) and start <= seps[e.pk].last_date <= end))] if pph_on else []
     ytd = _ytd(final_ids, period) if final_ids else {}
+    brackets = tax_brackets(end) if pph_on else None; rules = deduction_rules(end)
     slips, missing_scale, no_items = [], [], []
     if not comps: warnings.append("Tidak ada komponen slip aktif (biasanya setelah `manage.py flush`); slip tidak dapat dibuat. Jalankan: python manage.py seed_payroll_demo (demo) atau aktifkan komponen di Payroll → Komponen.")
     for e, pf in todo:
@@ -257,6 +280,12 @@ def build(period):
             else: add(code, calc.floor_to(gp * prm[pk_] / 100, prm[bk]), rate=prm[pk_], source="hitung")
         if e.pk in uni: add("pot_seragam", uni[e.pk][0], qty=D(uni[e.pk][2]), source="seragam", refs=uni[e.pk][1])
         if a and a["alfa"]: add("pot_absensi", a["alfa"] * daily * prm["alfa_pengali"], qty=D(a["alfa"]), rate=calc.q2(daily), source="absensi")
+        if rules:
+            gross_now = sum((i["amount"] for i in items if i["component"].section != "potongan"), D(0))
+            for r in rules.values():
+                if r.pay_type and r.pay_type != pf.pay_type: continue
+                amt = apply_rule(r, gp, gross_now, D(days))
+                if amt > 0: add(r.component.code, amt, rate=r.value, source="master", note=f"{r.get_method_display()} {r.value.normalize():f}")
         for x in adj.get(e.pk, []):
             if x.component.active: add(x.component.code, x.amount, qty=x.qty, source="manual", note=x.note[:200])
         if a is None and e.status == "aktif": flags.append("Absensi belum diolah untuk karyawan ini")
@@ -268,12 +297,12 @@ def build(period):
         elif last and last < start: flags.append("Sudah keluar sebelum periode: hanya komponen tersisa (mis. tali asih)")
         if pph_on and comps.get("pot_pph21") is not None:
             bruto = sum((i["amount"] for i in items if i["component"].section != "potongan" and i["component"].code != "tali_asih"), D(0))
-            cat, ptkp = ter_data.STATUS.get(pf.ptkp_status, ter_data.STATUS["TK0"]); sur = D(1) if e.npwp else prm["pph21_tanpa_npwp"]
+            cat = ter_data.STATUS.get(pf.ptkp_status, ter_data.STATUS["TK0"])[0]; ptkp = prm.get("ptkp_" + (pf.ptkp_status or "TK0").lower(), D(54_000_000)); sur = D(1) if e.npwp else prm["pph21_tanpa_npwp"]
             if e.pk in final_ids:
                 y = ytd.get(e.pk, {"earn": D(0), "pph": D(0), "iuran": D(0), "n": 0})
                 first_m = e.join_date.month if e.join_date.year == end.year else 1; expected = max(0, end.month - first_m)
                 iuran = sum((i["amount"] for i in items if i["component"].code == "pot_jamsostek"), D(0))
-                r = tax.annual_tax(y["earn"] + bruto, y["iuran"] + iuran, ptkp, y["n"] + 1, sur); due = r["pajak"] - y["pph"]
+                r = tax.annual_tax(y["earn"] + bruto, y["iuran"] + iuran, ptkp, y["n"] + 1, sur, prm["biaya_jabatan_persen"], prm["biaya_jabatan_maks"], brackets); due = r["pajak"] - y["pph"]
                 add("pot_pph21", max(due, D(0)), source="pajak", note=f"Penyelesaian setahun {ptkp_label(pf)}: PKP {int(r['pkp']):,} → pajak {int(r['pajak']):,}; sudah dipotong {int(y['pph']):,}".replace(",", "."))
                 if due < 0: flags.append(f"PPh 21 setahun lebih kecil dari yang sudah dipotong (kelebihan Rp {int(-due):,}): kembalikan lewat Tambahan & Potongan".replace(",", "."))
                 if y["n"] < expected: flags.append(f"PPh 21 Desember/terakhir: baru {y['n']} dari {expected} slip bulan sebelumnya ada di sistem — hasil perkiraan, cocokkan dengan catatan pajak")

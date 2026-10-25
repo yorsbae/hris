@@ -3,6 +3,8 @@ nilai yang dipakai = baris `PayParam` berlaku-sejak terbaru ≤ akhir periode, b
 Angka bawaan diturunkan dari slip contoh Okt-2025 (lihat docs/PROGRESS.md putaran 57, A122–A137) dan WAJIB dikonfirmasi pemilik produk."""
 from decimal import Decimal as D
 
+from . import ter_data
+
 # kunci → (label, bawaan, satuan, penjelasan)
 PARAMS = {
     "hari_dasar": ("Hari dibayar per bulan penuh", D("30"), "hari",
@@ -20,6 +22,9 @@ PARAMS = {
     "alfa_pengali": ("Potongan per hari alfa", D("1"), "× upah harian", "Hari alfa terverifikasi (Validasi Kehadiran) × upah harian × nilai ini."),
     "pph21_aktif": ("PPh 21 dipotong di slip", D("0"), "0 = tidak, 1 = ya", "Bila 1: PPh 21 dihitung otomatis (TER Jan-Nov, tarif Pasal 17 di masa Desember/terakhir) dan dipotong dari gaji karyawan. Bawaan 0 sampai Pajak/Finance mengonfirmasi tabel TER & status PTKP karyawan."),
     "pph21_tanpa_npwp": ("Pengali PPh 21 karyawan tanpa NPWP", D("1.2"), "x", "Karyawan tanpa NPWP dikenai tarif 20% lebih tinggi (1,2). Isi 1 bila tidak diberlakukan. NPWP dibaca dari Data Karyawan."),
+    "biaya_jabatan_persen": ("Biaya jabatan (pengurang pajak setahun)", D("5"), "% bruto", "Pengurang penghasilan bruto di perhitungan setahun (Desember/masa terakhir). Aturan saat ini 5%; ubah bila peraturan berubah."),
+    "biaya_jabatan_maks": ("Biaya jabatan maksimum per bulan", D("500000"), "Rp / bulan", "Batas atas biaya jabatan per bulan bekerja (aturan saat ini Rp 500.000 = Rp 6.000.000 setahun)."),
+    **{f"ptkp_{k.lower()}": (f"PTKP setahun {lbl}", D(v[1]), "Rp / tahun", "Penghasilan Tidak Kena Pajak setahun untuk status ini; ubah dengan tanggal berlaku bila peraturan PTKP berubah.") for k, (v, lbl) in {s: (ter_data.STATUS[s], ter_data.STATUS_LABELS[s]) for s in ter_data.STATUS}.items()},
     "sisa_cuti_dibayar": ("Bayar sisa cuti karyawan keluar", D("0"), "0 = tidak, 1 = ya", "Bila 1: saldo cuti tahun terakhir × upah harian dibayar di slip bulan hari terakhir kerja (komponen Sisa Cuti). Bawaan 0: tidak otomatis."),
 }
 

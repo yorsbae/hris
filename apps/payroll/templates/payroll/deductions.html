@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}Master Potongan{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>Master Potongan</h2>
+<p class="sub">Semua aturan potongan bisa diubah <b>tanpa mengubah program</b>: tiap perubahan disimpan sebagai aturan baru dengan <b>tanggal berlaku</b>, jadi run gaji lama tetap memakai aturan lamanya. Ada tiga jenis potongan: <b>① bawaan sistem</b> (nilainya bisa Anda ubah), <b>② potongan tambahan</b> yang Anda buat sendiri, dan <b>③ potongan per orang</b> (pinjaman, pengobatan, dll.) di menu Tambahan &amp; Potongan.</p>
+<div class="card" style="margin-bottom:12px"><h3 style="margin-top:0">① Potongan bawaan sistem</h3>
+<div class="wrap"><table><thead><tr><th>Potongan</th><th class="num">Nilai sekarang</th><th>Berlaku sejak</th><th class="acts"></th></tr></thead><tbody>
+{% for b in builtin %}<tr><td><b>{{ b.t }}</b><small>{{ b.help }}</small></td><td class="num nw">{{ b.value.normalize|stringformat:"f" }} <small>{{ b.unit }}</small></td><td class="nw">{% if b.since %}{{ b.since|date:"d-m-Y" }}{% else %}<small>nilai awal program</small>{% endif %}</td>
+<td class="acts"><a class="btn sm ghost" href="{% if b.key == 'pph21_aktif' %}{% url 'pay_tax' %}{% else %}{% url 'pay_param_new' %}?key={{ b.key }}{% endif %}">{% if b.key == 'pph21_aktif' %}Buka{% else %}Ubah / berlaku mulai{% endif %}</a></td></tr>{% endfor %}
+<tr><td><b>Potongan seragam</b><small>Dari pembelian seragam di HRD (cicilan/potong sekali).</small></td><td class="num">—</td><td></td><td class="acts"><a class="btn sm ghost" href="/hrd/uniforms/">Buka HRD</a></td></tr></tbody></table></div></div>
+<div class="card" style="margin-bottom:12px"><h3 style="margin-top:0">② Potongan tambahan (buat sendiri)</h3>
+<p><a class="btn" href="{% url 'pay_deduction_new' %}">+ Potongan baru</a> <small style="color:var(--mu)">Contoh: iuran koperasi 1% gaji pokok, iuran serikat Rp 10.000/bulan.</small></p>
+<div class="wrap"><table><thead><tr><th>Potongan</th><th>Aturan berlaku sekarang</th><th>Akan berlaku</th><th>Riwayat</th></tr></thead><tbody>
+{% for g in groups %}<tr><td><b>{{ g.comp.label }}</b></td>
+<td>{% if g.now and g.now.value > 0 %}{{ g.now.get_method_display }}: <b>{{ g.now.value.normalize|stringformat:"f" }}</b>{% if g.now.pay_type %} · {{ g.now.get_pay_type_display }}{% endif %}<small>sejak {{ g.now.effective_from|date:"d-m-Y" }}</small>{% elif g.now %}<span class="pill pending">Dihentikan</span><small>sejak {{ g.now.effective_from|date:"d-m-Y" }}</small>{% else %}<small>belum berlaku</small>{% endif %}
+<a class="btn sm ghost" href="{% url 'pay_deduction_new' %}?name={{ g.comp.label|urlencode }}">Ubah / hentikan</a></td>
+<td>{% for r in g.future %}{{ r.get_method_display }} {{ r.value.normalize|stringformat:"f" }}<small>mulai {{ r.effective_from|date:"d-m-Y" }}</small>{% empty %}<small>—</small>{% endfor %}</td>
+<td><details><summary>{{ g.history|length }} baris</summary>{% for r in g.history %}<div{% if r.voided_at %} style="opacity:.55;text-decoration:line-through"{% endif %}>{{ r.effective_from|date:"d-m-Y" }} · {{ r.get_method_display }} {{ r.value.normalize|stringformat:"f" }}
+{% if not r.voided_at %}<form method="post" action="{% url 'pay_void' 'dedrule' r.pk %}" style="display:inline">{% csrf_token %}<input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:120px"><button class="danger sm">Batalkan</button></form>{% endif %}</div>{% endfor %}</details></td></tr>
+{% empty %}<tr><td class="empty" colspan="4">Belum ada potongan tambahan.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card"><h3 style="margin-top:0">③ Potongan per orang</h3><p>Pinjaman, pengobatan, materai, koreksi, dll. diisi per karyawan per bulan. <a href="{% url 'pay_adjustments' %}">Buka Tambahan &amp; Potongan ›</a></p></div>
+{% endblock %}
