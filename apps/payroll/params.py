@@ -18,6 +18,8 @@ PARAMS = {
     "bpjs_kes_persen": ("Potongan BPJS Kesehatan karyawan", D("2"), "% gaji pokok", "Slip contoh: Rp 50.688 = 2% × gaji pokok Rp 2.534.426 (dibulatkan ke bawah). Konfirmasi: tarif resmi karyawan 1% — angka slip 2%."),
     "bpjs_kes_bulat": ("Pembulatan ke bawah BPJS Kesehatan", D("1"), "Rp", "Hasil dibulatkan ke bawah ke kelipatan nilai ini."),
     "alfa_pengali": ("Potongan per hari alfa", D("1"), "× upah harian", "Hari alfa terverifikasi (Validasi Kehadiran) × upah harian × nilai ini."),
+    "pph21_aktif": ("PPh 21 dipotong di slip", D("0"), "0 = tidak, 1 = ya", "Bila 1: PPh 21 dihitung otomatis (TER Jan-Nov, tarif Pasal 17 di masa Desember/terakhir) dan dipotong dari gaji karyawan. Bawaan 0 sampai Pajak/Finance mengonfirmasi tabel TER & status PTKP karyawan."),
+    "pph21_tanpa_npwp": ("Pengali PPh 21 karyawan tanpa NPWP", D("1.2"), "x", "Karyawan tanpa NPWP dikenai tarif 20% lebih tinggi (1,2). Isi 1 bila tidak diberlakukan. NPWP dibaca dari Data Karyawan."),
     "sisa_cuti_dibayar": ("Bayar sisa cuti karyawan keluar", D("0"), "0 = tidak, 1 = ya", "Bila 1: saldo cuti tahun terakhir × upah harian dibayar di slip bulan hari terakhir kerja (komponen Sisa Cuti). Bawaan 0: tidak otomatis."),
 }
 

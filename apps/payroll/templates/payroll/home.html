@@ -17,7 +17,7 @@
 @media(max-width:700px){.wf-r{grid-template-columns:28px 1fr}.wf-r .wf-d,.wf-r .btn{grid-column:2}}
 </style>
 <h2>Payroll</h2>
-<p class="sub">Ikuti urutan <b>1 → 5</b> dari atas ke bawah. Langkah yang bertanda biru adalah yang sedang perlu dikerjakan; ✅ = siap, ⚠️ = perlu dicek, ⛔ = harus diperbaiki, ➖ = opsional.</p>
+<p class="sub">Tiap bulan cukup ikuti <b>1 → 5</b> dari atas ke bawah; bagian <b>Langkah 1–2</b> hanya diisi sekali / saat ada perubahan. Tombol di kanan tiap baris membawa Anda ke halaman yang tepat. Langkah yang bertanda biru adalah yang sedang perlu dikerjakan; ✅ = siap, ⚠️ = perlu dicek, ⛔ = harus diperbaiki, ➖ = opsional.</p>
 {% if stale %}<p class="note wait">Ada perubahan data setelah run {{ cur }} terakhir dihitung — hitung ulang sebelum menetapkan.</p>{% endif %}
 <div class="wf">
 {% for st in stages %}<section class="wf-s{% if st.no == first_open %} cur{% endif %}{% if st.no < first_open %} fin{% endif %}">

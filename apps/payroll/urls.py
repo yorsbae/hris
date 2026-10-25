@@ -3,7 +3,7 @@ from django.urls import path
 from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
 from apps.core.models import Role
 from apps.core.scope import require_roles
-from . import bulk_specs as bs, views as v
+from . import bulk_specs as bs, tax_pages as tp, views as v
 
 only = require_roles(Role.PAYROLL)   # Superadmin lolos otomatis
 
@@ -38,6 +38,8 @@ urlpatterns = [
     path("adjustments/new/", v.adjustment_new, name="pay_adjustment_new"),
     path("adjustments/import/", bulk_import_view(bs.ADJUSTMENT, only), name="pay_adjustment_import"),
     path("adjustments/import/template.csv", bulk_template_view(bs.ADJUSTMENT, only)),
+    path("thr/", tp.thr_page, name="pay_thr"),
+    path("pph21/", tp.tax_page, name="pay_tax"),
     path("tali-asih/", v.tali_asih, name="pay_tali"),
     path("tali-asih/rules/new/", v.tali_rule_new, name="pay_tali_rule_new"),
     path("void/<str:kind>/<int:pk>/", v.void, name="pay_void"),

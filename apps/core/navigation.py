@@ -42,10 +42,11 @@ def _company():
             ("Rekrutmen", "/recruitment/", "users"), ("Lowongan", "/recruitment/jobs/", "clipboard", True), ("Pelamar", "/recruitment/applicants/", "users", True)]
 
 def _payroll():
-    """Menu Payroll (Tahap 7; putaran 59: departemen sendiri, hanya Payroll & Superadmin — HRD tidak punya menu/akses Payroll)."""
-    return [("Alur Payroll (mulai di sini)", "/payroll/", "briefcase"), ("Periode dari HRD", "/payroll/periods/", "calendar", True), ("1 · Skala Gaji Harian", "/payroll/scale/", "sliders", True),
-            ("1 · Lembur, Makan & Tunjangan", "/payroll/rates/", "sliders", True), ("1 · Parameter & Komponen", "/payroll/params/", "sliders", True), ("2 · Profil Gaji Karyawan", "/payroll/profiles/", "users", True),
-            ("3 · Tambahan & Potongan", "/payroll/adjustments/", "clipboard", True), ("3 · Tali Asih", "/payroll/tali-asih/", "clipboard", True), ("4 · Run Gaji (per periode)", "/payroll/runs/", "calendar", True)]
+    """Menu Payroll (putaran 61): dikelompokkan menurut alur kerja — mulai di Beranda; BULANAN dikerjakan tiap bulan, PENGATURAN diisi sekali."""
+    return [("Beranda & Alur Bulanan", "/payroll/", "briefcase"),
+            ("Data dari HRD (periode)", "/payroll/periods/", "calendar", True), ("Tambahan & Potongan", "/payroll/adjustments/", "clipboard", True), ("THR", "/payroll/thr/", "clipboard", True),
+            ("Run Gaji & Slip", "/payroll/runs/", "calendar", True), ("PPh 21 & Rekap Pajak", "/payroll/pph21/", "file", True), ("Tali Asih (keluar kerja)", "/payroll/tali-asih/", "clipboard", True),
+            ("Profil Gaji Karyawan", "/payroll/profiles/", "users"), ("Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("Lembur, Makan & Tunjangan", "/payroll/rates/", "sliders", True), ("Parameter & Komponen", "/payroll/params/", "sliders", True)]
 
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 

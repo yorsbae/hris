@@ -97,6 +97,7 @@ class ProfileForm(ByNik):
     allowance_special = RupiahField(label="T Khusus / bulan (Rp)", required=False, min_value=0, max_value=1_000_000_000)
     allowance_other = RupiahField(label="T Lain-lain / bulan (Rp)", required=False, min_value=0, max_value=1_000_000_000)
     pay_type = forms.ChoiceField(label="Tipe gaji", choices=PayProfile.PAY_TYPES, initial="harian", required=False, help_text="Menentukan tarif Uang Makan & Lembur di master (Payroll → Lembur & Uang Makan).")
+    ptkp_status = forms.ChoiceField(label="Status PTKP (untuk PPh 21)", choices=PayProfile._meta.get_field("ptkp_status").choices, initial="TK0", required=False, help_text="Menentukan kategori tarif TER & PTKP. Dipakai hanya bila PPh 21 diaktifkan (Payroll → PPh 21).")
     meal_allowance = forms.BooleanField(label="Berhak uang makan", required=False, help_text="Hanya dibayar pada Periode Uang Makan (mis. bulan puasa), dengan tarif sesuai tipe gaji & shift.")
     note = forms.CharField(label="Keterangan", required=False, max_length=300)
 
@@ -119,12 +120,12 @@ class ProfileForm(ByNik):
         old = PayProfile.objects.select_for_update().filter(employee=self.employee, effective_from=d["effective_from"], voided_at__isnull=True).first()
         new = {"grade": d.get("grade"), "tier": d.get("tier") or "", "wage_override": d.get("wage_override"), "allowance_position": d.get("allowance_position") or 0,
                "allowance_education": d.get("allowance_education") or 0, "allowance_special": d.get("allowance_special") or 0, "allowance_other": d.get("allowance_other") or 0,
-               "meal_allowance": bool(d.get("meal_allowance")), "pay_type": d.get("pay_type") or "harian", "note": d.get("note", "").strip()}
+               "meal_allowance": bool(d.get("meal_allowance")), "pay_type": d.get("pay_type") or "harian", "ptkp_status": d.get("ptkp_status") or "TK0", "note": d.get("note", "").strip()}
         if old and same_values(old, new): self.unchanged = True; return old
         if old: self.replaced = True; old.voided_at, old.voided_by, old.void_reason = timezone.now(), self.user, "Diganti nilai baru"; old.save(update_fields=["voided_at", "voided_by", "void_reason"])
         return PayProfile.objects.create(employee=self.employee, effective_from=d["effective_from"], grade=d.get("grade"), tier=d.get("tier") or "", wage_override=d.get("wage_override"),
                                          allowance_position=d.get("allowance_position") or 0, allowance_education=d.get("allowance_education") or 0, allowance_special=d.get("allowance_special") or 0,
-                                         allowance_other=d.get("allowance_other") or 0, meal_allowance=bool(d.get("meal_allowance")), pay_type=d.get("pay_type") or "harian", note=d.get("note", "").strip(), created_by=self.user)
+                                         allowance_other=d.get("allowance_other") or 0, meal_allowance=bool(d.get("meal_allowance")), pay_type=d.get("pay_type") or "harian", ptkp_status=d.get("ptkp_status") or "TK0", note=d.get("note", "").strip(), created_by=self.user)
 
 
 # ---------------------------------------------------------------- skala gaji harian

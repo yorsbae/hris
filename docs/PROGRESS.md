@@ -1322,3 +1322,12 @@ Kebijakan berikut dipilih karena VISION tidak menyebutnya; semuanya nilai di `co
 - Satu akun Payroll menghasilkan keluaran akhir setara HRD: **run dibayar = periode gaji ditutup (terkunci)** + **laporan XLSX 8 sheet** (`apps/payroll/report.py`): Ringkasan · Rekap Gaji · Rincian Komponen · Per Departemen · Potongan · Lembur & Premi · Transfer Bank · Perlu Ditinjau. Tombol di halaman run (`/payroll/runs/<id>/laporan.xlsx`); saat run DIBAYAR satu salinan diarsipkan (`payroll/0007`), `?fresh=1` menyusun ulang. Memuat rekening bank → setiap unduhan diaudit; hanya Payroll/Superadmin.
 - Menambah sheet = satu fungsi + daftar di `REGISTRY`.
 - BELUM ada (perlu keputusan/aturan perusahaan): PPh 21, laporan setoran BPJS/Jamsostek ke instansi, THR/bonus tahunan, jurnal akuntansi, pemisahan penyiap vs penyetuju.
+
+## Putaran 61 — PPh 21, THR, laporan pajak/BPJS/biaya tenaga kerja, menu Payroll berdasar alur (patch 3)
+- **PPh 21** (`tax.py`, `ter_data.py`, migrasi payroll/0008–0009): tabel TER resmi PMK 168/2023 (kategori A/B/C) disemai sebagai master `TerRate` bertanggal; status PTKP di Profil Gaji (`ptkp_status`, kolom impor `status_ptkp`). Mesin: Jan–Nov = TER × bruto; Desember / bulan terakhir karyawan keluar = hitung ulang setahun (biaya jabatan, iuran Jamsostek, PTKP, Pasal 17) dikurangi PPh yang sudah dipotong dari slip run lain tahun itu. Tanpa NPWP × 1,2. **Bawaan NONAKTIF** (`pph21_aktif`=0).
+- ASUMSI (konfirmasi Pajak/Finance): bruto = pendapatan slip tanpa tali asih; premi BPJS perusahaan belum ditambah ke bruto; pembulatan ke bawah; pesangon/UPMK/UPH (tarif khusus) belum dihitung otomatis; kelebihan potong dikembalikan manual lewat Koreksi.
+- **THR** `/payroll/thr/`: usulan (≥12 bln = 1 bln upah; 1–11 bln prorata; <1 bln tidak berhak) → dimasukkan ke Tambahan & Potongan (komponen `thr`).
+- **PPh 21** `/payroll/pph21/`: status & kesiapan data, tombol aktifkan, rekap tahunan XLSX (bahan 1721-A1, bukan formulir resmi; diaudit).
+- **Laporan run** kini 11 sheet: + BPJS (bagian karyawan), Biaya Tenaga Kerja (per departemen, untuk Finance), PPh 21.
+- **Menu Payroll** disusun menurut alur bulanan (Data HRD → Tambahan/Potongan → THR → Run & Slip → PPh 21 → Tali Asih) dan pengaturan sekali isi di bawahnya; beranda memuat THR & PPh 21.
+- BELUM: bagian BPJS perusahaan, pesangon/UPMK/UPH menurut alasan PHK, pemisahan penyiap vs penyetuju, log pertanyaan/koreksi slip dari karyawan, jurnal akuntansi.

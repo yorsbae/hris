@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}THR{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>THR (Tunjangan Hari Raya)</h2>
+<p class="sub">Tiga langkah: <b>① pilih tanggal hari raya</b> dan bulan gaji tempat THR dibayar → <b>② periksa usulan</b> → <b>③ masukkan ke Tambahan &amp; Potongan</b>, lalu hitung ulang run gaji bulan itu. Aturan: masa kerja ≥ 12 bulan = 1 bulan upah; 1–11 bulan = masa kerja/12 × 1 bulan upah; &lt; 1 bulan tidak berhak. Upah sebulan = upah harian × hari dasar + tunjangan tetap.</p>
+<form method="get" class="card bar" style="margin-bottom:12px"><label>Tanggal hari raya <input type="date" name="on" value="{{ on|date:'Y-m-d' }}" required></label>
+<label>Dibayar di gaji bulan <input type="month" name="period" value="{{ period }}" required></label><button>Hitung usulan</button></form>
+{% if not editable %}<p class="note wait">Run gaji {{ period }} sudah ditetapkan/dibayar; THR tidak bisa dimasukkan ke bulan ini. Pilih bulan gaji lain.</p>{% endif %}
+<div class="wrap"><table><thead><tr><th>Karyawan</th><th class="num">Masa kerja</th><th class="num">Upah sebulan</th><th class="num">Bagian</th><th class="num">THR</th><th>Status</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.emp.name }}<small>{{ r.emp.nik }} · {{ r.emp.department.name }}</small></td><td class="num nw">{{ r.months }} bln</td><td class="num nw">{% if r.monthly %}{{ r.monthly|rupiah }}{% else %}—{% endif %}</td>
+<td class="num">{% if r.factor is not None %}{% widthratio r.factor 1 100 %}%{% endif %}</td><td class="num nw"><b>{{ r.amount|rupiah }}</b></td>
+<td>{% if r.existing %}<span class="pill approved">Sudah di penyesuaian ({{ r.existing|rupiah }})</span>{% elif r.note %}<small>{{ r.note }}</small>{% endif %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada karyawan aktif dengan profil gaji.</td></tr>{% endfor %}</tbody>
+{% if rows %}<tfoot><tr><th colspan="4">Total usulan ({{ n_ok }} karyawan)</th><th class="num nw">{{ total|rupiah }}</th><th></th></tr></tfoot>{% endif %}</table></div>
+{% if rows and editable %}<form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="on" value="{{ on|date:'Y-m-d' }}"><input type="hidden" name="period" value="{{ period }}">
+<button class="btn" onclick="return confirm('Masukkan THR {{ n_ok }} karyawan ke gaji {{ period }}? Nilai THR yang sudah ada untuk bulan itu akan diganti.')">Masukkan ke Tambahan &amp; Potongan {{ period }}</button>
+<small style="display:block;margin-top:6px;color:var(--mu)">Bisa diulang bila tanggal/ data berubah; baris lama otomatis diganti. THR ikut dihitung sebagai penghasilan bruto untuk PPh 21.</small></form>{% endif %}
+{% endblock %}

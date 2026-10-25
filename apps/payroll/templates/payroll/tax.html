@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% load money ui %}{% block title %}PPh 21{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+<h2>PPh 21</h2>
+<p class="sub">Pajak penghasilan karyawan dipotong otomatis di slip <b>bila diaktifkan</b>: Januari–November memakai tarif efektif bulanan (TER), Desember (atau bulan terakhir karyawan yang keluar) dihitung ulang setahun dengan tarif Pasal 17.</p>
+<div class="card" style="margin-bottom:12px"><h3 style="margin-top:0">Status: {% if active %}<span class="pill approved">AKTIF</span>{% else %}<span class="pill pending">Belum aktif</span>{% endif %}</h3>
+<p>{% if active %}Slip gaji baru/dihitung ulang akan memuat potongan PPh 21.{% else %}Slip belum memotong PPh 21. Aktifkan setelah Pajak/Finance memeriksa tabel TER dan status PTKP karyawan.{% endif %}
+<a class="btn sm ghost" href="{% url 'pay_param_new' %}?key=pph21_aktif">{% if active %}Ubah{% else %}Aktifkan{% endif %} ›</a></p>
+<h4>Cek kesiapan data</h4><table class="sepfit"><tbody>
+<tr><td style="width:2em">{% if no_prof %}⚠️{% else %}✅{% endif %}</td><td>Karyawan aktif belum punya profil gaji (status PTKP default TK/0)</td><td class="num">{{ no_prof }}</td><td><a href="{% url 'pay_profiles' %}">Profil ›</a></td></tr>
+<tr><td>{% if no_npwp %}⚠️{% else %}✅{% endif %}</td><td>Karyawan aktif tanpa NPWP (tarif × 1,2)</td><td class="num">{{ no_npwp }}</td><td><a href="/employees/">Data karyawan ›</a></td></tr>
+<tr><td>✅</td><td>Tabel TER terpasang ({{ ter_n }} baris, berlaku sejak 01-01-2024)</td><td class="num">{{ ter_n }}</td><td></td></tr></tbody></table>
+{% if stat %}<h4>Sebaran status PTKP</h4><p>{% for l, n, c in stat %}<span class="pill">{{ l }} · kategori {{ c }} · {{ n }} orang</span> {% endfor %}</p>{% endif %}
+<p style="color:var(--mu);font-size:.9em">Asumsi: bruto = pendapatan slip tanpa tali asih/pesangon; premi BPJS perusahaan belum ditambahkan; iuran pengurang = potongan Jamsostek karyawan; pembulatan ke bawah. Pesangon/UPMK memakai tarif khusus dan belum dihitung otomatis.</p></div>
+<div class="card"><h3 style="margin-top:0">Rekap tahunan (bahan 1721-A1)</h3>
+<form method="get" class="bar"><label>Tahun <input type="number" name="year" value="{{ year }}" min="2001" max="2099"></label><button>Tampilkan</button><button name="download" value="1" class="btn">Unduh XLSX</button></form>
+<p>{{ n_people }} karyawan · bruto <b>{{ tot.0|rupiah }}</b> · iuran <b>{{ tot.1|rupiah }}</b> · PPh 21 dipotong <b>{{ tot.2|rupiah }}</b> (run Ditetapkan/Dibayar tahun {{ year }}).</p>
+<small style="color:var(--mu)">Berkas ini bahan petugas pajak, bukan formulir bukti potong resmi. Unduhan memuat NPWP dan tercatat di audit.</small></div>
+{% endblock %}

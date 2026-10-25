@@ -1,4 +1,4 @@
-"""Laporan XLSX Payroll per run gaji (putaran 60) = hasil akhir Payroll, setara berkas Tutup Periode milik HRD. Delapan sheet:
+"""Laporan XLSX Payroll per run gaji (putaran 60) = hasil akhir Payroll, setara berkas Tutup Periode milik HRD. Sebelas sheet:
 
   1 Ringkasan          total & jumlah slip, rentang data, status, parameter yang dipakai
   2 Rekap Gaji         satu baris per karyawan: pokok, tunjangan, premi, lembur, makan, lain-lain, potongan, bersih
@@ -8,6 +8,9 @@
   6 Lembur & Premi     jam & nominal lembur/stand by/hari libur + premi
   7 Transfer Bank      nama, bank, rekening, jumlah bersih (rekening = data sensitif: unduhan diaudit)
   8 Perlu Ditinjau     slip bertanda (negatif, tanpa upah, dsb.)
+  9 BPJS               potongan Jamsostek & BPJS Kesehatan bagian karyawan per orang (bahan setoran/pelaporan; bagian perusahaan belum dihitung sistem)
+ 10 Biaya Tenaga Kerja per departemen untuk Finance: pendapatan, THR, lembur, potongan, bersih
+ 11 PPh 21            bruto & PPh 21 yang dipotong per karyawan (bahan rekonsiliasi pajak)
 
 Menambah sheet = satu fungsi `_xxx(wb, run, slips, items)` di REGISTRY. Hanya MEMBACA. Dibuat segar saat diunduh; saat run DIBAYAR satu salinan diarsipkan (tidak berubah lagi)."""
 import io
@@ -20,7 +23,7 @@ from apps.hr.period_export import _Sheet, _chunks
 from . import calc
 from .models import PayComponent, PayslipItem
 
-SHEETS = ("Ringkasan", "Rekap Gaji", "Rincian Komponen", "Per Departemen", "Potongan", "Lembur & Premi", "Transfer Bank", "Perlu Ditinjau")
+SHEETS = ("Ringkasan", "Rekap Gaji", "Rincian Komponen", "Per Departemen", "Potongan", "Lembur & Premi", "Transfer Bank", "Perlu Ditinjau", "BPJS", "Biaya Tenaga Kerja", "PPh 21")
 SECTION = dict(PayComponent.SECTIONS)
 
 
@@ -116,7 +119,41 @@ def _review(wb, run, slips, items):
     return sh.finish()
 
 
-REGISTRY = (_summary, _rekap, _detail, _dept, _deductions, _overtime, _bank, _review)
+def _amt(items, slip, *codes): return sum((i.amount for i in items[slip.pk] if i.code in codes), 0)
+
+
+def _bpjs(wb, run, slips, items):
+    sh = _Sheet(wb, SHEETS[8], [("NIK", "t"), ("Nama", "t"), ("Departemen", "t"), ("Dasar (gaji pokok)", "m"), ("Jamsostek karyawan (JHT+JP)", "m"), ("BPJS Kesehatan karyawan", "m"), ("Total bagian karyawan", "m"), ("Sumber", "t")])
+    for s in slips:
+        tk, kes = _amt(items, s, "pot_jamsostek"), _amt(items, s, "pot_bpjs")
+        if tk or kes: sh.add(s.nik, s.emp_name, s.department_name, _sec(items, s, "pokok"), tk, kes, tk + kes, ", ".join(sorted({i.source for i in items[s.pk] if i.code in ("pot_jamsostek", "pot_bpjs")})))
+    sh.add("", "Catatan: bagian perusahaan (JKK, JKM, JHT, JP, Kesehatan) belum dihitung sistem; ambil dari tagihan BPJS.", "", None, None, None, None, "")
+    return sh.finish()
+
+
+def _labor_cost(wb, run, slips, items):
+    sh = _Sheet(wb, SHEETS[9], [("Departemen", "t"), ("Jumlah karyawan", "n"), ("Pokok", "m"), ("Tunjangan & premi", "m"), ("Lembur", "m"), ("THR", "m"), ("Lain-lain", "m"), ("Total pendapatan", "m"), ("Potongan (BPJS, PPh, dll)", "m"), ("Gaji bersih", "m")])
+    agg = defaultdict(lambda: [0] * 9)
+    for s in slips:
+        a = agg[s.department_name]; thr = _amt(items, s, "thr")
+        for k, v in enumerate((1, _sec(items, s, "pokok"), _sec(items, s, "tunjangan") + _sec(items, s, "premi"), _sec(items, s, "lembur"), thr, _sec(items, s, "makan") + _sec(items, s, "lain") - thr, s.total_earnings, s.total_deductions, s.net_pay)): a[k] += v
+    tot = [0] * 9
+    for d in sorted(agg):
+        sh.add(d, *agg[d]); tot = [x + y for x, y in zip(tot, agg[d])]
+    sh.add("TOTAL", *tot)
+    return sh.finish()
+
+
+def _pph21(wb, run, slips, items):
+    sh = _Sheet(wb, SHEETS[10], [("NIK", "t"), ("Nama", "t"), ("Departemen", "t"), ("Bruto (tanpa tali asih)", "m"), ("PPh 21 dipotong", "m"), ("Cara hitung", "t")])
+    for s in slips:
+        it = next((i for i in items[s.pk] if i.code == "pot_pph21"), None)
+        bruto = sum((i.amount for i in items[s.pk] if i.section != "potongan" and i.code != "tali_asih"), 0)
+        if it: sh.add(s.nik, s.emp_name, s.department_name, bruto, it.amount, it.note)
+    return sh.finish()
+
+
+REGISTRY = (_summary, _rekap, _detail, _dept, _deductions, _overtime, _bank, _review, _bpjs, _labor_cost, _pph21)
 
 
 def build(run):

@@ -561,3 +561,108 @@ class ReportTests(Base):
     def test_empty_run_redirects(self):
         r2 = PayrollRun.objects.create(period="2025-09", status="draft"); self.client.force_login(self.payroll)
         self.assertEqual(self.client.get(reverse("pay_run_report", args=[r2.pk])).status_code, 302)
+
+
+class TaxUnitTests(TestCase):
+    """PPh 21 (putaran 61): fungsi murni + data TER resmi."""
+    def test_ter_spot_checks(self):
+        from . import tax, ter_data
+        A, B, C = (ter_data.TABLES[k] for k in "ABC")
+        self.assertEqual(tax.ter_rate(A, D(5_400_000)), D(0)); self.assertEqual(tax.pph_ter(D(10_000_000), tax.ter_rate(A, D(10_000_000))), 200_000)
+        self.assertGreater(tax.ter_rate(B, D(20_000_000)), 0); self.assertEqual(tax.ter_rate(C, D(1_000_000)), 0)
+        self.assertEqual(tax.ter_rate(A, D(2_000_000_000)), D(34))
+        for t in (A, B, C): self.assertIsNone(t[-1][0]); self.assertEqual([r[0] for r in t[:-1]], sorted(r[0] for r in t[:-1]))
+
+    def test_surcharge_and_floor(self):
+        from . import tax
+        self.assertEqual(tax.pph_ter(D(10_000_000), D(2), D("1.2")), 240_000); self.assertEqual(tax.pph_ter(D(1_234_567), D("1.5")), 18_518)
+
+    def test_pasal17_brackets(self):
+        from . import tax
+        self.assertEqual(tax.pasal17(D(60_000_000)), 3_000_000); self.assertEqual(tax.pasal17(D(250_000_000)), 3_000_000 + 28_500_000)
+        self.assertEqual(tax.pasal17(D(0)), 0)
+
+    def test_annual_tax_known_case(self):
+        from . import tax
+        r = tax.annual_tax(D(120_000_000), D(0), D(54_000_000), 12)   # 10 jt/bln, TK/0
+        self.assertEqual((r["biaya_jabatan"], r["neto"], r["pkp"], r["pajak"]), (6_000_000, 114_000_000, 60_000_000, 3_000_000))
+        self.assertEqual(tax.annual_tax(D(120_000_000), D(0), D(54_000_000), 12, D("1.2"))["pajak"], 3_600_000)
+        self.assertEqual(tax.annual_tax(D(30_000_000), D(0), D(54_000_000), 12)["pajak"], 0)
+
+
+class ThrAndPagesTests(Base):
+    def setUp(self):
+        self.e = self.emp(join=D1(2024, 1, 10)); self.scale(wage="100000"); self.profile(self.e, allowance_position=500_000)
+
+    def test_thr_formula_prorata_and_full(self):
+        from . import thr
+        r = thr.compute(D1(2025, 3, 31), "2025-03")[0]; self.assertEqual((r["months"], r["monthly"], r["amount"]), (14, D(3_500_000), D(3_500_000)))
+        e2 = self.emp(nik="E002", join=D1(2024, 10, 10)); self.profile(e2)
+        r2 = next(x for x in thr.compute(D1(2025, 3, 31), "2025-03") if x["emp"] == e2); self.assertEqual((r2["months"], r2["amount"]), (5, D(3_000_000 * 5 // 12)))
+        e3 = self.emp(nik="E003", join=D1(2025, 3, 20)); self.profile(e3); self.assertEqual(next(x for x in thr.compute(D1(2025, 3, 31), "2025-03") if x["emp"] == e3)["amount"], 0)
+
+    def test_thr_page_pushes_adjustments_and_replaces(self):
+        self.client.force_login(self.payroll); u = reverse("pay_thr")
+        self.assertEqual(self.client.get(u, {"on": "2025-03-31", "period": "2025-03"}).status_code, 200)
+        self.client.post(u, {"on": "2025-03-31", "period": "2025-03"}); a = PayAdjustment.objects.get(employee=self.e, period="2025-03", component__code="thr", voided_at__isnull=True); self.assertEqual(a.amount, 3_500_000)
+        self.client.post(u, {"on": "2025-03-31", "period": "2025-03"}); self.assertEqual(PayAdjustment.objects.filter(component__code="thr", voided_at__isnull=True).count(), 1)
+        self.assertTrue(AuditLog.objects.filter(module="payroll", action="thr_push").exists())
+
+    def test_tax_page_and_recap_download_and_rbac(self):
+        self.client.force_login(self.payroll); self.assertContains(self.client.get(reverse("pay_tax")), "PPh 21")
+        r = self.client.get(reverse("pay_tax"), {"download": 1, "year": 2025}); self.assertEqual(r.status_code, 200); self.assertIn("spreadsheetml", r["Content-Type"])
+        self.assertTrue(AuditLog.objects.filter(module="payroll", action="pph21_recap").exists())
+        for name in ("pay_thr", "pay_tax"):
+            for u, code in ((self.hrd, 403), (self.root, 200), (self.payroll, 200)): self.client.force_login(u); self.assertEqual(self.client.get(reverse(name)).status_code, code, (name, u.username))
+
+    def test_new_report_sheets_have_pph_and_labor_cost(self):
+        from . import report
+        PayParam.objects.create(key="pph21_aktif", value=D(1), effective_from=D1(2020, 1, 1)); self.scale(wage="900000", on=D1(2025, 1, 1)); self.att(self.e, D1(2025, 10, 1))
+        run = PayrollRun.objects.create(period=PERIOD, status="draft"); services.calculate_run(run.pk, self.payroll)
+        import io
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(report.build(run)[0])); self.assertEqual(len(wb.sheetnames), 11)
+        self.assertEqual(wb["PPh 21"].max_row, 2); self.assertEqual(wb["Biaya Tenaga Kerja"].max_row, 3)
+
+
+class Pph21EngineTests(Base):
+    """Mesin: nonaktif secara bawaan; aktif → TER Jan–Nov, penyelesaian setahun di Desember."""
+    def setUp(self):
+        from datetime import date
+        self.e = self.emp(npwp="123456789012345"); self.scale(wage="400000"); self.profile(self.e, ptkp_status="TK0")
+        for m in (10, 11, 12): self.att(self.e, D1(2025, m, 1))
+
+    def run_for(self, period):
+        r, _ = PayrollRun.objects.get_or_create(period=period, defaults={"status": "draft"}); services.calculate_run(r.pk, self.payroll); return Payslip.objects.get(run=r)
+
+    def on(self, v="1"): PayParam.objects.create(key="pph21_aktif", value=D(v), effective_from=D1(2020, 1, 1))
+
+    def test_off_by_default(self):
+        self.assertIsNone(self.item(self.run_for("2025-10"), "pot_pph21"))
+
+    def test_ter_month_uses_category_a_and_npwp_surcharge(self):
+        from . import tax, ter_data
+        self.on(); s = self.run_for("2025-10"); it = self.item(s, "pot_pph21"); self.assertIsNotNone(it)
+        bruto = sum(i.amount for i in s.items.all() if i.section != "potongan" and i.code != "tali_asih"); pct = tax.ter_rate(ter_data.TABLES["A"], bruto)
+        self.assertEqual(it.amount, tax.pph_ter(bruto, pct)); self.assertGreater(it.amount, 0)
+        self.assertEqual(s.total_deductions, sum(i.amount for i in s.items.filter(section="potongan")))
+        self.e.npwp = ""; self.e.save(); it2 = self.item(self.run_for("2025-10"), "pot_pph21"); self.assertGreater(it2.amount, it.amount)
+
+    def test_category_follows_ptkp_status(self):
+        self.on(); a = self.item(self.run_for("2025-10"), "pot_pph21").amount
+        PayProfile.objects.create(employee=self.e, effective_from=D1(2025, 10, 1), grade=9, tier="A", ptkp_status="K3"); b = self.item(self.run_for("2025-10"), "pot_pph21").amount
+        self.assertLess(b, a)
+
+    def test_december_settles_year_and_flags_missing_history(self):
+        self.scale(wage="2000000", on=D1(2025, 1, 1)); self.on(); s = self.run_for("2025-12"); it = self.item(s, "pot_pph21"); self.assertIsNotNone(it); self.assertIn("Penyelesaian setahun", it.note)
+        self.assertTrue(any("slip bulan sebelumnya" in f for f in s.flags))
+
+    def test_december_subtracts_withheld_ytd(self):
+        self.scale(wage="2000000", on=D1(2025, 1, 1)); self.on(); self.run_for("2025-10"); self.run_for("2025-11"); dec = self.run_for("2025-12")
+        paid = sum(self.item(self.run_for(p), "pot_pph21").amount for p in ("2025-10", "2025-11")); self.assertGreater(paid, 0)
+        dec = self.run_for("2025-12"); it = self.item(dec, "pot_pph21")   # hanya 3 bulan di setahun → pajak setahun < yang sudah dipotong: tidak ada potongan baru + peringatan kelebihan
+        self.assertTrue(it is None or f"sudah dipotong {int(paid):,}".replace(",", ".") in it.note); self.assertTrue(it is not None or any("kelebihan" in f for f in dec.flags))
+
+    def test_profile_form_and_import_accept_ptkp(self):
+        from .bulk_specs import PROFILE
+        self.assertIn("status_ptkp", PROFILE.columns if hasattr(PROFILE, "columns") else str(PROFILE.__dict__))

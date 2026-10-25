@@ -22,8 +22,8 @@ from apps.hr import leave
 from apps.hr.attendance_calc import HOLIDAY_WORK_NOTE
 from apps.hr.models import AttendanceDaily, Employee, Shift
 from apps.hrd.models import BpjsDeduction, BpjsMembership, Separation, UniformPurchase
-from . import calc, params as P
-from .models import EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, Payslip, PayslipItem, WageScale
+from . import calc, params as P, tax, ter_data
+from .models import TerRate, EducationAllowance, MealPeriod, MealRate, OvertimeRate, PayAdjustment, PayComponent, PayParam, PayProfile, Payslip, PayslipItem, WageScale
 
 CHUNK = 500
 
@@ -148,6 +148,35 @@ def pending_tali_asih(end):
     return {s.employee_id: s for s in Separation.objects.filter(voided_at__isnull=True, tali_asih__gt=0, tali_asih_paid_on__isnull=True, last_date__lte=end)}
 
 
+# ---------------------------------------------------------------- PPh 21 (putaran 60)
+def ter_tables(on):
+    """{kategori: [(batas_atas|None, persen)]} berlaku pada `on` (set baris berlaku-sejak terbaru ≤ on per kategori); kosong → data resmi bawaan."""
+    out = {}
+    for cat in ("A", "B", "C"):
+        eff = TerRate.objects.filter(voided_at__isnull=True, category=cat, effective_from__lte=on).order_by("-effective_from").values_list("effective_from", flat=True).first()
+        if eff is None: out[cat] = ter_data.TABLES[cat]; continue
+        rows = list(TerRate.objects.filter(voided_at__isnull=True, category=cat, effective_from=eff).values_list("upper", "percent"))
+        out[cat] = sorted(rows, key=lambda r: (r[0] is None, r[0] or 0))
+    return out
+
+
+def ptkp_label(pf): return pf.ptkp_status or "TK0"
+
+
+def _ytd(emp_ids, period):
+    """{employee_id: dict(earn, pph, iuran, n)} dari slip run lain (bukan batal) tahun yang sama sebelum `period`: dasar penyelesaian PPh 21 masa Desember/terakhir."""
+    from django.db.models import Count
+    out = {}
+    lo = f"{period[:4]}-01"
+    for part in chunks(emp_ids):
+        base = Payslip.objects.filter(employee_id__in=part, run__period__gte=lo, run__period__lt=period).exclude(run__status="dibatalkan")
+        for r in base.values("employee_id").annotate(n=Count("id")): out[r["employee_id"]] = {"earn": D(0), "pph": D(0), "iuran": D(0), "n": r["n"]}
+        for r in (PayslipItem.objects.filter(slip__in=base).values("slip__employee_id")
+                  .annotate(earn=Sum("amount", filter=~Q(section="potongan") & ~Q(code="tali_asih")), pph=Sum("amount", filter=Q(code="pot_pph21")), iuran=Sum("amount", filter=Q(code="pot_jamsostek")))):
+            o = out.setdefault(r["slip__employee_id"], {"earn": D(0), "pph": D(0), "iuran": D(0), "n": 0}); o["earn"], o["pph"], o["iuran"] = r["earn"] or D(0), r["pph"] or D(0), r["iuran"] or D(0)
+    return out
+
+
 # ---------------------------------------------------------------- inti
 def build(period):
     """→ {"slips": [dict], "warnings": [str], "params": {kunci: str}}. Tidak menulis apa pun."""
@@ -175,6 +204,9 @@ def build(period):
     mdays = _meal_days([e.pk for e, p in todo if p.meal_allowance], windows)
     shift_names = {sh.pk: (sh.code or sh.name) for sh in Shift.objects.all()} if windows else {}
     bpjs_amt, bpjs_off = _bpjs(ids, period); uni = _uniform(ids, end); adj = _adjustments(ids, period)
+    pph_on = bool(prm["pph21_aktif"]); ter = ter_tables(end) if pph_on else {}
+    final_ids = [e.pk for e, _ in todo if (end.month == 12 or (seps.get(e.pk) and start <= seps[e.pk].last_date <= end))] if pph_on else []
+    ytd = _ytd(final_ids, period) if final_ids else {}
     slips, missing_scale, no_items = [], [], []
     if not comps: warnings.append("Tidak ada komponen slip aktif (biasanya setelah `manage.py flush`); slip tidak dapat dibuat. Jalankan: python manage.py seed_payroll_demo (demo) atau aktifkan komponen di Payroll → Komponen.")
     for e, pf in todo:
@@ -234,6 +266,21 @@ def build(period):
             if a["konflik"]: flags.append(f"{a['konflik']} hari berkonflik data (lembur/izin) — tinjau di Absensi")
         if last and start <= last <= end: flags.append(f"Keluar {last:%d-%m-%Y}: gaji dihitung sampai hari terakhir kerja")
         elif last and last < start: flags.append("Sudah keluar sebelum periode: hanya komponen tersisa (mis. tali asih)")
+        if pph_on and comps.get("pot_pph21") is not None:
+            bruto = sum((i["amount"] for i in items if i["component"].section != "potongan" and i["component"].code != "tali_asih"), D(0))
+            cat, ptkp = ter_data.STATUS.get(pf.ptkp_status, ter_data.STATUS["TK0"]); sur = D(1) if e.npwp else prm["pph21_tanpa_npwp"]
+            if e.pk in final_ids:
+                y = ytd.get(e.pk, {"earn": D(0), "pph": D(0), "iuran": D(0), "n": 0})
+                first_m = e.join_date.month if e.join_date.year == end.year else 1; expected = max(0, end.month - first_m)
+                iuran = sum((i["amount"] for i in items if i["component"].code == "pot_jamsostek"), D(0))
+                r = tax.annual_tax(y["earn"] + bruto, y["iuran"] + iuran, ptkp, y["n"] + 1, sur); due = r["pajak"] - y["pph"]
+                add("pot_pph21", max(due, D(0)), source="pajak", note=f"Penyelesaian setahun {ptkp_label(pf)}: PKP {int(r['pkp']):,} → pajak {int(r['pajak']):,}; sudah dipotong {int(y['pph']):,}".replace(",", "."))
+                if due < 0: flags.append(f"PPh 21 setahun lebih kecil dari yang sudah dipotong (kelebihan Rp {int(-due):,}): kembalikan lewat Tambahan & Potongan".replace(",", "."))
+                if y["n"] < expected: flags.append(f"PPh 21 Desember/terakhir: baru {y['n']} dari {expected} slip bulan sebelumnya ada di sistem — hasil perkiraan, cocokkan dengan catatan pajak")
+            else:
+                pct = tax.ter_rate(ter[cat], bruto)
+                add("pot_pph21", tax.pph_ter(bruto, pct, sur), rate=pct, source="pajak", note=f"TER {cat} {pct}% × bruto {int(bruto):,}".replace(",", ".") + ("" if e.npwp else " × tanpa NPWP"))
+            if e.pk in tali: flags.append("Tali asih/pesangon: PPh-nya (tarif khusus pesangon) belum dihitung otomatis — hitung & potong manual bila perlu")
         earn = sum((i["amount"] for i in items if i["component"].section != "potongan"), D(0)); ded = sum((i["amount"] for i in items if i["component"].section == "potongan"), D(0))
         if earn - ded < 0: flags.append("Gaji bersih NEGATIF: potongan melebihi pendapatan — tinjau sebelum diajukan")
         if not items: no_items.append(e.nik); continue

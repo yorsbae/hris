@@ -14,6 +14,7 @@ from django.utils import timezone
 from apps.hr.models import Employee
 from apps.hrd.models import Separation
 from . import params as P
+from .ter_data import STATUS_LABELS
 
 USER = settings.AUTH_USER_MODEL
 
@@ -80,6 +81,7 @@ class PayProfile(Voidable):
     allowance_other = models.DecimalField(max_digits=14, decimal_places=0, default=0)       # T Lain-lain
     meal_allowance = models.BooleanField("Berhak uang makan", default=False)   # hak; nominal & kapan dibayar ditentukan master Uang Makan (periode puasa, tarif per tipe gaji/shift)
     pay_type = models.CharField("Tipe gaji", max_length=8, choices=PAY_TYPES, default="harian")
+    ptkp_status = models.CharField("Status PTKP (pajak)", max_length=3, choices=[(k, v) for k, v in STATUS_LABELS.items()], default="TK0")   # putaran 60: kategori TER & PTKP PPh 21
     note = models.CharField(max_length=300, blank=True)
 
     class Meta:
@@ -91,6 +93,20 @@ class PayProfile(Voidable):
 
     @property
     def grade_label(self): return f"{self.grade} {self.tier}".strip() if self.grade is not None else "khusus"
+
+
+class TerRate(Voidable):
+    """Master Tarif Efektif Bulanan PPh 21 (TER): satu baris per kategori (A/B/C) per batas atas bruto. Berlaku-sejak: aturan baru = kumpulan baris baru bertanggal (yang lama tidak diubah).
+    Awal diisi migrasi dari PP 58/2023. `upper` kosong = baris terakhir (tanpa batas atas)."""
+    CATEGORIES = [("A", "Kategori A (TK/0, TK/1, K/0)"), ("B", "Kategori B (TK/2, TK/3, K/1, K/2)"), ("C", "Kategori C (K/3)")]
+    category = models.CharField(max_length=1, choices=CATEGORIES)
+    upper = models.DecimalField("Bruto sebulan sampai (Rp)", max_digits=16, decimal_places=0, null=True, blank=True)
+    percent = models.DecimalField("Tarif (%)", max_digits=5, decimal_places=2)
+    effective_from = models.DateField()
+
+    class Meta:
+        ordering = ["category", "effective_from", "upper"]
+        indexes = [models.Index(fields=["category", "effective_from"])]
 
 
 class MealPeriod(Voidable):
