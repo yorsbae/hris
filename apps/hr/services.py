@@ -1,4 +1,5 @@
 from django.db import transaction
+from apps.core import notify as notify_mod
 from apps.core.models import Notification, User, Role
 from apps.core.scope import DEPT_ACTORS
 from . import leave, schedule
@@ -29,8 +30,7 @@ def transition(req: ChangeRequest, to: str, user, note: str = "", notify: bool =
     if to == "executed": _execute(req, user)
     if not notify: pass  # pengiriman massal: pemanggil mengirim satu ringkasan sendiri
     elif to == "pending":
-        Notification.objects.bulk_create([Notification(user=u, kind="request", title=f"Pengajuan baru: {req.type}", link=f"/requests/{req.pk}")
-                                          for u in User.objects.filter(role=Role.HRD)])
+        notify_mod.send((Role.HRD,), "request", f"Pengajuan baru: {req.type}", f"/requests/{req.pk}")
     elif to in ("approved", "rejected"):
         Notification.objects.create(user=req.requested_by, kind="approval", title=f"Pengajuan {req.type} {to}", link=f"/requests/{req.pk}")
     elif to == "executed" and req.type in schedule.SWAP_TYPES: _notify_swap(req)

@@ -16,7 +16,7 @@ def visible_to(user, qs=None):
     qs = Announcement.objects.all() if qs is None else qs
     if user.role in FULL_VIEW: return qs
     q = Q(recipients=user)
-    if user.role in (Role.DEPT_ADMIN, Role.POLI): q |= Q(all_departments=True)
+    if user.role in (Role.DEPT_ADMIN, Role.POLI, Role.PAYROLL): q |= Q(all_departments=True)
     if user.role == Role.DEPT_ADMIN: q |= Q(departments=user.department_id)
     return qs.filter(q).distinct()
 
@@ -24,7 +24,7 @@ def visible_to(user, qs=None):
 def audience(a):
     """Penerima yang diharapkan membaca (dasar status sudah/belum dibaca & notifikasi). Harus konsisten dengan visible_to."""
     q = Q(pk__in=a.recipients.values("pk"))
-    q |= Q(role__in=(Role.DEPT_ADMIN, Role.POLI)) if a.all_departments else Q(role=Role.DEPT_ADMIN, department__in=a.departments.all())
+    q |= Q(role__in=(Role.DEPT_ADMIN, Role.POLI, Role.PAYROLL)) if a.all_departments else Q(role=Role.DEPT_ADMIN, department__in=a.departments.all())
     return User.objects.filter(is_active=True).filter(q).distinct()
 
 

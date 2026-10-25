@@ -1336,3 +1336,9 @@ Kebijakan berikut dipilih karena VISION tidak menyebutnya; semuanya nilai di `co
 - **Master Potongan** `/payroll/deductions/`: (1) potongan bawaan (Jamsostek %, BPJS Kes %, alfa ×upah harian, PPh 21) diubah lewat Parameter dengan "berlaku sejak"; (2) **potongan tambahan buatan pengguna** (`DeductionRule`, migrasi payroll/0010): % gaji pokok, % pendapatan, nominal/bulan, nominal/hari; per tipe gaji; pembulatan; nilai 0 = dihentikan; komponen slip `pot_m_*` dibuat otomatis; riwayat tidak ditimpa, batal beralasan; (3) potongan per orang tetap di Tambahan & Potongan.
 - **Angka pajak tidak lagi dikunci di kode**: PTKP per status & biaya jabatan (% dan maks) = parameter bertanggal; tarif Pasal 17 = master `TaxBracket` (disemai) diubah di `/payroll/pph21/tarif/`; TER sudah master. Konstanta di `tax.py` hanya cadangan.
 - ASUMSI: aturan baru berlaku untuk run yang akhir periodenya ≥ tanggal berlaku; run lama tidak berubah kecuali dihitung ulang (draft/dihitung).
+
+## Putaran 62 — Notifikasi sesuai tupoksi, seed demo diperbaiki (patch 5)
+- **Satu akun Payroll** (keputusan pemilik produk): tidak ada pemisahan penyiap/penyetuju.
+- `apps/core/notify.send(roles, kind, title, link)` = satu pintu notifikasi: hanya akun AKTIF dari peran yang berwenang; dipakai pengajuan baru & pengajuan lembur (HRD), kontrak habis (HRD, kini ber-tautan & tidak berulang), periode ditutup/dibuka/berkas diperbarui (Payroll), **karyawan keluar → Payroll** (siapkan gaji akhir & tali asih). Payroll kini juga menerima pengumuman/peraturan untuk semua departemen dan punya menu Informasi.
+- **Seed demo**: pembelian seragam "sudah dipotong" kini PASTI di bulan lalu (sebelumnya bergantung tanggal sehingga tes gagal di akhir bulan); profil demo punya status PTKP beragam; contoh Master Potongan "Iuran Koperasi 1%".
+- Tersisa (bukan bagian patch ini): `test_no_wide_tables` — tabel `import_history.html` 10 kolom (>batas).

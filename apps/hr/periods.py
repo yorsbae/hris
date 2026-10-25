@@ -169,5 +169,6 @@ def rebuild(pk, user):
 
 
 def _notify_payroll(title, link):
-    from apps.core.models import Notification, Role, User
-    Notification.objects.bulk_create([Notification(user=u, kind="payroll", title=title[:200], link=link) for u in User.objects.filter(role=Role.PAYROLL, is_active=True)])
+    from apps.core import notify
+    from apps.core.models import Role
+    notify.send((Role.PAYROLL,), "payroll", title, link)

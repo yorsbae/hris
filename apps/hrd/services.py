@@ -218,6 +218,9 @@ def record_separation(emp, d, user):
         s = Separation.objects.create(employee=emp, kind=d["kind"], request_date=d.get("request_date"), last_date=d["last_date"], reason=(d.get("reason") or "").strip(),
                                       emp_name=emp.name, department_name=emp.department.name, position_name=emp.position.name if emp.position_id else "", join_date=emp.join_date,
                                       tali_asih=d.get("tali_asih") or 0, tali_asih_note=(d.get("tali_asih_note") or "").strip(), created_by=user)
+        from apps.core import notify
+        from apps.core.models import Role
+        transaction.on_commit(lambda: notify.send((Role.PAYROLL,), "payroll", f"Karyawan keluar: {emp.name} (hari terakhir {s.last_date:%d-%m-%Y}) — siapkan gaji akhir & tali asih", "/payroll/tali-asih/"))
         if emp.status != "aktif": s.applied_at = timezone.now(); s.prev_status = emp.status; s.save(update_fields=["applied_at", "prev_status"])
         elif s.last_date < timezone.localdate(): _apply_locked(s, user)
         return s

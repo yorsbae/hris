@@ -714,3 +714,28 @@ class MasterDeductionTests(Base):
         for name in ("pay_deductions", "pay_deduction_new", "pay_bracket_new", "pay_tax"):
             for u, code in ((self.hrd, 403), (self.root, 200), (self.payroll, 200)): self.client.force_login(u); self.assertEqual(self.client.get(reverse(name)).status_code, code, (name, u.username))
         self.client.force_login(self.payroll); self.assertContains(self.client.get(reverse("pay_deductions")), "Jamsostek")
+
+
+class NotificationRoutingTests(Base):
+    """Notifikasi dikirim ke akun yang berwenang atas tugasnya (putaran 62)."""
+    def test_helper_only_active_users_of_given_roles_and_dedupes(self):
+        from apps.core import notify
+        from apps.core.models import Notification
+        User.objects.filter(pk=self.hrd2.pk).update(is_active=False)
+        self.assertEqual(notify.send((Role.HRD,), "request", "T", "/x/"), 1); self.assertEqual(Notification.objects.get().user, self.hrd)
+        self.assertEqual(notify.send((Role.HRD,), "request", "T", "/x/", skip_if_unread_title="T"), 0)
+        self.assertEqual(notify.send((Role.PAYROLL, Role.SUPERADMIN), "payroll", "P"), 2)
+
+    def test_separation_notifies_payroll_only(self):
+        from apps.core.models import Notification
+        from apps.hrd import services as hs
+        e = self.emp()
+        with self.captureOnCommitCallbacks(execute=True):
+            hs.record_separation(e, {"kind": "resign", "last_date": D1(2030, 1, 31)}, self.hrd)
+        n = Notification.objects.filter(kind="payroll"); self.assertEqual({x.user.role for x in n}, {Role.PAYROLL}); self.assertIn("gaji akhir", n[0].title); self.assertEqual(n[0].link, "/payroll/tali-asih/")
+
+    def test_payroll_sees_company_announcements(self):
+        from apps.hr import info
+        from apps.hr.models import Announcement
+        a = Announcement.objects.create(title="Libur", body="x", kind="pengumuman", all_departments=True, created_by=self.hrd)
+        self.assertIn(a, info.visible_to(self.payroll)); self.assertIn(self.payroll, info.audience(a)); self.assertNotIn(self.payroll, info.audience(Announcement.objects.create(title="Dept", body="x", kind="pengumuman", created_by=self.hrd)))

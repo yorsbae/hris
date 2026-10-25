@@ -5,6 +5,7 @@ scope, dan persetujuan tetap per orang). Pengajuan satu kiriman berbagi `batch` 
 Disetujui HRD = final dan tercatat (services.AUTO_EXEC); tidak mengubah master karyawan. Batas menit & jendela tanggal adalah
 KONFIGURASI (settings/.env), bukan kode — angka awal = usulan, lihat PROGRESS A77–A80."""
 import re, uuid
+from apps.core import notify
 from datetime import datetime, timedelta
 from django import forms
 from django.conf import settings
@@ -128,8 +129,7 @@ def extra_work_new(request):
                 attachments.save_batch(made, files, request.user)
                 log(request, "hr", "request_attach", None, None, {"batch": batch, "requests": len(made), "files": [{"name": f.name[:80], "size": f.size} for f in files]})
             depts = ", ".join(sorted({e.department.name for e in form.people}))
-            Notification.objects.bulk_create([Notification(user=u, kind="request", link=f"/requests/g/lembur/?batch={batch}",
-                title=f"{len(form.people)} pengajuan {d['kind']} {payload['date']} dari {depts} menunggu keputusan") for u in User.objects.filter(role=Role.HRD, is_active=True)])
+            notify.send((Role.HRD,), "request", f"{len(form.people)} pengajuan {d['kind']} {payload['date']} dari {depts} menunggu keputusan", f"/requests/g/lembur/?batch={batch}")
             log(request, "hr", "extra_work_create", None, None, {"batch": batch, "type": d["kind"], "people": len(form.people), "date": payload["date"], "minutes": form.minutes})
         messages.success(request, f"{len(form.people)} pengajuan {d['kind']} terkirim ke HRD. Pantau statusnya di halaman ini.")
         return redirect(f"/requests/g/lembur/?batch={batch}")

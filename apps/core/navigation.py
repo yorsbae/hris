@@ -64,7 +64,7 @@ def _groups(role):
                         *_ophrd(), *_bpjs(), *_validasi(), ("Master Data", "/master/department/", "sliders")]),
                 _INFO]
     if role == Role.PAYROLL:
-        return [("Payroll", _payroll())]
+        return [("Payroll", _payroll()), _INFO]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
                                       *_req("Pengajuan & Monitoring", False), *_absensi(False), *_validasi()]), _INFO]

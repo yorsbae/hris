@@ -494,6 +494,10 @@ class Command(BaseCommand):
             for e in r.sample(self.active, min(14, len(self.active))):
                 p = buy(e, today - timedelta(days=r.randint(0, 25)), r.choice(sizes), r.randint(1, 3))
                 if p: bought.append(p)
+            first = today.replace(day=1)   # putaran 62: 3 pembelian PASTI di bulan lalu (bukan bergantung tanggal hari ini) → ada contoh "sudah dipotong" kapan pun seed dijalankan
+            for e in r.sample(self.active, min(3, len(self.active))):
+                p = buy(e, first - timedelta(days=r.randint(2, 20)), r.choice(sizes), 1)
+                if p: bought.append(p)
             if "3XL" in bysize:  # 3XL tidak pernah dicatat masuk → saldo MINUS: contoh peringatan "stok belum dicatat masuk" (A63)
                 big = next((e for e in self.active if e.gender == "L"), self.active[0]); p = buy(big, today, bysize["3XL"], 1)
                 if p: bought.append(p)
@@ -502,7 +506,7 @@ class Command(BaseCommand):
                 if st.balance != 11: hrd_services.stock_move(utype.pk, bysize["XL"].pk, "koreksi", 11 - st.balance, today - timedelta(days=2), self.hrd_u, note="Selisih stok opname: 5 rusak/hilang (demo)")
             old = [p for p in bought if p.purchase_date.strftime("%Y-%m") < period]
             for p in old[:3]: hrd_services.mark_uniform_deducted(p.pk, period, self.hrd_u)           # sudah dipotong dari gaji bulan ini (satu arah)
-            fresh = next((p for p in reversed(bought) if p.deduction_status == "belum" and p.size.code != "3XL"), None)   # 3XL dipertahankan agar saldo minusnya tetap terlihat
+            marked = {p.pk for p in old[:3]}; fresh = next((p for p in reversed(bought) if p.pk not in marked and p.deduction_status == "belum" and p.size.code != "3XL"), None)   # 3XL dipertahankan agar saldo minusnya tetap terlihat
             if fresh: hrd_services.void_uniform_purchase(fresh.pk, "Salah ukuran, akan dicatat ulang (demo)", self.hrd_u)   # batal beralasan → stok kembali (baris 'batal')
         self.stat += f", operasional HRD ({len(bought)} pembelian seragam)"
 
@@ -641,7 +645,9 @@ class Command(BaseCommand):
             g = grade_of.get(e.position.name, 4)
             tn = "A" if (e.id % 3) else "B"
             pm.PayProfile.objects.create(employee=e, effective_from=since, grade=g, tier=tn, allowance_position=(g - 5) * 50000 if g > 5 else 0, allowance_education=60000 if e.education in ("D3", "S1") else 0,
-                                         meal_allowance=True, pay_type="bulanan" if g >= 7 else "harian", created_by=pu); n += 1   # hak uang makan; kapan & berapa → master Lembur & Uang Makan
+                                         meal_allowance=True, pay_type="bulanan" if g >= 7 else "harian", ptkp_status=("TK0", "K0", "K1", "TK1", "K2", "K3")[e.id % 6], created_by=pu); n += 1   # hak uang makan; kapan & berapa → master Lembur & Uang Makan
+        c = pm.PayComponent.objects.create(code="pot_m_koperasi", label="Iuran Koperasi", section="potongan", kind="auto", order=78)   # contoh MASTER POTONGAN buatan pengguna (putaran 61/62): 1% gaji pokok sejak awal
+        pm.DeductionRule.objects.create(component=c, method="persen_pokok", value=Decimal("1"), rounding=Decimal(100), effective_from=since, note="Contoh demo — sesuaikan dengan AD/ART koperasi", created_by=pu)
         prev = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m"); cur = today.strftime("%Y-%m")
         # master Lembur & Uang Makan + absensi (lembur, stand by, hari libur) + bulan puasa terakhir yang sudah lewat, supaya slip contoh LENGKAP
         from apps.payroll.management.commands.seed_payroll_demo import Command as PayDemo, RAMADAN
