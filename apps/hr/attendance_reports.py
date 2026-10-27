@@ -306,7 +306,9 @@ def _device_action(request):
             res = sy.probe_many(devs)
         elif act == "sync":
             d1 = date.fromisoformat(p["from"]) if p.get("from") else None; d2 = date.fromisoformat(p["to"]) if p.get("to") else None
-            res = sy.sync_many(devs, d1, d2); log(request, "hr", "attendance_device_sync", None, None, {"machines": len(res), "new": sum(r.get("new", 0) for r in res)})
+            mode = p.get("mode") if p.get("mode") in ("latest", "all", "range") else "latest"
+            if mode == "range" and not (d1 or d2): raise ValueError("Isi tanggal Dari/Sampai untuk mode rentang.")
+            res = sy.sync_many(devs, d1, d2, mode=mode); log(request, "hr", "attendance_device_sync", None, None, {"machines": len(res), "new": sum(r.get("new", 0) for r in res)})
         else: return redirect("att_devices")
     except (ValueError, KeyError) as e: messages.error(request, f"Gagal: {e}"); return redirect("att_devices")
     names = {d.code: d.name for d in devs}; ok = sum(r["ok"] for r in res)

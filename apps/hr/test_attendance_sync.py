@@ -131,3 +131,38 @@ class DirectMachineTests(TestCase):
         mock.patch.stopall(); d = AttendanceDevice.objects.create(code="Z", name="Z", host="127.0.0.1", port=1)
         with mock.patch.object(sy, "TIMEOUT", 2): r = sy.sync_device(d)
         self.assertFalse(r["ok"]); self.assertIn("tidak merespons", r["note"])
+
+
+class ModeTests(DirectMachineTests):
+    """Semua / terbaru / rentang + tidak menumpuk riwayat."""
+    def _dev(self):
+        sy.import_machine_list(TABLE.encode(), "paste.txt"); return AttendanceDevice.objects.get(code="FIO616202022322344")
+
+    def test_all_then_latest_skips_everything_and_leaves_no_history(self):
+        from apps.hr.models import AttendanceImport
+        d = self._dev()
+        with mock.patch.object(sy, "check_host"):
+            self.assertIsNone(sy.last_stored(d))
+            r = sy.sync_device(d, mode="all"); self.assertEqual((r["fetched"], r["new"]), (3, 3))             # seluruh log (termasuk 1 Sep)
+            self.assertEqual(sy.last_stored(d).day, 27); n_imp = AttendanceImport.objects.count(); self.assertEqual(n_imp, 1)
+            r = sy.sync_device(d, mode="latest"); self.assertTrue(r["ok"]); self.assertEqual(r["new"], 0)    # 1 Sep di luar jendela terbaru
+            r = sy.sync_device(d, mode="all"); self.assertEqual((r["fetched"], r["new"], r["dup"]), (3, 0, 3))  # semua sudah ada → dilewati
+        self.assertEqual(AttendanceRaw.objects.count(), 3); self.assertEqual(AttendanceImport.objects.count(), n_imp)   # tidak ada riwayat kosong menumpuk
+
+    def test_latest_window_starts_at_last_stored_minus_overlap(self):
+        d = self._dev()
+        with mock.patch.object(sy, "check_host"): sy.sync_device(d, mode="all")
+        a, b = sy.window(d, "latest", None, date(2026, 10, 28)); self.assertEqual(a, date(2026, 10, 26))
+        self.assertEqual(sy.window(d, "all", None, date(2026, 10, 28))[0], sy.ALL_FROM)
+
+    def test_new_machine_latest_means_everything(self):
+        d = self._dev()
+        self.assertEqual(sy.window(d, "latest")[0], sy.ALL_FROM)
+
+    def test_page_mode_all(self):
+        self.client.force_login(self.user); self._dev(); ids = list(AttendanceDevice.objects.values_list("pk", flat=True)[:1])
+        d = AttendanceDevice.objects.get(pk=ids[0]); d.host = "192.168.10.36"; d.save()
+        with mock.patch.object(sy, "check_host"):
+            r = self.client.post(reverse("att_devices"), {"action": "sync", "ids": ids, "mode": "all"}, follow=True)
+        self.assertContains(r, "3 baru"); self.assertContains(self.client.get(reverse("att_devices")), "Semua scanlog")
+        r = self.client.post(reverse("att_devices"), {"action": "sync", "ids": ids, "mode": "range"}, follow=True); self.assertContains(r, "Isi tanggal")

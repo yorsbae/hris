@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from django.conf import settings
 from django.utils import timezone
 from . import attendance_calc as calc, attendance_import as imp
-from .models import AttendanceDevice, AttendanceImport
+from .models import AttendanceDevice, AttendanceImport, AttendanceRaw
 
 TIMEOUT = getattr(settings, "ATTENDANCE_SYNC_TIMEOUT", 15)
 MAX_PAGES = 200
@@ -120,18 +120,19 @@ def fetch_device(dev, d1, d2):
     except SyncError as e: return [], str(e)
 
 
-def ingest(dev, taps, err="", commit=True):
+def ingest(dev, taps, err="", commit=True, window=None):
     out = {"device": dev.code, "ok": False, "new": 0, "dup": 0, "fetched": len(taps), "note": err}
     if not err:
         try:
             if taps:
                 i = imp.stage_upload(_to_file(dev, taps), None); imp.analyze(i)
-                if commit:
-                    imp.commit(i, None, ignore_invalid=True)
-                    if i.state == "selesai": calc.process(i.date_min - timedelta(days=1), i.date_max + timedelta(days=1))
-                else: imp.cancel(i)
                 out["new"], out["dup"] = i.taps_new, i.taps_duplicate
-            out["ok"] = True; out["note"] = f"{out['fetched']} scan diterima, {out['new']} baru, {out['dup']} sudah ada."
+                if not commit or not i.taps_new: imp.cancel(i); i.delete()          # tidak ada yang baru → tidak meninggalkan baris riwayat/berkas sementara
+                else:
+                    imp.commit(i, None, ignore_invalid=True)
+                    out["new"], out["dup"] = i.taps_new, i.taps_duplicate
+                    if i.state == "selesai": calc.process(i.date_min - timedelta(days=1), i.date_max + timedelta(days=1))
+            out["ok"] = True; out["note"] = f"{out['fetched']} scan diterima, {out['new']} baru, {out['dup']} sudah ada (dilewati)." + (f" Rentang {window[0] if window[0] > ALL_FROM else 'awal'} s/d {window[1]}." if window else "")
         except ValueError as e: out["note"] = str(e)[:290]
     if commit:
         dev.last_sync_at, dev.last_sync_ok, dev.last_sync_note = timezone.now(), out["ok"], out["note"][:300]
@@ -139,20 +140,36 @@ def ingest(dev, taps, err="", commit=True):
     return out
 
 
-def _range(d1, d2):
-    d2 = d2 or timezone.localdate(); return (d1 or d2 - timedelta(days=getattr(settings, "ATTENDANCE_SYNC_DAYS", 3))), d2
+ALL_FROM = date(2000, 1, 1)
+OVERLAP_DAYS = getattr(settings, "ATTENDANCE_SYNC_OVERLAP_DAYS", 1)   # tumpang-tindih pengaman; duplikat dilewati, jadi tidak ada data ganda
 
 
-def sync_device(dev, d1=None, d2=None, commit=True):
-    d1, d2 = _range(d1, d2); taps, err = fetch_device(dev, d1, d2); return ingest(dev, taps, err, commit)
+def last_stored(dev):
+    """Indikator 'data terbaru': waktu scan terakhir mesin ini yang SUDAH tersimpan di HRIS (None = belum pernah)."""
+    from django.db.models import Max
+    return AttendanceRaw.objects.filter(device_id=dev.code).aggregate(m=Max("punched_at"))["m"]
 
 
-def sync_many(devs, d1=None, d2=None, commit=True, workers=8):
+def window(dev, mode="latest", d1=None, d2=None):
+    """mode: 'all' = seluruh log di mesin · 'latest' = sejak scan terakhir tersimpan (−OVERLAP_DAYS; mesin baru/kosong = seluruhnya) · 'range' = d1..d2 (bawaan ATTENDANCE_SYNC_DAYS hari)."""
+    d2 = d2 or timezone.localdate()
+    if mode == "all": return ALL_FROM, d2
+    if mode == "latest" and not d1:
+        last = last_stored(dev)
+        return (timezone.localtime(last).date() - timedelta(days=OVERLAP_DAYS) if last else ALL_FROM), d2
+    return (d1 or d2 - timedelta(days=getattr(settings, "ATTENDANCE_SYNC_DAYS", 3))), d2
+
+
+def sync_device(dev, d1=None, d2=None, commit=True, mode="latest"):
+    a, b = window(dev, mode, d1, d2); taps, err = fetch_device(dev, a, b); return ingest(dev, taps, err, commit, window=(a, b))
+
+
+def sync_many(devs, d1=None, d2=None, commit=True, workers=8, mode="latest"):
     """Unduh banyak mesin: jaringan paralel (28 mesin tidak menunggu satu per satu), simpan ke DB berurutan."""
     from concurrent.futures import ThreadPoolExecutor
-    d1, d2 = _range(d1, d2); devs = list(devs)
-    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(devs) or 1))) as ex: got = list(ex.map(lambda d: fetch_device(d, d1, d2), devs))
-    return [ingest(d, t, e, commit) for d, (t, e) in zip(devs, got)]
+    devs = list(devs); wins = [window(d, mode, d1, d2) for d in devs]       # jendela dihitung di thread utama (butuh DB)
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(devs) or 1))) as ex: got = list(ex.map(lambda x: fetch_device(x[0], *x[1]), zip(devs, wins)))
+    return [ingest(d, t, e, commit, window=w) for d, (t, e), w in zip(devs, got, wins)]
 
 
 def probe_many(devs, workers=8):
