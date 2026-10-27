@@ -9,3 +9,4 @@ whitenoise>=6.6
 openpyxl>=3.1
 redis>=5.0
 xlrd>=2.0.1   # baca .xls lama dari Fingerspot Personnel (opsional; tanpa ini .xls ditolak dengan pesan jelas)
+pyzk>=0.9   # unduh scanlog langsung dari mesin Fingerspot lewat LAN (protokol TCP)

@@ -383,11 +383,15 @@ class AttendanceDevice(models.Model):
     active = models.BooleanField("Aktif", default=True)
     note = models.CharField("Catatan", max_length=200, blank=True)
     # --- Tarik otomatis lewat jaringan lokal (attendance_sync.py) ---
-    PROTOCOLS = [("easylink", "Fingerspot EasyLink SDK (HTTP)")]
+    PROTOCOLS = [("zk", "Langsung ke mesin (TCP, port 4370/5005)"), ("easylink", "Fingerspot EasyLink SDK (HTTP, server SDK)")]
+    CONNECTIONS = [("Ethernet", "Ethernet"), ("WiFi", "WiFi"), ("USB", "USB"), ("GPRS", "GPRS/Cloud")]
     sync_enabled = models.BooleanField("Tarik otomatis via jaringan", default=False)
-    protocol = models.CharField("Protokol", max_length=12, choices=PROTOCOLS, default="easylink")
-    host = models.CharField("Alamat server SDK / IP mesin", max_length=100, blank=True)
-    port = models.PositiveIntegerField("Port", default=8080)
+    protocol = models.CharField("Protokol", max_length=12, choices=PROTOCOLS, default="zk")
+    host = models.CharField("IP Address / URL", max_length=100, blank=True)
+    port = models.PositiveIntegerField("Port", default=4370)
+    machine_no = models.CharField("No Mesin", max_length=10, blank=True)       # kolom "No Mesin" di Fingerspot Personnel
+    connection = models.CharField("Koneksi", max_length=10, choices=CONNECTIONS, default="Ethernet", blank=True)
+    screen = models.CharField("Layar", max_length=10, blank=True)               # mis. TFT
     comm_key = EncryptedTextField("Kunci komunikasi / token", max_length=100, blank=True)  # terenkripsi di DB
     last_sync_at = models.DateTimeField(null=True, blank=True)
     last_sync_ok = models.BooleanField(null=True, blank=True)

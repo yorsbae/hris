@@ -56,7 +56,53 @@ class _Easylink:
         return [(str(r.get("PIN", "")).strip(), str(r.get("ScanDate", "")).strip()) for r in rows if r.get("PIN") not in (None, "") and r.get("ScanDate")]
 
 
-DRIVERS = {"easylink": _Easylink}
+class _Zk:
+    """Langsung ke mesin (seperti Fingerspot Personnel: IP + port + kunci komunikasi). Memakai pustaka `pyzk` (protokol TCP); mesin yang tidak mendukungnya → gunakan 'Tes koneksi'."""
+    def __init__(self, dev): self.dev = dev
+    def _conn(self):
+        try: from zk import ZK
+        except ImportError: raise SyncError("Pustaka pyzk belum terpasang (pip install -r requirements.txt).")
+        try: pw = int(self.dev.comm_key or 0)
+        except ValueError: raise SyncError("Kunci komunikasi mesin harus angka (bawaan 0).")
+        return ZK(self.dev.host, port=self.dev.port, timeout=TIMEOUT, password=pw, ommit_ping=True)
+    def _run(self, fn):
+        z = self._conn(); c = None
+        try:
+            c = z.connect(); c.disable_device()
+            try: return fn(c)
+            finally: c.enable_device()
+        except SyncError: raise
+        except Exception as e: raise SyncError(f"Mesin {self.dev.host}:{self.dev.port} tidak merespons ({type(e).__name__}: {e}).")
+        finally:
+            try: c and c.disconnect()
+            except Exception: pass
+    def fetch(self, d1, d2):
+        recs = self._run(lambda c: c.get_attendance())
+        return [(str(a.user_id).strip(), a.timestamp.strftime("%Y-%m-%d %H:%M:%S")) for a in recs or [] if a.user_id and d1 <= a.timestamp.date() <= d2]
+    def info(self): return self._run(lambda c: {"serial": c.get_serialnumber(), "time": str(c.get_time()), "users": len(c.get_users() or [])})
+
+
+DRIVERS = {"easylink": _Easylink, "zk": _Zk}
+
+
+def probe(dev, ports=(4370, 5005, 8080)):
+    """Tes koneksi: port TCP mana yang terbuka + (protokol zk) SN & jam mesin. Dipakai untuk menentukan protokol/port tiap mesin."""
+    out = {"device": dev.code, "ok": False, "open": [], "note": ""}
+    try: check_host(dev.host)
+    except SyncError as e: out["note"] = str(e); return out
+    for pt in dict.fromkeys((dev.port,) + tuple(ports)):
+        try:
+            with socket.create_connection((dev.host, pt), timeout=min(TIMEOUT, 3)): out["open"].append(pt)
+        except OSError: pass
+    if not out["open"]: out["note"] = f"Tidak ada port terbuka di {dev.host} (mesin mati / beda jaringan / firewall)."; return out
+    out["note"] = "Port terbuka: " + ", ".join(map(str, out["open"])); out["ok"] = dev.port in out["open"]
+    if dev.protocol == "zk" and out["ok"]:
+        try:
+            i = _Zk(dev).info(); out["note"] += f" · SN mesin {i['serial']} · jam {i['time']} · {i['users']} user"
+            if dev.serial and i["serial"] and dev.serial.strip().upper() != str(i["serial"]).strip().upper(): out["note"] += " · PERINGATAN: SN tidak sama dengan data HRIS"
+        except SyncError as e: out["ok"] = False; out["note"] += f" · protokol zk gagal: {e}"
+    elif not out["ok"]: out["note"] += f" — port {dev.port} yang diset tertutup"
+    return out
 
 
 def _to_file(dev, taps):
@@ -65,25 +111,80 @@ def _to_file(dev, taps):
     f = io.BytesIO(buf.getvalue().encode("utf-8")); f.name = f"sync_{dev.code}_{timezone.localdate()}.csv"; return f
 
 
-def sync_device(dev, d1=None, d2=None, commit=True):
-    """Tarik scan satu mesin. Mengembalikan dict ringkasan; error jaringan dicatat di mesin (tidak melempar ke cron lain)."""
-    today = timezone.localdate(); d2 = d2 or today; d1 = d1 or (d2 - timedelta(days=getattr(settings, "ATTENDANCE_SYNC_DAYS", 3)))
-    out = {"device": dev.code, "ok": False, "new": 0, "dup": 0, "fetched": 0, "note": ""}
+def fetch_device(dev, d1, d2):
+    """Bagian jaringan saja (tanpa akses DB → aman di thread). → (taps, error)."""
     try:
-        check_host(dev.host)
-        drv = DRIVERS.get(dev.protocol)
+        check_host(dev.host); drv = DRIVERS.get(dev.protocol)
         if not drv: raise SyncError("Protokol tidak dikenal.")
-        taps = drv(dev).fetch(d1, d2); out["fetched"] = len(taps)
-        if taps:
-            i = imp.stage_upload(_to_file(dev, taps), None); imp.analyze(i)
-            if commit:
-                imp.commit(i, None, ignore_invalid=True)
+        return drv(dev).fetch(d1, d2), ""
+    except SyncError as e: return [], str(e)
+
+
+def ingest(dev, taps, err="", commit=True):
+    out = {"device": dev.code, "ok": False, "new": 0, "dup": 0, "fetched": len(taps), "note": err}
+    if not err:
+        try:
+            if taps:
+                i = imp.stage_upload(_to_file(dev, taps), None); imp.analyze(i)
+                if commit:
+                    imp.commit(i, None, ignore_invalid=True)
+                    if i.state == "selesai": calc.process(i.date_min - timedelta(days=1), i.date_max + timedelta(days=1))
+                else: imp.cancel(i)
                 out["new"], out["dup"] = i.taps_new, i.taps_duplicate
-                if i.state == "selesai": calc.process(i.date_min - timedelta(days=1), i.date_max + timedelta(days=1))
-            else: out["new"], out["dup"] = i.taps_new, i.taps_duplicate; imp.cancel(i)
-        out["ok"] = True; out["note"] = f"{out['fetched']} scan diterima, {out['new']} baru, {out['dup']} sudah ada."
-    except (SyncError, ValueError) as e: out["note"] = str(e)[:290]
+            out["ok"] = True; out["note"] = f"{out['fetched']} scan diterima, {out['new']} baru, {out['dup']} sudah ada."
+        except ValueError as e: out["note"] = str(e)[:290]
     if commit:
-        dev.last_sync_at, dev.last_sync_ok, dev.last_sync_note = timezone.now(), out["ok"], out["note"]
+        dev.last_sync_at, dev.last_sync_ok, dev.last_sync_note = timezone.now(), out["ok"], out["note"][:300]
         dev.save(update_fields=["last_sync_at", "last_sync_ok", "last_sync_note"])
     return out
+
+
+def _range(d1, d2):
+    d2 = d2 or timezone.localdate(); return (d1 or d2 - timedelta(days=getattr(settings, "ATTENDANCE_SYNC_DAYS", 3))), d2
+
+
+def sync_device(dev, d1=None, d2=None, commit=True):
+    d1, d2 = _range(d1, d2); taps, err = fetch_device(dev, d1, d2); return ingest(dev, taps, err, commit)
+
+
+def sync_many(devs, d1=None, d2=None, commit=True, workers=8):
+    """Unduh banyak mesin: jaringan paralel (28 mesin tidak menunggu satu per satu), simpan ke DB berurutan."""
+    from concurrent.futures import ThreadPoolExecutor
+    d1, d2 = _range(d1, d2); devs = list(devs)
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(devs) or 1))) as ex: got = list(ex.map(lambda d: fetch_device(d, d1, d2), devs))
+    return [ingest(d, t, e, commit) for d, (t, e) in zip(devs, got)]
+
+
+def probe_many(devs, workers=8):
+    from concurrent.futures import ThreadPoolExecutor
+    devs = list(devs)
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(devs) or 1))) as ex: return list(ex.map(probe, devs))
+
+
+# ---------------------------------------------------------------- daftar mesin dari Fingerspot Personnel (Nama · SN · No Mesin · Koneksi · IP Address / URL · Layar)
+HEAD = {"nama": "name", "sn": "serial", "nomesin": "machine_no", "koneksi": "connection", "ipaddressurl": "host", "ipaddress": "host", "ip": "host", "layar": "screen", "lokasi": "location"}
+
+
+def import_machine_list(raw, filename="paste.txt", protocol="zk", port=4370):
+    """Salin tabel Mesin dari Fingerspot Personnel (atau Export-nya) → master mesin. Kode mesin = SN. Mesin yang sudah ada (SN sama) hanya diperbarui nama/IP/dll,
+    kunci komunikasi & status tidak diubah. → (dibuat, diperbarui, daftar peringatan)."""
+    grid = imp.read_grid(raw, filename); cols = None; made = upd = 0; warn = []
+    for r in grid:
+        cells = [str(c).strip() if c is not None else "" for c in r]
+        m = {HEAD[imp._norm(c)]: i for i, c in enumerate(cells) if imp._norm(c) in HEAD}
+        if "serial" in m and "host" in m: cols = m; continue
+        if not cols or not any(cells): continue
+        g = lambda k: cells[cols[k]] if k in cols and cols[k] < len(cells) else ""   # noqa: E731
+        sn, host = g("serial")[:40], g("host")[:100]
+        if not sn: continue
+        try: check_host(host)
+        except SyncError as e: warn.append(f"{g('name') or sn}: {e}"); host_ok = False
+        else: host_ok = True
+        d, created = AttendanceDevice.objects.get_or_create(code=sn, defaults={"name": (g("name") or sn)[:80], "protocol": protocol, "port": port})
+        d.name = (g("name") or d.name)[:80]; d.serial = sn; d.machine_no = g("machine_no")[:10]; d.screen = g("screen")[:10]
+        if g("connection") in dict(AttendanceDevice.CONNECTIONS): d.connection = g("connection")
+        if host_ok: d.host = host
+        if created: d.sync_enabled = host_ok
+        d.save(); made += created; upd += not created
+    if not cols: raise ValueError("Kolom tidak dikenali. Butuh minimal kolom 'SN' dan 'IP Address / URL' (salin tabel dari Fingerspot Personnel termasuk judul kolom).")
+    return made, upd, warn

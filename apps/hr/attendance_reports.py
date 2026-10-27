@@ -7,6 +7,7 @@
 Semua dibaca dari log mentah & rekap harian yang sudah ada (tanpa tabel baru selain master mesin); data dibatasi per departemen untuk Admin Departemen."""
 from datetime import date, datetime, time, timedelta
 from xml.sax.saxutils import quoteattr
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -288,14 +289,49 @@ def control(request):
 
 
 # ============================================================================= Master Mesin
+def _device_action(request):
+    from . import attendance_sync as sy
+    p = request.POST; act = p.get("action")
+    try:
+        if act == "import_list":
+            raw = (request.FILES["file"].read() if request.FILES.get("file") else p.get("paste", "").encode()); name = request.FILES["file"].name if request.FILES.get("file") else "paste.txt"
+            made, upd, warn = sy.import_machine_list(raw, name, p.get("protocol") if p.get("protocol") in dict(AttendanceDevice.PROTOCOLS) else "zk", int(p["port"]) if p.get("port", "").isdigit() else 4370)
+            log(request, "hr", "attendance_device_import", None, None, {"created": made, "updated": upd})
+            messages.success(request, f"Daftar mesin diimpor: {made} baru, {upd} diperbarui." + (f" {len(warn)} perlu diperiksa: " + "; ".join(warn[:5]) if warn else ""))
+            return redirect("att_devices")
+        ids = [int(i) for i in p.getlist("ids") if i.isdigit()]
+        devs = AttendanceDevice.objects.filter(pk__in=ids, active=True)
+        if not devs: messages.error(request, "Centang minimal satu mesin aktif."); return redirect("att_devices")
+        if act == "test":
+            res = sy.probe_many(devs)
+        elif act == "sync":
+            d1 = date.fromisoformat(p["from"]) if p.get("from") else None; d2 = date.fromisoformat(p["to"]) if p.get("to") else None
+            res = sy.sync_many(devs, d1, d2); log(request, "hr", "attendance_device_sync", None, None, {"machines": len(res), "new": sum(r.get("new", 0) for r in res)})
+        else: return redirect("att_devices")
+    except (ValueError, KeyError) as e: messages.error(request, f"Gagal: {e}"); return redirect("att_devices")
+    names = {d.code: d.name for d in devs}; ok = sum(r["ok"] for r in res)
+    (messages.success if ok == len(res) else messages.warning)(request, f"{'Tes koneksi' if act == 'test' else 'Download scanlog'}: {ok} dari {len(res)} mesin berhasil.")
+    for r in res: (messages.info if r["ok"] else messages.error)(request, f"{names.get(r['device'], r['device'])} — {r['note']}")
+    return redirect("att_devices")
+
+
 @hrd
 def devices(request):
+    if request.method == "POST" and request.POST.get("action"):
+        return _device_action(request)
     if request.method == "POST":
         p = request.POST; code = p.get("code", "").strip()[:40]; name = p.get("name", "").strip()[:80]
         if not code or not name: messages.error(request, "Kode mesin dan nama wajib diisi.")
         else:
             d, created = AttendanceDevice.objects.get_or_create(code=code, defaults={"name": name})
             d.name, d.location, d.serial, d.note = name, p.get("location", "").strip()[:100], p.get("serial", "").strip()[:40], p.get("note", "").strip()[:200]
+            if "edit" in p or created:
+                d.host, d.machine_no, d.screen = p.get("host", "").strip()[:100], p.get("machine_no", "").strip()[:10], p.get("screen", "").strip()[:10]
+                if p.get("connection") in dict(AttendanceDevice.CONNECTIONS): d.connection = p["connection"]
+                if p.get("protocol") in dict(AttendanceDevice.PROTOCOLS): d.protocol = p["protocol"]
+                if p.get("port", "").isdigit() and 0 < int(p["port"]) < 65536: d.port = int(p["port"])
+                if p.get("comm_key", "").strip(): d.comm_key = p["comm_key"].strip()[:100]       # kosong = tidak diubah
+                if "edit" in p: d.sync_enabled = p.get("sync_enabled") == "1"
             if created: d.active = True
             elif "edit" in p: d.active = p.get("active") == "1"      # kotak centang "Aktif" hanya ada di formulir ubah
             d.save()
@@ -303,4 +339,5 @@ def devices(request):
             messages.success(request, f"Mesin {d.name} {'ditambahkan' if created else 'diperbarui'}.")
         return redirect("att_devices")
     rows, unknown, idle = device_status()
-    return render(request, "attendance/devices.html", {"rows": rows, "unknown": unknown, "idle": idle, "idle_days": DEVICE_IDLE_DAYS})
+    return render(request, "attendance/devices.html", {"rows": rows, "unknown": unknown, "idle": idle, "idle_days": DEVICE_IDLE_DAYS, "protocols": AttendanceDevice.PROTOCOLS,
+                                                        "connections": AttendanceDevice.CONNECTIONS, "default_days": getattr(settings, "ATTENDANCE_SYNC_DAYS", 3)})
