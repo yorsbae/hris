@@ -16,6 +16,8 @@ PY=/path/venv/bin/python
 30 0 * * * cd $HRIS && $PY manage.py process_attendance
 # 00:10 — (opsional) impor otomatis semua berkas Fingerspot baru dari folder bersama (yang sudah pernah diimpor dilewati)
 10 0 * * * cd $HRIS && $PY manage.py import_attendance /data/fingerspot/ --commit
+# Tiap 30 menit — (opsional) tarik scanlog langsung dari mesin Fingerspot lewat LAN (mesin diatur di Absensi → mesin: centang 'Tarik otomatis', isi alamat server SDK & port)
+*/30 * * * * cd $HRIS && $PY manage.py sync_attendance >/dev/null 2>&1
 # 02:00 — retensi data pelamar (UU PDP): anonimkan lamaran lewat masa simpan & yang tak pernah diverifikasi (jalankan di host/aplikasi yang memegang database lamaran)
 0 2 * * * cd $HRIS && $PY manage.py purge_applicants
 # --- Pemantauan (putaran 61) ---

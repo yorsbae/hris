@@ -1,0 +1,27 @@
+"""Tarik scanlog dari mesin Fingerspot lewat jaringan lokal (cron tiap 15–60 menit; idempoten).
+  python manage.py sync_attendance                     # semua mesin aktif & 'Tarik otomatis', 3 hari terakhir
+  python manage.py sync_attendance --device FP01 --from 2026-10-01 --to 2026-10-28
+  python manage.py sync_attendance --dry-run           # hanya uji koneksi & hitung, tidak menyimpan"""
+from datetime import date
+from django.core.management.base import BaseCommand, CommandError
+from apps.hr.attendance_sync import sync_device
+from apps.hr.models import AttendanceDevice
+
+
+class Command(BaseCommand):
+    help = "Unduh scanlog dari mesin Fingerspot (jaringan lokal) ke log absensi."
+
+    def add_arguments(self, p):
+        p.add_argument("--device"); p.add_argument("--from", dest="d1"); p.add_argument("--to", dest="d2"); p.add_argument("--dry-run", action="store_true")
+
+    def handle(self, *a, **o):
+        try: d1 = date.fromisoformat(o["d1"]) if o["d1"] else None; d2 = date.fromisoformat(o["d2"]) if o["d2"] else None
+        except ValueError: raise CommandError("Tanggal harus berformat YYYY-MM-DD.")
+        qs = AttendanceDevice.objects.filter(active=True, sync_enabled=True)
+        if o["device"]: qs = AttendanceDevice.objects.filter(code=o["device"])
+        if not qs: raise CommandError("Tidak ada mesin dengan 'Tarik otomatis' aktif (atau kode mesin tidak ditemukan).")
+        bad = 0
+        for dev in qs:
+            r = sync_device(dev, d1, d2, commit=not o["dry_run"]); bad += not r["ok"]
+            (self.stdout if r["ok"] else self.stderr).write(f"- {dev.code}: {'OK' if r['ok'] else 'GAGAL'} — {r['note']}")
+        if bad: raise CommandError(f"{bad} mesin gagal ditarik.")

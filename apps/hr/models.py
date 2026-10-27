@@ -382,6 +382,16 @@ class AttendanceDevice(models.Model):
     serial = models.CharField("Nomor seri (SN)", max_length=40, blank=True)
     active = models.BooleanField("Aktif", default=True)
     note = models.CharField("Catatan", max_length=200, blank=True)
+    # --- Tarik otomatis lewat jaringan lokal (attendance_sync.py) ---
+    PROTOCOLS = [("easylink", "Fingerspot EasyLink SDK (HTTP)")]
+    sync_enabled = models.BooleanField("Tarik otomatis via jaringan", default=False)
+    protocol = models.CharField("Protokol", max_length=12, choices=PROTOCOLS, default="easylink")
+    host = models.CharField("Alamat server SDK / IP mesin", max_length=100, blank=True)
+    port = models.PositiveIntegerField("Port", default=8080)
+    comm_key = EncryptedTextField("Kunci komunikasi / token", max_length=100, blank=True)  # terenkripsi di DB
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    last_sync_ok = models.BooleanField(null=True, blank=True)
+    last_sync_note = models.CharField(max_length=300, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta: ordering = ["name"]
     def __str__(self): return f"{self.name} ({self.code})"
