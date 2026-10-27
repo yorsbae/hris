@@ -1,12 +1,23 @@
 {% extends "base.html" %}{% load static %}{% block title %}Masuk · HRIS{% endblock %}{% block bodyclass %}{% if not user.is_authenticated %}auth{% endif %}{% endblock %}{% block content %}
-<div class="card" style="max-width:400px;margin:0 auto;padding:28px"><div style="display:flex;justify-content:center;margin-bottom:6px"><img src="{% static 'core/brand-logo.png' %}" alt="" width="98" height="84"></div><h2 style="justify-content:center">HRIS &amp; Poliklinik {{ company_name }}</h2>
-<p class="help" style="text-align:center;margin-top:-6px">Gunakan akun yang diberikan Superadmin.</p>
+<div class="card lg">
+<div class="lg-logo"><img src="{% static 'core/brand-logo.png' %}" alt="" width="98" height="84"></div>
+<h1 class="lg-title">HRIS &amp; Poliklinik {{ company_name }}</h1>
+<p class="lg-sub">Gunakan akun yang diberikan Superadmin.</p>
 <form method="post">{% csrf_token %}{% if form.errors %}<p class="msg error" role="alert"><span>Username atau password salah. Beberapa kali gagal berturut-turut mengunci akun sementara.</span></p>{% elif request.GET.timeout %}<p class="msg warning" role="status"><span>Sesi berakhir karena tidak ada aktivitas. Silakan masuk lagi.</span></p>{% endif %}
 <div class="fld"><label for="u">Username</label><input id="u" name="username" autocomplete="username" autofocus required autocapitalize="none" spellcheck="false"></div>
-<div class="fld"><label for="p">Password</label><div style="display:flex;gap:6px"><input id="p" name="password" type="password" autocomplete="current-password" required style="flex:1">
+<div class="fld"><label for="p">Password</label><div class="lg-pw"><input id="p" name="password" type="password" autocomplete="current-password" required>
 <button type="button" class="ghost eye" id="sp" aria-pressed="false" aria-label="Tahan untuk melihat password" title="Tahan untuk melihat password"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
-<button style="width:100%;margin-top:6px">Masuk</button></form></div>
-<style>.eye{min-width:44px;padding:0 10px;display:grid;place-items:center;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.eye .ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.eye.on{background:var(--hov)}</style>
+<button class="lg-go">Masuk</button></form></div>
+<style>.lg{max-width:400px;margin:0 auto;padding:32px 28px 28px;border:0;border-radius:16px;box-shadow:0 20px 50px rgba(5,15,40,.35)}
+.lg-logo{display:flex;justify-content:center;margin-bottom:14px}.lg-logo img{display:block;height:auto;max-width:130px}
+.lg-title{margin:0;font-size:20px;line-height:1.35;font-weight:700;text-align:center;text-wrap:balance;letter-spacing:-.01em}
+.lg-sub{margin:6px 0 22px;padding-bottom:20px;border-bottom:1px solid var(--bd);text-align:center;color:var(--mu);font-size:13.5px}
+.lg .fld{margin-bottom:16px}.lg .fld label{font-weight:600;color:var(--tx);margin-bottom:6px}
+.lg input{min-height:44px;border-radius:10px}.lg-pw{display:flex;gap:8px;align-items:stretch}.lg-pw input{flex:1;min-width:0}
+.lg-go{width:100%;min-height:46px;margin-top:8px;border-radius:10px;font-size:15px;font-weight:600}
+.lg .msg{margin:0 0 16px}
+.eye{flex:none;min-width:46px;min-height:44px;padding:0 10px;border-radius:10px;display:grid;place-items:center;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.eye .ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.eye.on{background:var(--hov)}
+@media(max-width:480px){.lg{padding:26px 20px 22px}}</style>
 <script>(function(){var b=document.getElementById("sp"),p=document.getElementById("p");
 function show(){p.type="text";b.classList.add("on");b.setAttribute("aria-pressed","true")}
 function hide(){p.type="password";b.classList.remove("on");b.setAttribute("aria-pressed","false")}
