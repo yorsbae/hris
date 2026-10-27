@@ -5,7 +5,7 @@ from apps.hr import views as hr, request_views as rq, info_views as iv, emp_view
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import health, lookup, search_views
-from apps.hr import saved_filters as sf
+from apps.hr import saved_filters as sf, order_views as ov
 from apps.core.dashboard import dashboard, home
 from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
 from apps.core.scope import require_roles
@@ -102,6 +102,11 @@ urlpatterns = [
     path("announcements/new/", iv.announcement_new),
     path("announcements/<int:pk>/", iv.announcement_detail, name="announcement_detail"),
     path("announcements/<int:pk>/file/", iv.announcement_file),
+    path("orders/", ov.order_list, name="order_list"),
+    path("orders/new/", ov.order_new, name="order_new"),
+    path("orders/<int:pk>/", ov.order_detail, name="order_detail"),
+    path("orders/<int:pk>/cancel/", ov.order_cancel, name="order_cancel"),
+    path("orders/<int:pk>/<str:action>/", ov.order_decide, name="order_decide"),
     path("requests/", rq.request_list),
     path("requests/new/", rq.request_new),
     path("requests/g/lembur/new/", ot.extra_work_new, name="extra_work_new"),

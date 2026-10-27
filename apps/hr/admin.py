@@ -1,6 +1,6 @@
 from django.contrib import admin
 from . import models
-for m in (models.Department, models.Position, models.Shift, models.Contract, models.ChangeRequest, models.Announcement):
+for m in (models.Department, models.Position, models.Shift, models.Contract, models.ChangeRequest, models.Announcement, models.StaffOrder):
     admin.site.register(m)
 
 

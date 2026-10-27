@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Order karyawan baru{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'order_list' %}">‹ Order Karyawan</a></p><h2>Order karyawan baru</h2>
+<p class="hint flow">Departemen <b>{{ dept.name }}</b> meminta tambahan tenaga ke HRD. Jelaskan bagian yang kewalahan dan alasannya; HRD akan menjawab ACC atau Ditolak beserta alasan.</p>
+<form method="post" class="card form" style="max-width:720px">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small class="help">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
+<p><button>Kirim ke HRD</button> <a class="chip" href="{% url 'order_list' %}">Batal</a></p></form>
+{% endblock %}

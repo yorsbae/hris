@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Order Karyawan{% endblock %}{% block content %}
+<h2>Order Karyawan</h2>
+<details class="flt"><summary>Alur &amp; petunjuk</summary><p class="hint flow">{% if can_decide %}Alur: <b>1. Admin Departemen mengajukan</b> kebutuhan tambahan karyawan → <b>2. Anda menjawab</b>: ACC (boleh sebagian jumlahnya) atau Tolak <b>dengan alasan</b> → <b>3. Pemohon diberi notifikasi</b>.{% else %}Alur: <b>1. Anda mengajukan</b> kebutuhan tambahan karyawan (bagian, jumlah, tanggal, alasan) → <b>2. HRD menjawab</b> ACC atau Ditolak beserta alasan → <b>3. Anda diberi notifikasi</b>. Order yang masih menunggu bisa dibatalkan.{% endif %}</p></details>
+<div class="tools">{% if can_create %}<a class="btn" style="margin-left:0" href="{% url 'order_new' %}">+ Order karyawan baru</a>{% endif %}
+<a class="chip" href="?status=menunggu">Menunggu HRD ({{ counts.menunggu }})</a><a class="chip" href="?status=acc">Di-ACC ({{ counts.acc }})</a><a class="chip" href="?status=ditolak">Ditolak ({{ counts.ditolak }})</a>
+{% if f.status or f.dept or f.q %}<a class="chip" href="{% url 'order_list' %}">Reset filter</a>{% endif %}</div>
+<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari bagian / alasan" maxlength="60" aria-label="Cari">
+<select name="status" aria-label="Status"><option value="">Semua status</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+{% if can_decide %}<select name="dept" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if f.dept == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}</form>
+{% if page %}<div class="wrap"><table><thead><tr><th>No. Order</th><th>Departemen</th><th>Bagian</th><th>Jumlah</th><th>Dibutuhkan</th><th>Status</th><th></th></tr></thead><tbody>
+{% for o in page %}<tr><td class="nw">{{ o.code }}<small>{{ o.created_at|date:"d M Y" }}</small></td><td>{{ o.department.name }}</td><td>{{ o.section }}{% if o.urgency == "mendesak" %} <span class="pill rejected">Mendesak</span>{% endif %}</td>
+<td>{{ o.qty }}{% if o.status == "acc" and o.qty_approved != o.qty %}<small>di-ACC {{ o.qty_approved }}</small>{% endif %}</td><td class="nw">{{ o.needed_from|date:"d M Y" }}</td><td><span class="pill {{ o.pill }}">{{ o.get_status_display }}</span></td>
+<td><a href="{% url 'order_detail' o.pk %}">{% if can_decide and o.status == "menunggu" %}Jawab ›{% else %}Buka ›{% endif %}</a></td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}{% else %}<p class="empty">{% if f.status or f.dept or f.q %}Tidak ada order yang cocok dengan filter. <a href="{% url 'order_list' %}">Reset filter</a>.{% elif can_create %}Belum ada order. Mulai dengan tombol <b>+ Order karyawan baru</b>.{% else %}Belum ada order karyawan.{% endif %}</p>{% endif %}
+{% endblock %}

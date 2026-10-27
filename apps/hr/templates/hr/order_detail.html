@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}{{ o.code }}{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'order_list' %}">‹ Order Karyawan</a></p>
+<h2>{{ o.code }} <span class="pill {{ o.pill }}">{{ o.get_status_display }}</span>{% if o.urgency == "mendesak" %} <span class="pill rejected">Mendesak</span>{% endif %}</h2>
+<div class="card" style="max-width:720px"><table class="kv"><tbody>
+<tr><th>Departemen</th><td>{{ o.department.name }}</td></tr><tr><th>Bagian / posisi</th><td>{{ o.section }}{% if o.position %} ({{ o.position.name }}){% endif %}</td></tr>
+<tr><th>Jumlah diminta</th><td>{{ o.qty }} orang</td></tr><tr><th>Dibutuhkan</th><td>{{ o.needed_from|date:"d M Y" }}{% if o.needed_until %} s/d {{ o.needed_until|date:"d M Y" }}{% else %} (tetap){% endif %}</td></tr>
+<tr><th>Alasan</th><td>{{ o.reason|linebreaksbr }}</td></tr><tr><th>Diajukan oleh</th><td>{{ o.requested_by.get_full_name|default:o.requested_by.username }} · {{ o.created_at|date:"d M Y H:i" }}</td></tr>
+{% if o.decided_at %}<tr><th>Dijawab oleh</th><td>{{ o.decided_by.get_full_name|default:o.decided_by.username }} · {{ o.decided_at|date:"d M Y H:i" }}</td></tr>
+{% if o.status == "acc" %}<tr><th>Jumlah di-ACC</th><td>{{ o.qty_approved }} orang{% if o.qty_approved != o.qty %} (sebagian dari {{ o.qty }}){% endif %}</td></tr>{% endif %}
+<tr><th>{% if o.status == "ditolak" %}Alasan penolakan{% else %}Catatan HRD{% endif %}</th><td>{{ o.decision_note|default:"—"|linebreaksbr }}</td></tr>{% endif %}
+</tbody></table></div>
+{% if can_decide %}<form method="post" class="card form" style="max-width:720px;margin-top:14px">{% csrf_token %}<h3 style="margin-top:0">Jawaban HRD</h3>
+<div class="fld"><label for="qa">Jumlah di-ACC (kosong = semua {{ o.qty }})</label><input id="qa" type="number" name="qty_approved" min="1" max="{{ o.qty }}" placeholder="{{ o.qty }}"></div>
+<div class="fld"><label for="note">Catatan / alasan <small>(wajib bila ditolak)</small></label><textarea id="note" name="note" rows="3" maxlength="1000"></textarea></div>
+<p><button formaction="{% url 'order_decide' o.pk 'acc' %}">ACC</button> <button class="ghost danger" formaction="{% url 'order_decide' o.pk 'tolak' %}">Tolak</button></p></form>{% endif %}
+{% if can_cancel %}<form method="post" action="{% url 'order_cancel' o.pk %}" style="margin-top:14px">{% csrf_token %}<button class="ghost danger">Batalkan order</button></form>{% endif %}
+{% endblock %}

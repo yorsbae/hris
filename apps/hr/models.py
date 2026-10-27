@@ -568,3 +568,39 @@ class MedicalCheckup(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta: ordering = ["-checkup_date", "-id"]
+
+
+class StaffOrder(models.Model):
+    """Order Karyawan: Admin Departemen meminta tambahan tenaga ke HRD (mis. dept A kewalahan di bagian X). HRD menjawab ACC atau Ditolak (+ alasan).
+    Catatan keputusan tidak diubah setelah dijawab; salah ajuan = dibatalkan pemohon selama masih menunggu."""
+    class Status(models.TextChoices):
+        PENDING = "menunggu", "Menunggu HRD"
+        APPROVED = "acc", "Di-ACC"
+        REJECTED = "ditolak", "Ditolak"
+        CANCELLED = "dibatalkan", "Dibatalkan"
+    class Urgency(models.TextChoices):
+        NORMAL = "normal", "Normal"
+        URGENT = "mendesak", "Mendesak"
+    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="staff_orders")  # departemen pemohon (scope)
+    section = models.CharField("Bagian / posisi", max_length=100)  # bagian X yang kekurangan orang
+    position = models.ForeignKey(Position, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # jabatan yang dicari (opsional)
+    qty = models.PositiveSmallIntegerField("Jumlah diminta")
+    qty_approved = models.PositiveSmallIntegerField("Jumlah di-ACC", null=True, blank=True)
+    needed_from = models.DateField("Dibutuhkan mulai")
+    needed_until = models.DateField("Sampai (kosong = tetap)", null=True, blank=True)
+    urgency = models.CharField(max_length=10, choices=Urgency.choices, default=Urgency.NORMAL)
+    reason = models.TextField("Alasan permintaan")
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING, db_index=True)
+    decision_note = models.TextField("Catatan / alasan keputusan", blank=True)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ["-id"]
+        indexes = [models.Index(fields=["department", "status"]), models.Index(fields=["status", "-created_at"])]
+    @property
+    def code(self): return f"ORD-{self.created_at:%Y}-{self.pk:05d}" if self.pk and self.created_at else "ORD-baru"
+    @property
+    def pill(self): return {"menunggu": "pending", "acc": "approved", "ditolak": "rejected", "dibatalkan": "cancelled"}[self.status]
+    def __str__(self): return f"{self.code} · {self.department} · {self.section} ×{self.qty}"
