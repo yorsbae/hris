@@ -220,6 +220,11 @@ class AnnouncementRead(models.Model):
     read_at = models.DateTimeField(auto_now_add=True)
     class Meta: unique_together = ("announcement", "user")
 
+class _LiveAssignments(models.Manager):
+    """Manager bawaan hanya mengembalikan penyesuaian yang BERLAKU (belum dibatalkan). Yang dibatalkan tetap ada lewat `all_objects` (jejak)."""
+    def get_queryset(self): return super().get_queryset().filter(voided_at__isnull=True)
+
+
 class ShiftAssignment(models.Model):
     """Penyesuaian jadwal per TANGGAL (hasil tukar shift/libur yang disetujui & dilaksanakan). Master `Employee.shift` tidak diubah
     (VISION: master shift tidak berubah lewat tukar). Jadwal efektif = penyesuaian bila ada, kalau tidak shift master (`apps/hr/schedule.py`).
@@ -233,10 +238,12 @@ class ShiftAssignment(models.Model):
     request = models.ForeignKey("ChangeRequest", on_delete=models.PROTECT, related_name="schedule_rows")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
+    voided_at = models.DateTimeField(null=True, blank=True)  # diisi saat pelaksanaan tukar dibatalkan HRD; baris tidak dihapus (jejak), tidak lagi berlaku
+    objects = _LiveAssignments(); all_objects = models.Manager()
     class Meta:
         ordering = ["date", "id"]
         constraints = [
-            models.UniqueConstraint(fields=["employee", "date"], name="uniq_shift_assignment_employee_date"),
+            models.UniqueConstraint(fields=["employee", "date"], condition=models.Q(voided_at__isnull=True), name="uniq_shift_assignment_employee_date"),
             models.CheckConstraint(name="shift_assignment_shift_iff_kind_shift",
                                    condition=(models.Q(kind="shift", shift__isnull=False) | models.Q(kind__in=["work", "off"], shift__isnull=True))),
         ]

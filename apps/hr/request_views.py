@@ -114,7 +114,7 @@ def _actions(user, req):
         if hrd: return ["approved", "rejected", "cancelled"]
         return ["cancelled"] if mine else []
     if req.status == "approved" and hrd: return ["executed", "cancelled"]
-    if req.status == "executed" and hrd and req.type in services.AUTO_EXEC: return ["cancelled"]  # A80
+    if req.status == "executed" and hrd and req.type in services.UNDOABLE: return ["cancelled"]  # A80 (diperluas): batalkan pelaksanaan
     return []
 
 

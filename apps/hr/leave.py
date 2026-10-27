@@ -80,3 +80,11 @@ def months_of_service(join: date, as_of: date) -> int:
 
 def eligible(employee, as_of: date) -> bool:
     return employee.status == "aktif" and not employee.deleted_at and months_of_service(employee.join_date, as_of) >= settings.ANNUAL_LEAVE_MIN_MONTHS
+
+
+def refund(req: ChangeRequest, user):
+    """Kembalikan saldo saat cuti yang SUDAH dilaksanakan dibatalkan HRD: tiap baris pemakaian dibalas satu baris koreksi (+) — kartu tetap append-only."""
+    for u in list(LeaveLedger.objects.filter(request=req, kind=LeaveLedger.USE)):
+        if LeaveLedger.objects.filter(request=req, year=u.year, kind=LeaveLedger.ADJUST).exists(): continue   # idempoten
+        LeaveLedger.objects.create(employee_id=u.employee_id, year=u.year, kind=LeaveLedger.ADJUST, days=-u.days, request=req, created_by=user,
+                                   note=f"Pembatalan cuti {req.payload.get('start_date', '')} s/d {req.payload.get('end_date', '')}"[:300])

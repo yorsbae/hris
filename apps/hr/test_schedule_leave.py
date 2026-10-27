@@ -384,7 +384,10 @@ class CancelTests(Base):
         req.refresh_from_db(); self.assertEqual(req.status, "cancelled"); self.assertFalse(LeaveLedger.objects.exists())
 
     def test_cannot_cancel_executed(self):
-        req = self.cuti_req("2026-11-02", "2026-11-03", status="executed"); self.login("hrd"); self.act(req, "cancelled", "x"); req.refresh_from_db(); self.assertEqual(req.status, "executed")
+        """Pelaksanaan hanya bisa dibatalkan HRD (lihat test_undo_execution); admin dept ditolak, dan jenis yang mengubah master (mutasi) tidak bisa dibalik."""
+        req = self.cuti_req("2026-11-02", "2026-11-03", status="executed"); self.login("adm1"); self.act(req, "cancelled", "x"); req.refresh_from_db(); self.assertEqual(req.status, "executed")
+        mut = self.make_req("mutasi_dept", {"department_id": self.d2.pk, "effective_date": "2026-11-01"}, status="executed"); self.login("hrd")
+        self.act(mut, "cancelled", "x"); mut.refresh_from_db(); self.assertEqual(mut.status, "executed")
 
     def test_cancel_releases_reserved_balance_and_overlap(self):
         self.grant(days=3); req = self.cuti_req("2026-11-02", "2026-11-04"); self.assertEqual(leave.available(self.e1, 2026), Decimal("0"))

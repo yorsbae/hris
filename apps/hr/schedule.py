@@ -196,3 +196,14 @@ def apply(req: ChangeRequest, user):
                 raise ValueError(f"Tanggal {d:%d-%m-%Y} sudah punya penyesuaian jadwal dari pengajuan lain ({e.name}).")
     for e, d, kind, shift in build_rows(req.type, emp, partner, p):
         ShiftAssignment.objects.create(employee=e, date=d, kind=kind, shift=shift, request=req, created_by=user)
+
+
+def revert(req: ChangeRequest, user):
+    """Batalkan pelaksanaan tukar: semua baris penyesuaian pengajuan ini (kedua karyawan pada mode 2 orang) ditandai `voided_at` (tidak dihapus).
+    Hanya bila SEMUA tanggalnya belum lewat; tanggal yang sudah berjalan dikoreksi lewat Validasi Kehadiran. Dipanggil di dalam transaksi."""
+    today = timezone.localdate()
+    rows = list(ShiftAssignment.objects.select_for_update().filter(request=req))
+    for r in rows:
+        if r.date < today: raise ValueError(f"Tanggal {r.date:%d-%m-%Y} sudah lewat; tukar yang sudah berjalan tidak dapat dibatalkan. Koreksi kehadirannya lewat Validasi Kehadiran.")
+    ShiftAssignment.all_objects.filter(pk__in=[r.pk for r in rows]).update(voided_at=timezone.now())  # queryset.update melewati save() append-only
+    return rows
