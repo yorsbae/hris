@@ -18,6 +18,9 @@ def dashboard(request):
              "contract_expired": _contract_filter(act, "expired").count(),
              "contract_le_7": _contract_filter(act, "le7").count(), "contract_le_30": _contract_filter(act, "expiring").count(), "contract_le_60": _contract_filter(act, "le60").count(),
              "pending_requests": ChangeRequest.objects.filter(status="pending").count()}
+        from apps.hr.models import StaffOrder
+        d.update(approved_unexecuted=ChangeRequest.objects.filter(status="approved").count(),   # sudah disetujui tetapi belum "Laksanakan" → belum masuk absensi/saldo/jadwal
+                 orders_pending=StaffOrder.objects.filter(status="menunggu").count())            # Order Karyawan dari departemen yang menunggu jawaban HRD
         from apps.hrd.models import BpjsMembership, MaternityLeave, WarningLetter
         d.update(maternity_active=MaternityLeave.objects.filter(state="aktif", start_date__lte=today, end_date__gte=today).values("employee").distinct().count(),
                  warnings_active=WarningLetter.objects.filter(revoked_at__isnull=True, issue_date__lte=today, valid_until__gte=today).count(),

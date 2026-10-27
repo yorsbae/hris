@@ -91,3 +91,18 @@ class OrderTests(TestCase):
     def test_menu_present_and_hrd_sees_all(self):
         self.mk(); self.mk(self.b); self.login("hrd"); r = self.client.get("/orders/")
         self.assertEqual(len(r.context["page"]), 2); self.assertContains(r, "/orders/")
+
+
+class OrderDashboardTests(OrderTests):
+    """Kartu tugas HRD: order menunggu & pengajuan disetujui-belum-dilaksanakan; Admin Dept tidak menerimanya."""
+    def dash(self, who): self.login(who); return self.client.get("/api/dashboard/").json()
+
+    def test_hrd_counts_pending_orders_and_unexecuted_approved(self):
+        from apps.hr.models import ChangeRequest, Employee, Position
+        pos = Position.objects.create(name="Staff")
+        e = Employee.objects.create(nik="001", name="Budi", gender="L", department=self.a, position=pos, join_date=date(2024, 1, 1))
+        mk = lambda st: ChangeRequest.objects.create(type="izin", employee=e, department=self.a, status=st, payload={}, requested_by=self.adm_a)
+        mk("approved"); mk("approved"); mk("executed"); mk("pending")
+        self.mk(); self.mk(status="acc")
+        d = self.dash("hrd"); self.assertEqual((d["approved_unexecuted"], d["orders_pending"]), (2, 1))
+        self.assertNotIn("orders_pending", self.dash("adm_a"))
