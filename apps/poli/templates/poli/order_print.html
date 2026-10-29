@@ -1,23 +1,25 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8"><title>{{ o.number }}</title>
+{% load static %}<!doctype html><html lang="id"><head><meta charset="utf-8"><title>{{ o.number }}</title>
 <style>
 @page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font:12px/1.4 Arial,Helvetica,sans-serif;color:#000;margin:0;padding:16px;background:#fff}
 .sheet{max-width:273mm;margin:0 auto;border:2px solid #000;padding:0}
-.kop{text-align:center;padding:8px 10px;border-bottom:1px solid #000}.kop b{font-size:16px;display:block}.kop small{display:block;color:#222}
-h1{font-size:15px;text-align:center;margin:0;padding:6px;letter-spacing:.6px;border-bottom:1px solid #000}
+.kop{display:flex;align-items:center;gap:14px;padding:8px 14px 0}.kop img{width:84px;height:auto;flex:none}.kop .t{flex:1;text-align:center}
+.kop .nm{font:700 22px/1.15 Georgia,"Times New Roman",serif;color:#173d8f;letter-spacing:.3px}.kop .tg{font:700 11px/1.3 Arial,Helvetica,sans-serif;color:#173d8f;margin-top:2px;letter-spacing:.4px}.kop .ad{font:700 10.5px/1.35 Georgia,"Times New Roman",serif;color:#000;margin-top:3px}
+.rule{margin:8px 0 0;border-top:3px solid #173d8f;height:0}.rule:after{content:"";display:block;margin-top:2px;border-top:1px solid #173d8f}
+h1{font-size:15px;text-align:center;margin:0;padding:6px;letter-spacing:.6px;border-bottom:1px solid #000;color:#173d8f}
 table{width:100%;border-collapse:collapse}th,td{border:1px solid #000;padding:4px 6px;text-align:left;vertical-align:middle}
 .sheet>table{margin:-1px 0 0;border-left:0;border-right:0}.sheet>table tr>:first-child{border-left:0}.sheet>table tr>:last-child{border-right:0}
 table.meta td{border:0;border-bottom:1px solid #000;padding:3px 8px}table.meta td.k{width:130px;border-right:0}table.meta td.k2{width:90px}
-th{background:#e8e8e8;text-align:center;font-size:11px}td.c{text-align:center}td.n{text-align:right}td.no{width:30px;text-align:center}td.kd{width:62px}td.sat{width:62px}td.jm{width:58px}
+th{background:#e3eaf6;color:#173d8f;text-align:center;font-size:11px}td.c{text-align:center}td.n{text-align:right}td.no{width:30px;text-align:center}td.kd{width:62px}td.sat{width:62px}td.jm{width:58px}
 tr.body td{height:24px}.gap{border-top:0;border-bottom:0}
 tfoot td{font-weight:700;background:#f3f3f3}
 .sig{display:flex;border-top:1px solid #000}.sig div{flex:1;text-align:center;padding:6px 10px 8px}.sig div+div{border-left:1px solid #000}.sig i{display:block;height:58px}.sig span{display:block;margin:0 auto;width:60%;border-top:1px solid #000;height:14px}
 .foot{padding:4px 8px;border-top:1px solid #000;font-size:10px;color:#444}
 .bar{max-width:273mm;margin:0 auto 12px;display:flex;gap:8px}.bar button,.bar a{font:inherit;padding:7px 14px;border:1px solid #1d4ed8;background:#1d4ed8;color:#fff;border-radius:6px;cursor:pointer;text-decoration:none}.bar a{background:#fff;color:#1d4ed8}
-@media print{.bar{display:none}body{padding:0}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media print{.bar{display:none}body{padding:0}th,.kop img,.rule,h1{-webkit-print-color-adjust:exact;print-color-adjust:exact}tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
 <div class="bar"><button type="button" onclick="window.print()">Cetak</button><a href="{% url 'poli_order_detail' o.pk %}">‹ Kembali</a></div>
 <div class="sheet">
-<div class="kop"><b>{{ kop.company }}</b>{% if kop.address %}<small>{{ kop.address }}</small>{% endif %}<small>{{ kop.poli }}</small></div>
+<div class="kop"><img src="{% static 'core/kop-logo.png' %}" alt=""><div class="t"><div class="nm">{{ kop.company }}</div>{% if kop.tagline %}<div class="tg">{{ kop.tagline }}</div>{% endif %}{% if kop.address %}<div class="ad">{{ kop.address }}</div>{% endif %}</div></div><div class="rule"></div>
 <h1>SURAT PESANAN OBAT</h1>
 <table class="meta"><tr><td class="k">Nomor</td><td>: {{ o.number }}</td><td class="k2">Tanggal</td><td>: {{ o.created_at|date:"d F Y" }}</td></tr>
 <tr><td class="k">Kepada (Pemasok)</td><td>: {{ o.supplier|default:"-" }}</td><td class="k2">Catatan</td><td>: {{ o.note|default:"-" }}</td></tr></table>

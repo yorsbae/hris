@@ -25,9 +25,6 @@
 {% include "attendance/_mesin_tabs.html" with tab="mesin" %}
 {% if idle %}<div class="note warn" role="status"><strong>Mesin diam:</strong> {% for r in idle %}{{ r.d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}
 
-{% if unknown %}<div class="panel"><h3>Mesin di log yang belum terdaftar</h3><p class="sub">Muncul di scan 30 hari terakhir. Beri nama &amp; lokasi agar masuk ke daftar mesin.</p>
-<div class="wrap nosg"><table class="dev-reg"><thead><tr><th>Kode</th><th class="num">Scan</th><th>Terakhir</th><th>Daftarkan</th></tr></thead><tbody>
-{% for u in unknown %}<tr><td><b>{{ u.code }}</b></td><td class="num">{{ u.n }}</td><td class="nw">{{ u.last|date:"d M Y H:i" }}</td><td><form method="post" class="grid">{% csrf_token %}<input type="hidden" name="code" value="{{ u.code }}"><label class="f">Nama<input name="name" value="{{ u.code }}" required maxlength="80"></label><label class="f">Lokasi<input name="location" placeholder="mis. Gerbang Utama" maxlength="100"></label><button class="btn" type="submit">Daftarkan</button></form></td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
 
 <form method="post">{% csrf_token %}
 <div class="panel sync"><div><h3>Download scanlog dari mesin</h3><p class="sub" style="margin:0">Centang mesin di tabel, pilih cakupan data, lalu unduh.</p></div>

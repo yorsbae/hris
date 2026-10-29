@@ -193,7 +193,7 @@ class ControlTests(Base):
 class DeviceTests(Base):
     def test_register_unknown_then_edit_and_deactivate(self):
         d = workday(); self.scan(self.e1, d, (7, 0))
-        self.login("hrd"); r = self.client.get(reverse("att_devices")); self.assertContains(r, "FP1")
+        self.login("hrd"); r = self.client.get(reverse("att_devices")); self.assertNotContains(r, "FP1")  # panel "belum terdaftar" dihapus dari halaman
         self.client.post(reverse("att_devices"), {"code": "FP1", "name": "Gerbang Utama", "location": "Pos 1"}); m = AttendanceDevice.objects.get(code="FP1"); self.assertTrue(m.active)
         self.client.post(reverse("att_devices"), {"edit": "1", "code": "FP1", "name": "Gerbang", "serial": "123"}); m.refresh_from_db(); self.assertEqual((m.name, m.serial, m.active), ("Gerbang", "123", False))
         self.assertEqual(AuditLog.objects.filter(module="hr", action__startswith="attendance_device").count(), 2)
