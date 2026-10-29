@@ -167,3 +167,15 @@ class ShortfallTests(PurchasingBase):
         self.client.post(f"/poli/orders/{o.pk}/close/", {"note": "pemasok berhenti"}); l = self.lines(o)["HBS"]
         self.assertEqual((l.closed, l.outstanding, l.shortfall_note), (True, 0, "pemasok berhenti"))
         r = self.client.get(f"/poli/orders/{o.pk}/?export=1&format=csv"); self.assertContains(r, "selisih"); self.assertContains(r, "pemasok berhenti")
+
+
+class OrderPrintTests(PurchasingBase):
+    def test_print_page_and_menu_merged(self):
+        self.new_order([self.empty, self.low], {self.empty.pk: 12, self.low.pk: 7})
+        o = PurchaseOrder.objects.latest("id")
+        r = self.client.get(f"/poli/orders/{o.pk}/print/"); self.assertEqual(r.status_code, 200)
+        for t in (o.number, "SURAT PESANAN OBAT", "Obat Habis", "Obat Menipis", ">19<"): self.assertContains(r, t)  # total 12+7
+        self.assertTrue(AuditLog.objects.filter(action="po_print").exists())
+        h = self.client.get("/poli/orders/").content.decode()
+        self.assertIn("Pesan &amp; Terima Obat", h); self.assertNotIn('href="/poli/receipts/" class="sub"', h)
+        self.assertIn("Cetak", h); self.assertEqual(self.client.get("/poli/receipts/").status_code, 200)

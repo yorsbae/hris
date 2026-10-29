@@ -82,6 +82,16 @@ def order_detail(request, pk):
 
 
 @poli_only
+def order_print(request, pk):
+    """Surat pesanan obat siap cetak (HTML A4, Ctrl+P / Simpan PDF). Pencetakan diaudit."""
+    from apps.core import letterhead
+    o = get_object_or_404(PurchaseOrder.objects.select_related("created_by"), pk=pk)
+    lines = list(o.lines.select_related("medicine"))
+    log(request, "poli", "po_print", o, None, {"number": o.number, "lines": len(lines)})
+    return render(request, "poli/order_print.html", {"o": o, "lines": lines, "kop": letterhead.info(request.user), "now": date.today(), "total": sum(l.qty_ordered for l in lines)})
+
+
+@poli_only
 @require_POST
 def order_action(request, pk, action):
     o = get_object_or_404(PurchaseOrder, pk=pk)

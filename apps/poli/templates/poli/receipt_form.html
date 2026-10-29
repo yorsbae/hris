@@ -10,8 +10,8 @@
 <div class="fld"><label for="note">Catatan</label><input id="note" name="note" maxlength="300" value="{{ p.note }}"></div></div>
 {% if order %}
 <p><button type="button" class="ghost" id="gr-fill">Isi semua sesuai sisa pesanan</button></p>
-<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Kode</th><th class="fill">Obat</th><th class="num">Dipesan</th><th class="num">Sudah diterima</th><th class="num">Sisa</th><th class="num">Datang sekarang</th><th class="nw">Selisih</th><th class="nw">Sisa tidak akan datang</th><th>Keterangan</th></tr></thead><tbody>
-{% for l in lines %}<tr data-row data-out="{{ l.outstanding }}"><td class="nw">{{ l.medicine.code }}</td><td class="fill">{{ l.medicine.name }} <small>({{ l.medicine.unit }})</small>{% if l.shortfall_note %}<br><small>Catatan sebelumnya: {{ l.shortfall_note }}</small>{% endif %}</td><td class="num">{{ l.qty_ordered }}</td><td class="num">{{ l.qty_received }}</td><td class="num">{{ l.outstanding }}</td>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="fill">Obat</th><th class="num">Dipesan <small>sudah diterima</small></th><th class="num">Sisa</th><th class="num">Datang sekarang</th><th class="nw">Selisih</th><th class="nw">Sisa tidak akan datang</th><th>Keterangan</th></tr></thead><tbody>
+{% for l in lines %}<tr data-row data-out="{{ l.outstanding }}"><td class="fill">{{ l.medicine.name }} <small>{{ l.medicine.code }} · {{ l.medicine.unit }}</small>{% if l.shortfall_note %}<br><small>Catatan sebelumnya: {{ l.shortfall_note }}</small>{% endif %}</td><td class="num">{{ l.qty_ordered }}<small>diterima {{ l.qty_received }}</small></td><td class="num">{{ l.outstanding }}</td>
 <td class="num"><input type="number" class="min" name="qty_{{ l.pk }}" min="0" max="1000000" value="{{ l.posted }}" aria-label="Datang {{ l.medicine.name }}"></td>
 <td class="nw"><span data-gap></span></td>
 <td class="nw"><label class="chk"><input type="checkbox" name="done_{{ l.pk }}" value="1"{% if l.posted_done %} checked{% endif %}> tidak datang</label></td>

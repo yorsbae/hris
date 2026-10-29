@@ -24,7 +24,7 @@ def _absensi(full):
     """Menu Absensi (Tahap 6, putaran 48). HRD: rekap + Data Scanlog (impor lewat tombol di halamannya) + PIN + hari libur. Admin Dept: hanya rekap departemennya."""
     items = [("Absensi", "/absensi/", "clock"), ("Kontrol Harian", "/absensi/kontrol/", "shield", True), ("Shift Harian", "/absensi/shift/", "calendar", True),
              ("Rekap Bulanan", "/absensi/bulanan/", "calendar", True)]
-    if full: items += [("Riwayat Impor", "/absensi/scanlog/", "file", True), ("Mesin", "/absensi/mesin/", "clock", True), ("Pemetaan PIN", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True), ("Tutup Periode", "/absensi/periode/", "shield", True)]
+    if full: items += [("Mesin & Impor", "/absensi/mesin/", "clock", True), ("Pemetaan PIN", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True), ("Tutup Periode", "/absensi/periode/", "shield", True)]
     return items
 
 
@@ -78,7 +78,7 @@ def _groups(role):
 
 def _poli(with_hub):
     items = [("Poliklinik", "/poli/", "plus")] if with_hub else []
-    return items + [("Pemeriksaan & Rekam Medis", "/poli/records/", "activity"), ("Rekap Visit Pasien", "/poli/visits/", "users"), ("Obat & Stok", "/poli/medicines/", "pill"), ("Pesan Obat", "/poli/orders/", "repeat"), ("Terima Obat", "/poli/receipts/", "plus"), ("Rekap Stok Obat", "/poli/reports/stock/", "file"),
+    return items + [("Pemeriksaan & Rekam Medis", "/poli/records/", "activity"), ("Rekap Visit Pasien", "/poli/visits/", "users"), ("Obat & Stok", "/poli/medicines/", "pill"), ("Pesan & Terima Obat", "/poli/orders/", "repeat"), ("Rekap Stok Obat", "/poli/reports/stock/", "file"),
                     ("Rujukan", "/poli/referrals/", "repeat"), ("Tagihan Mitra", "/poli/billing/", "file"), ("Master Tanggungan", "/poli/billing/coverage/", "file", True), ("Master Diagnosa", "/poli/diagnoses/", "file")]
 
 # Catatan: halaman jadwal mingguan (/schedule/) tidak punya menu sendiri (putaran 18); dibuka dari Data Karyawan dan membuat butir itu aktif; sejak putaran 25 tombolnya dihapus dari Data Karyawan (URL tetap ada).
@@ -105,7 +105,7 @@ def build(user, path):
         for it in items:
             url = it[1]
             prefix = "/master/" if url.startswith("/master/") else url  # Master: semua jenis master tetap satu butir
-            m = (path == "/") if url == "/" else path.startswith(prefix) or (url == "/employees/" and path.startswith("/schedule/")) or (url == "/absensi/scanlog/" and path.startswith("/absensi/impor/"))  # Impor Fingerspot = bagian Riwayat Impor (tombol "+ Impor"), bukan submenu sendiri
+            m = (path == "/") if url == "/" else path.startswith(prefix) or (url == "/employees/" and path.startswith("/schedule/")) or (url == "/poli/orders/" and path.startswith("/poli/receipts/")) or (url == "/absensi/mesin/" and path.startswith(("/absensi/scanlog/", "/absensi/impor/")))  # Impor Fingerspot = bagian Riwayat Impor (tombol "+ Impor"), bukan submenu sendiri
             if m and len(prefix) > best_len: best, best_len = it, len(prefix)
     out = [{"title": t, "tree": _tree(items, best), "items": [{"label": i[0], "url": i[1], "icon": i[2], "active": i is best, "sub": len(i) > 3} for i in items]} for t, items in groups]
     return out, (best[0] if best and best[1] != "/" else "")

@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block title %}Penerimaan obat{% endblock %}{% block content %}
-<p class="back"><a href="{% url 'poli_orders' %}">‹ Pesanan obat</a></p>
-<h2>Penerimaan obat <a class="btn" href="{% url 'poli_receipt_new' %}">+ Terima tanpa pesanan</a></h2>
+<p class="back"><a href="/poli/">‹ Poliklinik</a></p>
+<h2>Pesan & Terima Obat <a class="btn" href="{% url 'poli_order_new' %}">+ Pesan obat</a> <a class="btn ghost" href="{% url 'poli_receipt_new' %}">Terima obat tanpa pesanan</a></h2>
+{% include "poli/_ordertabs.html" with tab="receipts" %}
 <div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Nomor</th><th class="nw">Tanggal</th><th class="nw">Pesanan</th><th class="fill">Pemasok / faktur</th><th class="num">Jenis obat</th><th class="nw">Petugas</th></tr></thead><tbody>
 {% for g in page %}<tr><td class="nw"><a href="{% url 'poli_receipt_detail' g.pk %}">{{ g.number }}</a></td><td class="nw">{{ g.received_on|date:"d M Y" }}</td><td class="nw">{% if g.order %}<a href="{% url 'poli_order_detail' g.order.pk %}">{{ g.order.number }}</a>{% else %}-{% endif %}</td><td class="fill">{{ g.supplier|default:"-" }}{% if g.ref %} · {{ g.ref }}{% endif %}</td><td class="num">{{ g.lines.all|length }}</td><td class="nw">{{ g.created_by.get_username|default:"-" }}</td></tr>
 {% empty %}<tr><td class="empty" colspan="6">Belum ada penerimaan.</td></tr>{% endfor %}</tbody></table></div>

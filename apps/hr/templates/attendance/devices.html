@@ -1,19 +1,28 @@
-{% extends "base.html" %}{% block title %}Master Mesin{% endblock %}{% block content %}
+{% extends "base.html" %}{% block title %}Mesin &amp; Impor{% endblock %}{% block content %}
+<style>
+.ih .panel{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px;margin:0 0 14px}.ih .panel .bar{margin:0;align-items:center}.ih .panel small{display:block;color:var(--mu);font-size:12px;margin-top:10px;flex-basis:100%}
+.ih .modes{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.ih .modes label{display:inline-flex;gap:5px;align-items:center}
+.ih h3{margin:20px 0 8px}.ih td small{display:block;color:var(--mu);font-size:12px;margin-top:2px}.ih td.num{text-align:right;font-variant-numeric:tabular-nums}
+</style>
+<div class="ih">
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
-<h2>Master Mesin Absensi</h2>
-<p class="sub">Beri nama & lokasi pada mesin Fingerspot. Kode mesin = isi kolom <b>Mesin</b> di berkas impor (mis. “Mesin 1”). Mesin aktif yang tidak mengirim scan ≥ {{ idle_days }} hari ditandai di Kontrol Harian.</p>
-{% if idle %}<p class="hint flow" style="border-left:4px solid #d92d20">Mesin diam: {% for r in idle %}{{ r.d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+<h2>Mesin &amp; Impor</h2>
+{% include "attendance/_mesin_tabs.html" with tab="mesin" %}
+<div class="kpis"><div class="kpi"><span class="n">{{ rows|length }}</span><span class="l">mesin terdaftar</span><span class="s">kode mesin = SN / kolom Mesin di berkas</span></div>
+<div class="kpi{% if idle %} warn{% endif %}"><span class="n">{{ idle|length }}</span><span class="l">mesin diam</span><span class="s">tanpa scan ≥ {{ idle_days }} hari</span></div>
+<div class="kpi{% if unknown %} warn{% endif %}"><span class="n">{{ unknown|length }}</span><span class="l">belum terdaftar</span><span class="s">muncul di log 30 hari terakhir</span></div></div>
+{% if idle %}<div class="note warn" role="status"><strong>Mesin diam:</strong> {% for r in idle %}{{ r.d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}
 {% if unknown %}<h3>Mesin di log yang belum terdaftar (30 hari terakhir)</h3><div class="wrap"><table class="sepfit"><thead><tr><th>Kode</th><th>Scan</th><th>Terakhir</th><th>Daftarkan</th></tr></thead><tbody>
 {% for u in unknown %}<tr><td>{{ u.code }}</td><td class="num">{{ u.n }}</td><td class="nw">{{ u.last|date:"d M Y H:i" }}</td><td><form method="post" class="bar" style="margin:0">{% csrf_token %}<input type="hidden" name="code" value="{{ u.code }}"><input name="name" value="{{ u.code }}" required maxlength="80" aria-label="Nama"><input name="location" placeholder="Lokasi" maxlength="100"><button class="btn" type="submit">Daftarkan</button></form></td></tr>{% endfor %}</tbody></table></div>{% endif %}
 <h3>Mesin terdaftar</h3>
 <form method="post">{% csrf_token %}
-<div class="bar"><button class="btn" name="action" value="sync" type="submit">⬇ Download scanlog (yang dicentang)</button><button class="btn sec" name="action" value="test" type="submit">Tes koneksi</button>
-<label><input type="radio" name="mode" value="latest" checked> Data terbaru</label><label><input type="radio" name="mode" value="all"> Semua scanlog</label><label><input type="radio" name="mode" value="range"> Rentang:</label>
-<input type="date" name="from" aria-label="Dari"><input type="date" name="to" aria-label="Sampai">
-<small><b>Data terbaru</b> = sejak scan terakhir yang sudah tersimpan di HRIS (kolom “Tersimpan s/d”), mesin baru = semuanya. <b>Semua</b> = seluruh log di mesin. Scan yang sudah ada otomatis dilewati (tidak ganda); tarikan tanpa data baru tidak membuat riwayat.</small></div>
-<div class="wrap"><table class="sepfit"><thead><tr><th><input type="checkbox" aria-label="Pilih semua" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th><th>Nama / Lokasi</th><th>SN</th><th>No Mesin</th><th>Koneksi</th><th>IP Address / URL</th><th>Layar</th><th>Status</th><th>Scan 30 hari</th><th>Tersimpan s/d</th><th>Tarikan terakhir</th><th>Ubah</th></tr></thead><tbody>
+<div class="panel"><div class="bar"><button class="btn" name="action" value="sync" type="submit">⬇ Download scanlog (yang dicentang)</button><button class="btn sec" name="action" value="test" type="submit">Tes koneksi</button><a class="btn ghost" href="{% url 'att_import' %}">+ Impor berkas Fingerspot</a>
+<span class="modes"><label><input type="radio" name="mode" value="latest" checked> Data terbaru</label><label><input type="radio" name="mode" value="all"> Semua scanlog</label><label><input type="radio" name="mode" value="range"> Rentang:</label>
+<input type="date" name="from" aria-label="Dari"><input type="date" name="to" aria-label="Sampai"></span>
+<small><b>Data terbaru</b> = sejak scan terakhir yang sudah tersimpan di HRIS (kolom “Tersimpan s/d”), mesin baru = semuanya. <b>Semua</b> = seluruh log di mesin. Scan yang sudah ada otomatis dilewati (tidak ganda); tarikan tanpa data baru tidak membuat riwayat.</small></div></div>
+<div class="wrap"><table class="sepfit"><thead><tr><th><input type="checkbox" aria-label="Pilih semua" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th><th>Nama / Lokasi</th><th>Koneksi</th><th>Status</th><th class="num">Scan 30 hari</th><th>Tersimpan s/d</th><th>Tarikan terakhir</th><th>Ubah</th></tr></thead><tbody>
 {% for r in rows %}<tr><td>{% if r.d.active %}<input class="pick" type="checkbox" name="ids" value="{{ r.d.pk }}" aria-label="Pilih {{ r.d.name }}"{% if r.d.sync_enabled and r.d.host %} checked{% endif %}>{% endif %}</td>
-<td>{{ r.d.name }}{% if r.d.location %}<small>{{ r.d.location }}</small>{% endif %}</td><td class="nw">{{ r.d.serial|default:r.d.code }}</td><td class="num">{{ r.d.machine_no|default:"-" }}</td><td>{{ r.d.get_connection_display|default:"-" }}</td><td class="nw">{% if r.d.host %}{{ r.d.host }}:{{ r.d.port }}{% else %}-{% endif %}</td><td>{{ r.d.screen|default:"-" }}</td>
+<td>{{ r.d.name }}<small>{% if r.d.location %}{{ r.d.location }} · {% endif %}SN {{ r.d.serial|default:r.d.code }}{% if r.d.machine_no %} · No {{ r.d.machine_no }}{% endif %}</small></td><td>{{ r.d.get_connection_display|default:"-" }}<small>{% if r.d.host %}{{ r.d.host }}:{{ r.d.port }}{% else %}-{% endif %}{% if r.d.screen %} · Layar {{ r.d.screen }}{% endif %}</small></td>
 <td>{% if not r.d.active %}<span class="pill nonaktif">Nonaktif</span>{% elif r.idle %}<span class="pill rejected">Tidak ada scan</span>{% else %}<span class="pill approved">Aktif</span>{% endif %}</td><td class="num">{{ r.n }}</td><td class="nw">{{ r.last|date:"d M Y H:i"|default:"-" }}</td>
 <td>{% if r.d.last_sync_at %}<span class="pill {% if r.d.last_sync_ok %}approved{% else %}rejected{% endif %}">{% if r.d.last_sync_ok %}OK{% else %}Gagal{% endif %}</span><small>{{ r.d.last_sync_at|date:"d M H:i" }} · {{ r.d.last_sync_note }}</small>{% else %}-{% endif %}</td>
 <td><details class="more"><summary>Ubah ▾</summary><div class="bar">
@@ -25,7 +34,7 @@
 <input form="e{{ r.d.pk }}" name="comm_key" placeholder="Kunci komunikasi (kosong = tetap)" maxlength="100" autocomplete="off"><input form="e{{ r.d.pk }}" name="note" value="{{ r.d.note }}" placeholder="Catatan" maxlength="200">
 <label><input form="e{{ r.d.pk }}" type="checkbox" name="active" value="1"{% if r.d.active %} checked{% endif %}> Aktif</label><label><input form="e{{ r.d.pk }}" type="checkbox" name="sync_enabled" value="1"{% if r.d.sync_enabled %} checked{% endif %}> Tarik otomatis</label>
 <button class="btn" type="submit" form="e{{ r.d.pk }}">Simpan</button></div></details></td></tr>
-{% empty %}<tr><td class="empty" colspan="13">Belum ada mesin. Impor daftar dari Fingerspot Personnel di bawah.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="8">Belum ada mesin. Impor daftar dari Fingerspot Personnel di bawah.</td></tr>{% endfor %}</tbody></table></div>
 </form>
 {% for r in rows %}<form id="e{{ r.d.pk }}" method="post" hidden>{% csrf_token %}</form>{% endfor %}
 <details class="flt" open><summary>⬆ Impor daftar mesin dari Fingerspot Personnel</summary>
@@ -33,4 +42,5 @@
 <form method="post" enctype="multipart/form-data" class="bar">{% csrf_token %}<input type="hidden" name="action" value="import_list"><textarea name="paste" rows="4" cols="60" placeholder="Tempel tabel di sini"></textarea><input type="file" name="file" accept=".csv,.txt,.xls,.xlsx,.xml,.html">
 <select name="protocol">{% for v, l in protocols %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select><input name="port" value="4370" size="5" aria-label="Port bawaan"><button class="btn" type="submit">Impor daftar mesin</button></form></details>
 <details class="flt"><summary>+ Tambah mesin manual</summary><form method="post" class="bar">{% csrf_token %}<input name="code" placeholder="Kode (SN)" required maxlength="40"><input name="name" placeholder="Nama" required maxlength="80"><input name="location" placeholder="Lokasi" maxlength="100"><input name="serial" placeholder="SN" maxlength="40"><input name="machine_no" placeholder="No Mesin" maxlength="10" size="6"><input name="host" placeholder="IP Address" maxlength="100"><input name="port" value="4370" size="5"><button class="btn" type="submit">Tambah</button></form></details>
+</div>
 {% endblock %}

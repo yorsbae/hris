@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% load ui %}{% block title %}{{ o.number }}{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'poli_orders' %}">‹ Pesanan obat</a></p>
-<h2>{{ o.number }} <span class="pill {{ pill }}">{{ o.get_status_display }}</span> {% if can_receive %}<a class="btn" href="{% url 'poli_receipt_new' %}?order={{ o.pk }}">Terima barang</a>{% endif %} {% include "_export.html" %}</h2>
+<h2>{{ o.number }} <span class="pill {{ pill }}">{{ o.get_status_display }}</span> {% if can_receive %}<a class="btn" href="{% url 'poli_receipt_new' %}?order={{ o.pk }}">Terima barang</a>{% endif %} <a class="btn ghost" href="{% url 'poli_order_print' o.pk %}" target="_blank" rel="noopener">Cetak pesanan</a> {% include "_export.html" %}</h2>
 {% flow "purchase" o.status %}
 <p class="sub">Dibuat {{ o.created_at|date:"d M Y H:i" }} oleh {{ o.created_by.get_username|default:"-" }}{% if o.supplier %} · Pemasok: {{ o.supplier }}{% endif %}{% if o.note %} · {{ o.note }}{% endif %}{% if o.closed_note %} · Alasan: {{ o.closed_note }}{% endif %}</p>
 <div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Kode</th><th class="fill">Obat</th><th class="num">Stok saat dipesan</th><th class="num">Dipesan</th><th class="num">Datang</th><th class="num">Selisih</th><th class="nw">Status</th><th>Keterangan</th></tr></thead><tbody>

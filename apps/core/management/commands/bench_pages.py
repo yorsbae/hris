@@ -61,7 +61,7 @@ class Command(BaseCommand):
             ("Pengajuan (daftar)", "list", hrd, "GET", "/requests/", None),
             ("Absensi harian", "list", hrd, "GET", "/absensi/", None),
             ("Absensi bulanan", "list", hrd, "GET", "/absensi/bulanan/", None),
-            ("Riwayat Impor", "list", hrd, "GET", "/absensi/scanlog/", None),
+            ("Mesin & Impor", "list", hrd, "GET", "/absensi/scanlog/", None),
             ("Data Scan (1 hari)", "list", hrd, "GET", "/absensi/scanlog/data/", None),
             ("Data Scan (31 hari)", "list", hrd, "GET", "/absensi/scanlog/data/?from=2026-09-01&to=2026-10-01", None),
             ("Shift Harian (31 hari)", "list", hrd, "GET", "/absensi/shift/?from=2026-09-01&to=2026-10-01", None),

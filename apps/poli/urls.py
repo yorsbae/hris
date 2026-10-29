@@ -31,6 +31,7 @@ urlpatterns = [
     path("orders/", pv.order_list, name="poli_orders"),
     path("orders/new/", pv.order_new, name="poli_order_new"),
     path("orders/<int:pk>/", pv.order_detail, name="poli_order_detail"),
+    path("orders/<int:pk>/print/", pv.order_print, name="poli_order_print"),
     path("orders/<int:pk>/<str:action>/", pv.order_action, name="poli_order_action"),
     path("receipts/", pv.receipt_list, name="poli_receipts"),
     path("receipts/new/", pv.receipt_new, name="poli_receipt_new"),
