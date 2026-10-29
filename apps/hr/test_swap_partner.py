@@ -465,6 +465,6 @@ class MasterShiftRotationPageTests(Base):
         Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
         import_module("apps.hr.migrations.0008_md_group_codes_hours_rotation").hours_and_rotation(dj_apps, None)
         self.login("hrd"); r = self.client.get("/master/shift/")
-        self.assertContains(r, "Pola 2 shift — kelompok A7–G7"); self.assertContains(r, "A7Pack"); self.assertContains(r, "GS/N"); self.assertContains(r, "GS-16"); self.assertNotContains(r, "Tidak sesuai aturan")
+        self.assertContains(r, "Pola 2 shift: kelompok A7–G7"); self.assertContains(r, "A7Pack"); self.assertContains(r, "GS/N"); self.assertContains(r, "GS-16"); self.assertNotContains(r, "Tidak sesuai aturan")
         ShiftRotation.objects.filter(group__code="A", weekday=0).update(shift=Shift.objects.get(code="PAGI"))  # A masuk Senin padahal harus libur? → hitungan Senin salah
         self.assertContains(self.client.get("/master/shift/"), "Tidak sesuai aturan")

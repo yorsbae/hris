@@ -135,7 +135,7 @@ def close(start, end, label, user, note="", force=False):
         row.export_file.save(f"periode-{start}-{end}.xlsx", ContentFile(data), save=False)
         row.export_at, row.export_counts = timezone.now(), counts
         row.save(update_fields=["export_file", "export_at", "export_counts"])
-        _notify_payroll(f"Periode gaji {label} ditutup HRD ({fmt_range(start, end)}) — data siap diunduh", "/payroll/periods/")
+        _notify_payroll(f"Periode gaji {label} ditutup HRD ({fmt_range(start, end)}), data siap diunduh", "/payroll/periods/")
     return row, forced
 
 
@@ -146,7 +146,7 @@ def reopen(pk, user):
         if row is None: raise ValueError("Periode tidak ditemukan.")
         if not row.closed: raise ValueError("Periode ini sudah dalam keadaan terbuka.")
         row.closed, row.reopened_by, row.reopened_at = False, user, timezone.now(); row.save(update_fields=["closed", "reopened_by", "reopened_at"])
-        _notify_payroll(f"Periode gaji {row.period} DIBUKA KEMBALI ({fmt_range(row.start_date, row.end_date)}) — data bisa berubah; tunggu penutupan ulang oleh HRD", "/payroll/periods/")
+        _notify_payroll(f"Periode gaji {row.period} DIBUKA KEMBALI ({fmt_range(row.start_date, row.end_date)}), data bisa berubah. Tunggu penutupan ulang oleh HRD", "/payroll/periods/")
     return row
 
 
@@ -164,7 +164,7 @@ def rebuild(pk, user):
         row.save(update_fields=["export_file", "export_at", "export_counts"])
         if old and old != row.export_file.name:
             storage = row.export_file.storage; transaction.on_commit(lambda: storage.delete(old))
-        _notify_payroll(f"Berkas periode gaji {row.period} ({fmt_range(row.start_date, row.end_date)}) diperbarui HRD — unduh ulang", "/payroll/periods/")
+        _notify_payroll(f"Berkas periode gaji {row.period} ({fmt_range(row.start_date, row.end_date)}) diperbarui HRD, unduh ulang", "/payroll/periods/")
     return row
 
 

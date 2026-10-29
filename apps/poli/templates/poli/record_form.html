@@ -54,7 +54,7 @@ diagInp.addEventListener("lookup:select",function(e){var d=e.detail;clearAuto();
   var nm=r.querySelector(".rx-name");nm.value=m.name;medOf(r).value=m.id;if(nm.lookupPick)nm.lookupPick({id:m.id,name:m.name,code:m.code,unit:m.unit,stock:m.stock});
   var q=r.querySelector('input[id$="-qty"]'),dz=r.querySelector('input[id$="-dosage"]');q.value=m.qty;dz.value=m.dosage||"";r.dataset.auto="1";added++;
   [q,dz,nm].forEach(function(x){x.addEventListener("input",function(){r.dataset.touched="1"},{once:true})})});
- var t=[];if(added)t.push(added+" obat disarankan untuk diagnosa "+d.code+" — ubah/hapus sesuai kebutuhan.");if(skipped.length)t.push("Tidak diisi (stok habis/tidak muat): "+skipped.join(", ")+".");
+ var t=[];if(added)t.push(added+" obat disarankan untuk diagnosa "+d.code+", ubah/hapus sesuai kebutuhan.");if(skipped.length)t.push("Tidak diisi (stok habis/tidak muat): "+skipped.join(", ")+".");
  if(!meds.length)t.push("Belum ada obat yang ditautkan ke diagnosa "+d.code+" (atur di Master diagnosa).");note.textContent=t.join(" ");note.hidden=false});
 
 /* NIK → ringkasan pasien; jenis kunjungan 'kehamilan' → pencarian NIK hanya perempuan */
@@ -69,7 +69,7 @@ kind.addEventListener("change",syncKind);syncKind();
 /* Hapus baris obat: kosongkan lalu sembunyikan (baris kosong diabaikan server; stok tidak tersentuh) */
 rows.addEventListener("click",function(e){var b=e.target.closest(".rx-del");if(!b)return;var r=b.closest(".rx-row");
  [].forEach.call(r.querySelectorAll("input"),function(i){if(i.type!=="hidden"||i.id.indexOf("-medicine")>0)i.value=""});var nm=r.querySelector(".rx-name");if(nm&&nm.lookupReset)nm.lookupReset();delete r.dataset.auto;r.hidden=true;r.style.display="none"});
-var PRE={fit:{code:"Z00.0",name:"Pemeriksaan kesehatan umum — sehat",text:"Sehat, tanda vital dalam batas normal. Fit bekerja."},fit_catatan:{code:"Z00.8",name:"Pemeriksaan kesehatan — aman dengan catatan",text:"Aman bekerja dengan catatan: "},tidak_fit:{code:"Z02.7",name:"Surat keterangan medis — tidak fit sementara",text:"Tidak fit bekerja sementara: "}};
+var PRE={fit:{code:"Z00.0",name:"Pemeriksaan kesehatan umum: sehat",text:"Sehat, tanda vital dalam batas normal. Fit bekerja."},fit_catatan:{code:"Z00.8",name:"Pemeriksaan kesehatan: aman dengan catatan",text:"Aman bekerja dengan catatan: "},tidak_fit:{code:"Z02.7",name:"Surat keterangan medis: tidak fit sementara",text:"Tidak fit bekerja sementara: "}};
 function quick(k){var p=PRE[k],sel=$('select[name="exam_conclusion"]'),res=$('textarea[name="exam_result"]');if(!p||!sel)return;sel.value=k;
  if(diagInp.lookupPick)diagInp.lookupPick({code:p.code,name:p.name,medicines:[]});else diagInp.value=p.code;
  var known=Object.keys(PRE).map(function(x){return PRE[x].text});if(res&&(!res.value.trim()||known.indexOf(res.value)>=0)){res.value=p.text;res.focus()}}
@@ -81,14 +81,14 @@ var alc=$("#al-current"),AL_EMPTY="Pilih NIK karyawan untuk menampilkan alergi y
 function setAllergy(list){alc.textContent="";
  if(!list){alc.className="al none";alc.appendChild(el("span",AL_EMPTY));return}
  if(!list.length){alc.className="al none";alc.appendChild(el("span","Belum ada alergi tercatat untuk pasien ini. Isi di bawah bila pasien menyebutkan alergi."));return}
- alc.className="al";alc.appendChild(el("b","⚠ Alergi tercatat ("+list.length+") — periksa sebelum meresepkan obat"));var u=el("ul");
- list.forEach(function(a){u.appendChild(el("li",a.substance+(a.reaction?" — "+a.reaction:"")+" ["+a.severity_label+"]"))});alc.appendChild(u)}
+ alc.className="al";alc.appendChild(el("b","⚠ Alergi tercatat ("+list.length+"), periksa sebelum meresepkan obat"));var u=el("ul");
+ list.forEach(function(a){u.appendChild(el("li",a.substance+(a.reaction?", "+a.reaction:"")+" ["+a.severity_label+"]"))});alc.appendChild(u)}
 function reset(){seq++;setAllergy(null);body.textContent="";body.appendChild(el("p",EMPTY,"help"))}
 function render(j){body.textContent="";setAllergy(j.allergies);
  var w=el("div",null,"who");w.appendChild(el("b",j.name));w.appendChild(el("span","NIK "+j.nik,"sub"));body.appendChild(w);
- var dl=el("dl",null,"dl");[["Jenis kelamin",j.gender],["Departemen",j.department],["Jabatan",j.position||"—"],["Shift",j.shift||"—"],["Atasan",j.supervisor||"—"],["Alamat",j.address||"—"],["NIK KTP",j.nik_ktp||"—"],["Bergabung",j.join_date+" ("+j.tenure+")"],["Status",j.status]].forEach(function(r){dl.appendChild(el("dt",r[0]));dl.appendChild(el("dd",r[1]))});body.appendChild(dl);
+ var dl=el("dl",null,"dl");[["Jenis kelamin",j.gender],["Departemen",j.department],["Jabatan",j.position||"-"],["Shift",j.shift||"-"],["Atasan",j.supervisor||"-"],["Alamat",j.address||"-"],["NIK KTP",j.nik_ktp||"-"],["Bergabung",j.join_date+" ("+j.tenure+")"],["Status",j.status]].forEach(function(r){dl.appendChild(el("dt",r[0]));dl.appendChild(el("dd",r[1]))});body.appendChild(dl);
  var al=el("div",null,"al"+(j.allergies.length?"":" none"));
- if(j.allergies.length){al.appendChild(el("b","⚠ Alergi ("+j.allergies.length+")"));var ul=el("ul");j.allergies.forEach(function(a){ul.appendChild(el("li",a.substance+(a.reaction?" — "+a.reaction:"")+" ["+a.severity_label+"]"))});al.appendChild(ul)}
+ if(j.allergies.length){al.appendChild(el("b","⚠ Alergi ("+j.allergies.length+")"));var ul=el("ul");j.allergies.forEach(function(a){ul.appendChild(el("li",a.substance+(a.reaction?", "+a.reaction:"")+" ["+a.severity_label+"]"))});al.appendChild(ul)}
  else al.appendChild(el("span","Tidak ada alergi tercatat."));
  body.appendChild(al);
  body.appendChild(el("h4","BPJS"));var ch=el("div",null,"chips");["kes","tk"].forEach(function(k){var b=j.bpjs[k];ch.appendChild(el("span",b.label+": "+(b.number||"nomor kosong")+" · "+b.status,"pill "+(b.active?"aktif":"nonaktif")))});body.appendChild(ch);
@@ -96,7 +96,7 @@ function render(j){body.textContent="";setAllergy(j.allergies);
  if(j.kinds.length){var kc=el("div",null,"chips");j.kinds.forEach(function(k){kc.appendChild(el("span",k.label+" × "+k.n,"pill"))});body.appendChild(kc)}
  if(!j.visits.length){body.appendChild(el("p","Belum ada riwayat kunjungan.","sub"))}
  else{var tb=el("table"),tbody=el("tbody");j.visits.forEach(function(v){var tr=el("tr"),td=el("td"),a=el("a",v.date);a.href=v.url;a.target="_blank";a.rel="noopener";td.appendChild(a);td.appendChild(el("div",v.kind,"sub"));tr.appendChild(td);
-  var t2=el("td",v.diagnosis||"—");if(v.complaint)t2.appendChild(el("div",v.complaint,"sub"));tr.appendChild(t2);tbody.appendChild(tr)});tb.appendChild(tbody);body.appendChild(tb)}
+  var t2=el("td",v.diagnosis||"-");if(v.complaint)t2.appendChild(el("div",v.complaint,"sub"));tr.appendChild(t2);tbody.appendChild(tr)});tb.appendChild(tbody);body.appendChild(tb)}
  var all=el("a","Semua riwayat & kelola alergi ›");all.href=j.history_url;all.style.display="inline-block";all.style.marginTop="8px";body.appendChild(all)}
 function load(n){var my=++seq;body.textContent="";body.appendChild(el("p","Memuat…","help"));
  fetch("/poli/api/patient/?nik="+encodeURIComponent(n),{credentials:"same-origin",headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw {status:r.status};return r.json()}).then(function(j){if(my===seq)render(j)})

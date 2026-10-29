@@ -5,7 +5,7 @@
 <form method="post" class="card form" enctype="multipart/form-data">{% csrf_token %}{% if grp %}<input type="hidden" name="grp" value="{{ grp }}">{% endif %}
 {{ form.non_field_errors }}
 {% for f in form %}<div class="fld" data-f="{{ f.name }}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
-<div class="fld" data-f="photos" hidden><label for="id_photos">Foto / berkas bukti (opsional)</label><input type="file" id="id_photos" name="photos" multiple accept="image/*,application/pdf,*/*"><small class="hint">Surat dokter, foto, atau berkas lain — format bebas, maks {{ attach_max_mb }} MB per berkas. Bisa lebih dari satu.</small></div>
+<div class="fld" data-f="photos" hidden><label for="id_photos">Foto / berkas bukti (opsional)</label><input type="file" id="id_photos" name="photos" multiple accept="image/*,application/pdf,*/*"><small class="hint">Surat dokter, foto, atau berkas lain, format bebas, maks {{ attach_max_mb }} MB per berkas. Bisa lebih dari satu.</small></div>
 <p class="decide"><button class="btn ghost" name="draft" style="order:2">Simpan draft</button><button class="btn" name="submit" value="1" style="order:1">Ajukan ke HRD</button></p></form>
 {{ fields_by_type|json_script:"fbt" }}{{ attach_types|json_script:"att" }}
 <script>

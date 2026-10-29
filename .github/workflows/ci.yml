@@ -68,6 +68,36 @@ jobs:
         run: echo "FIELD_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
       - run: python manage.py test --noinput
 
+  public-site:                # situs publik harus bisa jalan MANDIRI: rilis minimal, library HR tidak terpasang, rute internal 404
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DJANGO_SECRET_KEY: ci-only-secret-key-not-used-anywhere-else-0123456789
+      DATABASE_URL: sqlite:///ci-public.sqlite3
+      DJANGO_SETTINGS_MODULE: config.settings_public
+      SYNC_SHARED_SECRET: ci-only-sync-secret-0123456789-0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13", cache: pip }
+      - run: ./deploy/public/build-release.sh /tmp/rel.tar.gz && mkdir /tmp/rel && tar -xzf /tmp/rel.tar.gz -C /tmp/rel
+      - run: pip install -r /tmp/rel/requirements-public.txt
+      - name: Boot, migrasi, dan rute
+        working-directory: /tmp/rel
+        run: |
+          export FIELD_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
+          python manage.py check && python manage.py migrate -v0 && python manage.py seed_company -v0
+          python - <<'PY'
+          import django; django.setup()
+          from django.conf import settings; settings.ALLOWED_HOSTS = ["*"]
+          from django.test import Client
+          c = Client()
+          for u in ["/", "/produk/", "/karir/"]: assert c.get(u).status_code == 200, u
+          for u in ["/admin/", "/login/", "/employees/", "/hrd/", "/poli/", "/payroll/", "/api/employees/", "/situs/"]: assert c.get(u).status_code == 404, u
+          import importlib.util as i
+          for m in ["reportlab", "openpyxl", "zk", "argon2"]: assert i.find_spec(m) is None, m + " tidak boleh terpasang di host publik"
+          PY
+
   lint:                       # informatif (tidak memblokir): ±1.000 baris lama masih > 160 kolom; kode baru sebaiknya bersih
     runs-on: ubuntu-latest
     continue-on-error: true

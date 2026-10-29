@@ -60,7 +60,7 @@ def draw_slip(c, slip):
         elif k == "net":
             c.setLineWidth(0.8); c.line(LM, y + LH * 0.9, RM, y + LH * 0.9); c.setFont("Helvetica-Bold", 9); c.drawString(LM, y - 1 * mm, r[1]); c.drawRightString(RM, y - 1 * mm, "Rp " + r[2]); y -= 1 * mm
         y -= LH * (1.0 if k in ("head", "line", "sum", "total") else 1.0)
-    c.setFont("Helvetica-Oblique", 6); c.drawCentredString(W / 2, 5 * mm, "Dokumen rahasia — hanya untuk yang bersangkutan"); c.showPage()
+    c.setFont("Helvetica-Oblique", 6); c.drawCentredString(W / 2, 5 * mm, "Dokumen rahasia, hanya untuk yang bersangkutan"); c.showPage()
 
 
 def slips_pdf(slips):

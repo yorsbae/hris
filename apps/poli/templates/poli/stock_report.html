@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Rekap stok obat{% endblock %}{% block content %}
 <p class="back"><a href="/poli/medicines/">‹ Obat & kartu stok</a></p>
-<h2>Rekap stok obat — {% if period == "month" %}bulanan{% else %}harian{% endif %}</h2>
+<h2>Rekap stok obat: {% if period == "month" %}bulanan{% else %}harian{% endif %}</h2>
 <form method="get" data-fbar class="bar">
 <select name="period" aria-label="Periode" onchange="this.form.submit()"><option value="day"{% if period == "day" %} selected{% endif %}>Harian</option><option value="month"{% if period == "month" %} selected{% endif %}>Bulanan</option></select>
 {% if period == "month" %}<input type="month" name="month" value="{{ cur }}" aria-label="Bulan">{% else %}<input type="date" name="date" value="{{ cur }}" aria-label="Tanggal">{% endif %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% load ui %}{% block title %}{{ o.number }}{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'poli_orders' %}">‹ Pesanan obat</a></p>
+<h2>{{ o.number }} <span class="pill {{ pill }}">{{ o.get_status_display }}</span> {% if can_receive %}<a class="btn" href="{% url 'poli_receipt_new' %}?order={{ o.pk }}">Terima barang</a>{% endif %} {% include "_export.html" %}</h2>
+{% flow "purchase" o.status %}
+<p class="sub">Dibuat {{ o.created_at|date:"d M Y H:i" }} oleh {{ o.created_by.get_username|default:"-" }}{% if o.supplier %} · Pemasok: {{ o.supplier }}{% endif %}{% if o.note %} · {{ o.note }}{% endif %}{% if o.closed_note %} · Alasan: {{ o.closed_note }}{% endif %}</p>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Kode</th><th class="fill">Obat</th><th class="num">Stok saat dipesan</th><th class="num">Dipesan</th><th class="num">Datang</th><th class="num">Selisih</th><th class="nw">Status</th><th>Keterangan</th></tr></thead><tbody>
+{% for l in lines %}<tr><td class="nw">{{ l.medicine.code }}</td><td class="fill"><a href="{% url 'poli_medicine_detail' l.medicine.pk %}">{{ l.medicine.name }}</a> <small>({{ l.medicine.unit }})</small></td><td class="num">{{ l.stock_at_order }}</td><td class="num">{{ l.qty_ordered }}</td><td class="num">{{ l.qty_received }}</td>
+<td class="num">{% if l.gap > 0 %}−{{ l.gap }}{% elif l.gap < 0 %}+{{ l.gap|cut:"-" }}{% else %}0{% endif %}</td>
+<td class="nw">{% if l.state == "lengkap" %}<span class="pill ok">Lengkap</span>{% elif l.state == "lebih" %}<span class="pill pending">Lebih</span>{% elif l.state == "menunggu" %}<span class="pill pending">{% if l.qty_received %}Kurang {{ l.gap }} · menunggu{% else %}Belum datang{% endif %}</span>{% elif l.state == "tidak_datang" %}<span class="pill rejected">Tidak datang</span>{% else %}<span class="pill rejected">Kurang {{ l.gap }} (final)</span>{% endif %}</td>
+<td>{{ l.shortfall_note|default:"-" }}</td></tr>{% endfor %}</tbody></table></div>
+{% if o.status == "ordered" %}<form method="post" action="{% url 'poli_order_action' o.pk 'cancel' %}" class="card form" style="margin-top:12px">{% csrf_token %}<div class="fld"><label for="cn">Alasan pembatalan (opsional)</label><input id="cn" name="note" maxlength="300"></div><button class="ghost" data-confirm="Batalkan pesanan ini?">Batalkan pesanan</button></form>{% endif %}
+{% if o.status == "partial" %}<form method="post" action="{% url 'poli_order_action' o.pk 'close' %}" class="card form" style="margin-top:12px">{% csrf_token %}<div class="fld"><label for="cn">Alasan menutup pesanan (sisa tidak akan datang), wajib</label><input id="cn" name="note" maxlength="300" required></div><button class="ghost" data-confirm="Tutup pesanan? Sisa yang belum datang tidak ditunggu lagi.">Tutup pesanan</button></form>{% endif %}
+<h3>Penerimaan barang</h3>
+<div class="wrap"><table><thead><tr><th>Nomor</th><th>Tanggal</th><th>No. faktur</th><th>Isi (dan keterangan)</th></tr></thead><tbody>
+{% for g in receipts %}<tr><td><a href="{% url 'poli_receipt_detail' g.pk %}">{{ g.number }}</a></td><td>{{ g.received_on|date:"d M Y" }}</td><td>{{ g.ref|default:"-" }}</td><td>{% for gl in g.lines.all %}{{ gl.medicine.name }} × {{ gl.qty }}{% if gl.note %} <small>({{ gl.note }})</small>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>
+{% empty %}<tr><td class="empty" colspan="4">Belum ada barang diterima.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

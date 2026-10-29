@@ -183,3 +183,8 @@ SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)  # pengirim email
 # CSP situs publik: tanpa 'unsafe-inline' (semua gaya/skrip berupa berkas statis). Diterapkan oleh view publik (apps/company/public_views.py).
 PUBLIC_CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
               "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src https://www.google.com")  # putaran 54: peta Google tersemat, hanya host ini
+
+# --- Sinkronisasi HRIS <-> situs publik (apps/company/sync.py). Isi SAMA di kedua host; WAJIB >= 32 karakter acak, BEDA dari DJANGO_SECRET_KEY.
+SYNC_SHARED_SECRET = env("SYNC_SHARED_SECRET", default="")
+SYNC_STATE_FILE = env("SYNC_STATE_FILE", default=str(BASE_DIR / ".sync_serial"))        # publik: serial bundle terakhir (anti-replay)
+PULL_STATE_FILE = env("PULL_STATE_FILE", default=str(BASE_DIR / ".pull_cursor"))        # HRIS: penanda lamaran terakhir yang ditarik

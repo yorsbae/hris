@@ -124,7 +124,7 @@ def request_detail(request, pk):
     req = get_scoped_or_404(request.user, ChangeRequest.objects.select_related("employee__department", "department", "requested_by", "decided_by"), pk, strict=True)
     Notification.objects.filter(user=request.user, is_read=False, link__in=[f"/requests/{pk}", f"/requests/{pk}/"]).update(is_read=True)
     rows = [(FIELD_LABELS[k], v) for k, v in req.payload.items() if k in FIELD_LABELS]
-    mode = (" — dengan rekan (2 orang)" if req.payload.get("partner_id") else " — sendiri (1 orang)") if req.type in schedule.SWAP_TYPES else ""
+    mode = (": dengan rekan (2 orang)" if req.payload.get("partner_id") else ": sendiri (1 orang)") if req.type in schedule.SWAP_TYPES else ""
     ctx = {"r": req, "rows": rows, "actions": _actions(request.user, req), "label": LABELS[req.type] + mode,
            "status_label": STATUS_LABELS.get(req.status, req.status), "files": req.attachments.all(),
            "can_attach": _can_attach(request.user, req), "attach_max_mb": attachments.max_bytes() // 1048576}

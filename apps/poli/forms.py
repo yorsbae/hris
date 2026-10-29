@@ -36,7 +36,7 @@ class RecordForm(forms.Form):
     incident_place = forms.CharField(label="Lokasi kejadian", required=False, max_length=150)
     incident_story = forms.CharField(label="Kronologi", required=False, widget=TA(), max_length=2000)
     injury_part = forms.CharField(label="Bagian tubuh yang cedera", required=False, max_length=100)
-    injury_type = forms.ChoiceField(label="Jenis cedera", required=False, choices=[("", "—")] + INJURY_TYPES)
+    injury_type = forms.ChoiceField(label="Jenis cedera", required=False, choices=[("", "-")] + INJURY_TYPES)
     lost_days = forms.IntegerField(label="Perkiraan hari kehilangan kerja", required=False, min_value=0, max_value=365)
     # khusus kehamilan
     preg_hpht = forms.DateField(label="HPHT (hari pertama haid terakhir)", required=False, widget=forms.DateInput(attrs={"type": "date"}), help_text="HPL dan usia kehamilan dihitung otomatis dari HPHT bila dikosongkan.")
@@ -49,7 +49,7 @@ class RecordForm(forms.Form):
     preg_djj = forms.IntegerField(label="DJJ (x/menit)", required=False, min_value=60, max_value=220)
     preg_letak = forms.CharField(label="Letak / presentasi janin", required=False, max_length=60)
     # khusus pemeriksaan (MCU / cek kesehatan)
-    exam_conclusion = forms.ChoiceField(label="Kesimpulan pemeriksaan", required=False, choices=[("", "—")] + EXAM_CONCLUSIONS)
+    exam_conclusion = forms.ChoiceField(label="Kesimpulan pemeriksaan", required=False, choices=[("", "-")] + EXAM_CONCLUSIONS)
     exam_result = forms.CharField(label="Hasil pemeriksaan", required=False, widget=TA(), max_length=2000)
     # alergi (putaran 47): bagian dari data pasien, bukan hanya rekam medis ini. Alergi yang sudah tercatat otomatis tampil di setiap kunjungan berikutnya (ringkasan pasien, form, detail).
     allergy_substance = forms.CharField(label="Alergen baru", required=False, max_length=100,
@@ -266,7 +266,7 @@ class LetterForm(forms.Form):
     `izin_hamil` = Surat Keterangan Cuti Hamil (hanya kunjungan kehamilan): mulai tanggal + lama (bulan, bawaan 3)."""
     kind = forms.ChoiceField(label="Jenis surat", choices=[c for c in SickLeaveLetter.KINDS if c[0] in SickLeaveLetter.NEW_KINDS])
     mode = forms.ChoiceField(label="Bentuk", required=False, initial="pulang", widget=forms.RadioSelect,
-                             choices=[("pulang", "Pulang — berlaku hari itu juga"), ("istirahat", "Istirahat / cuti beberapa hari")])
+                             choices=[("pulang", "Pulang: berlaku hari itu juga"), ("istirahat", "Istirahat / cuti beberapa hari")])
     start_date = forms.DateField(label="Mulai tanggal", required=False, widget=forms.DateInput(attrs={"type": "date"}))
     days = forms.IntegerField(label="Lama (hari)", required=False, min_value=1, max_value=365)
     months = forms.IntegerField(label="Lama cuti hamil (bulan)", required=False, min_value=1, max_value=6, initial=3)
@@ -292,7 +292,7 @@ class LetterForm(forms.Form):
 # ---------------------------------------------------------------- Tagihan Mitra (putaran 24, P6)
 class PartnerBillForm(forms.Form):
     """Satu aturan untuk input manual DAN impor (impor tanpa rincian). Karyawan lewat NIK (aktif atau nonaktif — berobat bisa terjadi sebelum resign); data medis tidak tampil di audit."""
-    partner = forms.ModelChoiceField(label="Mitra", queryset=Partner.objects.none(), empty_label="— pilih —")
+    partner = forms.ModelChoiceField(label="Mitra", queryset=Partner.objects.none(), empty_label="Pilih")
     bill_number = forms.CharField(label="Nomor tagihan mitra", max_length=40)
     bill_date = forms.DateField(label="Tanggal tagihan", initial=date.today, widget=forms.DateInput(attrs={"type": "date"}))
     nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "data-q-scope": "all", "placeholder": "Ketik NIK atau nama…"}))
@@ -394,7 +394,7 @@ class VisitForm(forms.Form):
     """Rekap visit pasien (putaran 46). NIK dipilih lewat saran; hanya karyawan aktif."""
     nik = forms.CharField(label="NIK karyawan", max_length=20, help_text="Ketik NIK atau nama; pilih dari saran. Hanya karyawan aktif.",
                           widget=forms.TextInput(attrs={"data-lookup": "employee", "data-q-scope": "all", "placeholder": "Ketik NIK atau nama…"}))
-    kind = forms.ChoiceField(label="Jenis visit", choices=[("", "— pilih —")] + PatientVisit.KINDS)
+    kind = forms.ChoiceField(label="Jenis visit", choices=[("", "Pilih")] + PatientVisit.KINDS)
     visit_date = forms.DateField(label="Tanggal visit", widget=forms.DateInput(attrs={"type": "date"}))
     location = forms.CharField(label="Lokasi / alamat", required=False, max_length=200, help_text="Wajib untuk kunjungan rumah (alamat atau nama tempat tinggal/mess).")
     rest_days = forms.IntegerField(label="Hari istirahat", required=False, min_value=1, max_value=365, help_text="Untuk jenis Sakit; boleh kosong.")

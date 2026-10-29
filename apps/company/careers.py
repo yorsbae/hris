@@ -12,7 +12,7 @@ from .models import (ACTIVE_STAGES, FINAL_STAGES, STAGE_PUBLIC, Application, App
                      hash_ip, hash_token, new_ref)
 
 T = {  # teks email pelamar (id, en)
-    "verify_subject": ("Verifikasi lamaran Anda — {job}", "Verify your application — {job}"),
+    "verify_subject": ("Verifikasi lamaran Anda: {job}", "Verify your application: {job}"),
     "verify_body": ("Halo {name},\n\nTerima kasih sudah melamar sebagai {job} di {brand}.\nNomor lamaran Anda: {ref}\n\nBuka tautan ini untuk memverifikasi email dan memantau status lamaran:\n{url}\n\nTautan ini pribadi; jangan dibagikan.\nBila Anda tidak merasa melamar, abaikan email ini.\n",
                     "Hello {name},\n\nThank you for applying as {job} at {brand}.\nYour application number: {ref}\n\nOpen this link to verify your email and follow your application status:\n{url}\n\nThis link is private; please do not share it.\nIf you did not apply, ignore this email.\n"),
     "again_subject": ("Tautan status lamaran Anda", "Your application status link"),

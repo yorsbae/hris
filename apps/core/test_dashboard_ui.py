@@ -149,7 +149,7 @@ class PanelsTests(DashboardUiBase):
     def test_home_renders_role_greeting_for_every_role(self):
         for u in (self.su, self.hrd, self.adm, self.poli):
             h = self.get(u, "/").content.decode()
-            self.assertIn("Selamat datang", h); self.assertIn('id="kpis"', h); self.assertIn("PT X", h)
+            self.assertIn("<h1>Dashboard</h1>", h); self.assertIn('id="kpis"', h); self.assertIn("PT X", h)
 
 
 class ListPatternTests(DashboardUiBase):

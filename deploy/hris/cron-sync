@@ -1,0 +1,6 @@
+# HRIS (LAN). Semua koneksi KELUAR dari LAN; host publik tidak pernah menghubungi HRIS.
+HRIS=/opt/hris
+PY=/opt/hris/venv/bin/python
+# Tiap 5 menit: tarik lamaran baru dari host publik (SSH, kunci khusus yang hanya boleh menjalankan export_applications), lalu dorong konten + status terbaru.
+*/5 * * * * cd $HRIS && $PY manage.py pull_applications --ssh hrispull@pub.wadimor.co.id --remote-dir /srv/wadimor/app >>/var/log/hris/sync.log 2>&1
+*/5 * * * * cd $HRIS && $PY manage.py publish_site --out /var/lib/hris/sync_out --push hrispush@pub.wadimor.co.id:/srv/wadimor/inbox/ >>/var/log/hris/sync.log 2>&1

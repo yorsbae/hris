@@ -105,7 +105,7 @@ async function load(){const my=++seq,p=params();history.replaceState(null,"","?"
     $("printmeta").textContent=`Daftar karyawan · dicetak ${new Date().toLocaleString("id-ID")} · ${d.count} data (halaman ${d.page}/${total})`+activeText();
   }catch(e){if(my!==seq)return;$("rows").replaceChildren(msgRow("Gagal memuat data. Periksa koneksi lalu coba lagi.","bad"));$("info").textContent=""}
   syncSel();$("prev").disabled=page<=1;$("next").disabled=page>=total}
-function activeText(){const a=FILTERS.map(k=>{const e=$(k);if(!e||!e.value)return"";const l=e.getAttribute("aria-label")||k,v=e.tagName==="SELECT"?e.selectedOptions[0].textContent:e.value;return l+": "+v}).filter(Boolean);return a.length?" · Filter — "+a.join("; "):""}
+function activeText(){const a=FILTERS.map(k=>{const e=$(k);if(!e||!e.value)return"";const l=e.getAttribute("aria-label")||k,v=e.tagName==="SELECT"?e.selectedOptions[0].textContent:e.value;return l+": "+v}).filter(Boolean);return a.length?" · Filter: "+a.join("; "):""}
 /* ---- Aksi massal (HRD/Superadmin): checkbox per baris + pilih semua di halaman + pilih semua hasil filter ---- */
 function syncSel(){if(!HRD)return;const bx=[...document.querySelectorAll("#rows input.rsel")];
   bx.forEach(b=>{b.checked=sel.has(+b.value);b.closest("tr").classList.toggle("sel",b.checked)});

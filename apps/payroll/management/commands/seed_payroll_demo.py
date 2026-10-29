@@ -56,7 +56,7 @@ class Command(BaseCommand):
         existing = set(engine.wage_scale(today))
         n_scale = 0
         for g, t in sorted(need - existing):
-            WageScale.objects.create(grade=g, tier=t, daily_wage=demo_wage(g, t), effective_from=SINCE, note="Contoh demo — ganti dengan skala resmi", created_by=actor); n_scale += 1
+            WageScale.objects.create(grade=g, tier=t, daily_wage=demo_wage(g, t), effective_from=SINCE, note="Contoh demo: ganti dengan skala resmi", created_by=actor); n_scale += 1
         for e, g, t in plan:
             PayProfile.objects.create(employee=e, effective_from=SINCE, grade=g, tier=t, allowance_position=(g - 5) * 50000 if g > 5 else 0,
                                       allowance_education=60000 if e.education in ("D3", "S1") else 0, meal_allowance=True, pay_type="bulanan" if g >= 7 else "harian", note="Profil demo", created_by=actor)
@@ -82,7 +82,7 @@ class Command(BaseCommand):
     def seed_masters(self, actor):
         """Master Lembur & Uang Makan CONTOH (hanya bila masih kosong): periode puasa, tarif makan per tipe gaji/shift, tarif lembur per jam."""
         if not MealPeriod.objects.filter(voided_at__isnull=True).exists():
-            for name, a, b in RAMADAN: MealPeriod.objects.create(name=name, start_date=a, end_date=b, note="Contoh demo — sesuaikan", created_by=actor)
+            for name, a, b in RAMADAN: MealPeriod.objects.create(name=name, start_date=a, end_date=b, note="Contoh demo: sesuaikan", created_by=actor)
         if not MealRate.objects.filter(voided_at__isnull=True).exists():
             for t, amt in (("harian", 10000), ("bulanan", 15000)): MealRate.objects.create(pay_type=t, amount=amt, effective_from=SINCE, note="Contoh demo: tarif umum", created_by=actor)
             for sh in Shift.objects.filter(active=True):   # shift Pagi tidak dapat uang makan (contoh "kadang ada kadang tidak"); shift lain mengikuti tarif umum

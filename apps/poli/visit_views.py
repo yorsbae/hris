@@ -34,7 +34,7 @@ def _filters(request):
 
 def _base(f):
     qs = PatientVisit.objects.select_related("employee", "employee__department")
-    if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]))
+    if f["q"]: qs = qs.filter(Q(employee__name__icontains=f["q"]) | Q(employee__nik__startswith=f["q"]) | Q(location__icontains=f["q"]))
     if f["department"].isdigit(): qs = qs.filter(employee__department_id=int(f["department"]))
     a, b = _date(f["date_from"]), _date(f["date_to"])
     if a: qs = qs.filter(visit_date__gte=a)

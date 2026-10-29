@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Rekap Lembur & Stand By{% endblock %}{% block content %}
 <p class="back"><a href="/requests/g/lembur/">‹ Stand By & Lembur</a></p>
-<h2>Rekap Lembur & Stand By — {{ month }}</h2>
+<h2>Rekap Lembur & Stand By: {{ month }}</h2>
 <details class="flt"><summary>Alur &amp; petunjuk</summary><p class="hint flow">Hanya pengajuan yang sudah <b>disetujui HRD</b> yang dihitung. Pengajuan yang dibatalkan tidak masuk rekap. Satuan: menit.</p></details>
 <form method="get" data-fbar class="bar"><label>Bulan <input id="mo" type="month" name="month" value="{{ month }}"></label></form>
 <div class="tools"><a class="btn" href="?month={{ month }}&fmt=xlsx">Ekspor XLSX</a><a class="btn" href="?month={{ month }}&fmt=csv">Ekspor CSV</a></div>

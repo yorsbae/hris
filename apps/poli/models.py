@@ -303,3 +303,70 @@ class PatientVisit(models.Model):
     class Meta:
         ordering = ["-visit_date", "-id"]
         constraints = [models.CheckConstraint(name="visit_rest_days_le_365", condition=models.Q(rest_days__isnull=True) | models.Q(rest_days__lte=365))]
+
+
+# ---------------------------------------------------------------- Pemesanan & penerimaan obat (Pengadaan)
+# Pesan obat (PO) dibuat dari daftar stok habis/menipis. Penerimaan (GR) menambah stok lewat kartu stok yang sama (alasan "purchase", ref = nomor GR),
+# dengan atau tanpa PO. PO/GR tidak dihapus; salah input dikoreksi lewat Penyesuaian stok (kartu stok append-only).
+class PurchaseOrder(models.Model):
+    ORDERED, PARTIAL, RECEIVED, CLOSED, CANCELLED = "ordered", "partial", "received", "closed", "cancelled"
+    STATUS = [(ORDERED, "Dipesan"), (PARTIAL, "Diterima sebagian"), (RECEIVED, "Diterima lengkap"), (CLOSED, "Ditutup (sisa tidak datang)"), (CANCELLED, "Dibatalkan")]
+    OPEN = (ORDERED, PARTIAL)
+    number = models.CharField(max_length=20, unique=True)
+    supplier = models.CharField("Pemasok", max_length=150, blank=True)
+    note = models.CharField("Catatan", max_length=300, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS, default=ORDERED, db_index=True)
+    closed_note = models.CharField(max_length=300, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta: ordering = ["-id"]
+    def delete(self, *a, **k): raise PermissionError("Pesanan obat tidak dihapus; batalkan atau tutup")
+    def __str__(self): return self.number
+
+
+class PurchaseOrderLine(models.Model):
+    order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="lines")
+    medicine = models.ForeignKey(Medicine, on_delete=models.PROTECT, related_name="+")
+    qty_ordered = models.PositiveIntegerField()
+    qty_received = models.PositiveIntegerField(default=0)
+    stock_at_order = models.IntegerField(default=0)  # sisa stok saat dipesan (jejak alasan pesan)
+    closed = models.BooleanField(default=False)  # True = sisa yang belum datang TIDAK akan datang (selisih final, alasan di shortfall_note)
+    shortfall_note = models.CharField("Keterangan selisih", max_length=200, blank=True)  # mis. "menyusul minggu depan", "pemasok kosong"
+    class Meta:
+        ordering = ["medicine__name"]
+        constraints = [models.UniqueConstraint(fields=["order", "medicine"], name="uniq_po_line_medicine"), models.CheckConstraint(name="po_line_qty_gt_0", condition=models.Q(qty_ordered__gt=0))]
+    @property
+    def outstanding(self): return 0 if self.closed else max(self.qty_ordered - self.qty_received, 0)   # sisa yang MASIH ditunggu
+    @property
+    def gap(self): return self.qty_ordered - self.qty_received                                       # selisih pesan − datang (negatif = lebih)
+    @property
+    def get_state_text(self): return {"lengkap": "Lengkap", "lebih": "Lebih", "menunggu": "Menunggu sisa", "kurang_final": "Kurang (final)", "tidak_datang": "Tidak datang"}[self.state]
+    @property
+    def state(self):
+        if self.qty_received >= self.qty_ordered: return "lengkap" if self.qty_received == self.qty_ordered else "lebih"
+        if self.closed: return "tidak_datang" if self.qty_received == 0 else "kurang_final"
+        return "menunggu"
+
+
+class GoodsReceipt(models.Model):
+    number = models.CharField(max_length=20, unique=True)
+    order = models.ForeignKey(PurchaseOrder, null=True, blank=True, on_delete=models.PROTECT, related_name="receipts")
+    supplier = models.CharField("Pemasok", max_length=150, blank=True)
+    ref = models.CharField("No. faktur / surat jalan", max_length=40, blank=True)
+    note = models.CharField("Catatan", max_length=300, blank=True)
+    received_on = models.DateField("Tanggal diterima")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta: ordering = ["-id"]
+    def delete(self, *a, **k): raise PermissionError("Penerimaan obat tidak dihapus; koreksi lewat Penyesuaian stok")
+    def __str__(self): return self.number
+
+
+class GoodsReceiptLine(models.Model):
+    receipt = models.ForeignKey(GoodsReceipt, on_delete=models.CASCADE, related_name="lines")
+    medicine = models.ForeignKey(Medicine, on_delete=models.PROTECT, related_name="+")
+    qty = models.PositiveIntegerField()
+    po_line = models.ForeignKey(PurchaseOrderLine, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    note = models.CharField("Keterangan", max_length=200, blank=True)  # mis. "2 box rusak", "kemasan penyok"
+    movement = models.ForeignKey(StockMovement, null=True, on_delete=models.PROTECT, related_name="+")  # baris kartu stok yang dihasilkan
+    class Meta: constraints = [models.CheckConstraint(name="gr_line_qty_gt_0", condition=models.Q(qty__gt=0))]

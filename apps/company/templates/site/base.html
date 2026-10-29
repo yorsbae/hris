@@ -1,6 +1,6 @@
 {% load static site_tags %}<!doctype html>
 <html lang="{{ lang }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{% if title %}{{ title }} — {{ S.brand_name }}{% else %}{{ S.brand_name }}{% t S "tagline" as tg %}{% if tg %} — {{ tg }}{% endif %}{% endif %}</title>
+<title>{% if title %}{{ title }} | {{ S.brand_name }}{% else %}{{ S.brand_name }}{% t S "tagline" as tg %}{% if tg %} | {{ tg }}{% endif %}{% endif %}</title>
 {% if description %}<meta name="description" content="{{ description }}">{% endif %}
 <meta name="theme-color" content="#0b1626">
 <link rel="icon" href="{% static 'company/favicon.ico' %}" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="{% static 'company/favicon-32.png' %}">

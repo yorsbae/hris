@@ -58,7 +58,7 @@ class RuleLookupTests(tb.Base):
 
     def test_detail_and_list_show_percent(self):
         self.rule("bpjs", 60, tb.SVC); b = self.bill(total=D(100000))
-        self.assertContains(self.client.get(reverse("poli_bill_detail", args=[b.pk])), "60% — BPJS")
+        self.assertContains(self.client.get(reverse("poli_bill_detail", args=[b.pk])), "60%, BPJS")
         self.assertContains(self.client.get(reverse("poli_bills"), {"period": tb.PER}), "BPJS 60% prs")
 
 

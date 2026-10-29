@@ -90,8 +90,8 @@ class UniformPurchaseForm(EmployeeByNik):
     pembelian ganda (karyawan+tanggal+jenis+ukuran) yang belum dibatalkan ditolak."""
     nik = forms.CharField(label="NIK karyawan", max_length=20, widget=forms.TextInput(attrs={"data-lookup": "employee", "placeholder": "Ketik NIK atau nama…"}))
     purchase_date = forms.DateField(label="Tanggal pembelian", initial=date.today, widget=D())
-    utype = forms.ModelChoiceField(label="Jenis seragam", queryset=UniformType.objects.none(), empty_label="— pilih —")
-    size = forms.ModelChoiceField(label="Ukuran", queryset=UniformSize.objects.none(), empty_label="— pilih —")
+    utype = forms.ModelChoiceField(label="Jenis seragam", queryset=UniformType.objects.none(), empty_label="Pilih")
+    size = forms.ModelChoiceField(label="Ukuran", queryset=UniformSize.objects.none(), empty_label="Pilih")
     quantity = forms.IntegerField(label="Jumlah (pcs)", min_value=1, max_value=50, initial=1)
     note = forms.CharField(label="Catatan", required=False, max_length=300)
 
@@ -123,7 +123,7 @@ class UniformPurchaseForm(EmployeeByNik):
         with transaction.atomic():   # pembelian + stok keluar selalu satu kesatuan (juga lewat impor)
             p = UniformPurchase.objects.create(employee=self.employee, purchase_date=d["purchase_date"], utype=d["utype"], size=d["size"], gender=self.employee.gender, quantity=d["quantity"],
                                                rate_amount=self.rate.amount, deduction_amount=self.rate.amount * d["quantity"], note=d.get("note", "").strip(), created_by=self.user)
-            services.stock_move(p.utype_id, p.size_id, "keluar", -p.quantity, p.purchase_date, self.user, purchase=p, note=f"Pembelian #{p.pk} — {self.employee.name}")
+            services.stock_move(p.utype_id, p.size_id, "keluar", -p.quantity, p.purchase_date, self.user, purchase=p, note=f"Pembelian #{p.pk} · {self.employee.name}")
         return p
 
 
@@ -267,8 +267,8 @@ class CateringForm(forms.ModelForm):
         model = CateringOrder
         fields = ["date", "meal", "qty_large", "qty_small", "received_large", "received_small", "note"]
         widgets = {"date": D()}
-        labels = {"date": "Tanggal", "meal": "Jam makan", "qty_large": "Dipesan — tepak besar", "qty_small": "Dipesan — tepak kecil",
-                  "received_large": "Diterima — tepak besar", "received_small": "Diterima — tepak kecil", "note": "Catatan"}
+        labels = {"date": "Tanggal", "meal": "Jam makan", "qty_large": "Dipesan: tepak besar", "qty_small": "Dipesan: tepak kecil",
+                  "received_large": "Diterima: tepak besar", "received_small": "Diterima: tepak kecil", "note": "Catatan"}
         help_texts = {"received_large": "Kosongkan bila belum diterima.", "received_small": "Kosongkan bila belum diterima."}
 
     def clean(self):
@@ -312,8 +312,8 @@ class WarningForm(EmployeeByNik):
 
 class UniformStockForm(forms.Form):
     """Barang masuk (dari vendor) ATAU koreksi stok beralasan. `mode` menentukan aturan: masuk → jumlah ≥ 1; koreksi → ± bukan 0 + alasan wajib."""
-    utype = forms.ModelChoiceField(label="Jenis seragam", queryset=UniformType.objects.none(), empty_label="— pilih —")
-    size = forms.ModelChoiceField(label="Ukuran", queryset=UniformSize.objects.none(), empty_label="— pilih —")
+    utype = forms.ModelChoiceField(label="Jenis seragam", queryset=UniformType.objects.none(), empty_label="Pilih")
+    size = forms.ModelChoiceField(label="Ukuran", queryset=UniformSize.objects.none(), empty_label="Pilih")
     quantity = forms.IntegerField(label="Jumlah (pcs)", min_value=-100000, max_value=100000)
     movement_date = forms.DateField(label="Tanggal", initial=date.today, widget=D())
     note = forms.CharField(label="Vendor / no. surat jalan", required=False, max_length=300)

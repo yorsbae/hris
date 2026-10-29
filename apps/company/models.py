@@ -236,7 +236,7 @@ class ProductColor(models.Model):
     @property
     def category(self): return self.product.category
 
-    def __str__(self): return f"{self.product.name} — {self.name_id}"
+    def __str__(self): return f"{self.product.name} · {self.name_id}"
 
 
 class ProductImage(models.Model):
@@ -307,7 +307,7 @@ class StoreLocation(Stamped):
     active = models.BooleanField("Tampil di situs", default=True)
 
     class Meta: ordering = ["order", "city", "name"]
-    def __str__(self): return f"{self.name} — {self.city}"
+    def __str__(self): return f"{self.name} · {self.city}"
 
 
 class Faq(Stamped):

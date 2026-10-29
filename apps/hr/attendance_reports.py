@@ -120,7 +120,7 @@ def scanlog(request):
     if f1: qs = qs.filter(created_at__date__gte=f1)
     if f2: qs = qs.filter(created_at__date__lte=f2)
     page = Paginator(qs, HIST_PER_PAGE).get_page(g.get("page", 1))
-    for i in page: i.when = i.committed_at or i.created_at; i.by = (i.created_by.get_full_name() or i.created_by.get_username()) if i.created_by_id else "—"; i.gagal_pct = round(100 * i.rows_invalid / i.rows_total) if i.rows_total else 0
+    for i in page: i.when = i.committed_at or i.created_at; i.by = (i.created_by.get_full_name() or i.created_by.get_username()) if i.created_by_id else "-"; i.gagal_pct = round(100 * i.rows_invalid / i.rows_total) if i.rows_total else 0
     k = AttendanceImport.objects.filter(state="selesai").aggregate(n=Count("id"), baru=Sum("taps_new"), dup=Sum("taps_duplicate"), gagal=Sum("rows_invalid"), last=Max("committed_at"))
     for n in ("baru", "dup", "gagal"): k[n] = k[n] or 0
     k["last"] = timezone.localtime(k["last"]) if k["last"] else None
@@ -279,7 +279,7 @@ def control(request):
     qdate = f"from={d1}&to={d2}"
     if g.get("export"):
         head = ["departemen", "baris_hari_kerja", "hadir", "persen_hadir", "terlambat", "pulang_awal", "tidak_berangkat", "alfa", "cuti_izin_sakit", "scan_1x", "lembur_disetujui"]
-        data = [[r["department__name"] or "—", r["kerja"], r["hadir"], r["pct"] if r["pct"] is not None else "", r["telat"], r["early"], r["absent"], r["alfa"], r["leave"], r["incomplete"], r["ot"]] for r in rows]
+        data = [[r["department__name"] or "-", r["kerja"], r["hadir"], r["pct"] if r["pct"] is not None else "", r["telat"], r["early"], r["absent"], r["alfa"], r["leave"], r["incomplete"], r["ot"]] for r in rows]
         log(request, "hr", "attendance_control_export", None, None, {"from": d1.isoformat(), "to": d2.isoformat()})
         return tabular.export_response(f"kontrol-absensi-{d1}-{d2}", head, data, request, sheet="Kontrol", num_cols=tuple(range(1, 11)))
     ctx = {"rows": rows, "tot": tot, "d1": d1, "d2": d2, "qdate": qdate, "is_admin": is_admin, "qs": _qs_without(g, "export", "format")}
@@ -313,7 +313,7 @@ def _device_action(request):
     except (ValueError, KeyError) as e: messages.error(request, f"Gagal: {e}"); return redirect("att_devices")
     names = {d.code: d.name for d in devs}; ok = sum(r["ok"] for r in res)
     (messages.success if ok == len(res) else messages.warning)(request, f"{'Tes koneksi' if act == 'test' else 'Download scanlog'}: {ok} dari {len(res)} mesin berhasil.")
-    for r in res: (messages.info if r["ok"] else messages.error)(request, f"{names.get(r['device'], r['device'])} — {r['note']}")
+    for r in res: (messages.info if r["ok"] else messages.error)(request, f"{names.get(r['device'], r['device'])}: {r['note']}")
     return redirect("att_devices")
 
 

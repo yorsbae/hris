@@ -8,7 +8,7 @@
 <div class="tools"><details class="more"><summary>Ekspor ▾</summary><div><div class="xrow"><span>Ringkasan</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a></div></div></details>
 <a class="btn" href="{% url 'att_shift' %}?{{ qdate }}">Grid Shift Harian</a></div>
 {% if rows %}<div class="wrap"><table class="sepfit"><thead><tr><th>Departemen</th><th>Hadir</th><th>Tidak berangkat</th><th>Terlambat</th><th>Pulang awal</th><th>Scan 1x</th><th>Cuti/izin/sakit</th><th>Lembur</th></tr></thead><tbody>
-{% for r in rows %}<tr><td>{{ r.department__name|default:"—" }}</td><td class="num">{{ r.hadir }}<small>dari {{ r.kerja }} hari kerja{% if r.pct is not None %} · {{ r.pct }}%{% endif %}</small></td>
+{% for r in rows %}<tr><td>{{ r.department__name|default:"-" }}</td><td class="num">{{ r.hadir }}<small>dari {{ r.kerja }} hari kerja{% if r.pct is not None %} · {{ r.pct }}%{% endif %}</small></td>
 {% for key, n in r.links %}<td class="num">{% if n %}<a href="{% url 'att_daily' %}?{{ qdate }}&amp;dept={{ r.department_id }}&amp;status={{ key }}">{{ n }}</a>{% else %}0{% endif %}</td>{% endfor %}</tr>{% endfor %}
 <tr><th>Semua</th><th class="num">{{ tot.hadir }}<small>dari {{ tot.kerja }}{% if tot.pct is not None %} · {{ tot.pct }}%{% endif %}</small></th>
 {% for key, n in tot.links %}<th class="num">{% if n %}<a href="{% url 'att_daily' %}?{{ qdate }}&amp;status={{ key }}">{{ n }}</a>{% else %}0{% endif %}</th>{% endfor %}</tr></tbody></table></div>

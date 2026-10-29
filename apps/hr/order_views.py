@@ -93,7 +93,7 @@ def order_decide(request, pk, action):
         o.save(update_fields=["status", "qty_approved", "decision_note", "decided_by", "decided_at"])
         log(request, "hr", "order_acc" if action == "acc" else "order_tolak", o, before, _snap(o))
     if action == "acc":
-        t = f"Order {o.code} di-ACC HRD ({qa} dari {o.qty} orang)" + (" — sebagian" if qa < o.qty else "")
+        t = f"Order {o.code} di-ACC HRD ({qa} dari {o.qty} orang)" + (" (sebagian)" if qa < o.qty else "")
     else: t = f"Order {o.code} ditolak HRD: {note}"
     notify.send([Role.DEPT_ADMIN, Role.POLI], "approval", t, f"/orders/{o.pk}/", department_id=o.department_id)
     messages.success(request, "Order di-ACC." if action == "acc" else "Order ditolak; pemohon diberi tahu beserta alasannya.")

@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}Terima obat{% endblock %}{% block content %}
+<p class="back"><a href="{% if order %}{% url 'poli_order_detail' order.pk %}{% else %}{% url 'poli_orders' %}{% endif %}">‹ Kembali</a></p>
+<h2>Terima obat{% if order %}: {{ order.number }}{% endif %}</h2>
+<p class="sub">{% if order %}Isi jumlah yang <b>benar-benar datang</b> (boleh sebagian; kosongkan/0 bila belum datang). {% else %}Penerimaan tanpa pesanan (hibah/pembelian langsung). {% endif %}Stok bertambah <b>saat disimpan</b> dan tercatat di kartu stok dengan nomor penerimaan.</p>
+<form method="post" class="card form wide">{% csrf_token %}{% if order %}<input type="hidden" name="order" value="{{ order.pk }}">{% endif %}
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+<div class="fld"><label for="received_on">Tanggal diterima</label><input type="date" id="received_on" name="received_on" required max="{{ today }}" value="{{ p.received_on|default:today }}"></div>
+<div class="fld"><label for="supplier">Pemasok</label><input id="supplier" name="supplier" maxlength="150" value="{% if p %}{{ p.supplier }}{% else %}{{ order.supplier }}{% endif %}"></div>
+<div class="fld"><label for="ref">No. faktur / surat jalan</label><input id="ref" name="ref" maxlength="40" value="{{ p.ref }}"></div>
+<div class="fld"><label for="note">Catatan</label><input id="note" name="note" maxlength="300" value="{{ p.note }}"></div></div>
+{% if order %}
+<p><button type="button" class="ghost" id="gr-fill">Isi semua sesuai sisa pesanan</button></p>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Kode</th><th class="fill">Obat</th><th class="num">Dipesan</th><th class="num">Sudah diterima</th><th class="num">Sisa</th><th class="num">Datang sekarang</th><th class="nw">Selisih</th><th class="nw">Sisa tidak akan datang</th><th>Keterangan</th></tr></thead><tbody>
+{% for l in lines %}<tr data-row data-out="{{ l.outstanding }}"><td class="nw">{{ l.medicine.code }}</td><td class="fill">{{ l.medicine.name }} <small>({{ l.medicine.unit }})</small>{% if l.shortfall_note %}<br><small>Catatan sebelumnya: {{ l.shortfall_note }}</small>{% endif %}</td><td class="num">{{ l.qty_ordered }}</td><td class="num">{{ l.qty_received }}</td><td class="num">{{ l.outstanding }}</td>
+<td class="num"><input type="number" class="min" name="qty_{{ l.pk }}" min="0" max="1000000" value="{{ l.posted }}" aria-label="Datang {{ l.medicine.name }}"></td>
+<td class="nw"><span data-gap></span></td>
+<td class="nw"><label class="chk"><input type="checkbox" name="done_{{ l.pk }}" value="1"{% if l.posted_done %} checked{% endif %}> tidak datang</label></td>
+<td><input name="note_{{ l.pk }}" maxlength="200" value="{{ l.posted_note }}" placeholder="mis. menyusul minggu depan / pemasok kosong / 2 box rusak" aria-label="Keterangan {{ l.medicine.name }}"></td></tr>{% endfor %}</tbody></table></div>
+<p class="help">Pesan 8 datang 4: isi <b>4</b>. Sisa 4 tetap <b>ditunggu</b> (isi keterangan bila ada kabar), atau centang <b>tidak datang</b> bila sisanya batal, keterangan wajib. Obat yang sama sekali tidak datang: kosongkan jumlah, centang <b>tidak datang</b>, isi alasan.</p>
+<script>(function(){var rows=document.querySelectorAll('tr[data-row]');function upd(r){var out=+r.dataset.out,v=r.querySelector('input[type=number]').value,g=r.querySelector('[data-gap]');if(v===''){g.textContent='';return}
+var d=out-(+v);g.innerHTML=d>0?'<span class="pill pending">kurang '+d+'</span>':(d<0?'<span class="pill rejected">lebih '+(-d)+'</span>':'<span class="pill ok">lengkap</span>')}
+rows.forEach(function(r){r.querySelector('input[type=number]').addEventListener('input',function(){upd(r)});upd(r)});
+document.getElementById('gr-fill').onclick=function(){rows.forEach(function(r){r.querySelector('input[type=number]').value=r.dataset.out;upd(r)})};})();</script>
+{% else %}
+<input type="hidden" name="rows" id="rows" value="{{ extra_rows|length }}">
+<div class="wrap"><table class="sepfit"><thead><tr><th class="fill">Obat</th><th class="num">Jumlah diterima</th><th>Keterangan</th></tr></thead><tbody id="gr-body">
+{% for i in extra_rows %}<tr><td class="fill"><select name="med_{{ i }}"><option value="">Pilih obat</option>{% for m in meds %}<option value="{{ m.pk }}">{{ m.code }} · {{ m.name }} ({{ m.unit }})</option>{% endfor %}</select></td><td class="num"><input type="number" class="min" name="mqty_{{ i }}" min="1" max="1000000"></td><td><input name="mnote_{{ i }}" maxlength="200" placeholder="opsional"></td></tr>{% endfor %}</tbody></table></div>
+<p><button type="button" class="ghost" id="gr-add">+ Tambah baris</button></p>
+<script>(function(){var b=document.getElementById('gr-body'),r=document.getElementById('rows');document.getElementById('gr-add').onclick=function(){var n=parseInt(r.value,10);if(n>=60)return;
+var t=b.rows[0].cloneNode(true);t.querySelector('select').name='med_'+n;t.querySelector('select').value='';var q=t.querySelector('input[type=number]');q.name='mqty_'+n;q.value='';var k=t.querySelector('input[name^=mnote_]');k.name='mnote_'+n;k.value='';b.appendChild(t);r.value=n+1;};})();</script>
+{% endif %}
+<p style="margin-top:12px"><button>Simpan penerimaan &amp; tambah stok</button></p></form>
+{% endblock %}

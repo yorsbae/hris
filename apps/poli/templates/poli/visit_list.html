@@ -1,21 +1,21 @@
 {% extends "base.html" %}{% block title %}Rekap Visit Pasien{% endblock %}{% block content %}
 <p class="back"><a href="/poli/">‹ Poliklinik</a></p>
 <h2>Rekap Visit Pasien</h2>
-<p class="sub">Rawat jalan, sakit (istirahat), dan kunjungan rumah — satu tempat untuk mencatat dan memantau sampai selesai.</p>
+<p class="sub">Rawat jalan, sakit (istirahat), dan kunjungan rumah, satu tempat untuk mencatat dan memantau sampai selesai.</p>
 <div class="sepkpi">{% for k, label, n in per %}<a href="?{% if f.date_from %}date_from={{ f.date_from }}&amp;{% endif %}{% if f.date_to %}date_to={{ f.date_to }}&amp;{% endif %}kind={{ k }}"><b>{{ n }}</b> {{ label|lower }}</a>{% endfor %}
 <a class="{% if running %}warn{% endif %}" href="?{% if f.date_from %}date_from={{ f.date_from }}&amp;{% endif %}{% if f.date_to %}date_to={{ f.date_to }}&amp;{% endif %}status=berjalan"><b>{{ running }}</b> masih berjalan</a></div>
 <div class="tools"><a class="btn" href="{% url 'poli_visit_new' %}">+ Catat visit</a>
 <a href="?{{ qs }}&amp;export=1&amp;format=xlsx">Ekspor XLSX</a><a href="?{{ qs }}&amp;export=1">Ekspor CSV</a></div>
-<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama karyawan" aria-label="Cari NIK atau nama">
+<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK, nama, atau lokasi" aria-label="Cari NIK, nama, atau lokasi">
 <label>Dari tanggal <input type="date" name="date_from" value="{{ f.date_from }}"></label><label>Sampai tanggal <input type="date" name="date_to" value="{{ f.date_to }}"></label>
 <select name="kind" aria-label="Jenis visit"><option value="">Semua jenis</option>{% for k, v in kinds %}<option value="{{ k }}"{% if f.kind == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
 <select name="status" aria-label="Status"><option value="">Semua status</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select>
 <select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if f.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></form>
-<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Tanggal</th><th class="fill">Pasien</th><th class="fill">Jenis</th><th class="nw">Status</th><th class="acts"></th></tr></thead><tbody>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Tanggal</th><th class="fill">Pasien</th><th class="nw">Jenis</th><th class="fill">Lokasi</th><th class="nw">Status</th><th class="acts"></th></tr></thead><tbody>
 {% for v in page %}<tr><td class="nw">{{ v.visit_date|date:"d-m-Y" }}</td><td class="fill">{{ v.employee.name }}<small>{{ v.employee.nik }} · {{ v.employee.department.name }}</small></td>
-<td class="fill">{{ v.get_kind_display }}{% if v.location %}<small>{{ v.location }}</small>{% elif v.rest_days %}<small>istirahat {{ v.rest_days }} hari</small>{% endif %}</td>
+<td class="nw">{{ v.get_kind_display }}{% if v.rest_days %}<small>istirahat {{ v.rest_days }} hari</small>{% endif %}</td><td class="fill">{{ v.location|default:"-" }}</td>
 <td class="nw"><span class="pill {% if v.status == 'selesai' %}approved{% elif v.status == 'batal' %}rejected{% else %}pending{% endif %}">{{ v.get_status_display }}</span></td>
 <td class="acts"><a class="btn sm ghost" href="{% url 'poli_visit_detail' v.pk %}">{% if v.status == "berjalan" %}Kelola{% else %}Buka{% endif %}</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="5">{% if f.q or f.kind or f.status or f.department %}Tidak ada visit yang cocok dengan filter. <a href="{% url 'poli_visits' %}">Reset filter</a>.{% else %}Belum ada visit pada rentang tanggal ini. Mulai dengan <b>+ Catat visit</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="6">{% if f.q or f.kind or f.status or f.department %}Tidak ada visit yang cocok dengan filter. <a href="{% url 'poli_visits' %}">Reset filter</a>.{% else %}Belum ada visit pada rentang tanggal ini. Mulai dengan <b>+ Catat visit</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "poli/_pager.html" %}
 {% endblock %}

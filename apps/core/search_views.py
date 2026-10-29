@@ -28,7 +28,7 @@ def global_search(request):
             sections.append(_section("Karyawan", emps, lambda e: (f"{e.nik} · {e.name}", e.department.name, reverse("employee_detail_page", args=[e.pk])), f"/employees/?q={q}"))
             reqs = scope_dept_only(u, ChangeRequest.objects.select_related("employee")).filter(type__in=allowed_types(u)).filter(
                 Q(employee__name__icontains=q) | Q(employee__nik__startswith=q)).order_by("-created_at")
-            sections.append(_section("Pengajuan", reqs, lambda r: (f"{r.get_type_display() if hasattr(r, 'get_type_display') else r.type} — {r.employee.name}", f"{r.status} · {r.created_at:%d-%m-%Y}",
+            sections.append(_section("Pengajuan", reqs, lambda r: (f"{r.get_type_display() if hasattr(r, 'get_type_display') else r.type} · {r.employee.name}", f"{r.status} · {r.created_at:%d-%m-%Y}",
                                                                    reverse("request_detail", args=[r.pk])), f"/requests/?q={q}"))
         if hrd:
             sections.append(_section("Departemen", Department.objects.filter(Q(name__icontains=q) | Q(code__icontains=q)).order_by("name"), lambda d: (f"{d.code} · {d.name}", "", reverse("master_list", args=["department"]))))

@@ -73,7 +73,7 @@ class CateringUxTests(HrdBase):
 
     def test_pending_chip_filters_unreceived_and_row_action_names_the_task(self):
         d = date.today().replace(day=1); self.mk(d, received=True, meal="0900"); self.mk(d, received=False, meal="1200")
-        r = self.client.get(reverse("hrd_catering")); self.assertContains(r, "Belum dicatat diterima (1) — perlu perhatian"); self.assertContains(r, "Catat diterima</a>")
+        r = self.client.get(reverse("hrd_catering")); self.assertContains(r, "Belum dicatat diterima (1), perlu perhatian"); self.assertContains(r, "Catat diterima</a>")
         r = self.client.get(reverse("hrd_catering") + "?only=belum"); self.assertEqual(len(r.context["page"]), 1); self.assertContains(r, "Reset filter")
         self.assertContains(r, "Belum dicatat diterima (1)")  # angka chip tidak ikut menyempit oleh filter
 

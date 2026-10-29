@@ -17,7 +17,7 @@ PARAMS = {
     "tunj_masa_kerja": ("Tunjangan masa kerja per tahun penuh", D("3000"), "Rp / tahun", "Masa kerja penuh pada akhir periode × nilai ini (slip contoh: 4 tahun → Rp 12.000)."),
     "jamsostek_persen": ("Potongan Jamsostek (JHT + JP) karyawan", D("3"), "% gaji pokok", "Slip contoh: Rp 76.030 ≈ 3% × gaji pokok Rp 2.534.426 (dibulatkan ke bawah)."),
     "jamsostek_bulat": ("Pembulatan ke bawah Jamsostek", D("10"), "Rp", "Hasil dibulatkan ke bawah ke kelipatan nilai ini."),
-    "bpjs_kes_persen": ("Potongan BPJS Kesehatan karyawan", D("2"), "% gaji pokok", "Slip contoh: Rp 50.688 = 2% × gaji pokok Rp 2.534.426 (dibulatkan ke bawah). Konfirmasi: tarif resmi karyawan 1% — angka slip 2%."),
+    "bpjs_kes_persen": ("Potongan BPJS Kesehatan karyawan", D("2"), "% gaji pokok", "Slip contoh: Rp 50.688 = 2% × gaji pokok Rp 2.534.426 (dibulatkan ke bawah). Konfirmasi: tarif resmi karyawan 1%, angka slip 2%."),
     "bpjs_kes_bulat": ("Pembulatan ke bawah BPJS Kesehatan", D("1"), "Rp", "Hasil dibulatkan ke bawah ke kelipatan nilai ini."),
     "alfa_pengali": ("Potongan per hari alfa", D("1"), "× upah harian", "Hari alfa terverifikasi (Validasi Kehadiran) × upah harian × nilai ini."),
     "pph21_aktif": ("PPh 21 dipotong di slip", D("0"), "0 = tidak, 1 = ya", "Bila 1: PPh 21 dihitung otomatis (TER Jan-Nov, tarif Pasal 17 di masa Desember/terakhir) dan dipotong dari gaji karyawan. Bawaan 0 sampai Pajak/Finance mengonfirmasi tabel TER & status PTKP karyawan."),

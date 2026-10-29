@@ -8,7 +8,7 @@
 <p><button type="button" class="btn ghost" id="addnik" style="margin-left:0">+ Tambah karyawan</button></p>
 <details class="flt"{% if v.department %} open{% endif %}><summary>Atau tempel banyak NIK / pilih satu departemen penuh</summary>
 <label class="blk"><span>Tempel NIK <small class="muted">(satu per baris atau dipisah koma)</small></span><textarea name="niks" rows="3" style="width:100%"></textarea></label>
-<label class="blk"><span>Seluruh karyawan aktif satu departemen</span><select name="department"><option value="">—</option>{% for d in depts %}<option value="{{ d.pk }}"{% if v.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label></details></div>
+<label class="blk"><span>Seluruh karyawan aktif satu departemen</span><select name="department"><option value="">-</option>{% for d in depts %}<option value="{{ d.pk }}"{% if v.department == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label></details></div>
 <div class="step"><h3><i>2</i>Tanggal berapa?</h3>
 <p><label>Dari <input type="date" name="date_from" max="{{ today }}" value="{{ v.date_from }}" required></label> <label>sampai <input type="date" name="date_to" max="{{ today }}" value="{{ v.date_to }}"></label></p>
 <p class="muted" style="margin:0">Kosongkan “sampai” untuk satu hari. Tanggal masa depan ditolak, dan satu karyawan-tanggal hanya boleh punya satu permintaan aktif.</p></div>

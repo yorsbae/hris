@@ -485,7 +485,7 @@ class Command(BaseCommand):
             for code, minimum in {"S": 15, "M": 25, "L": 25, "XL": 15, "XXL": 8}.items():   # 3XL sengaja tanpa ambang (tidak dipantau)
                 if code in bysize: hrd_services.set_min_stock(utype.pk, bysize[code].pk, minimum)
             for code, qty, ago, doc in (("S", 40, 45, "SJ-0457"), ("M", 80, 45, "SJ-0457"), ("L", 80, 45, "SJ-0457"), ("XL", 20, 45, "SJ-0457"), ("XXL", 12, 45, "SJ-0457"), ("M", 40, 12, "SJ-0488")):
-                if code in bysize: hrd_services.stock_move(utype.pk, bysize[code].pk, "masuk", qty, today - timedelta(days=ago), self.hrd_u, note=f"Vendor Seragam Jaya — {doc} (demo)")
+                if code in bysize: hrd_services.stock_move(utype.pk, bysize[code].pk, "masuk", qty, today - timedelta(days=ago), self.hrd_u, note=f"Vendor Seragam Jaya, {doc} (demo)")
 
             def buy(e, d, z, q):
                 f = hrd_forms.UniformPurchaseForm({"nik": e.nik, "purchase_date": d.isoformat(), "utype": utype.pk, "size": z.pk, "quantity": q, "note": "Data demo"}, user=self.hrd_u)
@@ -576,7 +576,7 @@ class Command(BaseCommand):
                 if kind == "kecelakaan_kerja":  # bentuk sama dengan RecordForm.build_exam: lokasi + kronologi wajib, bagian tubuh/jenis cedera/hari hilang opsional
                     place, story, part, jenis, lost = r.choice(INCIDENTS); exam["kecelakaan"] = {"lokasi": place, "kronologi": story, "bagian_tubuh": part, "jenis_cedera": jenis, **({"hari_hilang": lost} if lost else {})}
                 if kind == "pemeriksaan":
-                    exam["pemeriksaan"] = {"kesimpulan": r.choices([c for c, _ in EXAM_CONCLUSIONS], [70, 25, 5])[0], "hasil": "Pemeriksaan berkala (MCU) — tanda vital dalam batas wajar (demo)"}
+                    exam["pemeriksaan"] = {"kesimpulan": r.choices([c for c, _ in EXAM_CONCLUSIONS], [70, 25, 5])[0], "hasil": "Pemeriksaan berkala (MCU), tanda vital dalam batas wajar (demo)"}
                     if exam["pemeriksaan"]["kesimpulan"] != "fit": exam["pemeriksaan"]["hasil"] = "Perlu kontrol tekanan darah dalam 2 minggu (demo)"
                 rec = pl.MedicalRecord.objects.create(employee=e, kind=kind, visit_at=self.at(d, r.randint(7, 16)), complaint="Kecelakaan kerja" if kind == "kecelakaan_kerja" else "Pemeriksaan kesehatan berkala" if kind == "pemeriksaan" else r.choice(COMPLAINTS),
                                                      exam=exam, diagnosis=diag, treatment="Istirahat, obat sesuai resep", created_by=self.poli_u, **who(kind))
@@ -638,7 +638,7 @@ class Command(BaseCommand):
         for g in range(3, 10):
             for t, plus in (("A", 0), ("B", 2500)):
                 pm.WageScale.objects.create(grade=g, tier=t, daily_wage=Decimal(60000 + (g - 3) * 4200 + plus) + Decimal("0.87") * (g % 2), effective_from=since, created_by=pu)
-        pm.TaliAsihRule.objects.create(kind=Separation.Kind.RESIGN, min_years=3, days_per_year=Decimal("5"), max_days=Decimal("60"), effective_from=since, note="Contoh aturan demo — sesuaikan dengan kebijakan perusahaan", created_by=pu)
+        pm.TaliAsihRule.objects.create(kind=Separation.Kind.RESIGN, min_years=3, days_per_year=Decimal("5"), max_days=Decimal("60"), effective_from=since, note="Contoh aturan demo, sesuaikan dengan kebijakan perusahaan", created_by=pu)
         n = 0
         for e in self.emps:
             if e.status != "aktif": continue
@@ -647,7 +647,7 @@ class Command(BaseCommand):
             pm.PayProfile.objects.create(employee=e, effective_from=since, grade=g, tier=tn, allowance_position=(g - 5) * 50000 if g > 5 else 0, allowance_education=60000 if e.education in ("D3", "S1") else 0,
                                          meal_allowance=True, pay_type="bulanan" if g >= 7 else "harian", ptkp_status=("TK0", "K0", "K1", "TK1", "K2", "K3")[e.id % 6], created_by=pu); n += 1   # hak uang makan; kapan & berapa → master Lembur & Uang Makan
         c = pm.PayComponent.objects.create(code="pot_m_koperasi", label="Iuran Koperasi", section="potongan", kind="auto", order=78)   # contoh MASTER POTONGAN buatan pengguna (putaran 61/62): 1% gaji pokok sejak awal
-        pm.DeductionRule.objects.create(component=c, method="persen_pokok", value=Decimal("1"), rounding=Decimal(100), effective_from=since, note="Contoh demo — sesuaikan dengan AD/ART koperasi", created_by=pu)
+        pm.DeductionRule.objects.create(component=c, method="persen_pokok", value=Decimal("1"), rounding=Decimal(100), effective_from=since, note="Contoh demo, sesuaikan dengan AD/ART koperasi", created_by=pu)
         prev = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m"); cur = today.strftime("%Y-%m")
         # master Lembur & Uang Makan + absensi (lembur, stand by, hari libur) + bulan puasa terakhir yang sudah lewat, supaya slip contoh LENGKAP
         from apps.payroll.management.commands.seed_payroll_demo import Command as PayDemo, RAMADAN

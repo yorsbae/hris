@@ -96,3 +96,11 @@ static_root/
 ci.sqlite3
 errors.log
 .health_state.json
+
+# Sinkronisasi publik<->HRIS
+sync_out/
+.sync_serial
+.pull_cursor
+private_media/
+ci-public.sqlite3
+wadimor-release.tar.gz

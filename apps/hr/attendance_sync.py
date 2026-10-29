@@ -101,7 +101,7 @@ def probe(dev, ports=(4370, 5005, 8080)):
             i = _Zk(dev).info(); out["note"] += f" · SN mesin {i['serial']} · jam {i['time']} · {i['users']} user"
             if dev.serial and i["serial"] and dev.serial.strip().upper() != str(i["serial"]).strip().upper(): out["note"] += " · PERINGATAN: SN tidak sama dengan data HRIS"
         except SyncError as e: out["ok"] = False; out["note"] += f" · protokol zk gagal: {e}"
-    elif not out["ok"]: out["note"] += f" — port {dev.port} yang diset tertutup"
+    elif not out["ok"]: out["note"] += f" (port {dev.port} yang diset tertutup)"
     return out
 
 

@@ -4,21 +4,21 @@
 .wf-s{border:1px solid rgba(128,128,128,.3);border-radius:12px;overflow:hidden}
 .wf-h{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(128,128,128,.2)}
 .wf-n{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:rgba(128,128,128,.2)}
-.wf-s.cur{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.18)}.wf-s.cur .wf-n{background:#2563eb;color:#fff}
-.wf-s.fin .wf-n{background:#16a34a;color:#fff}
+.wf-s.cur{border-color:var(--ac);border-width:2px}.wf-s.cur .wf-n{background:var(--ac);color:var(--onac)}
+.wf-s.fin .wf-n{background:var(--ok);color:var(--onok)}
 .wf-h b{font-size:1.05em}.wf-h small{display:block;opacity:.7}
 .wf-r{display:grid;grid-template-columns:28px 1fr auto auto;gap:10px;align-items:center;padding:9px 16px;border-top:1px solid rgba(128,128,128,.12)}
 .wf-r:first-of-type{border-top:0}.wf-r small{display:block;opacity:.7}
 .wf-i{font-size:1.1em;text-align:center}.wf-d{opacity:.8;white-space:nowrap}
 .wf-flow{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px}
 .wf-flow span{padding:6px 12px;border-radius:999px;border:1px solid rgba(128,128,128,.35);font-size:.9em}
-.wf-flow .done{background:#16a34a;color:#fff;border-color:#16a34a}.wf-flow .now{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:700}
+.wf-flow .done{background:var(--ok);color:var(--onok);border-color:var(--ok)}.wf-flow .now{background:var(--ac);color:var(--onac);border-color:var(--ac);font-weight:700}
 .wf-act{padding:0 16px 14px}
 @media(max-width:700px){.wf-r{grid-template-columns:28px 1fr}.wf-r .wf-d,.wf-r .btn{grid-column:2}}
 </style>
 <h2>Payroll</h2>
 <p class="sub">Tiap bulan cukup ikuti <b>1 → 5</b> dari atas ke bawah; bagian <b>Langkah 1–2</b> hanya diisi sekali / saat ada perubahan. Tombol di kanan tiap baris membawa Anda ke halaman yang tepat. Langkah yang bertanda biru adalah yang sedang perlu dikerjakan; ✅ = siap, ⚠️ = perlu dicek, ⛔ = harus diperbaiki, ➖ = opsional.</p>
-{% if stale %}<p class="note wait">Ada perubahan data setelah run {{ cur }} terakhir dihitung — hitung ulang sebelum menetapkan.</p>{% endif %}
+{% if stale %}<p class="note wait">Ada perubahan data setelah run {{ cur }} terakhir dihitung, hitung ulang sebelum menetapkan.</p>{% endif %}
 <div class="wf">
 {% for st in stages %}<section class="wf-s{% if st.no == first_open %} cur{% endif %}{% if st.no < first_open %} fin{% endif %}">
 <div class="wf-h"><span class="wf-n">{% if st.no < first_open %}✓{% else %}{{ st.no }}{% endif %}</span><div><b>{{ st.title }}</b><small>{{ st.when }}</small></div></div>

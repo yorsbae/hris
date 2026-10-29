@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}{{ g.number }}{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'poli_receipts' %}">‹ Penerimaan obat</a></p>
+<h2>{{ g.number }}</h2>
+<p class="sub">Diterima {{ g.received_on|date:"d M Y" }} · dicatat {{ g.created_at|date:"d M Y H:i" }} oleh {{ g.created_by.get_username|default:"-" }}{% if g.order %} · Pesanan <a href="{% url 'poli_order_detail' g.order.pk %}">{{ g.order.number }}</a>{% endif %}{% if g.supplier %} · {{ g.supplier }}{% endif %}{% if g.ref %} · Faktur {{ g.ref }}{% endif %}{% if g.note %} · {{ g.note }}{% endif %}</p>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Kode</th><th class="fill">Obat</th><th class="num">Diterima</th><th class="num">Saldo stok sesudahnya</th><th class="num">Dipesan</th><th>Keterangan</th></tr></thead><tbody>
+{% for l in lines %}<tr><td class="nw">{{ l.medicine.code }}</td><td class="fill"><a href="{% url 'poli_medicine_detail' l.medicine.pk %}">{{ l.medicine.name }}</a></td><td class="num">+{{ l.qty }} {{ l.medicine.unit }}</td><td class="num">{{ l.movement.balance_after }}</td><td class="num">{% if l.po_line %}{{ l.po_line.qty_ordered }} <small>(total datang {{ l.po_line.qty_received }})</small>{% else %}-{% endif %}</td><td>{{ l.note|default:"-" }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="help">Salah input? Koreksi lewat <b>Penyesuaian stok</b> di kartu stok obat (penerimaan tidak dihapus agar jejak tetap utuh).</p>
+{% endblock %}

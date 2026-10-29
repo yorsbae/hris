@@ -5,10 +5,10 @@
 <tr><th>Karyawan</th><td>{{ m.employee.nik }} · {{ m.employee.name }} ({{ m.employee.department.name }})</td></tr>
 <tr><th>HPL</th><td>{{ m.due_date|date:"d M Y" }}</td></tr>
 <tr><th>Cuti</th><td>{{ m.start_date|date:"d M Y" }} s/d {{ m.end_date|date:"d M Y" }}</td></tr>
-<tr><th>Tanggal lahir sebenarnya</th><td>{{ m.delivery_date|date:"d M Y"|default:"—" }}</td></tr>
-<tr><th>Catatan</th><td>{{ m.note|default:"—" }}</td></tr>
+<tr><th>Tanggal lahir sebenarnya</th><td>{{ m.delivery_date|date:"d M Y"|default:"-" }}</td></tr>
+<tr><th>Catatan</th><td>{{ m.note|default:"-" }}</td></tr>
 {% if m.cancel_reason %}<tr><th>Alasan batal</th><td>{{ m.cancel_reason }}</td></tr>{% endif %}
-<tr><th>Dicatat oleh</th><td>{{ m.created_by.get_username|default:"—" }} · {{ m.created_at|date:"d M Y H:i" }}</td></tr></table></div>
+<tr><th>Dicatat oleh</th><td>{{ m.created_by.get_username|default:"-" }} · {{ m.created_at|date:"d M Y H:i" }}</td></tr></table></div>
 {% if m.state == "aktif" %}
 <form method="post" class="card form" style="margin-top:12px">{% csrf_token %}
 <div class="fld"><label>Tanggal lahir sebenarnya (opsional, untuk menandai selesai)</label><input type="date" name="delivery_date"></div>

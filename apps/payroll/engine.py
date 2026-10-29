@@ -292,7 +292,7 @@ def build(period):
         if a:
             if a["tanpa_scan"]: flags.append(f"{a['tanpa_scan']} hari kerja tanpa scan (belum divalidasi)")
             if a["tidak_lengkap"]: flags.append(f"{a['tidak_lengkap']} hari scan tidak lengkap")
-            if a["konflik"]: flags.append(f"{a['konflik']} hari berkonflik data (lembur/izin) — tinjau di Absensi")
+            if a["konflik"]: flags.append(f"{a['konflik']} hari berkonflik data (lembur/izin), tinjau di Absensi")
         if last and start <= last <= end: flags.append(f"Keluar {last:%d-%m-%Y}: gaji dihitung sampai hari terakhir kerja")
         elif last and last < start: flags.append("Sudah keluar sebelum periode: hanya komponen tersisa (mis. tali asih)")
         if pph_on and comps.get("pot_pph21") is not None:
@@ -305,13 +305,13 @@ def build(period):
                 r = tax.annual_tax(y["earn"] + bruto, y["iuran"] + iuran, ptkp, y["n"] + 1, sur, prm["biaya_jabatan_persen"], prm["biaya_jabatan_maks"], brackets); due = r["pajak"] - y["pph"]
                 add("pot_pph21", max(due, D(0)), source="pajak", note=f"Penyelesaian setahun {ptkp_label(pf)}: PKP {int(r['pkp']):,} → pajak {int(r['pajak']):,}; sudah dipotong {int(y['pph']):,}".replace(",", "."))
                 if due < 0: flags.append(f"PPh 21 setahun lebih kecil dari yang sudah dipotong (kelebihan Rp {int(-due):,}): kembalikan lewat Tambahan & Potongan".replace(",", "."))
-                if y["n"] < expected: flags.append(f"PPh 21 Desember/terakhir: baru {y['n']} dari {expected} slip bulan sebelumnya ada di sistem — hasil perkiraan, cocokkan dengan catatan pajak")
+                if y["n"] < expected: flags.append(f"PPh 21 Desember/terakhir: baru {y['n']} dari {expected} slip bulan sebelumnya ada di sistem, hasil perkiraan, cocokkan dengan catatan pajak")
             else:
                 pct = tax.ter_rate(ter[cat], bruto)
                 add("pot_pph21", tax.pph_ter(bruto, pct, sur), rate=pct, source="pajak", note=f"TER {cat} {pct}% × bruto {int(bruto):,}".replace(",", ".") + ("" if e.npwp else " × tanpa NPWP"))
-            if e.pk in tali: flags.append("Tali asih/pesangon: PPh-nya (tarif khusus pesangon) belum dihitung otomatis — hitung & potong manual bila perlu")
+            if e.pk in tali: flags.append("Tali asih/pesangon: PPh-nya (tarif khusus pesangon) belum dihitung otomatis, hitung & potong manual bila perlu")
         earn = sum((i["amount"] for i in items if i["component"].section != "potongan"), D(0)); ded = sum((i["amount"] for i in items if i["component"].section == "potongan"), D(0))
-        if earn - ded < 0: flags.append("Gaji bersih NEGATIF: potongan melebihi pendapatan — tinjau sebelum diajukan")
+        if earn - ded < 0: flags.append("Gaji bersih NEGATIF: potongan melebihi pendapatan, tinjau sebelum diajukan")
         if not items: no_items.append(e.nik); continue
         slips.append({"employee": e, "daily": daily, "days": days, "years": years, "grade": pf.grade_label, "items": items, "earn": earn, "ded": ded, "net": earn - ded, "flags": flags})
     if missing_scale: warnings.append(f"{len(missing_scale)} karyawan punya profil tetapi skala gajinya tidak ditemukan dan TIDAK ikut run: {', '.join(missing_scale[:8])}{'…' if len(missing_scale) > 8 else ''}. Tambahkan di Skala Gaji Harian.")

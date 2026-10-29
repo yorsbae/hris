@@ -197,10 +197,10 @@ class Command(BaseCommand):
         if not s.hero_title_id:
             s.hero_title_id = "Warisan Budaya dalam Setiap Helai"; s.hero_title_en = "Cultural Heritage in Every Thread"
             s.hero_text_id = "Sarung tenun berkualitas untuk keseharian, ibadah, dan acara istimewa."; s.hero_text_en = "Quality woven sarongs for everyday wear, worship and special occasions."
-            s.banner_active = True; s.banner_id = "Website Dalam Pengembangan — beberapa fitur mungkin belum tersedia atau berubah sewaktu-waktu."
-            s.banner_en = "Website Under Development — some features may be unavailable or change at any time."
+            s.banner_active = True; s.banner_id = "Website Dalam Pengembangan, beberapa fitur mungkin belum tersedia atau berubah sewaktu-waktu."
+            s.banner_en = "Website Under Development, some features may be unavailable or change at any time."
             s.careers_intro_id = "Bergabunglah bersama kami. Lamaran cukup diisi satu kali; kami kabari perkembangannya lewat email."; s.careers_intro_en = "Join us. Fill in the application once; we will keep you posted by email."
-            s.meta_description_id = "Wadimor — sarung tenun, baju koko, peci, dan aksesoris. Lihat produk, lookbook, lokasi toko, artikel, dan lowongan kerja."; s.meta_description_en = "Wadimor — woven sarongs, koko shirts, caps and accessories. Browse products, lookbook, stores, articles and careers."
+            s.meta_description_id = "Wadimor: sarung tenun, baju koko, peci, dan aksesoris. Lihat produk, lookbook, lokasi toko, artikel, dan lowongan kerja."; s.meta_description_en = "Wadimor: woven sarongs, koko shirts, caps and accessories. Browse products, lookbook, stores, articles and careers."
         # kontak demo: hanya mengisi kolom yang masih kosong
         for k, v in dict(address="Jl. Industri Tekstil No. 5, Kawasan Industri, Batang, Jawa Tengah 51211", phone="(0285) 555 0100", whatsapp="628120000000", email="info@wadimor.example",
                          hours_id="Senin–Sabtu 08.00–16.00", hours_en="Mon–Sat 08:00–16:00", maps_url="https://www.google.com/maps/search/?api=1&query=Batang+Jawa+Tengah",
@@ -257,7 +257,7 @@ class Command(BaseCommand):
             m = series[nm]; name = f"Sarung Wadimor {nm}"; slug = slugify(name); kind = m.category.name_id.lower()
             if m.products.exists() or Product.objects.filter(slug=slug).exists(): continue
             Product.objects.create(slug=slug, name=name, category=m.category, series=m, motif=nm, status="published", order=200 + i,
-                                   summary_id=f"Seri {nm} dari Wadimor — {kind} untuk keseharian dan acara istimewa.", summary_en=f"The {nm} series by Wadimor — {kind.replace('sarung', 'sarong')} for daily wear and special occasions.")
+                                   summary_id=f"Seri {nm} dari Wadimor, {kind} untuk keseharian dan acara istimewa.", summary_en=f"The {nm} series by Wadimor, {kind.replace('sarung', 'sarong')} for daily wear and special occasions.")
         for slug, tid, ten, oid, oen, sid, sen, items, feat, order in LOOKS:   # lookbook: dibuat bila belum ada; setelan yang sudah disunting HRD tidak disentuh
             if not Look.objects.filter(slug=slug).exists():
                 lk = Look.objects.create(slug=slug, title_id=tid, title_en=ten, occasion_id=oid, occasion_en=oen, story_id=sid, story_en=sen, featured=feat, order=order, status="published")

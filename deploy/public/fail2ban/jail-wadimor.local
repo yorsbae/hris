@@ -1,0 +1,20 @@
+# /etc/fail2ban/jail.d/wadimor.local
+[nginx-scan]
+enabled  = true
+port     = http,https
+filter   = nginx-scan
+logpath  = /var/log/nginx/access.log
+maxretry = 3
+findtime = 10m
+bantime  = 24h
+[nginx-limit-req]
+enabled  = true
+port     = http,https
+logpath  = /var/log/nginx/error.log
+maxretry = 20
+findtime = 5m
+bantime  = 1h
+[sshd]
+enabled  = true
+maxretry = 3
+bantime  = 24h

@@ -1,0 +1,6 @@
+# HOST PUBLIK. User layanan: hrispub.
+APP=/srv/wadimor/app
+PY=/srv/wadimor/venv/bin/python
+* * * * * cd $APP && DJANGO_SETTINGS_MODULE=config.settings_public $PY manage.py import_site_bundle /srv/wadimor/inbox >>/var/log/wadimor/sync.log 2>&1
+# 02:00 retensi: anonimkan lamaran lewat masa simpan & yang tak pernah diverifikasi
+0 2 * * * cd $APP && DJANGO_SETTINGS_MODULE=config.settings_public $PY manage.py purge_applicants

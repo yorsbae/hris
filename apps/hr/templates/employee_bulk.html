@@ -10,7 +10,7 @@
 <form method="post" action="{% url 'employee_bulk' %}" class="card form">{% csrf_token %}
 <input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="ids" value="{{ ids }}"><input type="hidden" name="confirm" value="1">
 {% if action == "delete" %}<div class="fld"><label for="bulk-reason">Alasan (wajib, berlaku untuk semua yang dipilih)</label><input id="bulk-reason" name="reason" maxlength="300" required value="{{ reason }}"></div>
-{% else %}<div class="fld"><label for="bulk-status">Status baru</label><select id="bulk-status" name="status" required><option value="">— pilih —</option>{% for v, l in statuses %}<option value="{{ v }}"{% if v == status %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+{% else %}<div class="fld"><label for="bulk-status">Status baru</label><select id="bulk-status" name="status" required><option value="">Pilih status</option>{% for v, l in statuses %}<option value="{{ v }}"{% if v == status %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
 <div class="fld"><label for="bulk-eff">Tanggal efektif</label><input id="bulk-eff" type="date" name="effective_date" value="{{ effective_date }}" required></div>{% endif %}
 <p><button class="danger">{% if action == "delete" %}Hapus {{ total }} karyawan{% else %}Ubah status {{ total }} karyawan{% endif %}</button> <a class="btn ghost" href="/employees/">Batal</a></p></form>
 {% endif %}

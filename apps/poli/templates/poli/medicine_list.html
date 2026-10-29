@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Obat{% endblock %}{% block content %}
 <p class="back"><a href="/poli/">‹ Poliklinik</a></p>
-<h2>Obat & kartu stok <a class="btn" href="{% url 'poli_medicine_new' %}">+ Obat baru</a> <a class="btn" href="{% url 'poli_medicine_import' %}">Impor CSV/XLSX</a> {% include "_export.html" %}</h2>
+<h2>Obat & kartu stok <a class="btn" href="{% url 'poli_medicine_new' %}">+ Obat baru</a> <a class="btn" href="{% url 'poli_order_new' %}">Pesan obat</a> <a class="btn" href="{% url 'poli_receipt_new' %}">Terima obat</a> <a class="btn" href="{% url 'poli_medicine_import' %}">Impor CSV/XLSX</a> {% include "_export.html" %}</h2>
 <form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari kode / nama"><label class="chk"><input type="checkbox" name="low" value="1"{% if f.low %} checked{% endif %}> hanya stok minimum</label><button>Filter</button></form>
 <div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Kode</th><th class="fill">Nama</th><th class="nw">Stok</th><th class="num">Minimum</th></tr></thead><tbody>
 {% for m in page %}<tr><td><a href="{% url 'poli_medicine_detail' m.pk %}">{{ m.code }}</a></td><td class="fill">{{ m.name }}</td><td class="nw">{{ m.stock }} {{ m.unit }}{% if m.stock <= m.min_stock %} <span class="pill rejected">minimum</span>{% endif %}</td><td class="num">{{ m.min_stock }}</td></tr>

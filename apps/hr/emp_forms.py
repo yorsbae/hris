@@ -39,7 +39,7 @@ DAY_NAMES = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 
 class EmployeeForm(forms.ModelForm):
     status = forms.ChoiceField(choices=STATUSES)
-    shift_choice = ShiftChoiceField(ShiftGroup.objects.none(), required=False, label="Shift", empty_label="— belum diatur —",
+    shift_choice = ShiftChoiceField(ShiftGroup.objects.none(), required=False, label="Shift", empty_label="Belum diatur",
                                     help_text="Satu pilihan: GS, GS/N (kadang GS, kadang shift), A7–G7 (pola 2 shift: Pagi–Siang), A7Pack–G7Pack (pola 3 shift/PACK: Pagi–Siang–Malam).")
     supervisor_nik = forms.CharField(label="NIK atasan", max_length=20, required=False,
                                      help_text="Kosongkan bila tidak ada. Ketik NIK/nama lalu pilih dari saran (bukan dropdown) agar ringan untuk 3.000+ karyawan.",
@@ -72,7 +72,7 @@ class EmployeeForm(forms.ModelForm):
         self.fields["off_weekday"].required = False
         cur_week = self.instance.gsn_week if isinstance(self.instance.gsn_week, list) and len(self.instance.gsn_week) == 7 else []
         for i, n in enumerate(DAY_NAMES):   # Pola mingguan GS/N: hanya tampil (dan wajib) bila Shift = GS/N
-            self.fields[f"gsn_{i}"] = forms.ChoiceField(label=n, required=False, choices=[("", "—")] + Employee.GSN_CODES, initial=cur_week[i] if cur_week else ("LIBUR" if i == 6 else "GS"))
+            self.fields[f"gsn_{i}"] = forms.ChoiceField(label=n, required=False, choices=[("", "-")] + Employee.GSN_CODES, initial=cur_week[i] if cur_week else ("LIBUR" if i == 6 else "GS"))
         self.fields["off_weekday"].help_text = "Khusus GS dan GS/N: hari libur mingguan masing-masing karyawan (acak per orang). Kosong = libur umum (Minggu). Pindah libur sesekali lewat pengajuan tukar libur."
         self.fields["grade"].required = False
         self.fields["grade"].help_text = "Contoh: 9 dan tingkat A. Hanya profil; upah tetap diatur di modul Payroll."
@@ -107,7 +107,7 @@ class EmployeeForm(forms.ModelForm):
     def clean_nik(self):
         nik = self.cleaned_data["nik"].strip()
         if Employee.all_objects.exclude(pk=self.instance.pk).filter(nik=nik).exists():  # termasuk yang sudah dihapus (soft delete)
-            raise forms.ValidationError("NIK sudah dipakai (bisa jadi oleh data yang sudah dihapus — hubungi Superadmin untuk memulihkan).")
+            raise forms.ValidationError("NIK sudah dipakai (bisa jadi oleh data yang sudah dihapus; hubungi Superadmin untuk memulihkan).")
         return nik
 
     def clean_nik_ktp(self):

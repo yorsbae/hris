@@ -1,11 +1,11 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Slip gaji {{ s.nik }}{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'pay_run' s.run_id %}">‹ Run gaji {{ s.run.period }}</a></p>
-<h2>Slip gaji harian — {{ period_label }}</h2>
+<h2>Slip gaji harian: {{ period_label }}</h2>
 <div class="tools"><a class="btn" href="{% url 'pay_slip_pdf' s.pk %}" target="_blank" rel="noopener">Cetak slip (PDF)</a></div>
 {% if s.flagged %}<div class="note wait"><b>Perlu ditinjau:</b><ul style="margin:4px 0 0 18px">{% for f in s.flags %}<li>{{ f }}</li>{% endfor %}</ul></div>{% endif %}
 <div class="card"><table>
-<tr><th>Nama</th><td>{{ s.emp_name }}</td></tr><tr><th>NIK</th><td>{{ s.nik }}</td></tr><tr><th>Jabatan</th><td>{{ s.position_name|default:"—" }}</td></tr><tr><th>Departemen</th><td>{{ s.department_name }}</td></tr>
-<tr><th>Grade jabatan</th><td>{{ s.grade_label|default:"—" }}</td></tr><tr><th>Bulan masuk kerja</th><td>{{ s.join_date|date:"M-y" }}</td></tr><tr><th>Masa kerja</th><td>{{ s.service_years }} th</td></tr><tr><th>Pendidikan terakhir</th><td>{{ s.education|default:"—" }}</td></tr>
+<tr><th>Nama</th><td>{{ s.emp_name }}</td></tr><tr><th>NIK</th><td>{{ s.nik }}</td></tr><tr><th>Jabatan</th><td>{{ s.position_name|default:"-" }}</td></tr><tr><th>Departemen</th><td>{{ s.department_name }}</td></tr>
+<tr><th>Grade jabatan</th><td>{{ s.grade_label|default:"-" }}</td></tr><tr><th>Bulan masuk kerja</th><td>{{ s.join_date|date:"M-y" }}</td></tr><tr><th>Masa kerja</th><td>{{ s.service_years }} th</td></tr><tr><th>Pendidikan terakhir</th><td>{{ s.education|default:"-" }}</td></tr>
 <tr><th>Upah harian</th><td>{{ s.daily_wage|rupiah }} × {{ s.paid_days }} hari</td></tr></table></div>
 <div class="wrap" style="margin-top:12px"><table><thead><tr><th>Komponen</th><th class="num">Jumlah</th><th class="num">Tarif</th><th class="num">Rupiah</th></tr></thead><tbody>
 {% for sec in sections %}<tr><td colspan="4"><b>{{ sec.title }}</b></td></tr>

@@ -1,6 +1,7 @@
-{% extends "base.html" %}{% block title %}Pengajuan #{{ r.pk }}{% endblock %}{% block content %}
+{% extends "base.html" %}{% load ui %}{% block title %}Pengajuan #{{ r.pk }}{% endblock %}{% block content %}
 <p class="back"><a href="/requests/">‹ Daftar pengajuan</a></p>
 <h2>{{ label }} <span class="pill {{ r.status }}">{{ status_label }}</span></h2>
+{% flow "request" r.status %}
 <div class="card"><table>
 <tr><th>Karyawan</th><td>{{ r.employee.nik }} · {{ r.employee.name }}</td></tr>
 <tr><th>Departemen</th><td>{{ r.department.name }}</td></tr>

@@ -1,0 +1,37 @@
+# /etc/systemd/system/wadimor-public.service: gunicorn dengan sandbox systemd (proses ini TIDAK bisa menulis ke mana pun selain folder yang diizinkan)
+[Unit]
+Description=Situs publik (Company Profile + Karir)
+After=network.target postgresql.service redis-server.service
+
+[Service]
+User=hrispub
+Group=hrispub
+WorkingDirectory=/srv/wadimor/app
+EnvironmentFile=/srv/wadimor/app/.env
+ExecStart=/srv/wadimor/venv/bin/gunicorn config.wsgi_public:application --bind 127.0.0.1:8100 --workers 4 --threads 2 --timeout 30 --graceful-timeout 20 --max-requests 2000 --max-requests-jitter 200 --limit-request-line 4094 --limit-request-fields 50 --limit-request-field_size 8190
+Restart=always
+RestartSec=3
+# --- sandbox ---
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+ReadWritePaths=/srv/wadimor/media /srv/wadimor/private /srv/wadimor/state /var/log/wadimor
+MemoryMax=1G
+TasksMax=256
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

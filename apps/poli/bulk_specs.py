@@ -33,6 +33,6 @@ BILL = Spec("tagihan-mitra", "poli", "tagihan mitra", "/poli/billing/", None, "k
             ["mitra", "nomor_tagihan", "tanggal_tagihan", "nik", "tanggal_layanan", "total"],
             ["RS Contoh", "INV-001", "2026-10-05", "001", "2026-10-03", "rawat_jalan", "A09", "bpjs", "450000", "0", ""], _bill_to_data,
             key_fn=lambda r: f"{(r.get('mitra') or '').strip().lower()}|{' '.join((r.get('nomor_tagihan') or '').split()).lower()}",
-            hint="Satu baris = satu tagihan (tanpa rincian biaya; rincian diisi lewat form). DATA MEDIS: berkas ini memuat keluhan/diagnosa — perlakukan sebagai rahasia. "
+            hint="Satu baris = satu tagihan (tanpa rincian biaya; rincian diisi lewat form). DATA MEDIS: berkas ini memuat keluhan/diagnosa, perlakukan sebagai rahasia. "
                  "Hanya MENAMBAH; nomor tagihan yang sudah tercatat dari mitra yang sama ditolak. Jenis layanan: rawat_jalan, rawat_inap, lab, obat, kacamata, lainnya. Penanggung: bpjs, non_bpjs (boleh ditulis \"Non BPJS\"). "
                  "potongan (opsional) = potongan mitra, mis. potongan dokter RS. Beban otomatis menurut Master Tanggungan pada tanggal pelayanan (bawaan: BPJS → perusahaan 75% / karyawan 25%; Non BPJS → 100% perusahaan).")

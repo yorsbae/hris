@@ -31,7 +31,7 @@ UI = {
     "download_data": {"id": "Unduh data saya", "en": "Download my data"}, "privacy": {"id": "Kebijakan privasi", "en": "Privacy policy"},
     "skip": {"id": "Lewati ke isi", "en": "Skip to content"}, "lang_switch": {"id": "English", "en": "Bahasa Indonesia"}, "menu": {"id": "Menu", "en": "Menu"},
     "archive_text": {"id": "Arsip artikel per bulan.", "en": "Article archive by month."}, "posted": {"id": "Terbit", "en": "Published"}, "by": {"id": "oleh", "en": "by"},
-    "preview": {"id": "PRATINJAU — draf ikut tampil dan hanya terlihat oleh Anda.", "en": "PREVIEW — drafts are shown and only visible to you."},
+    "preview": {"id": "Pratinjau: draf ikut tampil dan hanya terlihat oleh Anda.", "en": "Preview: drafts are shown and only visible to you."},
     "not_found": {"id": "Halaman tidak ditemukan", "en": "Page not found"}, "too_many": {"id": "Terlalu banyak permintaan. Coba lagi nanti.", "en": "Too many requests. Please try again later."},
     "stage_hist": {"id": "Riwayat", "en": "History"}, "ref": {"id": "Nomor lamaran", "en": "Application number"}, "position": {"id": "Posisi", "en": "Position"},
     "results_for": {"id": "Hasil untuk", "en": "Results for"}, "rights": {"id": "Seluruh hak cipta dilindungi.", "en": "All rights reserved."},
@@ -64,7 +64,7 @@ UI.update({
     "collection": {"id": "Koleksi Kami", "en": "Our Collection"}, "all_products": {"id": "Semua Produk", "en": "All Products"}, "hero_scroll": {"id": "Gulir untuk menjelajah", "en": "Scroll to explore"},
     "lookbook": {"id": "Lookbook", "en": "Lookbook"}, "lookbook_intro": {"id": "Padu padan setelan Wadimor pada model, lengkap dengan detail setiap produk yang dipakai.", "en": "Wadimor outfits worn by models, with the details of every product they wear."},
     "look_items": {"id": "Yang dipakai", "en": "What they wear"}, "look_for": {"id": "Untuk", "en": "For"}, "look_see": {"id": "Lihat lookbook", "en": "View lookbook"},
-    "look_n": {"id": "produk dalam setelan ini", "en": "products in this outfit"}, "look_ph": {"id": "Ilustrasi — foto model menyusul", "en": "Illustration — model photo coming soon"},
+    "look_n": {"id": "produk dalam setelan ini", "en": "products in this outfit"}, "look_ph": {"id": "Ilustrasi: foto model menyusul", "en": "Illustration: model photo coming soon"},
     "view_product": {"id": "Foto produk", "en": "Product photo"}, "view_model": {"id": "Dipakai model", "en": "On model"}, "worn_in": {"id": "Dipakai dalam setelan", "en": "Worn in these outfits"},
     "other_cat": {"id": "Lainnya", "en": "Other"}, "see_group": {"id": "Lihat semua", "en": "See all"}, "details": {"id": "Detail produk", "en": "Product details"},
     "by_series": {"id": "Jelajahi per motif / seri", "en": "Browse by motif / series"}, "n_products": {"id": "produk", "en": "products"},
@@ -78,7 +78,7 @@ UI.update({
     "faq_intro": {"id": "Jawaban singkat untuk pertanyaan yang paling sering kami terima.", "en": "Quick answers to the questions we receive most."},
     "careers_page_d": {"id": "Karir di sini berarti ikut menjaga mutu dan budaya tenun.", "en": "A career here means helping keep weaving quality and culture alive."},
     "empty_t": {"id": "Belum ada isi di sini", "en": "Nothing here yet"}, "chat_wa": {"id": "Chat WhatsApp", "en": "Chat on WhatsApp"}, "call": {"id": "Telepon", "en": "Call"},
-    "demo_note": {"id": "Data contoh — ganti lewat menu Company Profile.", "en": "Sample data — edit it in the Company Profile menu."},
+    "demo_note": {"id": "Data contoh: ganti lewat menu Company Profile.", "en": "Sample data: edit it in the Company Profile menu."},
 })
 
 CONSENT_ID = ("Data yang Anda isi (nama, kontak, tanggal lahir, riwayat, dan CV) hanya dipakai untuk seleksi lowongan ini oleh tim HRD, disimpan terenkripsi, "

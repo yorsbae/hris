@@ -11,7 +11,7 @@
 <p class="sub">Setiap baris adalah satu ketukan jari di mesin Fingerspot. Dipakai untuk memeriksa data yang sudah masuk; tidak bisa diubah atau dihapus. Hanya HRD.</p>
 {% if batch %}<div class="note" role="status">Menampilkan scan baru dari impor <strong>{{ batch.original_name }}</strong> ({{ batch.committed_at|default:batch.created_at|date:"d M Y H:i" }}). <a href="{% url 'att_scans' %}">Tampilkan semua scan</a> · <a href="{% url 'att_import_detail' batch.pk %}">Detail impor</a></div>{% endif %}
 {% if capped %}<p class="hint flow">Rentang tampilan dibatasi maks. 31 hari; untuk rentang lebih panjang gunakan ekspor (maks. 93 hari; batas baris per ekspor: XLSX {{ limits.xlsx }}, XML {{ limits.xml }}, CSV {{ limits.csv }}).</p>{% endif %}
-<div class="sepkpi"><span><b>{{ k.total }}</b> scan</span><span><b>{{ k.pins }}</b> PIN berbeda</span><a{% if k.unmapped %} class="warn"{% endif %} href="?{{ unmapped_qs }}"><b>{{ k.unmapped }}</b> PIN belum dipetakan</a><span>scan terakhir <b>{% if k.last %}{{ k.last|date:"d M H:i" }}{% else %}—{% endif %}</b></span></div>
+<div class="sepkpi"><span><b>{{ k.total }}</b> scan</span><span><b>{{ k.pins }}</b> PIN berbeda</span><a{% if k.unmapped %} class="warn"{% endif %} href="?{{ unmapped_qs }}"><b>{{ k.unmapped }}</b> PIN belum dipetakan</a><span>scan terakhir <b>{% if k.last %}{{ k.last|date:"d M H:i" }}{% else %}-{% endif %}</b></span></div>
 {% if k.unmapped %}<div class="note warn" role="status"><strong>{{ k.unmapped }} scan belum terhubung ke karyawan.</strong> Scan ini tidak masuk rekap absensi sampai PIN-nya dipetakan.<br><a class="btn" href="{% url 'att_pins' %}">Petakan PIN ›</a><a class="btn ghost" href="?{{ unmapped_qs }}">Lihat scan-nya</a></div>{% endif %}
 <div class="tools"><a class="btn" style="margin-left:0" href="{% url 'att_import' %}">+ Impor Fingerspot</a><a class="btn ghost" href="{% url 'att_scanlog' %}">Riwayat impor</a><details class="more"><summary>Ekspor ▾</summary><div><small>Sesuai filter di bawah (14 kolom persis template Fingerspot)</small>
 <div class="xrow"><span>Scanlog</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a><a href="?{{ qs }}&amp;export=1&amp;format=xml">XML</a></div>
@@ -27,7 +27,7 @@
 {% if page %}<div class="wrap"><table class="sepfit"><thead><tr><th>Tanggal</th><th>Jam</th><th>PIN</th><th>Karyawan</th><th>Jabatan</th><th>Departemen</th><th>Mesin</th></tr></thead><tbody>
 {% for r in page %}<tr{% if not r.employee_id %} class="unm"{% endif %}><td class="nw">{{ r.d }}</td><td class="nw">{{ r.t }}</td><td>{{ r.pin }}</td>
 <td>{% if r.employee %}<a href="{% url 'att_employee' r.employee_id %}?month={{ r.punched_at|date:'Y-m' }}">{{ r.employee.name }}</a><small>{{ r.employee.nik }}</small>{% else %}<span class="pill rejected">PIN belum dipetakan</span> <a href="{% url 'att_pins' %}">Petakan ›</a>{% endif %}</td>
-<td>{{ r.employee.position.name|default:"—" }}</td><td>{{ r.employee.department.name|default:"—" }}</td><td>{{ r.dev }}</td></tr>{% endfor %}</tbody></table></div>
+<td>{{ r.employee.position.name|default:"-" }}</td><td>{{ r.employee.department.name|default:"-" }}</td><td>{{ r.dev }}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}{% else %}<p class="empty">{% if act %}Tidak ada scan yang cocok. <a href="{% url 'att_scans' %}">Reset filter</a>.{% else %}Tidak ada scan pada rentang ini. <a href="{% url 'att_import' %}">Impor berkas Fingerspot</a>.{% endif %}</p>{% endif %}
 </div>
 {% endblock %}

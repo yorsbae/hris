@@ -6,15 +6,15 @@
 <tr><th>NIK</th><td>{{ s.employee.nik }}</td></tr>
 <tr><th>Departemen / jabatan</th><td>{{ s.department_name }}{% if s.position_name %} / {{ s.position_name }}{% endif %}</td></tr>
 <tr><th>Tanggal masuk</th><td>{{ s.join_date|date:"d-m-Y" }}</td></tr>
-<tr><th>Tanggal mengajukan / diberitahukan</th><td>{{ s.request_date|date:"d-m-Y"|default:"—" }}</td></tr>
+<tr><th>Tanggal mengajukan / diberitahukan</th><td>{{ s.request_date|date:"d-m-Y"|default:"-" }}</td></tr>
 <tr><th>Tanggal keluar (hari terakhir)</th><td>{{ s.last_date|date:"d-m-Y" }}</td></tr>
 <tr><th>Masa kerja</th><td>{{ service }}</td></tr>
 <tr><th>Jenis</th><td>{{ kind_label }}</td></tr>
-<tr><th>Alasan / keterangan</th><td>{{ s.reason|default:"—" }}</td></tr>
-<tr><th>Tali asih</th><td>{% if s.tali_asih %}<b>{{ s.tali_asih|rupiah }}</b>{% if s.tali_asih_note %} — {{ s.tali_asih_note }}{% endif %}{% if s.tali_asih_paid_on %} · dibayar {{ s.tali_asih_paid_on|date:"d-m-Y" }}{% else %} · belum dibayar{% endif %}{% else %}Tidak ada{% endif %}</td></tr>
+<tr><th>Alasan / keterangan</th><td>{{ s.reason|default:"-" }}</td></tr>
+<tr><th>Tali asih</th><td>{% if s.tali_asih %}<b>{{ s.tali_asih|rupiah }}</b>{% if s.tali_asih_note %}, {{ s.tali_asih_note }}{% endif %}{% if s.tali_asih_paid_on %} · dibayar {{ s.tali_asih_paid_on|date:"d-m-Y" }}{% else %} · belum dibayar{% endif %}{% else %}Tidak ada{% endif %}</td></tr>
 <tr><th>Paklaring</th><td>{% if s.paklaring_number %}{{ s.paklaring_number }} · terbit {{ s.paklaring_date|date:"d-m-Y" }}{% else %}Belum terbit{% endif %}</td></tr>
 <tr><th>Dicatat</th><td>{{ s.created_at|date:"d-m-Y H:i" }}{% if s.created_by %} oleh {{ s.created_by.username }}{% endif %}</td></tr>
-{% if s.is_void %}<tr><th>Dibatalkan</th><td>{{ s.voided_at|date:"d-m-Y H:i" }}{% if s.voided_by %} oleh {{ s.voided_by.username }}{% endif %} — {{ s.void_reason }}</td></tr>{% endif %}
+{% if s.is_void %}<tr><th>Dibatalkan</th><td>{{ s.voided_at|date:"d-m-Y H:i" }}{% if s.voided_by %} oleh {{ s.voided_by.username }}{% endif %}, {{ s.void_reason }}</td></tr>{% endif %}
 </table></div>
 {% if not s.is_void %}
 <div class="card form" style="margin-top:12px"><h3 style="margin-top:0">1. Status karyawan</h3>

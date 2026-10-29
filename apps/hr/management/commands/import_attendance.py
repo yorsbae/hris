@@ -32,14 +32,14 @@ class Command(BaseCommand):
             try:
                 i = imp.stage_upload(_F(raw, os.path.basename(f)), None); imp.analyze(i)
                 self.stdout.write(f"- {i.original_name}: {i.taps_valid} scan ({i.taps_new} baru, {i.taps_duplicate} sudah ada → dilewati), {i.rows_invalid} baris tak terbaca, {i.pins_unmapped}/{i.pins_total} PIN belum dikenal, {i.date_min}–{i.date_max}")
-                for g in (i.report or {}).get("groups", []): self.stdout.write(f"    ! {g['n']}× {g['label']} — {g['hint']}")
+                for g in (i.report or {}).get("groups", []): self.stdout.write(f"    ! {g['n']}× {g['label']} · {g['hint']}")
                 for r in ((i.report or {}).get("rows") or [])[:10]: self.stdout.write(f"      baris {r['row']}: {r['msg']}")
                 if o["commit"]:
                     imp.commit(i, None, ignore_invalid=o["ignore_invalid"])
                     if i.state == "selesai": lo = min(lo, i.date_min) if lo else i.date_min; hi = max(hi, i.date_max) if hi else i.date_max
                     else: self.stdout.write(f"    {i.note}")
                 else: imp.cancel(i)
-            except ValueError as e: self.stderr.write(f"- {os.path.basename(f)}: GAGAL — {e}")
+            except ValueError as e: self.stderr.write(f"- {os.path.basename(f)}: GAGAL, {e}")
         if o["commit"] and lo:
             r = calc.process(lo - timedelta(days=1), hi + timedelta(days=1)); self.stdout.write(f"Rekap diolah: {r['rows']} baris ({r['changed']} berubah).")
         elif not o["commit"]: self.stdout.write("Pratinjau saja (tambahkan --commit untuk menyimpan).")

@@ -117,7 +117,7 @@ def turn_text(a, is_admin):
     s, who, day = a.status, a.employee.name, f"{a.date:%d %b %Y}"
     if s in ("diminta", "dikembalikan"):
         if is_admin:
-            back = " HRD mengembalikannya — baca catatan di Jejak, lalu jawab ulang." if s == "dikembalikan" else ""
+            back = " HRD mengembalikannya. Baca catatan di Jejak, lalu jawab ulang." if s == "dikembalikan" else ""
             return ("now", f"Giliran Anda: jawab apakah {who} hadir pada {day}. Batas jawab {a.due_date:%d %b %Y}.{back}")
         return ("wait", f"Menunggu jawaban Admin Departemen {a.department.name} (batas {a.due_date:%d %b %Y}).")
     if s == "dijawab":

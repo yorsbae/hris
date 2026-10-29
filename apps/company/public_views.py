@@ -327,7 +327,7 @@ def apply(request, slug):
                     form.add_error("cv", "Pemeriksaan keamanan berkas sedang tidak tersedia. Coba lagi beberapa menit lagi." if lang == "id" else "File security check is temporarily unavailable. Please try again in a few minutes.")
     else:
         form = ApplyForm(job=j)
-    return respond(request, "site/apply.html", ctx(request, j=j, form=form, consent=CONSENT_EN if lang == "en" else CONSENT_ID, title=ui(lang, "apply") + " — " + j.title), cache=False, noindex=True)
+    return respond(request, "site/apply.html", ctx(request, j=j, form=form, consent=CONSENT_EN if lang == "en" else CONSENT_ID, title=ui(lang, "apply") + ": " + j.title), cache=False, noindex=True)
 
 
 def apply_done(request):

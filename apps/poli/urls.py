@@ -1,6 +1,6 @@
 from django.urls import path
 from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
-from . import billing_views as bv, pages as v, visit_views as vv
+from . import billing_views as bv, pages as v, purchase_views as pv, visit_views as vv
 from .bulk_specs import BILL, DIAGNOSIS, MEDICINE
 from .pages import poli_only
 from apps.hr.mcu_views import mcu_list
@@ -28,6 +28,13 @@ urlpatterns = [
     path("medicines/<int:pk>/", v.medicine_detail, name="poli_medicine_detail"),
     path("medicines/<int:pk>/edit/", v.medicine_form, name="poli_medicine_edit"),
     path("medicines/<int:pk>/stock/<str:action>/", v.medicine_stock, name="poli_medicine_stock"),
+    path("orders/", pv.order_list, name="poli_orders"),
+    path("orders/new/", pv.order_new, name="poli_order_new"),
+    path("orders/<int:pk>/", pv.order_detail, name="poli_order_detail"),
+    path("orders/<int:pk>/<str:action>/", pv.order_action, name="poli_order_action"),
+    path("receipts/", pv.receipt_list, name="poli_receipts"),
+    path("receipts/new/", pv.receipt_new, name="poli_receipt_new"),
+    path("receipts/<int:pk>/", pv.receipt_detail, name="poli_receipt_detail"),
     path("diagnoses/", v.diagnosis_list, name="poli_diagnoses"),
     path("diagnoses/import/", bulk_import_view(DIAGNOSIS, poli_only), name="poli_diagnosis_import"),
     path("diagnoses/import/template.csv", bulk_template_view(DIAGNOSIS, poli_only)),

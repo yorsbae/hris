@@ -6,7 +6,7 @@
 <label>Dibayar di gaji bulan <input type="month" name="period" value="{{ period }}" required></label><button>Hitung usulan</button></form>
 {% if not editable %}<p class="note wait">Run gaji {{ period }} sudah ditetapkan/dibayar; THR tidak bisa dimasukkan ke bulan ini. Pilih bulan gaji lain.</p>{% endif %}
 <div class="wrap"><table><thead><tr><th>Karyawan</th><th class="num">Masa kerja</th><th class="num">Upah sebulan</th><th class="num">Bagian</th><th class="num">THR</th><th>Status</th></tr></thead><tbody>
-{% for r in rows %}<tr><td>{{ r.emp.name }}<small>{{ r.emp.nik }} · {{ r.emp.department.name }}</small></td><td class="num nw">{{ r.months }} bln</td><td class="num nw">{% if r.monthly %}{{ r.monthly|rupiah }}{% else %}—{% endif %}</td>
+{% for r in rows %}<tr><td>{{ r.emp.name }}<small>{{ r.emp.nik }} · {{ r.emp.department.name }}</small></td><td class="num nw">{{ r.months }} bln</td><td class="num nw">{% if r.monthly %}{{ r.monthly|rupiah }}{% else %}-{% endif %}</td>
 <td class="num">{% if r.factor is not None %}{% widthratio r.factor 1 100 %}%{% endif %}</td><td class="num nw"><b>{{ r.amount|rupiah }}</b></td>
 <td>{% if r.existing %}<span class="pill approved">Sudah di penyesuaian ({{ r.existing|rupiah }})</span>{% elif r.note %}<small>{{ r.note }}</small>{% endif %}</td></tr>
 {% empty %}<tr><td class="empty" colspan="6">Belum ada karyawan aktif dengan profil gaji.</td></tr>{% endfor %}</tbody>

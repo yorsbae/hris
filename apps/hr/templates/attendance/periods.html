@@ -36,7 +36,7 @@
 <td class="nw"><b>{{ r.start_date|date:"d-m-Y" }}</b> s/d <b>{{ r.end_date|date:"d-m-Y" }}</b><small>{{ r.days }} hari</small></td>
 <td class="nw">{{ r.period }}</td>
 <td class="nw">{% if r.closed %}<span class="pill approved">Ditutup</span>{% else %}<span class="pill pending">Dibuka kembali</span><small>{{ r.reopened_at|date:"d-m-Y H:i" }}{% if r.reopened_by %} · {{ r.reopened_by.get_full_name|default:r.reopened_by.get_username }}{% endif %}</small>{% endif %}</td>
-<td>{{ r.closed_at|date:"d-m-Y H:i" }}{% if r.closed_by %}<small>{{ r.closed_by.get_full_name|default:r.closed_by.get_username }}{% if r.note %} — {{ r.note }}{% endif %}</small>{% elif r.note %}<small>{{ r.note }}</small>{% endif %}</td>
+<td>{{ r.closed_at|date:"d-m-Y H:i" }}{% if r.closed_by %}<small>{{ r.closed_by.get_full_name|default:r.closed_by.get_username }}{% if r.note %}: {{ r.note }}{% endif %}</small>{% elif r.note %}<small>{{ r.note }}</small>{% endif %}</td>
 <td>{% if r.export_file %}<a href="{% url 'att_period_download' r.pk %}">Unduh XLSX</a><small>{{ r.export_at|date:"d-m-Y H:i" }}</small>
 {% if r.sheets %}<ul class="sheets">{% for name, n in r.sheets %}<li>{{ name }}: {{ n }}</li>{% endfor %}</ul>{% endif %}{% else %}<span style="color:var(--mu)">belum ada berkas</span>{% endif %}</td>
 <td class="acts">

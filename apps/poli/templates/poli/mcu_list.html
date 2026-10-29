@@ -5,9 +5,9 @@
 <form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama">
 <select name="result"><option value="">Semua kesimpulan</option>{% for k, v in results %}<option value="{{ k }}"{% if f.result == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>
 <div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Tanggal MCU</th><th class="fill">Karyawan</th><th class="fill">Pelaksana</th><th class="nw">Kesimpulan</th><th class="nw">Berkas</th></tr></thead><tbody>
-{% for m in page %}<tr><td class="nw">{{ m.checkup_date|date:"d M Y" }}</td><td class="fill"><a href="{% url 'employee_detail_page' m.employee_id %}#mcu">{{ m.employee.name }}</a><small>{{ m.employee.nik }} · {{ m.employee.department.name }}</small></td><td class="fill">{{ m.provider|default:"—" }}{% if m.notes %}<small>{{ m.notes }}</small>{% endif %}</td>
+{% for m in page %}<tr><td class="nw">{{ m.checkup_date|date:"d M Y" }}</td><td class="fill"><a href="{% url 'employee_detail_page' m.employee_id %}#mcu">{{ m.employee.name }}</a><small>{{ m.employee.nik }} · {{ m.employee.department.name }}</small></td><td class="fill">{{ m.provider|default:"-" }}{% if m.notes %}<small>{{ m.notes }}</small>{% endif %}</td>
 <td class="nw"><span class="pill {% if m.result == 'fit' %}approved{% elif m.result == 'unfit' or m.result == 'unfit_sementara' %}rejected{% else %}pending{% endif %}">{{ m.get_result_display }}</span></td>
-<td class="nw">{% if m.file %}<a href="{% url 'mcu_file' m.employee_id %}">Unduh</a>{% else %}—{% endif %}</td></tr>
+<td class="nw">{% if m.file %}<a href="{% url 'mcu_file' m.employee_id %}">Unduh</a>{% else %}-{% endif %}</td></tr>
 {% empty %}<tr><td class="empty" colspan="5">{% if f.q or f.result %}Tidak ada MCU yang cocok dengan filter.{% else %}Belum ada MCU yang diinput HRD.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "poli/_pager.html" %}
 {% endblock %}

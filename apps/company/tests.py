@@ -77,7 +77,7 @@ class PublicSiteTests(Base):
         with self.settings(ROOT_URLCONF="config.urls"):   # pratinjau di aplikasi internal (/situs/)
             self.login("adm"); self.assertEqual(self.client.get(f"/situs/produk/{self.draft.slug}/").status_code, 404)   # Admin Dept tidak melihat draf
             self.client.logout(); self.login("sa")
-            r = self.client.get("/situs/produk/"); self.assertContains(r, "Rahasia Draf"); self.assertContains(r, "PRATINJAU")
+            r = self.client.get("/situs/produk/"); self.assertContains(r, "Rahasia Draf"); self.assertContains(r, "Pratinjau:")
             self.assertIn("noindex", r["X-Robots-Tag"])
 
     def test_security_headers_and_cache(self):
@@ -559,13 +559,13 @@ class Putaran55Tests(Base):
     # --- merek
     def test_brand_logo_favicon_and_title(self):
         h = self.client.get("/").content.decode()
-        self.assertIn("<title>Wadimor — Tentu Sarung Kita!</title>", h)
+        self.assertIn("<title>Wadimor | Tentu Sarung Kita!</title>", h)
         for f in ("favicon.ico", "favicon-32.png", "apple-touch-icon.png"): self.assertIn(f"company/{f}", h)
         self.assertIn("company/wadimor-logo.png", h[h.index("<header"):h.index("</header>")])
         hero = h[h.index('class="hero3"'):]; self.assertIn("company/wadimor-logo.png", hero[:hero.index("</section>")])
         self.assertIn("company/wadimor-logo.png", h[h.index("<footer"):]); self.assertNotIn("Sukorintex", h.title()); self.assertNotIn("logo.svg", h)
-        self.assertIn("<title>Produk — Wadimor</title>", self.client.get("/produk/").content.decode())
-        self.assertIn("<title>Sarung Wadimor Klasik — Wadimor</title>", self.client.get("/produk/sarung-wadimor-klasik/").content.decode())
+        self.assertIn("<title>Produk | Wadimor</title>", self.client.get("/produk/").content.decode())
+        self.assertIn("<title>Sarung Wadimor Klasik | Wadimor</title>", self.client.get("/produk/sarung-wadimor-klasik/").content.decode())
 
     def test_favicon_route_and_static_files_exist(self):
         r = self.client.get("/favicon.ico"); self.assertEqual(r.status_code, 200); self.assertEqual(r["Content-Type"], "image/x-icon")
@@ -606,7 +606,7 @@ class Putaran55Tests(Base):
     def test_group_filter_includes_children_and_shows_sub_chips(self):
         h = self.client.get("/produk/?c=atasan").content.decode()
         self.assertIn("Baju Koko Putih Bordir", h); self.assertIn("Kemeja Muslim Lengan Panjang", h); self.assertNotIn("Sarung Wadimor Klasik", h)
-        self.assertIn("?c=baju-koko", h); self.assertIn("?c=kemeja-muslim", h); self.assertIn("<title>Atasan — Wadimor</title>", h)
+        self.assertIn("?c=baju-koko", h); self.assertIn("?c=kemeja-muslim", h); self.assertIn("<title>Atasan | Wadimor</title>", h)
         sub = self.client.get("/produk/?c=peci").content.decode(); self.assertIn("Peci Hitam Beludru", sub); self.assertNotIn("Surban Putih Polos", sub); self.assertIn("Aksesoris", sub)
 
     def test_unknown_category_shows_empty_not_everything(self):
@@ -641,7 +641,7 @@ class Putaran55Tests(Base):
     def test_lookbook_page_lists_outfits_with_item_details(self):
         h = self.client.get("/lookbook/").content.decode()
         for t in ("Salat Jumat", "Lebaran Bersama Keluarga", "Pengajian Malam"): self.assertIn(t, h)
-        self.assertIn("Baju Koko Putih Bordir", h); self.assertIn("Rp 165.000", h); self.assertIn('class="motif model"', h); self.assertIn("Ilustrasi — foto model menyusul", h)
+        self.assertIn("Baju Koko Putih Bordir", h); self.assertIn("Rp 165.000", h); self.assertIn('class="motif model"', h); self.assertIn("Ilustrasi: foto model menyusul", h)
         self.assertNotRegex(h, r'\sstyle=|<style|\son\w+='); self.assertIn("Look" if False else "Lookbook", h)
         self.assertIn("Friday Prayer", self.client.get("/en/lookbook/").content.decode())
 
@@ -756,7 +756,7 @@ class Putaran56Tests(Base):
     def test_motif_page_lists_products_with_colour_dots(self):
         r = self.client.get("/motif/grandmaster/"); self.assertEqual(r.status_code, 200); h = main_of(r)
         for n in ("Grandmaster SGE", "Grandmaster SJL", "Grandmaster SEI", "Grandmaster Jacquard Batik"): self.assertIn(n, h)
-        self.assertIn("cdots", h); self.assertIn("Sarung Tenun", h); self.assertIn("<title>Grandmaster — Wadimor</title>", r.content.decode())
+        self.assertIn("cdots", h); self.assertIn("Sarung Tenun", h); self.assertIn("<title>Grandmaster | Wadimor</title>", r.content.decode())
         self.assertNotIn("Baju Koko Putih Bordir", h); self.assertEqual(self.client.get("/motif/tidak-ada/").status_code, 404)
         self.assertEqual(self.client.get("/en/motif/grandmaster/").status_code, 200)
         self.assertIn("/motif/viscose/", h)   # "Motif lainnya"

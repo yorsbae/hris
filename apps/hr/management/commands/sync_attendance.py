@@ -24,6 +24,6 @@ class Command(BaseCommand):
         res = probe_many(qs) if o["probe"] else sync_many(qs, d1, d2, commit=not o["dry_run"], mode="all" if o["all"] else "range" if (d1 or d2) else "latest")
         names = {d.code: d.name for d in qs}; bad = 0
         for r in res:
-            bad += not r["ok"]; (self.stdout if r["ok"] else self.stderr).write(f"- {names.get(r['device'], r['device'])} [{r['device']}]: {'OK' if r['ok'] else 'GAGAL'} — {r['note']}")
+            bad += not r["ok"]; (self.stdout if r["ok"] else self.stderr).write(f"- {names.get(r['device'], r['device'])} [{r['device']}]: {'OK' if r['ok'] else 'GAGAL'} · {r['note']}")
         self.stdout.write(f"{len(res) - bad}/{len(res)} mesin berhasil.")
         if bad: raise CommandError(f"{bad} mesin gagal.")

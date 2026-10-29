@@ -13,7 +13,7 @@
 <h3>Aturan usulan</h3>
 {% if is_payroll %}<div class="tools"><a class="btn ghost" href="{% url 'pay_tali_rule_new' %}">+ Tambah aturan</a></div>{% endif %}
 <div class="wrap"><table><thead><tr><th class="nw">Jenis</th><th class="num">Hari / tahun</th><th class="num">Batas hari</th><th class="nw">Min. masa kerja</th><th class="nw">Sejak</th>{% if is_payroll %}<th class="acts"></th>{% endif %}</tr></thead><tbody>
-{% for r in rules %}<tr><td class="nw">{{ r.get_kind_display }}</td><td class="num">{{ r.days_per_year|floatformat:"-2" }}</td><td class="num">{{ r.max_days|floatformat:"-2"|default:"—" }}</td><td class="nw">{{ r.min_years }} th</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td>
+{% for r in rules %}<tr><td class="nw">{{ r.get_kind_display }}</td><td class="num">{{ r.days_per_year|floatformat:"-2" }}</td><td class="num">{{ r.max_days|floatformat:"-2"|default:"-" }}</td><td class="nw">{{ r.min_years }} th</td><td class="nw">{{ r.effective_from|date:"d-m-Y" }}</td>
 {% if is_payroll %}<td class="acts"><form method="post" action="{% url 'pay_void' 'rule' r.pk %}" class="inline">{% csrf_token %}<input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">Batalkan</button></form></td>{% endif %}</tr>
 {% empty %}<tr><td class="empty" colspan="6">Belum ada aturan usulan.{% if is_payroll %} Klik <b>+ Tambah aturan</b> bila kebijakan perusahaan sudah ada.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

@@ -288,13 +288,13 @@ def rotation_context():
     cells = {}
     for r in ShiftRotation.objects.select_related("group", "shift"): cells.setdefault(r.group.code, [None] * 7)[r.weekday] = (r.shift.code or r.shift.name) if r.shift_id else None
     blocks = []
-    for pattern, title, note in ((rt.P2, "Pola 2 shift — kelompok A7–G7", "Pagi 3 kelompok · Siang 3 kelompok · Libur 1 kelompok setiap hari (tanpa Malam)"),
-                                 (rt.P3, "Pola 3 shift / PACK — kelompok A7Pack–G7Pack", "Pagi 2 · Siang 2 · Malam 2 · Libur 1 kelompok setiap hari")):
+    for pattern, title, note in ((rt.P2, "Pola 2 shift: kelompok A7–G7", "Pagi 3 kelompok · Siang 3 kelompok · Libur 1 kelompok setiap hari (tanpa Malam)"),
+                                 (rt.P3, "Pola 3 shift / PACK: kelompok A7Pack–G7Pack", "Pagi 2 · Siang 2 · Malam 2 · Libur 1 kelompok setiap hari")):
         groups = list(ShiftGroup.objects.filter(pattern=pattern).order_by("code").values_list("code", flat=True))
         table = {g: cells.get(g, [None] * 7) for g in groups}
         names = {g.code: g.label for g in ShiftGroup.objects.filter(pattern=pattern)}
         blocks.append({"title": title, "note": note, "days": rt.DAY_NAMES, "rows": [(names.get(g, g), table[g]) for g in groups],
-                       "issues": rt.check(table, pattern) if groups else ["Belum ada tabel rotasi — impor lewat tombol di atas atau jalankan migrasi."]})
+                       "issues": rt.check(table, pattern) if groups else ["Belum ada tabel rotasi: impor lewat tombol di atas atau jalankan migrasi."]})
     gs = list(Shift.objects.filter(is_gs=True, active=True).order_by("end").values_list("code", "start", "end"))
     return {"rotation_blocks": blocks, "gs_rows": gs, "gs_blocks": gs_blocks()}
 
@@ -401,7 +401,7 @@ def rotation_edit(request):
                 messages.success(request, f"Tabel rotasi disimpan ({len(changes)} sel berubah)." if changes else "Tidak ada perubahan.")
                 return redirect("master_list", kind="shift")
     blocks = []
-    for pattern, title in ((ShiftGroup.P2, "Pola 2 shift — kelompok A–G"), (ShiftGroup.P3, "Pola 3 shift / PACK — kelompok A_pack–G_pack")):
+    for pattern, title in ((ShiftGroup.P2, "Pola 2 shift: kelompok A–G"), (ShiftGroup.P3, "Pola 3 shift / PACK: kelompok A_pack–G_pack")):
         rows = []
         for g in (x for x in groups if x.pattern == pattern):
             rows.append((g, [{"name": f"c_{g.pk}_{wd}", "value": posted.get(f"c_{g.pk}_{wd}", cur.get((g.pk, wd), ""))} for wd in range(7)]))

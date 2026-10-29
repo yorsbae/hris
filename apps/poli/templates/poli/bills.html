@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% load money %}{% block title %}Tagihan Mitra{% endblock %}{% block content %}
 <p class="back"><a href="/poli/">‹ Poliklinik</a></p>
-<h2>Tagihan Mitra{% if f.period %} — layanan {{ f.period }}{% else %} — semua periode{% endif %}</h2>
+<h2>Tagihan Mitra{% if f.period %}: layanan {{ f.period }}{% else %}: semua periode{% endif %}</h2>
 <p style="color:var(--mu)">Data medis (keluhan &amp; diagnosa): hanya Poli. Periode = bulan <b>tanggal pelayanan</b>.</p>
 <form method="get" data-fbar class="bar sepbar"><input name="q" value="{{ f.q }}" placeholder="NIK / nama / no. tagihan">
 <input name="period" value="{{ f.period }}" placeholder="YYYY-MM" aria-label="Periode" title="Bulan layanan, kosong = semua" pattern="(\d{4}-\d{2})?">

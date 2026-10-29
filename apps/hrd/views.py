@@ -315,7 +315,7 @@ def project_list(request):
     f = {k: request.GET.get(k, "").strip() for k in ("q", "status")}
     qs = Project.objects.annotate(n_logs=Count("works"))
     if f["status"]: qs = qs.filter(status=f["status"])
-    if f["q"]: qs = qs.filter(Q(name__icontains=f["q"]) | Q(code__icontains=f["q"]))
+    if f["q"]: qs = qs.filter(Q(name__icontains=f["q"]) | Q(code__icontains=f["q"]) | Q(location__icontains=f["q"]))
     return render(request, "hrd/project_list.html", {"page": paginate(request, qs.order_by("-start_date", "code")), "f": f, "statuses": Project.STATUSES, "qs": _qs(request, "q", "status")})
 
 

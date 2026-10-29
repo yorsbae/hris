@@ -1,0 +1,8 @@
+# Dependensi HOST PUBLIK saja (internet). Sengaja TANPA reportlab/openpyxl/xlrd/pyzk/argon2: tidak dibutuhkan, makin sedikit paket = makin kecil permukaan serangan.
+Django>=5.2.17,<5.3
+psycopg[binary]>=3.1
+django-environ>=0.11
+gunicorn>=22.0
+cryptography>=42.0
+whitenoise>=6.6
+redis>=5.0

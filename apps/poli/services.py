@@ -318,7 +318,7 @@ def bill_transition(pk, to, user, note="", paid_date=None, payment_ref=""):
 
 
 # Diagnosa cepat untuk jenis "pemeriksaan" (putaran 36): sehat / aman dengan catatan / tidak fit. Dibuat bila belum ada (tidak menimpa master yang sudah diubah Poli).
-EXAM_DIAGNOSES = (("Z00.0", "Pemeriksaan kesehatan umum — sehat"), ("Z00.8", "Pemeriksaan kesehatan — aman dengan catatan"), ("Z02.7", "Surat keterangan medis — tidak fit sementara"))
+EXAM_DIAGNOSES = (("Z00.0", "Pemeriksaan kesehatan umum: sehat"), ("Z00.8", "Pemeriksaan kesehatan: aman dengan catatan"), ("Z02.7", "Surat keterangan medis: tidak fit sementara"))
 
 
 def ensure_exam_diagnoses():

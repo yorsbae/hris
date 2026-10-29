@@ -91,7 +91,7 @@ def home(request):
             {"t": "Lembur & stand by per jam", "h": "Nominal 1 jam, beda untuk karyawan harian dan bulanan. Kosong = rumus upah/jam × pengali.", "st": "ok" if n(OvertimeRate) else "opt", "d": f"{n(OvertimeRate)} tarif" if n(OvertimeRate) else "pakai rumus bawaan", "url": "pay_rates", "lb": "Atur tarif"},
             {"t": "Uang makan (bulan puasa)", "h": "Dibayar hanya pada periode yang Anda tentukan, tarif beda harian/bulanan.", "st": "ok" if n(MealPeriod) and n(MealRate) else "opt", "d": f"{n(MealPeriod)} periode, {n(MealRate)} tarif" if n(MealPeriod) else "belum ada → uang makan Rp 0", "url": "pay_rates", "lb": "Atur uang makan"},
             {"t": "Tunjangan pendidikan standar", "h": "Nilai standar per tingkat pendidikan; bisa ditimpa di profil tiap karyawan.", "st": "ok" if n(EducationAllowance) else "opt", "d": f"{n(EducationAllowance)} tingkat" if n(EducationAllowance) else "opsional", "url": "pay_rates", "lb": "Atur"},
-            {"t": "Master potongan (bawaan & tambahan)", "h": "Jamsostek, BPJS, alfa, iuran koperasi, dll. — semua bisa diubah dengan tanggal berlaku.", "st": "ok" if DeductionRule.objects.filter(voided_at__isnull=True).exists() else "opt", "d": f"{DeductionRule.objects.filter(voided_at__isnull=True).count()} aturan tambahan", "url": "pay_deductions", "lb": "Atur potongan"},
+            {"t": "Master potongan (bawaan & tambahan)", "h": "Jamsostek, BPJS, alfa, iuran koperasi, dll., semua bisa diubah dengan tanggal berlaku.", "st": "ok" if DeductionRule.objects.filter(voided_at__isnull=True).exists() else "opt", "d": f"{DeductionRule.objects.filter(voided_at__isnull=True).count()} aturan tambahan", "url": "pay_deductions", "lb": "Atur potongan"},
             {"t": "Parameter potongan & hitung", "h": "Jamsostek, BPJS, pembagi lembur, dll. Sudah terisi nilai bawaan.", "st": "ok", "d": "nilai bawaan terisi", "url": "pay_params", "lb": "Lihat"}]},
         {"no": 2, "title": "Data karyawan", "when": "Saat ada karyawan baru atau perubahan gaji", "items": [
             {"t": "Profil gaji tiap karyawan", "h": "Grade, tipe gaji (harian/bulanan), T Khusus & T Lain-lain per orang, hak uang makan.", "st": ok(no_profile == 0 and with_profile), "d": f"{with_profile} lengkap, {no_profile} belum" , "url": "pay_profiles", "lb": "Isi / impor profil"},
@@ -107,7 +107,7 @@ def home(request):
             {"t": "Slip gaji & PDF", "h": "Buka run yang sudah ditetapkan/dibayar lalu cetak slip.", "st": "ok" if live.filter(status__in=("ditetapkan", "dibayar")).exists() else "opt", "d": f"{live.filter(status='dibayar').count()} run dibayar", "url": "pay_runs", "lb": "Daftar run"},
             {"t": "Tali asih karyawan keluar", "h": "Usulan & pembayaran lewat run gaji.", "st": "warn" if tali else "opt", "d": f"{len(tali)} menunggu" if tali else "tidak ada", "url": "pay_tali", "lb": "Buka"}]}]
     flow = [("draft", "Draft"), ("dihitung", "Dihitung"), ("ditetapkan", "Ditetapkan"), ("dibayar", "Dibayar")]
-    nxt = {None: "Buat run gaji untuk bulan gaji ini (HRD harus sudah menutup periodenya).", "draft": "Klik Hitung.", "dihitung": "Periksa hasil, lalu Tetapkan.", "ditetapkan": "Bayar (seragam & tali asih otomatis ditandai).", "dibayar": "Selesai — cetak slip."}
+    nxt = {None: "Buat run gaji untuk bulan gaji ini (HRD harus sudah menutup periodenya).", "draft": "Klik Hitung.", "dihitung": "Periksa hasil, lalu Tetapkan.", "ditetapkan": "Bayar (seragam & tali asih otomatis ditandai).", "dibayar": "Selesai, cetak slip."}
     cur_i = [k for k, _ in flow].index(run.status) if run else -1
     flow = [{"k": k, "l": l, "state": "done" if i < cur_i or (run and run.status == "dibayar" and i == cur_i) else ("now" if i == cur_i else "")} for i, (k, l) in enumerate(flow)]
     # tentukan langkah aktif: yang pertama punya item belum siap (todo/bad)
@@ -232,7 +232,7 @@ def run_action(request, pk, action):
     u = request.user
     try:
         if action == "calculate":
-            r = services.calculate_run(pk, u); messages.success(request, f"Dihitung: {r.n_slips} slip, total bersih {calc_fmt(r.total_net)}." + (" Ada peringatan — baca di bawah." if r.warnings else ""))
+            r = services.calculate_run(pk, u); messages.success(request, f"Dihitung: {r.n_slips} slip, total bersih {calc_fmt(r.total_net)}." + (" Ada peringatan, baca di bawah." if r.warnings else ""))
         elif action == "finalize": services.finalize_run(pk, u); messages.success(request, "Run ditetapkan. Langkah berikutnya: bayar lalu tandai dibayar.")
         elif action == "reopen": services.reopen_run(pk, u); messages.success(request, "Run dibuka kembali. Perbaiki lalu hitung ulang dan tetapkan lagi.")
         elif action == "pay":

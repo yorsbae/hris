@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Karyawan Keluar{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
-<h2>Karyawan Keluar{% if f.year %} — {% if f.month %}{% for n, m in months %}{% if n|stringformat:"s" == f.month %}{{ m }} {% endif %}{% endfor %}{% endif %}{{ f.year }}{% else %} — semua tahun{% endif %}</h2>
+<h2>Karyawan Keluar{% if f.year %}: {% if f.month %}{% for n, m in months %}{% if n|stringformat:"s" == f.month %}{{ m }} {% endif %}{% endfor %}{% endif %}{{ f.year }}{% else %}: semua tahun{% endif %}</h2>
 <p class="sub">Resign, habis kontrak, PHK, pensiun · tali asih · paklaring. Karyawan otomatis nonaktif setelah hari terakhir kerja.</p>
 {% url 'hrd_separation_new' as new_url %}
 <div class="tools"><a class="btn" href="{{ new_url }}">+ Catat karyawan keluar</a>
@@ -28,8 +28,8 @@
 <td class="nw">{{ s.last_date|date:"d-m-Y" }}<small>{{ s.get_kind_display }}</small></td>
 <td class="fill"><a href="{% url 'hrd_separation_detail' s.pk %}">{{ s.emp_name }}</a><small>{{ s.employee.nik }} · masuk {{ s.join_date|date:"d-m-Y" }}</small></td>
 <td class="fill">{{ s.department_name }}{% if s.position_name %}<small>{{ s.position_name }}</small>{% endif %}</td>
-<td class="num nw">{% if s.tali_asih %}{{ s.tali_asih|rupiah }}<small>{% if s.tali_asih_paid_on %}dibayar {{ s.tali_asih_paid_on|date:"d-m-Y" }}{% else %}belum dibayar{% endif %}</small>{% else %}<span style="color:var(--mu)">—</span>{% endif %}</td>
-<td class="nw">{% if s.is_void %}<span class="pill rejected">batal</span>{% elif s.applied_at %}<span class="pill approved">keluar</span>{% else %}<span class="pill pending">terjadwal</span>{% endif %}<small>{% if s.paklaring_number %}<a href="{% url 'hrd_separation_pdf' s.pk %}" target="_blank" rel="noopener">{{ s.paklaring_number }}</a>{% elif s.applied_at and not s.is_void %}<span class="pill pending">belum terbit</span>{% else %}<span style="color:var(--mu)">—</span>{% endif %}</small></td>
+<td class="num nw">{% if s.tali_asih %}{{ s.tali_asih|rupiah }}<small>{% if s.tali_asih_paid_on %}dibayar {{ s.tali_asih_paid_on|date:"d-m-Y" }}{% else %}belum dibayar{% endif %}</small>{% else %}<span style="color:var(--mu)">-</span>{% endif %}</td>
+<td class="nw">{% if s.is_void %}<span class="pill rejected">batal</span>{% elif s.applied_at %}<span class="pill approved">keluar</span>{% else %}<span class="pill pending">terjadwal</span>{% endif %}<small>{% if s.paklaring_number %}<a href="{% url 'hrd_separation_pdf' s.pk %}" target="_blank" rel="noopener">{{ s.paklaring_number }}</a>{% elif s.applied_at and not s.is_void %}<span class="pill pending">belum terbit</span>{% else %}<span style="color:var(--mu)">-</span>{% endif %}</small></td>
 <td class="acts"><a class="btn sm ghost" href="{% url 'hrd_separation_detail' s.pk %}">Kelola</a></td></tr>
 {% empty %}<tr><td class="empty" colspan="6">{% if f.q or f.month or f.kind or f.department or f.paklaring or f.tali or f.batal or f.applied or f.soon %}Tidak ada data yang cocok dengan filter. <a href="?year={{ f.year }}">Reset filter</a>{% else %}Belum ada karyawan keluar{% if f.year %} pada tahun {{ f.year }}{% endif %}. Klik <b>+ Catat karyawan keluar</b>, atau impor data lama lewat <b>Lainnya ▾</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}

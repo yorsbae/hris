@@ -1,10 +1,10 @@
 {% extends "base.html" %}{% block title %}Proyek{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
 <h2>Kerja harian proyek <a class="btn" href="{% url 'hrd_project_new' %}">+ Proyek baru</a></h2>
-<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari kode / nama proyek">
+<form method="get" data-fbar class="bar"><input name="q" value="{{ f.q }}" placeholder="Cari kode, nama, atau lokasi proyek" aria-label="Cari kode, nama, atau lokasi proyek">
 <select name="status"><option value="">Semua status</option>{% for k, v in statuses %}<option value="{{ k }}"{% if f.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button>Filter</button></form>
-<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Kode</th><th class="fill">Proyek</th><th class="nw">Periode</th><th class="nw">Status</th><th class="num">Pekerja-hari</th></tr></thead><tbody>
-{% for p in page %}<tr><td class="nw"><a href="{% url 'hrd_project_detail' p.pk %}">{{ p.code }}</a></td><td class="fill">{{ p.name }}<small>{{ p.location|default:"—" }}</small></td><td class="nw">{{ p.start_date|date:"d M Y" }}<small>s/d {{ p.end_date|date:"d M Y"|default:"…" }}</small></td><td class="nw">{{ p.get_status_display }}</td><td class="num">{{ p.n_logs }}</td></tr>
-{% empty %}<tr><td class="empty" colspan="5">Belum ada proyek.</td></tr>{% endfor %}</tbody></table></div>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Kode</th><th class="fill">Proyek</th><th class="fill">Lokasi</th><th class="nw">Periode</th><th class="nw">Status</th><th class="num">Pekerja-hari</th></tr></thead><tbody>
+{% for p in page %}<tr><td class="nw"><a href="{% url 'hrd_project_detail' p.pk %}">{{ p.code }}</a></td><td class="fill">{{ p.name }}</td><td class="fill">{{ p.location|default:"-" }}</td><td class="nw">{{ p.start_date|date:"d M Y" }}<small>s/d {{ p.end_date|date:"d M Y"|default:"…" }}</small></td><td class="nw">{{ p.get_status_display }}</td><td class="num">{{ p.n_logs }}</td></tr>
+{% empty %}<tr><td class="empty" colspan="6">{% if f.q or f.status %}Tidak ada proyek yang cocok dengan filter. <a href="{% url 'hrd_projects' %}">Reset filter</a>.{% else %}Belum ada proyek. Mulai dengan <b>+ Proyek baru</b>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager.html" %}
 {% endblock %}

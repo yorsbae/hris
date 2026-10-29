@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Pesan obat{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'poli_orders' %}">‹ Pesanan obat</a></p>
+<h2>Pesan obat</h2>
+<p class="sub">{% if all %}Semua obat ditampilkan.{% else %}Menampilkan obat <b>habis</b> dan <b>menipis</b> (stok ≤ minimum): {{ n_low }} obat.{% endif %} Centang obat yang mau dipesan, ubah jumlahnya bila perlu. Stok baru bertambah saat barang <b>diterima</b>.</p>
+<form method="get" data-fbar class="bar"><input name="q" value="{{ q }}" placeholder="Cari kode / nama"><label class="chk"><input type="checkbox" name="all" value="1"{% if all %} checked{% endif %}> tampilkan semua obat</label><button>Filter</button></form>
+<form method="post" action="{{ request.get_full_path }}" class="card form wide">{% csrf_token %}
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+<div class="fld"><label for="supplier">Pemasok (opsional)</label><input id="supplier" name="supplier" maxlength="150" value="{{ supplier }}"></div>
+<div class="fld"><label for="note">Catatan (opsional)</label><input id="note" name="note" maxlength="300" value="{{ note }}"></div></div>
+<p><button type="button" class="ghost" id="po-all">Pilih semua</button> <button type="button" class="ghost" id="po-none">Kosongkan pilihan</button> <button type="button" class="ghost" id="po-empty">Hanya yang habis</button></p>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="nw">Pesan?</th><th class="nw">Kode</th><th class="fill">Obat</th><th class="num">Stok</th><th class="num">Minimum</th><th class="num">Sedang dipesan</th><th class="nw">Status</th><th class="num">Jumlah pesan</th></tr></thead><tbody>
+{% for r in rows %}<tr><td class="nw"><input type="checkbox" name="sel" value="{{ r.m.pk }}" data-state="{{ r.state }}"{% if r.checked %} checked{% endif %} aria-label="Pesan {{ r.m.name }}"></td>
+<td class="nw">{{ r.m.code }}</td><td class="fill">{{ r.m.name }} <small>({{ r.m.unit }})</small></td><td class="num">{{ r.m.stock }}</td><td class="num">{{ r.m.min_stock }}</td>
+<td class="num">{% if r.pending %}{{ r.pending }}{% else %}-{% endif %}</td>
+<td class="nw">{% if r.state == "habis" %}<span class="pill rejected">habis</span>{% elif r.state == "menipis" %}<span class="pill pending">menipis</span>{% else %}<span class="pill ok">cukup</span>{% endif %}</td>
+<td class="num"><input type="number" class="min" name="qty_{{ r.m.pk }}" min="1" max="1000000" value="{{ r.qty }}" aria-label="Jumlah {{ r.m.name }}"></td></tr>
+{% empty %}<tr><td class="empty" colspan="8">{% if all or q %}Tidak ada obat yang cocok.{% else %}Tidak ada obat yang habis atau menipis.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p style="margin-top:12px"><button>Buat pesanan dari obat terpilih</button></p></form>
+<script>(function(){var c=document.querySelectorAll('input[name=sel]');function set(f){c.forEach(function(x){x.checked=f(x)})}
+document.getElementById('po-all').onclick=function(){set(function(){return true})};document.getElementById('po-none').onclick=function(){set(function(){return false})};
+document.getElementById('po-empty').onclick=function(){set(function(x){return x.dataset.state==='habis'})};})();</script>
+{% endblock %}

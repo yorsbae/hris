@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Pesan{% endblock %}{% block content %}
 <p class="back"><a href="/company/messages/">‹ Pesan masuk</a></p><h2>{{ m.name }} <span class="pill {{ m.status }}">{{ m.get_status_display }}</span></h2>
-<div class="card"><table><tr><th>Masuk</th><td>{{ m.created_at|date:"d M Y H:i" }}</td></tr><tr><th>Email</th><td>{{ m.email }}</td></tr><tr><th>Telepon</th><td>{{ m.phone|default:"—" }}</td></tr><tr><th>Perihal</th><td>{{ m.subject|default:"—" }}</td></tr><tr><th>Pesan</th><td style="white-space:pre-wrap">{{ m.message }}</td></tr></table></div>
+<div class="card"><table><tr><th>Masuk</th><td>{{ m.created_at|date:"d M Y H:i" }}</td></tr><tr><th>Email</th><td>{{ m.email }}</td></tr><tr><th>Telepon</th><td>{{ m.phone|default:"-" }}</td></tr><tr><th>Perihal</th><td>{{ m.subject|default:"-" }}</td></tr><tr><th>Pesan</th><td style="white-space:pre-wrap">{{ m.message }}</td></tr></table></div>
 <form method="post" class="card form">{% csrf_token %}<div class="fld"><label>Catatan internal</label><input name="note" maxlength="300" value="{{ m.note }}"></div>
 <p>{% for k, v in statuses %}{% if k != m.status %}<button name="status" value="{{ k }}" class="secondary">Tandai {{ v|lower }}</button> {% endif %}{% endfor %}<button class="secondary">Simpan catatan</button></p></form>{% endblock %}

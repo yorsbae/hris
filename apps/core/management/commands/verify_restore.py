@@ -51,12 +51,12 @@ class Command(BaseCommand):
                     c.execute(f'select count(*) from "{t}"'); g = c.fetchone()[0]
                     if g != w: fail(f"{t}: manifest {w}, database {g}"); diff += 1
             if not diff: ok(f"jumlah baris {len(want)} tabel sama dengan manifest")
-        elif o["manifest"]: warn("manifest tidak memuat jumlah baris (backup lama) — jumlah baris tidak diverifikasi")
+        elif o["manifest"]: warn("manifest tidak memuat jumlah baris (backup lama), jumlah baris tidak diverifikasi")
         # 2. kunci enkripsi
         fp = key_fingerprint()
         if man.get("key_fingerprint"):
             if man["key_fingerprint"] == fp: ok("sidik jari FIELD_ENCRYPTION_KEY sama dengan saat backup")
-            else: fail("FIELD_ENCRYPTION_KEY di .env BERBEDA dari kunci saat backup — kolom terenkripsi tidak akan terbaca. Pakai kunci asli.")
+            else: fail("FIELD_ENCRYPTION_KEY di .env BERBEDA dari kunci saat backup, kolom terenkripsi tidak akan terbaca. Pakai kunci asli.")
         n_dec = 0
         for m in apps.get_models():
             for f in m._meta.get_fields():

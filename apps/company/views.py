@@ -43,10 +43,10 @@ def _int(v):
 def _pill(value, label): return format_html('<span class="pill {}">{}</span>', value, label)
 
 
-def _two(main, sub): return format_html("{}<small>{}</small>", main, sub or "—")
+def _two(main, sub): return format_html("{}<small>{}</small>", main, sub or "-")
 
 
-def _rupiah(v): return "—" if v is None else "Rp " + f"{int(v):,}".replace(",", ".")
+def _rupiah(v): return "-" if v is None else "Rp " + f"{int(v):,}".replace(",", ".")
 
 
 # ================================================================ CRUD generik (konten situs)
@@ -137,10 +137,10 @@ PUB = [(Status.DRAFT.value, "Draf"), (Status.PUBLISHED.value, "Terbit")]
 OPEN = [(JobStatus.DRAFT.value, "Draf"), (JobStatus.OPEN.value, "Dibuka"), (JobStatus.CLOSED.value, "Ditutup")]
 CRUDS = {
     "products": ProductCrud("products", Product, ProductForm, "Produk", "Produk",
-        [("Produk", "fill", lambda o: _two(o.name, o.summary_id)), ("Kategori", "nw", lambda o: o.category or "—"), ("Motif / seri", "nw", lambda o: o.series or "—"), ("Foto model", "nw", lambda o: "Ada" if o.model_image else "—"), ("Harga", "num nw", lambda o: _rupiah(o.price) if o.show_price else "disembunyikan"),
+        [("Produk", "fill", lambda o: _two(o.name, o.summary_id)), ("Kategori", "nw", lambda o: o.category or "-"), ("Motif / seri", "nw", lambda o: o.series or "-"), ("Foto model", "nw", lambda o: "Ada" if o.model_image else "-"), ("Harga", "num nw", lambda o: _rupiah(o.price) if o.show_price else "disembunyikan"),
          ("Status", "nw", lambda o: _pill(o.status, o.get_status_display() + (" ★" if o.featured else "")))], search=("name", "summary_id", "motif"), status_choices=PUB, files=("image", "model_image"), order=("order", "name"), qs=lambda q: q.select_related("category__parent", "series")),
     "motifs": Crud("motifs", Motif, MotifForm, "Motif / seri", "Motif / seri",
-        [("Motif", "fill", lambda o: _two(o.name_id, o.hint_id or o.name_en)), ("Subkategori", "nw", lambda o: o.category or "—"), ("Produk", "num nw", lambda o: o.n_products),
+        [("Motif", "fill", lambda o: _two(o.name_id, o.hint_id or o.name_en)), ("Subkategori", "nw", lambda o: o.category or "-"), ("Produk", "num nw", lambda o: o.n_products),
          ("Urutan", "num nw", lambda o: o.order), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Tampil" if o.active else "Disembunyikan"))],
         search=("name_id", "name_en", "hint_id"), files=("cover",), qs=lambda q: q.select_related("category__parent").annotate(n_products=Count("products")), order=("order", "name_id"),
         hint="Motif = seri sarung (Grandmaster, Primer, Viscose, …). Urutan di sini = urutan di menu Produk. Produk dimasukkan ke motif lewat kolom “Motif / seri” pada formulir Produk; warna tiap produk diatur di bagian “Pilihan warna” pada halaman ubah produk."),
@@ -150,25 +150,25 @@ CRUDS = {
         files=("photo",), qs=lambda q: q.annotate(n_items=Count("products")), order=("order", "-id"),
         hint="Satu setelan difoto pada model; produk yang dicentang tampil sebagai daftar detail di sebelah foto (di beranda dan halaman Lookbook)."),
     "categories": Crud("categories", ProductCategory, CategoryForm, "Kategori produk", "Kategori produk",
-        [("Kategori", "fill", lambda o: _two(("— " if o.parent_id else "") + o.name_id, o.hint_id or o.name_en)), ("Kelompok", "nw", lambda o: o.parent.name_id if o.parent_id else "(kelompok)"), ("Produk", "num nw", lambda o: o.n_products), ("Urutan", "num nw", lambda o: o.order), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Aktif" if o.active else "Nonaktif"))],
+        [("Kategori", "fill", lambda o: _two(("- " if o.parent_id else "") + o.name_id, o.hint_id or o.name_en)), ("Kelompok", "nw", lambda o: o.parent.name_id if o.parent_id else "(kelompok)"), ("Produk", "num nw", lambda o: o.n_products), ("Urutan", "num nw", lambda o: o.order), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Aktif" if o.active else "Nonaktif"))],
         search=("name_id", "name_en"), qs=lambda q: q.select_related("parent").annotate(n_products=Count("products")), order=("parent__order", "order", "name_id"),
         hint="Dua tingkat: buat KELOMPOK dulu (Bawahan, Atasan, Aksesoris, …; kolom induk dikosongkan), lalu SUBKATEGORI di dalamnya (Sarung, Celana Sarung, Baju Koko, Peci, Surban, …)."),
     "articles": Crud("articles", Article, ArticleForm, "Artikel", "Artikel",
-        [("Judul", "fill", lambda o: _two(o.title_id, o.excerpt_id[:90])), ("Penulis", "nw", lambda o: o.author or "—"), ("Terbit", "nw", lambda o: o.published_at.strftime("%d %b %Y") if o.published_at else "—"),
+        [("Judul", "fill", lambda o: _two(o.title_id, o.excerpt_id[:90])), ("Penulis", "nw", lambda o: o.author or "-"), ("Terbit", "nw", lambda o: o.published_at.strftime("%d %b %Y") if o.published_at else "-"),
          ("Status", "nw", lambda o: _pill(o.status, o.get_status_display()))], search=("title_id", "title_en", "author"), status_choices=PUB, files=("cover",), order=("-updated_at",)),
     "pages": Crud("pages", Page, PageForm, "Halaman", "Halaman",
         [("Halaman", "fill", lambda o: _two(o.title_id, "/" + ("tentang-kami" if o.slug == "tentang-kami" else "halaman/" + o.slug) + "/")), ("Menu", "nw", lambda o: "Ya" if o.show_in_menu else "Tidak"),
          ("Urutan", "num nw", lambda o: o.order), ("Status", "nw", lambda o: _pill(o.status, o.get_status_display()))], search=("title_id", "slug"), status_choices=PUB, order=("order",),
         hint="Halaman “tentang-kami” tampil di menu Tentang Kami. Halaman lain tampil di /halaman/alamat/ dan, bila dicentang, di menu atas."),
     "stores": Crud("stores", StoreLocation, StoreForm, "Lokasi toko", "Lokasi toko",
-        [("Toko", "fill", lambda o: _two(o.name, o.address[:80])), ("Kota", "nw", lambda o: o.city), ("Telepon", "nw", lambda o: o.phone or "—"), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Tampil" if o.active else "Disembunyikan"))],
+        [("Toko", "fill", lambda o: _two(o.name, o.address[:80])), ("Kota", "nw", lambda o: o.city), ("Telepon", "nw", lambda o: o.phone or "-"), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Tampil" if o.active else "Disembunyikan"))],
         search=("name", "city", "address"), order=("order", "city")),
     "faqs": Crud("faqs", Faq, FaqForm, "FAQ", "FAQ",
         [("Pertanyaan", "fill", lambda o: o.question_id), ("Urutan", "num nw", lambda o: o.order), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Tampil" if o.active else "Disembunyikan"))],
         search=("question_id", "answer_id"), order=("order", "id")),
     "jobs": Crud("jobs", Job, JobForm, "Lowongan", "Lowongan",
-        [("Posisi", "fill", lambda o: _two(o.title, " · ".join(x for x in (o.department_name, o.location) if x))), ("Jenis", "nw", lambda o: o.get_employment_type_display()),
-         ("Batas", "nw", lambda o: o.closes_on.strftime("%d %b %Y") if o.closes_on else "—"), ("Pelamar", "num nw", lambda o: o.n_apps), ("Status", "nw", lambda o: _pill(o.status, o.get_status_display()))],
+        [("Posisi", "fill", lambda o: _two(o.title, o.department_name)), ("Lokasi kerja", "fill", lambda o: o.location or "-"), ("Jenis", "nw", lambda o: o.get_employment_type_display()),
+         ("Batas", "nw", lambda o: o.closes_on.strftime("%d %b %Y") if o.closes_on else "-"), ("Pelamar", "num nw", lambda o: o.n_apps), ("Status", "nw", lambda o: _pill(o.status, o.get_status_display()))],
         search=("title", "department_name", "location"), status_choices=OPEN, order=("-created_at",),
         qs=lambda q: q.annotate(n_apps=Count("applications", filter=~Q(applications__stage="unverified") & Q(applications__anonymized_at__isnull=True)))),
 }

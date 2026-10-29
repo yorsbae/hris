@@ -31,7 +31,7 @@
 {% if page %}<div class="wrap"><table class="sepfit"><thead><tr><th>Waktu impor</th><th>Berkas</th><th>Rentang scan</th><th class="num">Baris</th><th class="num">Scan baru</th><th class="num">Duplikat</th><th class="num">Gagal</th><th class="num">PIN belum dipetakan</th><th>Status</th><th class="acts">Aksi</th></tr></thead><tbody>
 {% for i in page %}<tr><td class="nw">{{ i.when|date:"d M Y H:i" }}<small>{{ i.by }}</small></td>
 <td>{{ i.original_name }}<small>{{ i.size|filesizeformat }}{% if i.layout == 'harian' %} · format harian{% elif i.layout %} · log scan{% endif %}</small>{% if i.state == 'selesai' and i.rows_total %}<div class="bar2" title="{{ i.taps_new }} baru dari {{ i.rows_total }} baris"><i style="width:{% widthratio i.taps_new i.rows_total 100 %}%"></i></div>{% endif %}</td>
-<td class="nw">{% if i.date_min %}{{ i.date_min|date:"d M Y" }}{% if i.date_max != i.date_min %}<small>s.d. {{ i.date_max|date:"d M Y" }}</small>{% endif %}{% else %}—{% endif %}</td>
+<td class="nw">{% if i.date_min %}{{ i.date_min|date:"d M Y" }}{% if i.date_max != i.date_min %}<small>s.d. {{ i.date_max|date:"d M Y" }}</small>{% endif %}{% else %}-{% endif %}</td>
 <td class="num">{{ i.rows_total }}</td><td class="num{% if not i.taps_new %} zero{% endif %}">{{ i.taps_new }}</td><td class="num{% if not i.taps_duplicate %} zero{% endif %}">{{ i.taps_duplicate }}</td>
 <td class="num{% if i.rows_invalid %} bad{% else %} zero{% endif %}">{% if i.rows_invalid %}<a href="{% url 'att_import_detail' i.pk %}">{{ i.rows_invalid }}</a>{% else %}0{% endif %}</td>
 <td class="num{% if not i.pins_unmapped %} zero{% endif %}">{{ i.pins_unmapped }}</td>

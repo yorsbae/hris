@@ -342,3 +342,36 @@ nav.main .ddp a.ddall{grid-column:1/-1;text-align:center;border-top:1px solid rg
 .pcount{margin:18px 0 8px;color:var(--mut);font-size:14px}
 .card .ser{display:block;min-height:1.3em;font:700 11px system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--maroon);margin-bottom:2px}
 .card h3{min-height:2.5em;line-height:1.25}.card .in>p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* Penyederhanaan dekorasi (anti-slop R-07, R-13, R-19): warna solid, tanpa kilau/gradien/bintang/overlay motif.
+   Identitas tenun tetap: palet emas/navy/maroon, pita tumpal (.tumpal), hiasan berlian (.orn), pita produk. Gradien tersisa hanya pada pola tumpal dan masker tepi pita. */
+.spark{display:none}
+body{background:var(--cream)}
+body:before,.hero2:before,.sec.dark:before{content:none;display:none}
+header.top{background:var(--navy2);box-shadow:none;border-bottom:2px solid var(--gold4)}
+.brand span{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--gold2)}
+.btn{background:var(--brown);box-shadow:none;border-color:var(--brown)}
+.btn:hover{background:var(--navy2);border-color:var(--navy2)}
+.btn.gold,.btn.pill,.sform button{background:var(--gold);color:#2a1c04;border-color:var(--gold4);box-shadow:none}
+.btn.gold:hover,.btn.pill:hover{background:var(--gold2);color:#000}
+.btn.pill{border:0}
+.sec.dark{background:var(--navy3)}
+.sec.band{background:var(--gold3);border-block:1px solid var(--line)}
+.hero2{background:var(--gold3)}
+.hero2 h1,.hero3 h1{background:none;-webkit-background-clip:border-box;background-clip:border-box}
+.hero2 h1{color:var(--brown)}
+.hero3 h1{color:var(--gold2)}
+.badge{background:var(--gold);box-shadow:none}
+.cinfo,.hl .it{background:var(--card)}
+details.faq[open] summary{background:var(--gold3)}
+footer.foot{background:var(--navy2)}
+.wa-fab{background:#1a7a3a}
+main:not(.wide){background:var(--card);box-shadow:none;border:1px solid var(--line)}
+.ddp{background:var(--navy2);box-shadow:none}
+.card img,.ph,.pimg,.lphoto{background:var(--gold2)}
+.lookband{background:var(--gold3)}
+.hero3{background:var(--navy2)}
+.hero3:before,.hero3:after{content:none;display:none}
+.hero3 h1{filter:none}
+.hero3 .hlogo.big{filter:none}
+.rhomb{box-shadow:none;border-color:rgba(217,189,69,.5)}

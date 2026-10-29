@@ -56,7 +56,7 @@ class CategoryForm(forms.ModelForm):
         qs = ProductCategory.objects.filter(parent__isnull=True)   # induk hanya boleh sebuah kelompok (dua tingkat)
         if self.instance.pk: qs = qs.exclude(pk=self.instance.pk)
         self.fields["parent"].queryset = qs
-        self.fields["parent"].empty_label = "— (ini sebuah kelompok, mis. Bawahan) —"
+        self.fields["parent"].empty_label = "(ini sebuah kelompok, mis. Bawahan)"
 
 
 def category_choices():
@@ -83,7 +83,7 @@ class ProductForm(ImageMixin, forms.ModelForm):
         super().__init__(*a, **k)
         self.fields["category"].choices = category_choices()
         self.fields["series"].queryset = Motif.objects.select_related("category").order_by("order", "name_id")
-        self.fields["series"].empty_label = "— (tanpa motif) —"
+        self.fields["series"].empty_label = "(tanpa motif)"
 
     def clean(self):
         d = super().clean()
@@ -231,7 +231,7 @@ class ApplyForm(forms.Form):
     phone = forms.CharField(label="Nomor HP / WhatsApp", max_length=25)
     birth_date = forms.DateField(label="Tanggal lahir", widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
     city = forms.CharField(label="Kota domisili", max_length=80)
-    education = forms.ChoiceField(label="Pendidikan terakhir", choices=[("", "— pilih —")] + EDUCATION)
+    education = forms.ChoiceField(label="Pendidikan terakhir", choices=[("", "Pilih")] + EDUCATION)
     institution = forms.CharField(label="Sekolah / kampus", max_length=140, required=False)
     experience_years = forms.IntegerField(label="Pengalaman kerja (tahun)", min_value=0, max_value=60, initial=0)
     last_position = forms.CharField(label="Posisi terakhir (bila ada)", max_length=140, required=False)

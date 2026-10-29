@@ -21,7 +21,7 @@ from . import services
 from . import reports
 from .forms import (AllergyForm, LetterForm, EXAM_CONCLUSIONS, INJURY_TYPES, AddendumForm, AddPrescriptionForm, DiagnosisForm, DiagnosisMedicineForm, MedicineForm, PrescriptionFormSet, RecordForm, ReferralForm,
                     ReturnPrescriptionForm, StockAdjustForm, StockInForm)
-from .models import Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, PartnerBill, PatientAllergy, PatientVisit, Prescription, Referral, SickLeaveLetter, StockMovement
+from .models import Diagnosis, DiagnosisMedicine, LetterCounter, MedicalRecord, Medicine, PartnerBill, PatientAllergy, PatientVisit, Prescription, PurchaseOrder, Referral, SickLeaveLetter, StockMovement
 from .pdf import referral_pdf, sick_leave_pdf
 
 PER_PAGE = 50
@@ -101,8 +101,9 @@ def hub(request):
         ("Rekap visit", "/poli/visits/", PatientVisit.objects.filter(status="berjalan").count(), "visit berjalan (rawat jalan / sakit / rumah)"),
         ("Rujukan", "/poli/referrals/", Referral.objects.filter(status__in=("diajukan", "dirujuk")).count(), "rujukan berjalan"),
         ("Obat & kartu stok", "/poli/medicines/", Medicine.objects.filter(stock__lte=F("min_stock")).count(), "obat stok minimum"),
+        ("Pesan & terima obat", "/poli/orders/", PurchaseOrder.objects.filter(status__in=PurchaseOrder.OPEN).count(), "pesanan menunggu barang"),
         ("Tagihan mitra", "/poli/billing/", PartnerBill.objects.filter(status__in=("diterima", "diverifikasi", "disetujui")).count(), "tagihan belum selesai"),
-        ("Rekap stok obat", "/poli/reports/stock/", Medicine.objects.count(), "obat — rekap harian & bulanan"),
+        ("Rekap stok obat", "/poli/reports/stock/", Medicine.objects.count(), "obat, rekap harian & bulanan"),
         ("Master diagnosa", "/poli/diagnoses/", Diagnosis.objects.count(), "diagnosa terdaftar"),
     ]
     return render(request, "poli/hub.html", {"cards": cards})
@@ -222,7 +223,7 @@ def medicine_form(request, pk=None):
     if request.method == "POST" and form.is_valid():
         m = form.save(commit=False); m.save()
         log(request, "poli", "medicine_update" if before else "medicine_create", m, before, {k: getattr(m, k) for k in ("code", "name", "unit", "min_stock")})
-        messages.success(request, "Obat disimpan." + ("" if before else " Stok awal 0 — catat penerimaan lewat \"Stok masuk\"."))
+        messages.success(request, "Obat disimpan." + ("" if before else " Stok awal 0, catat penerimaan lewat \"Stok masuk\"."))
         return redirect("poli_medicine_detail", pk=m.pk)
     return render(request, "poli/form.html", {"form": form, "title": f"Ubah obat {m.code}" if m else "Obat baru", "back": "/poli/medicines/"})
 
@@ -299,7 +300,7 @@ def referral_new(request, pk):
         else:
             log(request, "poli", "referral_create", ref, None, {"number": ref.number, "facility": ref.facility, "purpose": ref.purpose})
             messages.success(request, f"Rujukan {ref.number} dibuat."); return redirect("poli_referral_detail", pk=ref.pk)
-    return render(request, "poli/form.html", {"form": form, "title": f"Rujukan baru — {r.employee.nik} {r.employee.name}", "back": f"/poli/records/{r.pk}/"})
+    return render(request, "poli/form.html", {"form": form, "title": f"Rujukan baru: {r.employee.nik} {r.employee.name}", "back": f"/poli/records/{r.pk}/"})
 
 
 @poli_only

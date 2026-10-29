@@ -1,10 +1,9 @@
 {% extends "base.html" %}{% block title %}Dashboard · HRIS{% endblock %}{% block content %}
 <style>
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px}
-a.kpi,div.kpi{display:flex;gap:14px;align-items:center;padding:18px;background:var(--card);border:1px solid var(--bd);border-radius:12px;box-shadow:var(--sh);color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
-a.kpi:hover{border-color:var(--ac);transform:translateY(-1px);color:inherit}
-.kpi .ico{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--infb);color:var(--inf)}.kpi .ico svg{width:26px;height:26px}
-.kpi.green .ico{background:var(--okb);color:var(--ok)}.kpi.orange .ico{background:var(--wnb);color:var(--wn)}.kpi.red .ico{background:var(--erb);color:var(--er)}
+a.kpi,div.kpi{display:block;padding:16px 18px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);color:inherit;text-decoration:none;transition:border-color .15s}
+a.kpi:hover{border-color:var(--ac);color:inherit}
+.kpi.green .v{color:var(--ok)}.kpi.orange .v{color:var(--wn)}.kpi.red .v{color:var(--er)}
 .kpi .lb{font-size:14px;color:var(--tx);font-weight:500}.kpi .v{display:block;font-size:32px;line-height:1.15;font-weight:700;margin:2px 0}
 .kpi .dl{font-size:12px;color:var(--mu)}.kpi .dl.up{color:var(--ok)}.kpi .dl.dn{color:var(--er)}
 .dg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:16px}.pn{background:var(--card);border:1px solid var(--bd);border-radius:12px;box-shadow:var(--sh);padding:16px;min-width:0}
@@ -14,7 +13,7 @@ a.kpi:hover{border-color:var(--ac);transform:translateY(-1px);color:inherit}
 .dn-wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.dn{width:150px;height:150px;flex:none}.dn text{fill:var(--tx)}.lg{flex:1;min-width:160px;list-style:none;margin:0;padding:0}
 .lg li{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd);font-size:14px}.lg li:last-child{border:0}.lg i{width:10px;height:10px;border-radius:50%;flex:none}.lg b{margin-left:auto;font-size:14px;display:inline}.lg em{font-style:normal;color:var(--mu);min-width:48px;text-align:right}
 .ch{width:100%;height:auto;display:block}.ch text{fill:var(--mu);font-size:11px}.ch .gl{stroke:var(--bd);stroke-width:1}
-.c-ok{background:#22a06b;fill:#22a06b;stroke:#22a06b}.c-wn{background:#f5a524;fill:#f5a524;stroke:#f5a524}.c-er{background:#ef4444;fill:#ef4444;stroke:#ef4444}.c-ac{background:#2f7de1;fill:#2f7de1;stroke:#2f7de1}.c-gr{background:var(--bd2);stroke:var(--bd2)}
+.c-ok{background:var(--c-ok);fill:var(--c-ok);stroke:var(--c-ok)}.c-wn{background:var(--c-wn);fill:var(--c-wn);stroke:var(--c-wn)}.c-er{background:var(--c-er);fill:var(--c-er);stroke:var(--c-er)}.c-ac{background:var(--c-ac);fill:var(--c-ac);stroke:var(--c-ac)}.c-gr{background:var(--bd2);stroke:var(--bd2)}
 .empty-p{color:var(--mu);text-align:center;padding:26px 8px;font-size:14px}.empty-p b{display:block;font-size:15px;color:var(--tx);margin-bottom:4px}
 table.act{box-shadow:none;border:0;border-radius:0}table.act th{background:var(--hov)}table.act td,table.act th{padding:9px 10px}table.act td.t{color:var(--mu);white-space:nowrap}
 .pi{display:block;padding:12px;border:1px solid var(--bd);border-radius:10px;margin-bottom:10px;color:inherit;text-decoration:none}.pi:hover{border-color:var(--ac);color:inherit}
@@ -22,8 +21,7 @@ table.act{box-shadow:none;border:0;border-radius:0}table.act th{background:var(-
 .sec2{margin:18px 0 8px;color:var(--mu);font-size:12px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
 @media(max-width:1000px){.dg{grid-template-columns:1fr}.pn.s2,.pn.r2{grid-column:auto;grid-row:auto}}
 </style>
-<div class="ph"><div><h1>Dashboard</h1><p>Selamat datang, <b>{{ user.get_full_name|default:user.get_username }}</b>. Berikut ringkasan informasi HRIS &amp; Poliklinik {{ company_name }}.</p></div>
-<div class="clock" aria-hidden="true"><span><svg class="ic"><use href="#i-calendar"/></svg><span id="dt">&nbsp;</span></span><span><svg class="ic"><use href="#i-clock"/></svg><span id="tm">&nbsp;</span></span></div></div>
+<div class="ph"><div><h1>Dashboard</h1><p>{{ company_name }}</p></div></div>
 <div class="kpis" id="kpis" aria-live="polite" aria-busy="true"></div>
 <p id="err" hidden class="msg error"><span>Gagal memuat ringkasan.</span> <button type="button" class="ghost" id="retry">Coba lagi</button></p>
 <div class="dg" id="dg" aria-busy="true"></div>
@@ -35,10 +33,10 @@ function sv(t,a,x){const e=document.createElementNS(SVG,t);for(const k in a)e.se
 function icon(n){const s=sv("svg",{class:"ic","aria-hidden":"true"});s.appendChild(sv("use",{href:"#i-"+n}));return s}
 const D={ v:null,p:null };
 const KPI={
- superadmin:[["employees","Total Karyawan","users",""],["active","Karyawan Aktif","user","green"],["pending_requests","Pengajuan Menunggu Persetujuan","clipboard","orange"],["visits_today","Kunjungan Poliklinik Hari Ini","plus","green"]],
- hrd:[["employees","Total Karyawan","users",""],["active","Karyawan Aktif","user","green"],["pending_requests","Pengajuan Menunggu Persetujuan","clipboard","orange"],["contract_le_30","Kontrak Berakhir ≤ 30 Hari","calendar","red"]],
- dept_admin:[["employees","Karyawan Departemen","users",""],["req_wait","Pengajuan Menunggu","clipboard","orange"],["req_ok","Pengajuan Disetujui","user","green"],["req_no","Pengajuan Ditolak","clipboard","red"]],
- poli:[["visits_today","Kunjungan Hari Ini","plus","green"],["accidents_month","Kecelakaan Kerja (Bulan Ini)","activity","red"],["open_referrals","Rujukan Terbuka","repeat","orange"],["low_stock","Obat Stok Minimum","pill",""]]};
+ superadmin:[["employees","Total Karyawan",""],["active","Karyawan Aktif","green"],["pending_requests","Pengajuan Menunggu Persetujuan","orange"],["visits_today","Kunjungan Poliklinik Hari Ini","green"]],
+ hrd:[["employees","Total Karyawan",""],["active","Karyawan Aktif","green"],["pending_requests","Pengajuan Menunggu Persetujuan","orange"],["contract_le_30","Kontrak Berakhir ≤ 30 Hari","red"]],
+ dept_admin:[["employees","Karyawan Departemen",""],["req_wait","Pengajuan Menunggu","orange"],["req_ok","Pengajuan Disetujui","green"],["req_no","Pengajuan Ditolak","red"]],
+ poli:[["visits_today","Kunjungan Hari Ini","green"],["accidents_month","Kecelakaan Kerja (Bulan Ini)","red"],["open_referrals","Rujukan Terbuka","orange"],["low_stock","Obat Stok Minimum",""]]};
 const L={approved_unexecuted:"Pengajuan disetujui, belum dilaksanakan",orders_pending:"Order karyawan menunggu jawaban HRD",att_review:"Absensi perlu ditinjau (7 hari)",att_unmapped:"PIN mesin belum dipetakan",dept_req_pending:"Pengajuan departemen menunggu HRD",sep_paklaring:"Paklaring belum terbit (karyawan keluar)",sep_tali:"Tali asih belum dibayar",sep_soon:"Hari terakhir kerja ≤ 7 hari",attcheck_todo:"Validasi kehadiran menunggu jawaban",attcheck_to_verify:"Validasi kehadiran perlu verifikasi",attcheck_late:"Validasi kehadiran terlambat",contract_expired:"Kontrak berakhir",contract_le_7:"Kontrak ≤ 7 hari",contract_le_30:"Kontrak ≤ 30 hari",contract_le_60:"Kontrak ≤ 60 hari",users:"User aktif",audit_24h:"Aktivitas 24 jam",
 accidents_month:"Kecelakaan kerja (bulan ini)",open_referrals:"Rujukan terbuka",low_stock:"Obat stok minimum",maternity_active:"Cuti hamil berjalan",warnings_active:"Surat Peringatan aktif",
 bpjs_inactive:"BPJS nonaktif (karyawan aktif)",unread_notifications:"Notifikasi belum dibaca",pending_requests:"Pengajuan menunggu",visits_today:"Kunjungan hari ini",employees:"Total karyawan",active:"Karyawan aktif"};
@@ -50,19 +48,17 @@ accidents_month:()=>"/poli/records/?kind=kecelakaan_kerja&date_from="+_d(0).slic
 const hf=k=>{const h=H[k];return typeof h==="function"?h():h};
 const WARN=new Set(["approved_unexecuted","orders_pending","att_review","att_unmapped","dept_req_pending","sep_paklaring","sep_tali","sep_soon","attcheck_todo","attcheck_to_verify","contract_le_60","contract_le_30","pending_requests","warnings_active","low_stock","open_referrals"]),BAD=new Set(["attcheck_late","contract_expired","contract_le_7","bpjs_inactive"]);
 const nf=new Intl.NumberFormat("id-ID");
-function clock(){const n=new Date();$("dt").textContent=n.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});$("tm").textContent=n.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}).replace(".",":")}
-clock();setInterval(clock,30000);
 
-function kpiSkel(){$("kpis").replaceChildren(...Array.from({length:4},()=>{const c=el("div","kpi");c.append(el("span","ico sk"),(()=>{const d=el("div");d.append(el("span","lb sk","Memuat label"),el("span","v sk","00"));return d})());return c}));
+function kpiSkel(){$("kpis").replaceChildren(...Array.from({length:4},()=>{const c=el("div","kpi");c.append(el("span","lb sk","Memuat label"),el("span","v sk","00"));return c}));
  $("dg").replaceChildren(...Array.from({length:3},()=>{const p=el("div","pn");p.append(el("div","sk","x".repeat(10)),el("div","sk","x".repeat(10)));p.lastChild.style.cssText="height:150px;margin-top:12px";return p}))}
 function renderKpi(d){const role=d.role,defs=KPI[role]||[];const v={...d};
  if(role==="dept_admin"){const m=d.my_requests||{};v.req_wait=(m.submitted||0)+(m.pending||0);v.req_ok=(m.approved||0)+(m.executed||0);v.req_no=m.rejected||0}
  const used=new Set(["role"]);const out=[];
- for(const[k,label,ic,tone]of defs){if(!(k in v))continue;used.add(k);
-  const c=el(H[k]?"a":"div","kpi "+tone);if(H[k])c.href=hf(k);const i=el("span","ico");i.appendChild(icon(ic));const b=el("div");
-  b.append(el("span","lb",label),el("span","v",nf.format(Number(v[k])||0)));
-  const dl=D.p&&D.p.deltas&&D.p.deltas[k];if(dl){const x=dl.diff;b.append(el("span","dl "+(x>0?"up":x<0?"dn":""),(x>0?"▲ ":x<0?"▼ ":"")+(x===0?"Sama dengan ":Math.abs(x)+" dari ")+dl.vs))}
-  c.append(i,b);out.push(c)}
+ for(const[k,label,tone]of defs){if(!(k in v))continue;used.add(k);
+  const c=el(H[k]?"a":"div","kpi "+tone);if(H[k])c.href=hf(k);
+  c.append(el("span","lb",label),el("span","v",nf.format(Number(v[k])||0)));
+  const dl=D.p&&D.p.deltas&&D.p.deltas[k];if(dl){const x=dl.diff;c.append(el("span","dl "+(x>0?"up":x<0?"dn":""),(x>0?"▲ ":x<0?"▼ ":"")+(x===0?"Sama dengan ":Math.abs(x)+" dari ")+dl.vs))}
+  out.push(c)}
  $("kpis").replaceChildren(...out);
  if(role==="dept_admin")used.add("my_requests");
  const rest=Object.entries(d).filter(([k])=>!used.has(k));const g=$("g");

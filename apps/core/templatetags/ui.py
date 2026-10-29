@@ -32,3 +32,15 @@ def page_tabs(active, *tabs):
         b = format_html(' <span class="tabn">{}</span>', badge) if badge else ""
         out.append((" on" if key == active else "", url, label, b, "page" if key == active else "false"))
     return format_html('<nav class="tabs" aria-label="Bagian halaman">{}</nav>', format_html_join("", '<a class="t{}" href="{}" aria-current="{}">{}{}</a>', ((c, u, a, l, b) for c, u, l, b, a in out)))
+
+
+@register.simple_tag(takes_context=True)
+def flow(context, kind, status):
+    """`{% flow "request" r.status %}` -> penanda langkah + satu kalimat "giliran siapa" menurut peran pengguna. Definisi di apps/core/flow.py."""
+    from apps.core.flow import describe
+    user = context.get("user") or getattr(context.get("request"), "user", None)
+    d = describe(kind, status, getattr(user, "role", "") or "")
+    if not d:
+        return ""
+    lis = format_html_join("", '<li class="{}"><i>{}</i>{}</li>', ((c, n, label) for n, (label, c) in enumerate(d["steps"], 1)))
+    return format_html('<ol class="steps" aria-label="Langkah alur">{}</ol><p class="note {}">{}</p>', lis, d["tone"], d["text"])

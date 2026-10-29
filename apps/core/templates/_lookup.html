@@ -13,9 +13,9 @@
 (function(){
 var URLS={employee:"/api/lookup/employees/",medicine:"/api/lookup/medicines/",diagnosis:"/api/lookup/diagnoses/"};
 function label(kind,it){
- if(kind==="employee")return[it.nik+" — "+it.name,[it.department,it.position,it.shift&&("Shift "+it.shift),it.group&&("Kelompok "+it.group)].filter(Boolean).join(" · ")];
+ if(kind==="employee")return[it.nik+" · "+it.name,[it.department,it.position,it.shift&&("Shift "+it.shift),it.group&&("Kelompok "+it.group)].filter(Boolean).join(" · ")];
  if(kind==="medicine")return[it.name,it.code+" · stok "+it.stock+" "+it.unit+(it.stock<=0?" (HABIS)":it.low?" (menipis)":"")];
- return[it.code+" — "+it.name,(it.category||"")+(it.medicines&&it.medicines.length?(it.category?" · ":"")+"obat saran: "+it.medicines.map(function(m){return m.name}).join(", "):"")];}
+ return[it.code+" · "+it.name,(it.category||"")+(it.medicines&&it.medicines.length?(it.category?" · ":"")+"obat saran: "+it.medicines.map(function(m){return m.name}).join(", "):"")];}
 function plain(kind,it){return kind==="employee"?it.nik:kind==="medicine"?it.name:it.code}
 function enhance(inp){
  if(inp.dataset.lkReady)return;inp.dataset.lkReady="1";
@@ -38,11 +38,11 @@ function enhance(inp){
   li.addEventListener("mousedown",function(e){e.preventDefault();pick(it)});list.appendChild(li)});list.hidden=false;inp.setAttribute("aria-expanded","true");mark(-1)}
  function mark(i){act=i;[].forEach.call(list.children,function(li,j){li.setAttribute("aria-selected",j===i?"true":"false")});if(i>=0)inp.setAttribute("aria-activedescendant",list.id+"o"+i);else inp.removeAttribute("aria-activedescendant")}
  function search(q,exactCb){var key=q+"|"+params(q);
-  function done(rs){if(exactCb)return exactCb(rs);items=rs;if(!rs.length)info(inp.dataset.lkFree?"Tidak ada petugas Poli yang cocok — teks ini disimpan sebagai nama dokter/petugas":"Tidak ada yang cocok");else render()}
+  function done(rs){if(exactCb)return exactCb(rs);items=rs;if(!rs.length)info(inp.dataset.lkFree?"Tidak ada petugas Poli yang cocok, teks ini disimpan sebagai nama dokter/petugas":"Tidak ada yang cocok");else render()}
   if(cache[key])return done(cache[key]);
   if(ctl)ctl.abort();ctl=new AbortController();
   fetch(url+"?"+params(q),{credentials:"same-origin",signal:ctl.signal,headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){cache[key]=j.results||[];done(cache[key])})
-  .catch(function(e){if(e&&e.name==="AbortError")return;if(!exactCb)info("Gagal memuat saran — ketik manual")});}
+  .catch(function(e){if(e&&e.name==="AbortError")return;if(!exactCb)info("Gagal memuat saran, ketik manual")});}
  inp.addEventListener("input",function(){
   if(chosen){chosen=null;if(target)target.value="";show(true,"");inp.dispatchEvent(new CustomEvent("lookup:clear",{bubbles:true}))}
   else if(target)target.value="";

@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Seragam{% endblock %}{% block content %}
 <p class="back"><a href="/hrd/">‹ Operasional HRD</a></p>
-<h2>Seragam{% if f.period %} — {{ f.period }}{% else %} — semua periode{% endif %}</h2>
+<h2>Seragam{% if f.period %}: {{ f.period }}{% else %}: semua periode{% endif %}</h2>
 <p class="sub">Satu tempat untuk stok, pembelian karyawan, dan potongan gajinya.</p>
 {% url 'hrd_uniform_new' as new_url %}{% url 'hrd_uniforms' as hub_url %}
 <details class="flt"><summary>Alur kerja seragam</summary>{% flow_steps "Barang masuk|Catat kiriman vendor; stok bertambah|?tab=stok&form=in#gerak" "Pembelian karyawan|Stok berkurang, potongan gaji terhitung otomatis|"|add:new_url "Tandai dipotong|Setelah Payroll memotong, atau ekspor untuk Payroll|?tab=pembelian&status=belum" now=flow_now note="Alur lazim. Perlu pesan ke vendor? Lihat kolom Status di tab Stok: muncul otomatis saat saldo di bawah minimum." %}</details>
@@ -42,7 +42,7 @@
 {% for r in stock %}<tr><td class="fill">{{ r.utype }} <b>{{ r.size }}</b></td>
 <td class="num">{% if r.minus %}<span class="pill rejected" title="Stok minus: barang keluar belum tercatat masuk">{{ r.saldo }}</span>{% else %}<b>{{ r.saldo }}</b>{% endif %}<small>awal {{ r.awal }} · masuk {{ r.masuk }} · keluar {{ r.keluar }} (L {{ r.L }} · P {{ r.P }}){% if r.adj %} · koreksi {{ r.adj }}{% endif %}</small></td>
 <td class="nw"><form method="post" class="inline" style="margin:0">{% csrf_token %}<input type="hidden" name="action" value="min"><input type="hidden" name="utype" value="{{ r.utype_id }}"><input type="hidden" name="size" value="{{ r.size_id }}"><input class="min" type="number" name="min_stock" value="{{ r.min }}" min="0" max="100000" aria-label="Minimum {{ r.utype }} {{ r.size }}"><button class="sm ghost">Simpan</button></form></td>
-<td class="nw">{% if r.now_minus %}<span class="pill rejected">stok minus</span>{% elif r.low %}<span class="pill pending">menipis</span>{% elif r.min %}<span class="pill ok">aman</span>{% else %}<span style="color:var(--mu)">—</span>{% endif %}{% if r.order_qty %} <b>pesan {{ r.order_qty }}</b>{% endif %}</td></tr>
+<td class="nw">{% if r.now_minus %}<span class="pill rejected">stok minus</span>{% elif r.low %}<span class="pill pending">menipis</span>{% elif r.min %}<span class="pill ok">aman</span>{% else %}<span style="color:var(--mu)">-</span>{% endif %}{% if r.order_qty %} <b>pesan {{ r.order_qty }}</b>{% endif %}</td></tr>
 {% empty %}<tr><td class="empty" colspan="4">Belum ada stok seragam. Mulai dengan <a href="?tab=stok&amp;form=in#gerak"><b>+ Barang masuk dari vendor</b></a>, lalu <b>+ Catat pembelian karyawan</b>.</td></tr>{% endfor %}</tbody></table></div>
 <p class="help">Keluar otomatis dari pembelian; batal = stok kembali. <b>Minimum</b> 0 = tidak dipantau; di bawah minimum muncul <b>pesan N</b> (= minimum − saldo) dan notifikasi ke HRD. Stok minus = barang masuk belum dicatat.
 Status dan minimum mengacu pada stok <b>sekarang</b>{% if f.period %}; kolom awal/masuk/keluar/akhir untuk periode {{ f.period }}{% endif %}.{% if order_n %} <a href="?export=order&amp;format=xlsx">Unduh daftar pesanan vendor ({{ order_n }})</a>.{% endif %}</p>
@@ -63,7 +63,7 @@ Status dan minimum mengacu pada stok <b>sekarang</b>{% if f.period %}; kolom awa
 
 {% elif tab == "riwayat" %}
 <div class="wrap"><table id="movements"><thead><tr><th>Tanggal</th><th>Barang</th><th>Gerak</th><th class="num">Jumlah</th><th class="num">Saldo</th><th>Catatan</th></tr></thead><tbody>
-{% for m in page %}<tr><td>{{ m.movement_date|date:"d-m-Y" }}</td><td>{{ m.utype.name }} <b>{{ m.size.code }}</b></td><td>{{ m.get_kind_display }}</td><td class="num">{{ m.quantity }}</td><td class="num">{{ m.balance_after }}</td><td>{% if m.purchase_id %}<a href="{% url 'hrd_uniform_detail' m.purchase_id %}">{{ m.note|default:"pembelian" }}</a>{% else %}{{ m.note }}{% endif %}<small>oleh {{ m.created_by.username|default:"—" }}</small></td></tr>
+{% for m in page %}<tr><td>{{ m.movement_date|date:"d-m-Y" }}</td><td>{{ m.utype.name }} <b>{{ m.size.code }}</b></td><td>{{ m.get_kind_display }}</td><td class="num">{{ m.quantity }}</td><td class="num">{{ m.balance_after }}</td><td>{% if m.purchase_id %}<a href="{% url 'hrd_uniform_detail' m.purchase_id %}">{{ m.note|default:"pembelian" }}</a>{% else %}{{ m.note }}{% endif %}<small>oleh {{ m.created_by.username|default:"-" }}</small></td></tr>
 {% empty %}<tr><td class="empty" colspan="6">Belum ada gerak stok untuk filter ini.</td></tr>{% endfor %}</tbody></table></div>
 {% include "hrd/_pager_tab.html" %}
 
