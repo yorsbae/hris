@@ -91,7 +91,7 @@ def order_print(request, pk):
     half = (len(lines) + 1) // 2  # dua kolom kiri-kanan: kiri 1..half, kanan half+1..n (nomor lanjut)
     pairs = [{"l": lines[i], "ln": i + 1, "r": lines[i + half] if i + half < len(lines) else None, "rn": i + half + 1} for i in range(half)]
     pairs += [{"l": None, "r": None}] * max(0, 10 - len(pairs))  # baris kosong sampai minimal 10 agar form terlihat utuh
-    return render(request, "poli/order_print.html", {"o": o, "lines": lines, "pairs": pairs, "kop": letterhead.info(request.user), "now": date.today(), "total": sum(l.qty_ordered for l in lines)})
+    return render(request, "poli/order_print.html", {"o": o, "lines": lines, "pairs": pairs, "kop": letterhead.info(request.user), "now": date.today()})
 
 
 @poli_only

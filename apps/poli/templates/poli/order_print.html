@@ -24,7 +24,7 @@ tfoot td{font-weight:700;background:#f3f3f3}
 <table><thead><tr><th class="no">No</th><th class="kd">Kode</th><th>Nama obat</th><th class="sat">Satuan</th><th class="jm">Jumlah</th><th class="no">No</th><th class="kd">Kode</th><th>Nama obat</th><th class="sat">Satuan</th><th class="jm">Jumlah</th></tr></thead><tbody>
 {% for p in pairs %}<tr class="body">{% if p.l %}<td class="no">{{ p.ln }}</td><td class="kd">{{ p.l.medicine.code }}</td><td>{{ p.l.medicine.name }}</td><td class="sat c">{{ p.l.medicine.unit }}</td><td class="jm n">{{ p.l.qty_ordered }}</td>{% else %}<td class="no"></td><td class="kd"></td><td></td><td class="sat"></td><td class="jm"></td>{% endif %}
 {% if p.r %}<td class="no">{{ p.rn }}</td><td class="kd">{{ p.r.medicine.code }}</td><td>{{ p.r.medicine.name }}</td><td class="sat c">{{ p.r.medicine.unit }}</td><td class="jm n">{{ p.r.qty_ordered }}</td>{% else %}<td class="no"></td><td class="kd"></td><td></td><td class="sat"></td><td class="jm"></td>{% endif %}</tr>{% endfor %}</tbody>
-<tfoot><tr><td colspan="9" class="n">Total ({{ lines|length }} jenis obat)</td><td class="n">{{ total }}</td></tr></tfoot></table>
+</table>
 <div class="sig"><div>Dibuat oleh,<i></i><span></span></div><div>Mengetahui,<i></i><span>{{ kop.hrd_name }}</span></div></div>
 <div class="foot">Dicetak {{ now|date:"d F Y" }}</div>
 </div></body></html>

@@ -174,7 +174,8 @@ class OrderPrintTests(PurchasingBase):
         self.new_order([self.empty, self.low], {self.empty.pk: 12, self.low.pk: 7})
         o = PurchaseOrder.objects.latest("id")
         r = self.client.get(f"/poli/orders/{o.pk}/print/"); self.assertEqual(r.status_code, 200)
-        for t in (o.number, "SURAT PESANAN OBAT", "Obat Habis", "Obat Menipis", ">19<"): self.assertContains(r, t)  # total 12+7
+        for t in (o.number, "SURAT PESANAN OBAT", "Obat Habis", "Obat Menipis"): self.assertContains(r, t)
+        self.assertNotContains(r, "Total (")
         self.assertTrue(AuditLog.objects.filter(action="po_print").exists())
         h = self.client.get("/poli/orders/").content.decode()
         self.assertIn("Pesan &amp; Terima Obat", h); self.assertNotIn('href="/poli/receipts/" class="sub"', h)

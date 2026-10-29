@@ -23,9 +23,6 @@
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Mesin &amp; Impor</h2>
 {% include "attendance/_mesin_tabs.html" with tab="mesin" %}
-<div class="kpis"><div class="kpi"><span class="n">{{ rows|length }}</span><span class="l">mesin terdaftar</span><span class="s">kode mesin = SN / kolom Mesin di berkas</span></div>
-<div class="kpi{% if idle %} warn{% endif %}"><span class="n">{{ idle|length }}</span><span class="l">mesin diam</span><span class="s">tanpa scan ≥ {{ idle_days }} hari</span></div>
-<div class="kpi{% if unknown %} warn{% endif %}"><span class="n">{{ unknown|length }}</span><span class="l">belum terdaftar</span><span class="s">muncul di log 30 hari terakhir</span></div></div>
 {% if idle %}<div class="note warn" role="status"><strong>Mesin diam:</strong> {% for r in idle %}{{ r.d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}
 
 {% if unknown %}<div class="panel"><h3>Mesin di log yang belum terdaftar</h3><p class="sub">Muncul di scan 30 hari terakhir. Beri nama &amp; lokasi agar masuk ke daftar mesin.</p>
