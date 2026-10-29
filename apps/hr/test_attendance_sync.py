@@ -166,3 +166,101 @@ class ModeTests(DirectMachineTests):
             r = self.client.post(reverse("att_devices"), {"action": "sync", "ids": ids, "mode": "all"}, follow=True)
         self.assertContains(r, "3 baru"); self.assertContains(self.client.get(reverse("att_devices")), "Semua scanlog")
         r = self.client.post(reverse("att_devices"), {"action": "sync", "ids": ids, "mode": "range"}, follow=True); self.assertContains(r, "Isi tanggal")
+
+
+# ------------------------------------------------------------------ Download user / Upload user (+ sidik jari) & popup progres
+import base64
+from types import SimpleNamespace as NS
+from apps.hr.models import DeviceFingerprint, DeviceUser
+
+
+class FUser:
+    def __init__(self, uid, name, privilege, password="", group_id="", user_id="", card=0):
+        self.uid, self.name, self.privilege, self.password, self.group_id, self.user_id, self.card = uid, name, privilege, password, group_id, user_id, card
+
+
+class FFinger:
+    def __init__(self, uid, fid, valid, template): self.uid, self.fid, self.valid, self.template = uid, fid, valid, template
+
+
+class UserZK:
+    """Mesin palsu dengan user & template; state di level kelas supaya bisa diperiksa tes."""
+    users, templates, ver, calls = [], [], 10, []
+    def __init__(self, host, port=4370, timeout=5, password=0, ommit_ping=False): pass
+    def connect(self): return self
+    def disable_device(self): pass
+    def enable_device(self): pass
+    def disconnect(self): pass
+    def refresh_data(self): UserZK.calls.append(("refresh",))
+    def get_users(self): return list(UserZK.users)
+    def get_templates(self): return list(UserZK.templates)
+    def get_fp_version(self): return UserZK.ver
+    def save_user_template(self, user, fingers): UserZK.calls.append(("save", user.uid, user.user_id, [(f.uid, f.fid, bytes(f.template)) for f in fingers]))
+    def set_user(self, **kw): UserZK.calls.append(("set", kw["uid"], kw["user_id"], kw["name"]))
+
+
+class UserSyncTests(TestCase):
+    def setUp(self):
+        UserZK.users = [FUser(1, "Budi\x00", 0, "1234", "1", "101", 777), FUser(2, "Sari", 14, "", "", "102", 0), FUser(3, "Tanpa Jari", 0, "", "", "103", 0)]
+        UserZK.templates = [FFinger(1, 0, 1, b"TPL-BUDI-0"), FFinger(1, 6, 1, b"TPL-BUDI-6"), FFinger(2, 1, 1, b"TPL-SARI-1")]; UserZK.ver = 10; UserZK.calls = []
+        p = mock.patch.dict("sys.modules", {"zk": NS(ZK=UserZK), "zk.base": NS(User=FUser), "zk.finger": NS(Finger=FFinger)}); p.start(); self.addCleanup(p.stop)
+        c = mock.patch.object(sy, "check_host"); c.start(); self.addCleanup(c.stop)
+        self.dev = AttendanceDevice.objects.create(code="M1", name="Mesin 1", host="192.168.10.1", protocol="zk")
+        self.dev2 = AttendanceDevice.objects.create(code="M2", name="Mesin 2", host="192.168.10.2", protocol="zk")
+        self.user = User.objects.create_user("hrd", password="Demo#HRIS-2026-x", role=Role.HRD)
+
+    def test_download_stores_users_and_fingers_idempotent(self):
+        r = sy.download_users(self.dev)
+        self.assertTrue(r["ok"]); self.assertEqual((r["users"], r["new"], r["updated"], r["fingers"]), (3, 3, 0, 3))
+        b = DeviceUser.objects.get(pin="101"); self.assertEqual((b.name, b.card, b.password, b.source_device), ("Budi", 777, "1234", "M1"))
+        self.assertEqual(DeviceUser.objects.get(pin="102").privilege, 14); self.assertEqual(DeviceFingerprint.objects.filter(user=b).count(), 2)
+        self.assertEqual(DeviceFingerprint.objects.get(user=b, finger=6).fp_version, 10)
+        r = sy.download_users(self.dev); self.assertEqual((r["new"], r["updated"], r["fingers"]), (0, 0, 3)); self.assertEqual(DeviceFingerprint.objects.count(), 3)
+        UserZK.users[0].name = "Budi S"; UserZK.templates[0].template = b"TPL-BUDI-0-NEW"
+        r = sy.download_users(self.dev); self.assertEqual(r["updated"], 1)
+        self.assertEqual(base64.b64decode(DeviceFingerprint.objects.get(user=b, finger=0).template), b"TPL-BUDI-0-NEW")
+
+    def test_biometrics_and_password_encrypted_at_rest(self):
+        from django.db import connection
+        sy.download_users(self.dev)
+        with connection.cursor() as c:
+            c.execute("select template from hr_devicefingerprint"); self.assertTrue(all(row[0].startswith("enc1:") for row in c.fetchall()))
+            c.execute("select password from hr_deviceuser where pin='101'"); self.assertTrue(c.fetchone()[0].startswith("enc1:"))
+
+    def test_upload_maps_uid_keeps_existing_and_skips_wrong_version(self):
+        sy.download_users(self.dev)
+        UserZK.users = [FUser(5, "Budi lama", 0, "", "", "101", 0), FUser(1, "Lain", 0, "", "", "999", 0)]      # mesin tujuan: 101 sudah ada (uid 5), 999 milik orang lain
+        r = sy.upload_users(self.dev2); self.assertTrue(r["ok"]); self.assertEqual((r["users"], r["fingers"], r["failed"], r["skipped"]), (3, 3, 0, 0))
+        saves = {c[2]: c for c in UserZK.calls if c[0] == "save"}; sets = [c for c in UserZK.calls if c[0] == "set"]
+        self.assertEqual(saves["101"][1], 5); self.assertEqual(sorted(f[:2] for f in saves["101"][3]), [(5, 0), (5, 6)])      # uid mesin tujuan dipakai, bukan uid sumber
+        self.assertEqual(saves["102"][1], 2); self.assertEqual(sets[0][1:3], (3, "103")); self.assertIn(("refresh",), UserZK.calls)   # uid 1 dipakai 999 → uid kosong berikutnya
+        UserZK.calls = []; UserZK.ver = 9
+        r = sy.upload_users(self.dev2); self.assertEqual((r["users"], r["fingers"], r["skipped"]), (3, 0, 3)); self.assertIn("dilewati", r["note"])
+        self.assertFalse([c for c in UserZK.calls if c[0] == "save"])                                                               # tanpa jari: hanya user yang dikirim
+        UserZK.calls = []; UserZK.ver = 10
+        r = sy.upload_users(self.dev2, pins=["102"], fingerprints=False); self.assertEqual((r["users"], r["fingers"]), (1, 0))
+        self.assertEqual([c[2] for c in UserZK.calls if c[0] == "set"], ["102"]); self.assertFalse([c for c in UserZK.calls if c[0] == "save"])
+
+    def test_upload_without_stored_users_and_wrong_protocol(self):
+        r = sy.upload_users(self.dev); self.assertFalse(r["ok"]); self.assertIn("Download user", r["note"])
+        self.dev.protocol = "easylink"; self.assertFalse(sy.download_users(self.dev)["ok"]); self.assertIn("EasyLink", sy.download_users(self.dev)["note"])
+
+    def test_job_endpoint_json_never_leaks_templates(self):
+        url = reverse("att_device_job")
+        self.assertEqual(self.client.post(url, {"action": "users_down", "id": self.dev.pk}).status_code, 302)            # wajib login
+        self.client.force_login(self.user)
+        r = self.client.post(url, {"action": "users_down", "id": self.dev.pk}); j = r.json()
+        self.assertEqual((r.status_code, j["ok"], j["users"], j["fingers"], j["name"]), (200, True, 3, 3, "Mesin 1")); self.assertNotIn("TPL", r.content.decode()); self.assertNotIn("VFBM", r.content.decode())
+        j = self.client.post(url, {"action": "users_up", "id": self.dev2.pk, "pins": "101,102", "fingerprints": "1"}).json(); self.assertEqual((j["ok"], j["users"], j["fingers"]), (True, 2, 3))
+        self.assertEqual(self.client.post(url, {"action": "hapus", "id": self.dev.pk}).status_code, 400)
+        self.assertEqual(self.client.post(url, {"action": "sync", "id": 99999}).status_code, 404)
+        self.assertEqual(self.client.post(url, {"action": "sync", "id": self.dev.pk, "mode": "range"}).status_code, 400)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        from apps.core.models import AuditLog
+        self.assertTrue(AuditLog.objects.filter(action="attendance_device_users_down").exists())
+
+    def test_page_has_popup_and_fallback_post(self):
+        self.client.force_login(self.user)
+        r = self.client.get(reverse("att_devices")); [self.assertContains(r, t) for t in ("Download user", "Upload user", 'id="jobdlg"', reverse("att_device_job"))]
+        r = self.client.post(reverse("att_devices"), {"action": "users_down", "ids": [self.dev.pk, self.dev2.pk]}, follow=True)
+        self.assertContains(r, "Download user: 2 dari 2 mesin berhasil"); self.assertEqual(DeviceUser.objects.count(), 3)

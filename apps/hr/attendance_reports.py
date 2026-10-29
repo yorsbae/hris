@@ -12,7 +12,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Exists, Max, OuterRef, Q, Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -21,7 +21,7 @@ from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles, scope_by_department
 from .views import SHIFT_GROUP_FILTERS, apply_shift_filter
-from .models import AttendanceDaily as AD, AttendanceDevice, AttendanceImport, AttendanceRaw, Department, Employee, Shift
+from .models import AttendanceDaily as AD, AttendanceDevice, AttendanceImport, AttendanceRaw, DeviceFingerprint, DeviceUser, Department, Employee, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))   # noqa: E731
 hrd = lambda fn: login_required(require_roles(Role.HRD)(fn))                       # noqa: E731
@@ -304,6 +304,9 @@ def _device_action(request):
         if not devs: messages.error(request, "Centang minimal satu mesin aktif."); return redirect("att_devices")
         if act == "test":
             res = sy.probe_many(devs)
+        elif act in ("users_down", "users_up"):
+            res = [sy.run_action(d, act, pins=_pins(p.get("pins")), fingerprints=p.get("fingerprints", "1") == "1") for d in devs]
+            log(request, "hr", "attendance_device_" + act, None, None, {"machines": len(res), "users": sum(r.get("users", 0) for r in res)})
         elif act == "sync":
             d1 = date.fromisoformat(p["from"]) if p.get("from") else None; d2 = date.fromisoformat(p["to"]) if p.get("to") else None
             mode = p.get("mode") if p.get("mode") in ("latest", "all", "range") else "latest"
@@ -312,9 +315,33 @@ def _device_action(request):
         else: return redirect("att_devices")
     except (ValueError, KeyError) as e: messages.error(request, f"Gagal: {e}"); return redirect("att_devices")
     names = {d.code: d.name for d in devs}; ok = sum(r["ok"] for r in res)
-    (messages.success if ok == len(res) else messages.warning)(request, f"{'Tes koneksi' if act == 'test' else 'Download scanlog'}: {ok} dari {len(res)} mesin berhasil.")
+    (messages.success if ok == len(res) else messages.warning)(request, f"{ {'test': 'Tes koneksi', 'users_down': 'Download user', 'users_up': 'Upload user'}.get(act, 'Download scanlog') }: {ok} dari {len(res)} mesin berhasil.")
     for r in res: (messages.info if r["ok"] else messages.error)(request, f"{names.get(r['device'], r['device'])}: {r['note']}")
     return redirect("att_devices")
+
+
+def _pins(raw): return [x for x in (raw or "").replace(",", " ").split() if x][:2000]
+
+
+@hrd
+@require_POST
+def device_job(request):
+    """Satu aksi untuk SATU mesin → JSON. Popup progres memanggilnya per mesin (paralel terbatas), jadi tiap permintaan pendek dan kemajuan nyata per mesin.
+    Respons tidak pernah memuat template sidik jari."""
+    from . import attendance_sync as sy
+    p = request.POST; act = p.get("action")
+    if act not in sy.ACTIONS: return JsonResponse({"ok": False, "note": "Aksi tidak dikenal."}, status=400)
+    dev = AttendanceDevice.objects.filter(pk=int(p["id"]), active=True).first() if p.get("id", "").isdigit() else None
+    if not dev: return JsonResponse({"ok": False, "note": "Mesin tidak ditemukan atau nonaktif."}, status=404)
+    try:
+        mode = p.get("mode") if p.get("mode") in ("latest", "all", "range") else "latest"
+        d1 = date.fromisoformat(p["from"]) if p.get("from") else None; d2 = date.fromisoformat(p["to"]) if p.get("to") else None
+        if act == "sync" and mode == "range" and not (d1 or d2): raise ValueError("Isi tanggal Dari/Sampai untuk mode rentang.")
+    except ValueError as e: return JsonResponse({"ok": False, "note": f"Gagal: {e}"}, status=400)
+    res = sy.run_action(dev, act, mode=mode, d1=d1, d2=d2, pins=_pins(p.get("pins")), fingerprints=p.get("fingerprints", "1") == "1")
+    log(request, "hr", "attendance_device_" + act, dev, None, {k: res.get(k) for k in ("ok", "new", "users", "fingers", "failed", "skipped") if k in res})
+    return JsonResponse({"device": dev.code, "name": dev.name, "ok": bool(res.get("ok")), "note": res.get("note", ""),
+                         **{k: res[k] for k in ("new", "dup", "fetched", "users", "updated", "fingers", "failed", "skipped") if k in res}})
 
 
 @hrd
@@ -342,4 +369,5 @@ def devices(request):
         return redirect("att_devices")
     rows, unknown, idle = device_status()
     return render(request, "attendance/devices.html", {"rows": rows, "unknown": unknown, "idle": idle, "idle_days": DEVICE_IDLE_DAYS, "protocols": AttendanceDevice.PROTOCOLS,
-                                                        "connections": AttendanceDevice.CONNECTIONS, "default_days": getattr(settings, "ATTENDANCE_SYNC_DAYS", 3)})
+                                                        "connections": AttendanceDevice.CONNECTIONS, "default_days": getattr(settings, "ATTENDANCE_SYNC_DAYS", 3),
+                                                        "stored_users": DeviceUser.objects.count(), "stored_fingers": DeviceFingerprint.objects.count()})

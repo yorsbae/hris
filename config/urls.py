@@ -45,6 +45,7 @@ urlpatterns = [
     path("absensi/shift/", ar.shift_grid, name="att_shift"),
     path("absensi/kontrol/", ar.control, name="att_control"),
     path("absensi/mesin/", ar.devices, name="att_devices"),
+    path("absensi/mesin/job/", ar.device_job, name="att_device_job"),   # satu aksi untuk satu mesin (JSON) — dipakai popup progres
     path("absensi/bulanan/", ap.monthly, name="att_monthly"),
     path("absensi/karyawan/<int:pk>/", ap.employee_month, name="att_employee"),
     path("absensi/olah/", ap.reprocess, name="att_process"),

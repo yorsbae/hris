@@ -56,6 +56,11 @@ class _Easylink:
         return [(str(r.get("PIN", "")).strip(), str(r.get("ScanDate", "")).strip()) for r in rows if r.get("PIN") not in (None, "") and r.get("ScanDate")]
 
 
+def _fpver(c):
+    try: return int(c.get_fp_version() or 0)
+    except Exception: return 0
+
+
 class _Zk:
     """Langsung ke mesin (seperti Fingerspot Personnel: IP + port + kunci komunikasi). Memakai pustaka `pyzk` (protokol TCP); mesin yang tidak mendukungnya → gunakan 'Tes koneksi'."""
     def __init__(self, dev): self.dev = dev
@@ -80,6 +85,47 @@ class _Zk:
         recs = self._run(lambda c: c.get_attendance())
         return [(str(a.user_id).strip(), a.timestamp.strftime("%Y-%m-%d %H:%M:%S")) for a in recs or [] if a.user_id and d1 <= a.timestamp.date() <= d2]
     def info(self): return self._run(lambda c: {"serial": c.get_serialnumber(), "time": str(c.get_time()), "users": len(c.get_users() or [])})
+
+    def users_down(self):
+        """→ (users, fingers, fp_error, fp_version). Sidik jari gagal dibaca (mesin wajah-saja/firmware lain) tidak menggagalkan unduhan user;
+        alasan dikembalikan. fp_version = versi algoritma sidik jari mesin (9/10; 0 = tidak diketahui)."""
+        def f(c):
+            users = list(c.get_users() or []); ver = _fpver(c)
+            try: return users, list(c.get_templates() or []), "", ver
+            except Exception as e: return users, [], f"{type(e).__name__}: {e}", ver
+        return self._run(f)
+
+    def users_up(self, items):
+        """Kirim user (+sidik jari) ke mesin: tambah user baru / perbarui yang PIN-nya sama; user lain di mesin TIDAK dihapus.
+        uid internal mesin dipertahankan untuk PIN yang sudah ada dan memakai uid kosong berikutnya untuk yang baru.
+        Template dengan versi algoritma beda dari mesin tujuan dilewati (tidak terbaca di mesin).
+        → (terkirim, jari, gagal[list pesan], jari dilewati)."""
+        try: from zk.base import User; from zk.finger import Finger
+        except ImportError: raise SyncError("Pustaka pyzk belum terpasang (pip install -r requirements.txt).")
+        def f(c):
+            have = {str(u.user_id).strip(): u.uid for u in (c.get_users() or [])}; used = set(have.values())
+            nxt = 1; sent = fps = skipped = 0; bad = []; ver = _fpver(c)
+            for it in items:
+                n0 = len(it["fingers"])
+                it = dict(it, fingers=[x for x in it["fingers"] if not (ver and x[3] and x[3] != ver)]); skipped += n0 - len(it["fingers"])
+                uid = have.get(it["pin"])
+                if uid is None:
+                    while nxt in used: nxt += 1
+                    uid = nxt; used.add(uid)
+                try:
+                    if it["fingers"]:
+                        c.save_user_template(User(uid, it["name"], it["privilege"], it["password"], it["group_id"], it["pin"], it["card"]),
+                                             [Finger(uid, fid, valid, tpl) for fid, valid, tpl, _v in it["fingers"]]); fps += len(it["fingers"])
+                    else:
+                        c.set_user(uid=uid, name=it["name"], privilege=it["privilege"], password=it["password"],
+                                   group_id=it["group_id"], user_id=it["pin"], card=it["card"])
+                    sent += 1
+                except Exception as e: bad.append(f"PIN {it['pin']}: {type(e).__name__}: {e}"[:120])
+            if sent:
+                try: c.refresh_data()
+                except Exception: pass
+            return sent, fps, bad, skipped
+        return self._run(f)
 
 
 DRIVERS = {"easylink": _Easylink, "zk": _Zk}
@@ -170,6 +216,87 @@ def sync_many(devs, d1=None, d2=None, commit=True, workers=8, mode="latest"):
     devs = list(devs); wins = [window(d, mode, d1, d2) for d in devs]       # jendela dihitung di thread utama (butuh DB)
     with ThreadPoolExecutor(max_workers=max(1, min(workers, len(devs) or 1))) as ex: got = list(ex.map(lambda x: fetch_device(x[0], *x[1]), zip(devs, wins)))
     return [ingest(d, t, e, commit, window=w) for d, (t, e), w in zip(devs, got, wins)]
+
+
+# ---------------------------------------------------------------- user & sidik jari (Download user / Upload user)
+import base64
+
+
+def _clean(v, n): return str(v if v is not None else "").replace("\x00", "").strip()[:n]
+
+
+def _zk_only(dev):
+    check_host(dev.host)
+    if dev.protocol != "zk": raise SyncError("Download/Upload user hanya untuk protokol 'Langsung ke mesin (TCP)'; protokol EasyLink SDK belum didukung.")
+
+
+def download_users(dev):
+    """Baca user + sidik jari dari mesin → simpan/perbarui di HRIS (kunci PIN). Idempoten: template yang sama tidak dihitung 'diperbarui'.
+    → {ok, users, new, updated, fingers, note}. Template tidak pernah masuk ke respons/log."""
+    from django.db import transaction
+    from .models import DeviceFingerprint, DeviceUser
+    out = {"device": dev.code, "ok": False, "users": 0, "new": 0, "updated": 0, "fingers": 0, "note": ""}
+    try:
+        _zk_only(dev); users, fingers, fp_err, ver = _Zk(dev).users_down()
+    except SyncError as e: out["note"] = str(e); return out
+    by_uid = {}; new = upd = nfp = 0
+    with transaction.atomic():
+        for u in users:
+            pin = _clean(getattr(u, "user_id", "") or getattr(u, "uid", ""), 24)
+            if not pin: continue
+            vals = {"name": _clean(u.name, 80), "privilege": int(u.privilege or 0), "password": _clean(u.password, 20), "card": int(u.card or 0),
+                    "group_id": _clean(u.group_id, 10), "source_device": dev.code}
+            obj, made = DeviceUser.objects.get_or_create(pin=pin, defaults=vals); by_uid[u.uid] = obj
+            if made: new += 1
+            elif any(getattr(obj, k) != v for k, v in vals.items() if k != "source_device"):
+                for k, v in vals.items(): setattr(obj, k, v)
+                obj.save(); upd += 1
+        for f in fingers:
+            obj = by_uid.get(f.uid)
+            if not obj or not f.template: continue
+            tpl = base64.b64encode(bytes(f.template)).decode()
+            fp, made = DeviceFingerprint.objects.get_or_create(user=obj, finger=int(f.fid), defaults={"template": tpl, "valid": int(f.valid or 1),
+                                                                                                   "fp_version": ver, "source_device": dev.code})
+            if not made and fp.template != tpl: fp.template, fp.valid, fp.fp_version, fp.source_device = tpl, int(f.valid or 1), ver, dev.code; fp.save()
+            nfp += 1
+    out.update(ok=True, users=len(by_uid), new=new, updated=upd, fingers=nfp)
+    out["note"] = (f"{len(by_uid)} user dibaca ({new} baru, {upd} diperbarui), {nfp} sidik jari." + (f" Algoritma sidik jari v{ver}." if ver and nfp else "")
+                   + (f" Sidik jari tidak terbaca: {fp_err}" if fp_err else ""))
+    return out
+
+
+def upload_users(dev, pins=None, fingerprints=True):
+    """Kirim user (+ sidik jari) tersimpan di HRIS ke mesin. pins = daftar PIN (None/kosong = semua). Tidak menghapus user yang sudah ada di mesin."""
+    from .models import DeviceUser
+    out = {"device": dev.code, "ok": False, "users": 0, "fingers": 0, "failed": 0, "note": ""}
+    qs = DeviceUser.objects.prefetch_related("fingers")
+    if pins: qs = qs.filter(pin__in=pins)
+    items = [{"pin": u.pin, "name": u.name, "privilege": u.privilege, "password": u.password or "", "group_id": u.group_id, "card": u.card,
+              "fingers": [(f.finger, f.valid, base64.b64decode(f.template), f.fp_version) for f in u.fingers.all()] if fingerprints else []} for u in qs]
+    if not items:
+        out["note"] = "Belum ada user tersimpan di HRIS" + (" untuk PIN tersebut." if pins else ". Lakukan Download user dari mesin lebih dulu.")
+        return out
+    try: _zk_only(dev); sent, fps, bad, skip = _Zk(dev).users_up(items)
+    except SyncError as e: out["note"] = str(e); return out
+    out.update(ok=not bad or sent > 0, users=sent, fingers=fps, failed=len(bad), skipped=skip)
+    note = f"{sent} dari {len(items)} user dikirim, {fps} sidik jari."
+    if skip: note += f" {skip} sidik jari dilewati (versi algoritma beda dengan mesin ini)."
+    if bad: note += f" {len(bad)} gagal: " + "; ".join(bad[:3])
+    out["note"] = note
+    if not sent: out["ok"] = False
+    return out
+
+
+ACTIONS = ("sync", "test", "users_down", "users_up")
+
+
+def run_action(dev, action, mode="latest", d1=None, d2=None, pins=None, fingerprints=True):
+    """Satu aksi untuk SATU mesin (dipanggil per mesin oleh popup progres)."""
+    if action == "sync": return sync_device(dev, d1, d2, mode=mode)
+    if action == "test": return probe(dev)
+    if action == "users_down": return download_users(dev)
+    if action == "users_up": return upload_users(dev, pins, fingerprints)
+    raise ValueError("Aksi tidak dikenal.")
 
 
 def probe_many(devs, workers=8):

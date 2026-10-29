@@ -401,6 +401,36 @@ class AttendanceDevice(models.Model):
     def __str__(self): return f"{self.name} ({self.code})"
 
 
+class DeviceUser(models.Model):
+    """User di mesin absensi (PIN, nama, privilege, kartu) yang disimpan di HRIS: hasil 'Download user' dan bahan 'Upload user' ke mesin lain.
+    Kunci = PIN (user_id di mesin); uid internal tiap mesin berbeda sehingga tidak disimpan. Sidik jari → DeviceFingerprint."""
+    pin = models.CharField("PIN", max_length=24, unique=True)
+    name = models.CharField("Nama", max_length=80, blank=True)
+    privilege = models.PositiveSmallIntegerField("Privilege", default=0)           # 0 = user biasa, 14 = admin mesin
+    password = EncryptedTextField("Password mesin", max_length=20, blank=True)     # terenkripsi di DB
+    card = models.BigIntegerField("Nomor kartu", default=0)
+    group_id = models.CharField("Grup", max_length=10, blank=True)
+    source_device = models.CharField("Diunduh dari mesin (kode)", max_length=40, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta: ordering = ["pin"]
+    def __str__(self): return f"{self.pin} {self.name}".strip()
+
+
+class DeviceFingerprint(models.Model):
+    """Template sidik jari satu jari milik DeviceUser (biometrik = data pribadi sensitif): disimpan base64 TERENKRIPSI, tidak pernah ditampilkan/diekspor.
+    Template antar model/firmware mesin belum tentu kompatibel; `source_device` mencatat asalnya."""
+    user = models.ForeignKey(DeviceUser, on_delete=models.CASCADE, related_name="fingers")
+    finger = models.PositiveSmallIntegerField("Jari (0-9)")
+    valid = models.PositiveSmallIntegerField(default=1)
+    fp_version = models.PositiveSmallIntegerField("Versi algoritma (9/10, 0 = tidak diketahui)", default=0)   # Fingerspot Personnel: alg_ver; template 9 ≠ 10
+    template = EncryptedTextField("Template (base64)")
+    source_device = models.CharField(max_length=40, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        ordering = ["user_id", "finger"]
+        constraints = [models.UniqueConstraint(fields=["user", "finger"], name="uniq_devicefp_user_finger")]
+
+
 class AttendanceDaily(models.Model):
     """Rekap harian hasil olah (tabel terhitung; boleh dihitung ulang kapan saja dari log mentah + jadwal + pengajuan + validasi).
     Status: hadir · libur · libur_nasional · cuti · cuti_hamil · izin · sakit · alfa · tanpa_scan (hari kerja tanpa scan; belum jelas → minta validasi).
