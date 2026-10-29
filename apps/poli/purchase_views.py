@@ -88,7 +88,10 @@ def order_print(request, pk):
     o = get_object_or_404(PurchaseOrder.objects.select_related("created_by"), pk=pk)
     lines = list(o.lines.select_related("medicine"))
     log(request, "poli", "po_print", o, None, {"number": o.number, "lines": len(lines)})
-    return render(request, "poli/order_print.html", {"o": o, "lines": lines, "kop": letterhead.info(request.user), "now": date.today(), "total": sum(l.qty_ordered for l in lines)})
+    half = (len(lines) + 1) // 2  # dua kolom kiri-kanan: kiri 1..half, kanan half+1..n (nomor lanjut)
+    pairs = [{"l": lines[i], "ln": i + 1, "r": lines[i + half] if i + half < len(lines) else None, "rn": i + half + 1} for i in range(half)]
+    pairs += [{"l": None, "r": None}] * max(0, 10 - len(pairs))  # baris kosong sampai minimal 10 agar form terlihat utuh
+    return render(request, "poli/order_print.html", {"o": o, "lines": lines, "pairs": pairs, "kop": letterhead.info(request.user), "now": date.today(), "total": sum(l.qty_ordered for l in lines)})
 
 
 @poli_only

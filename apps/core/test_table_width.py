@@ -5,7 +5,7 @@ import re
 from django.test import SimpleTestCase
 
 MAX_COLS = 8  # rekap stok obat (kartu stok) sengaja 8 kolom angka; daftar lain <= 6
-EXEMPT = set()
+EXEMPT = {"order_print.html"}  # formulir cetak A4 landscape: 2 blok kiri-kanan × 5 kolom
 BRANCH = re.compile(r"\{%\s*(?:if|elif|else|endif)\b[^%]*%\}")
 
 
