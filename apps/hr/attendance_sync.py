@@ -309,6 +309,13 @@ def probe_many(devs, workers=8):
 HEAD = {"nama": "name", "sn": "serial", "nomesin": "machine_no", "koneksi": "connection", "ipaddressurl": "host", "ipaddress": "host", "ip": "host", "layar": "screen", "lokasi": "location"}
 
 
+def _numstr(v):
+    """Excel menyimpan angka sebagai float ('11.0') → '11'."""
+    try: f = float(v)
+    except (TypeError, ValueError): return v
+    return str(int(f)) if f == int(f) else v
+
+
 def import_machine_list(raw, filename="paste.txt", protocol="zk", port=4370):
     """Salin tabel Mesin dari Fingerspot Personnel (atau Export-nya) → master mesin. Kode mesin = SN. Mesin yang sudah ada (SN sama) hanya diperbarui nama/IP/dll,
     kunci komunikasi & status tidak diubah. → (dibuat, diperbarui, daftar peringatan)."""
@@ -325,7 +332,7 @@ def import_machine_list(raw, filename="paste.txt", protocol="zk", port=4370):
         except SyncError as e: warn.append(f"{g('name') or sn}: {e}"); host_ok = False
         else: host_ok = True
         d, created = AttendanceDevice.objects.get_or_create(code=sn, defaults={"name": (g("name") or sn)[:80], "protocol": protocol, "port": port})
-        d.name = (g("name") or d.name)[:80]; d.serial = sn; d.machine_no = g("machine_no")[:10]; d.screen = g("screen")[:10]
+        d.name = (g("name") or d.name)[:80]; d.serial = sn; d.machine_no = _numstr(g("machine_no"))[:10]; d.screen = g("screen")[:10]
         if g("connection") in dict(AttendanceDevice.CONNECTIONS): d.connection = g("connection")
         if host_ok: d.host = host
         if created: d.sync_enabled = host_ok

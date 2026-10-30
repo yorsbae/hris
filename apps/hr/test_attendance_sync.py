@@ -264,3 +264,17 @@ class UserSyncTests(TestCase):
         r = self.client.get(reverse("att_devices")); [self.assertContains(r, t) for t in ("Download user", "Upload user", 'id="jobdlg"', reverse("att_device_job"))]
         r = self.client.post(reverse("att_devices"), {"action": "users_down", "ids": [self.dev.pk, self.dev2.pk]}, follow=True)
         self.assertContains(r, "Download user: 2 dari 2 mesin berhasil"); self.assertEqual(DeviceUser.objects.count(), 3)
+
+
+class ImportMesinCommandTests(TestCase):
+    def test_bundled_list_loads_idempotently(self):
+        from io import StringIO
+        call_command("import_mesin", stdout=StringIO())
+        self.assertEqual(AttendanceDevice.objects.count(), 32); self.assertEqual(AttendanceDevice.objects.filter(sync_enabled=True).count(), 32)
+        d = AttendanceDevice.objects.get(code="FIO616202022322344"); self.assertEqual((d.name, d.host, d.machine_no, d.protocol, d.port), ("POLISI", "192.168.10.36", "11", "zk", 4370))
+        out = StringIO(); call_command("import_mesin", stdout=out); self.assertEqual(AttendanceDevice.objects.count(), 32); self.assertIn("0 baru, 32 diperbarui", out.getvalue())
+
+    def test_no_sync_enable_and_bad_file(self):
+        from io import StringIO
+        call_command("import_mesin", "--no-sync-enable", stdout=StringIO()); self.assertEqual(AttendanceDevice.objects.filter(sync_enabled=True).count(), 0)
+        with self.assertRaises(CommandError): call_command("import_mesin", "/tidak/ada.xls")

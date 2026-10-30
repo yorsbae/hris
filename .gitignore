@@ -104,3 +104,4 @@ sync_out/
 private_media/
 ci-public.sqlite3
 wadimor-release.tar.gz
+!apps/hr/seed/*.csv
