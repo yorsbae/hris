@@ -278,3 +278,13 @@ class ImportMesinCommandTests(TestCase):
         from io import StringIO
         call_command("import_mesin", "--no-sync-enable", stdout=StringIO()); self.assertEqual(AttendanceDevice.objects.filter(sync_enabled=True).count(), 0)
         with self.assertRaises(CommandError): call_command("import_mesin", "/tidak/ada.xls")
+
+
+class ProbeCommandTests(TestCase):
+    def test_probe_covers_machines_without_auto_pull(self):
+        from io import StringIO
+        AttendanceDevice.objects.create(code="P1", name="P1", host="127.0.0.1", port=1, sync_enabled=False)
+        out, err = StringIO(), StringIO()
+        with self.assertRaises(CommandError): call_command("sync_attendance", "--probe", stdout=out, stderr=err)     # port tertutup → gagal, tapi mesin ikut dites
+        self.assertIn("P1", err.getvalue())
+        with self.assertRaises(CommandError): call_command("sync_attendance")                                          # tarikan sungguhan tetap hanya 'Tarik otomatis'
