@@ -271,7 +271,7 @@ class ImportMesinCommandTests(TestCase):
         from io import StringIO
         call_command("import_mesin", stdout=StringIO())
         self.assertEqual(AttendanceDevice.objects.count(), 32); self.assertEqual(AttendanceDevice.objects.filter(sync_enabled=True).count(), 32)
-        d = AttendanceDevice.objects.get(code="FIO616202022322344"); self.assertEqual((d.name, d.host, d.machine_no, d.protocol, d.port), ("POLISI", "192.168.10.36", "11", "zk", 4370))
+        d = AttendanceDevice.objects.get(code="FIO616202022322344"); self.assertEqual((d.name, d.host, d.machine_no, d.protocol, d.port), ("POLISI", "192.168.10.36", "11", "zk", 5005))
         out = StringIO(); call_command("import_mesin", stdout=out); self.assertEqual(AttendanceDevice.objects.count(), 32); self.assertIn("0 baru, 32 diperbarui", out.getvalue())
 
     def test_no_sync_enable_and_bad_file(self):
@@ -288,3 +288,18 @@ class ProbeCommandTests(TestCase):
         with self.assertRaises(CommandError): call_command("sync_attendance", "--probe", stdout=out, stderr=err)     # port tertutup → gagal, tapi mesin ikut dites
         self.assertIn("P1", err.getvalue())
         with self.assertRaises(CommandError): call_command("sync_attendance")                                          # tarikan sungguhan tetap hanya 'Tarik otomatis'
+
+
+class ApplyPortsTests(TestCase):
+    def test_apply_ports_switches_to_the_open_port(self):
+        from io import StringIO
+        s = socket.socket(); s.bind(("127.0.0.1", 0)); s.listen(5); self.addCleanup(s.close); port = s.getsockname()[1]
+        d = AttendanceDevice.objects.create(code="A", name="A", host="127.0.0.1", port=1, protocol="easylink")
+        orig = sy.probe
+        with mock.patch.object(sy, "probe", lambda dev: orig(dev, ports=(port,))):
+            with self.assertRaises(CommandError): call_command("sync_attendance", "--probe", "--apply-ports", stdout=StringIO(), stderr=StringIO())
+        d.refresh_from_db(); self.assertEqual(d.port, port)
+        d.port = 1; d.save()
+        with mock.patch.object(sy, "probe", lambda dev: orig(dev, ports=(port,))):
+            with self.assertRaises(CommandError): call_command("sync_attendance", "--probe", stdout=StringIO(), stderr=StringIO())
+        d.refresh_from_db(); self.assertEqual(d.port, 1)                    # tanpa --apply-ports: tidak mengubah apa pun

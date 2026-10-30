@@ -15,6 +15,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, p):
         p.add_argument("--device"); p.add_argument("--from", dest="d1"); p.add_argument("--to", dest="d2"); p.add_argument("--all", action="store_true", help="unduh SELURUH log di mesin (bawaan: hanya yang terbaru sejak scan terakhir tersimpan)"); p.add_argument("--dry-run", action="store_true"); p.add_argument("--probe", action="store_true", help="hanya tes koneksi (port terbuka, SN mesin)")
+        p.add_argument("--apply-ports", action="store_true", help="dengan --probe: bila port yang diset tertutup tetapi tepat SATU port umum (4370/5005/8080) terbuka, simpan port itu")
 
     def handle(self, *a, **o):
         try: d1 = date.fromisoformat(o["d1"]) if o["d1"] else None; d2 = date.fromisoformat(o["d2"]) if o["d2"] else None
@@ -25,6 +26,11 @@ class Command(BaseCommand):
         if not qs: raise CommandError("Tidak ada mesin dengan 'Tarik otomatis' aktif (atau kode mesin tidak ditemukan).")
         res = probe_many(qs) if o["probe"] else sync_many(qs, d1, d2, commit=not o["dry_run"], mode="all" if o["all"] else "range" if (d1 or d2) else "latest")
         names = {d.code: d.name for d in qs}; bad = 0
+        if o["probe"] and o["apply_ports"]:
+            for r in res:
+                if not r["ok"] and len(r.get("open", [])) == 1:
+                    new = r["open"][0]; AttendanceDevice.objects.filter(code=r["device"]).update(port=new)
+                    r["note"] += f" → port mesin diubah ke {new} (jalankan --probe lagi)."
         for r in res:
             bad += not r["ok"]; (self.stdout if r["ok"] else self.stderr).write(f"- {names.get(r['device'], r['device'])} [{r['device']}]: {'OK' if r['ok'] else 'GAGAL'} · {r['note']}")
         self.stdout.write(f"{len(res) - bad}/{len(res)} mesin berhasil.")
