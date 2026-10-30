@@ -21,6 +21,8 @@ PERSONALIA_SIGNER_TITLE = env("PERSONALIA_SIGNER_TITLE", default="Kabag Personal
 # Ini hanya persen BAWAAN (dipakai bila belum ada aturan). Persen per tanggal berlaku: Poli → Master Tanggungan (tagihan yang sudah dicatat tidak bergeser).
 POLI_BPJS_COMPANY_PCT = env.int("POLI_BPJS_COMPANY_PCT", default=75)
 APP_VERSION = "1.1.0"
+ATTENDANCE_FK_DLL = env("ATTENDANCE_FK_DLL", default="")  # jalur FKAttend.dll (bawaan: C:\\Program Files (x86)\\Fingerspot Personnel\\FKAttend.dll)
+ATTENDANCE_FK_PYTHON32 = env("ATTENDANCE_FK_PYTHON32", default="")  # python.exe 32-bit untuk memuat DLL 32-bit; kosong = Python yang sedang jalan
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")  # enkripsi kolom sensitif; lihat apps/core/crypto.py
 DEBUG = env.bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])

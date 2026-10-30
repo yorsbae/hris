@@ -64,23 +64,34 @@ def _fpver(c):
 class _Zk:
     """Langsung ke mesin (seperti Fingerspot Personnel: IP + port + kunci komunikasi). Memakai pustaka `pyzk` (protokol TCP); mesin yang tidak mendukungnya → gunakan 'Tes koneksi'."""
     def __init__(self, dev): self.dev = dev
-    def _conn(self):
+    def _conn(self, udp=False):
         try: from zk import ZK
         except ImportError: raise SyncError("Pustaka pyzk belum terpasang (pip install -r requirements.txt).")
         try: pw = int(self.dev.comm_key or 0)
         except ValueError: raise SyncError("Kunci komunikasi mesin harus angka (bawaan 0).")
-        return ZK(self.dev.host, port=self.dev.port, timeout=TIMEOUT, password=pw, ommit_ping=True)
+        kw = {"force_udp": True} if udp else {}
+        return ZK(self.dev.host, port=self.dev.port, timeout=min(TIMEOUT, 8), password=pw, ommit_ping=True, **kw)
     def _run(self, fn):
-        z = self._conn(); c = None
-        try:
-            c = z.connect(); c.disable_device()
-            try: return fn(c)
-            finally: c.enable_device()
-        except SyncError: raise
-        except Exception as e: raise SyncError(f"Mesin {self.dev.host}:{self.dev.port} tidak merespons ({type(e).__name__}: {e}).")
-        finally:
-            try: c and c.disconnect()
-            except Exception: pass
+        """Coba TCP dulu; bila mesin diam/tidak menjawab, ulangi lewat UDP (sebagian firmware Fingerspot/ZK hanya menjawab UDP)."""
+        errs = []
+        for udp in (False, True):
+            z = self._conn(udp); c = None
+            try:
+                c = z.connect()
+                try: c.disable_device()
+                except Exception: pass                                   # sebagian firmware menolak disable; membaca log tetap bisa
+                try: return fn(c)
+                finally:
+                    try: c.enable_device()
+                    except Exception: pass
+            except SyncError: raise
+            except Exception as e: errs.append(f"{'UDP' if udp else 'TCP'}: {type(e).__name__}: {e}")
+            finally:
+                try: c and c.disconnect()
+                except Exception: pass
+        raise SyncError(f"Mesin {self.dev.host}:{self.dev.port} tidak merespons ({'; '.join(errs)[:200]}). "
+                        "Jika port terbuka tetapi tidak menjawab protokol ZK, kemungkinan mesin Fingerspot berprotokol FK/EasyLink. "
+                        "Pakai 'Impor berkas Fingerspot' (ekspor dari Fingerspot Personnel) atau protokol EasyLink SDK.")
     def fetch(self, d1, d2):
         recs = self._run(lambda c: c.get_attendance())
         return [(str(a.user_id).strip(), a.timestamp.strftime("%Y-%m-%d %H:%M:%S")) for a in recs or [] if a.user_id and d1 <= a.timestamp.date() <= d2]
@@ -128,7 +139,38 @@ class _Zk:
         return self._run(f)
 
 
-DRIVERS = {"easylink": _Easylink, "zk": _Zk}
+class _Fk:
+    """Mesin Fingerspot berprotokol FK (port 5005, 'No Mesin' wajib benar) lewat FKAttend.dll milik Fingerspot Personnel.
+    DLL 32-bit/Windows → dijalankan sebagai proses terpisah (apps/hr/fk/fk_dump.py) dengan Python 32-bit.
+    Pengaturan: ATTENDANCE_FK_DLL (jalur FKAttend.dll), ATTENDANCE_FK_PYTHON32 (python.exe 32-bit; bawaan = Python yang sedang jalan)."""
+    def __init__(self, dev): self.dev = dev
+    def _call(self, *extra):
+        import subprocess, sys
+        from pathlib import Path
+        dll = getattr(settings, "ATTENDANCE_FK_DLL", "") or r"C:\Program Files (x86)\Fingerspot Personnel\FKAttend.dll"
+        py = getattr(settings, "ATTENDANCE_FK_PYTHON32", "") or sys.executable
+        try: pw = int(self.dev.comm_key or 0)
+        except ValueError: raise SyncError("Kunci komunikasi mesin harus angka (bawaan 0).")
+        try: no = int(self.dev.machine_no or 1)
+        except ValueError: raise SyncError("No Mesin harus angka (lihat kolom No Mesin di Fingerspot Personnel).")
+        cmd = [py, str(Path(__file__).parent / "fk" / "fk_dump.py"), "--dll", dll, "--ip", self.dev.host, "--port", str(self.dev.port), "--machine", str(no), "--key", str(pw), *extra]
+        try: r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT * 8)
+        except (OSError, subprocess.TimeoutExpired) as e: raise SyncError(f"Tidak dapat menjalankan pembaca FK ({type(e).__name__}: {e}). Periksa ATTENDANCE_FK_PYTHON32.")
+        try: js = json.loads(r.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError): raise SyncError(f"Pembaca FK gagal: {(r.stderr or r.stdout or 'tanpa keluaran')[-200:]}")
+        if not js.get("ok"): raise SyncError(js.get("error", "FK gagal."))
+        return js
+    def fetch(self, d1, d2):
+        out = []
+        for pin, at in self._call()["rows"]:
+            try: t = datetime.strptime(at, "%Y-%m-%d %H:%M:%S")
+            except ValueError: continue
+            if pin and pin != "0" and d1 <= t.date() <= d2: out.append((pin, at))
+        return out
+    def info(self): self._call("--probe"); return {"serial": self.dev.serial, "time": "-", "users": "?"}
+
+
+DRIVERS = {"easylink": _Easylink, "zk": _Zk, "fk": _Fk}
 
 
 def probe(dev, ports=(4370, 5005, 8080)):
@@ -142,11 +184,12 @@ def probe(dev, ports=(4370, 5005, 8080)):
         except OSError: pass
     if not out["open"]: out["note"] = f"Tidak ada port terbuka di {dev.host} (mesin mati / beda jaringan / firewall)."; return out
     out["note"] = "Port terbuka: " + ", ".join(map(str, out["open"])); out["ok"] = dev.port in out["open"]
-    if dev.protocol == "zk" and out["ok"]:
+    if dev.protocol in ("zk", "fk") and out["ok"]:
         try:
+            if dev.protocol == "fk": _Fk(dev).info(); out["note"] += " · terhubung via FKAttend.dll"; return out
             i = _Zk(dev).info(); out["note"] += f" · SN mesin {i['serial']} · jam {i['time']} · {i['users']} user"
             if dev.serial and i["serial"] and dev.serial.strip().upper() != str(i["serial"]).strip().upper(): out["note"] += " · PERINGATAN: SN tidak sama dengan data HRIS"
-        except SyncError as e: out["ok"] = False; out["note"] += f" · protokol zk gagal: {e}"
+        except SyncError as e: out["ok"] = False; out["note"] += f" · protokol {dev.protocol} gagal: {e}"
     elif not out["ok"]: out["note"] += f" (port {dev.port} yang diset tertutup)"
     return out
 
@@ -227,7 +270,7 @@ def _clean(v, n): return str(v if v is not None else "").replace("\x00", "").str
 
 def _zk_only(dev):
     check_host(dev.host)
-    if dev.protocol != "zk": raise SyncError("Download/Upload user hanya untuk protokol 'Langsung ke mesin (TCP)'; protokol EasyLink SDK belum didukung.")
+    if dev.protocol != "zk": raise SyncError("Download/Upload user hanya untuk protokol ZK (TCP); protokol FK/EasyLink belum mendukung user & sidik jari (scanlog saja).")
 
 
 def download_users(dev):

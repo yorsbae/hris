@@ -15,7 +15,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, p):
         p.add_argument("file", nargs="?", default=str(DEFAULT))
-        p.add_argument("--protocol", default="zk", choices=[v for v, _ in AttendanceDevice.PROTOCOLS]); p.add_argument("--port", type=int, default=5005)
+        p.add_argument("--protocol", default="fk", choices=[v for v, _ in AttendanceDevice.PROTOCOLS]); p.add_argument("--port", type=int, default=5005)
         p.add_argument("--no-sync-enable", action="store_true", help="mesin baru jangan langsung diberi 'Tarik otomatis'")
 
     def handle(self, *a, **o):

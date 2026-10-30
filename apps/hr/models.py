@@ -383,7 +383,7 @@ class AttendanceDevice(models.Model):
     active = models.BooleanField("Aktif", default=True)
     note = models.CharField("Catatan", max_length=200, blank=True)
     # --- Tarik otomatis lewat jaringan lokal (attendance_sync.py) ---
-    PROTOCOLS = [("zk", "Langsung ke mesin (TCP, port 4370/5005)"), ("easylink", "Fingerspot EasyLink SDK (HTTP, server SDK)")]
+    PROTOCOLS = [("zk", "Langsung ke mesin (TCP, port 4370/5005)"), ("easylink", "Fingerspot EasyLink SDK (HTTP, server SDK)"), ("fk", "Fingerspot FK (port 5005, via FKAttend.dll Personnel)")]
     CONNECTIONS = [("Ethernet", "Ethernet"), ("WiFi", "WiFi"), ("USB", "USB"), ("GPRS", "GPRS/Cloud")]
     sync_enabled = models.BooleanField("Tarik otomatis via jaringan", default=False)
     protocol = models.CharField("Protokol", max_length=12, choices=PROTOCOLS, default="zk")

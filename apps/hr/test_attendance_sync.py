@@ -271,7 +271,7 @@ class ImportMesinCommandTests(TestCase):
         from io import StringIO
         call_command("import_mesin", stdout=StringIO())
         self.assertEqual(AttendanceDevice.objects.count(), 32); self.assertEqual(AttendanceDevice.objects.filter(sync_enabled=True).count(), 32)
-        d = AttendanceDevice.objects.get(code="FIO616202022322344"); self.assertEqual((d.name, d.host, d.machine_no, d.protocol, d.port), ("POLISI", "192.168.10.36", "11", "zk", 5005))
+        d = AttendanceDevice.objects.get(code="FIO616202022322344"); self.assertEqual((d.name, d.host, d.machine_no, d.protocol, d.port), ("POLISI", "192.168.10.36", "11", "fk", 5005))
         out = StringIO(); call_command("import_mesin", stdout=out); self.assertEqual(AttendanceDevice.objects.count(), 32); self.assertIn("0 baru, 32 diperbarui", out.getvalue())
 
     def test_no_sync_enable_and_bad_file(self):
@@ -303,3 +303,29 @@ class ApplyPortsTests(TestCase):
         with mock.patch.object(sy, "probe", lambda dev: orig(dev, ports=(port,))):
             with self.assertRaises(CommandError): call_command("sync_attendance", "--probe", stdout=StringIO(), stderr=StringIO())
         d.refresh_from_db(); self.assertEqual(d.port, 1)                    # tanpa --apply-ports: tidak mengubah apa pun
+
+
+class FkDriverTests(TestCase):
+    """Driver FK (FKAttend.dll lewat proses terpisah): subprocess dipalsukan; jalur nyata hanya bisa diuji di Windows + mesin."""
+    def _dev(self, **kw):
+        return AttendanceDevice.objects.create(code="FK1", name="FK", host="192.168.11.40", port=5005, protocol="fk", machine_no="12", **kw)
+
+    def test_fetch_filters_range_and_passes_machine_no(self):
+        import json, subprocess
+        from unittest import mock
+        seen = {}
+        def run(cmd, **kw):
+            seen["cmd"] = cmd
+            return subprocess.CompletedProcess(cmd, 0, json.dumps({"ok": True, "rows": [["101", "2026-10-28 07:01:02"], ["0", "2026-10-28 07:02:00"], ["102", "2026-09-01 07:00:00"]]}), "")
+        with mock.patch("subprocess.run", run):
+            taps, err = sy.fetch_device(self._dev(), date(2026, 10, 1), date(2026, 10, 30))
+        self.assertEqual((taps, err), ([("101", "2026-10-28 07:01:02")], ""))
+        self.assertEqual(seen["cmd"][seen["cmd"].index("--machine") + 1], "12")
+
+    def test_error_from_reader_is_clean(self):
+        import json, subprocess
+        from unittest import mock
+        run = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, json.dumps({"ok": False, "error": "FK_ConnectNet gagal"}), "")   # noqa: E731
+        with mock.patch("subprocess.run", run):
+            taps, err = sy.fetch_device(self._dev(), date(2026, 10, 1), date(2026, 10, 30))
+        self.assertEqual(taps, []); self.assertIn("FK_ConnectNet gagal", err)

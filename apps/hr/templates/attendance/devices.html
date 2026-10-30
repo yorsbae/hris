@@ -27,14 +27,19 @@
 .ih #jobdlg .jf{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--bd)}
 .ih .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--bd2);border-top-color:var(--ac);border-radius:50%;animation:jspin .8s linear infinite;vertical-align:-1px;margin-right:6px}
 @keyframes jspin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.ih .spin{animation:none}}
+.ih .wrap table{width:100%;min-width:760px}.ih .wrap th,.ih .wrap td{padding:10px 10px}
+.ih td.note2{max-width:260px}.ih td.note2 small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.ih td.nw,.ih td small.nw{white-space:nowrap}
+.ih details.idle{margin:0 0 14px;border:1px solid var(--bd);border-left:4px solid #c0392b;border-radius:var(--r);background:var(--card)}
+.ih details.idle>summary{padding:10px 14px;cursor:pointer;font-weight:600}.ih details.idle>p{margin:0;padding:0 14px 12px;color:var(--mu);font-size:13px;line-height:1.5}
+.ih .selbar{position:sticky;bottom:0;z-index:5;display:flex;gap:10px;align-items:center;padding:8px 12px;margin:8px 0 0;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);font-size:13px;color:var(--mu)}
 @media(max-width:700px){.ih .grid .w2{grid-column:auto}}
 </style>
 <div class="ih">
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Mesin &amp; Impor</h2>
 {% include "attendance/_mesin_tabs.html" with tab="mesin" %}
-{% if idle %}<div class="note warn" role="status"><strong>Mesin diam:</strong> {% for r in idle %}{{ r.d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}
-
+{% if idle %}<details class="idle"><summary>{{ idle|length }} mesin aktif tidak ada scan ≥ {{ idle_days }} hari</summary><p>{% for r in idle %}{{ r.d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p></details>{% endif %}
 
 <form method="post">{% csrf_token %}
 <div class="panel sync"><div><h3>Download scanlog dari mesin</h3><p class="sub" style="margin:0">Centang mesin di tabel, pilih cakupan data, lalu unduh.</p></div>
@@ -46,13 +51,13 @@
 <p class="help2" style="margin:0"><b>Data terbaru</b> = sejak scan terakhir yang tersimpan di HRIS (kolom “Tersimpan s/d”); mesin baru = semuanya. <b>Semua</b> = seluruh log di mesin. Scan yang sudah ada otomatis dilewati (tidak ganda); tarikan tanpa data baru tidak membuat riwayat.</p></div>
 
 <div class="hd"><h3>Mesin terdaftar</h3></div>
-<div class="wrap nosg"><table><thead><tr><th class="sel"><input type="checkbox" aria-label="Pilih semua" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th><th>Nama / Lokasi</th><th>Koneksi</th><th>Status</th><th class="num">Scan 30 hari</th><th>Tersimpan s/d</th><th>Tarikan terakhir</th><th class="acts">Aksi</th></tr></thead><tbody>
+<div class="wrap nosg"><table><thead><tr><th class="sel"><input type="checkbox" aria-label="Pilih semua" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked);window.selCnt&&selCnt()"></th><th>Nama / Lokasi</th><th>Koneksi</th><th>Status</th><th>Scan (30 hr)</th><th>Tarikan terakhir</th><th class="acts">Aksi</th></tr></thead><tbody>
 {% for r in rows %}<tr><td class="sel">{% if r.d.active %}<input class="pick" type="checkbox" name="ids" value="{{ r.d.pk }}" aria-label="Pilih {{ r.d.name }}"{% if r.d.sync_enabled and r.d.host %} checked{% endif %}>{% endif %}</td>
 <td><b>{{ r.d.name }}</b><small>{% if r.d.location %}{{ r.d.location }} · {% endif %}SN {{ r.d.serial|default:r.d.code }}{% if r.d.machine_no %} · No {{ r.d.machine_no }}{% endif %}</small></td><td>{{ r.d.get_connection_display|default:"-" }}<small>{% if r.d.host %}{{ r.d.host }}:{{ r.d.port }}{% else %}-{% endif %}{% if r.d.screen %} · Layar {{ r.d.screen }}{% endif %}</small></td>
-<td>{% if not r.d.active %}<span class="pill nonaktif">Nonaktif</span>{% elif r.idle %}<span class="pill rejected">Tidak ada scan</span>{% else %}<span class="pill approved">Aktif</span>{% endif %}</td><td class="num">{{ r.n }}</td><td class="nw">{{ r.last|date:"d M Y H:i"|default:"-" }}</td>
-<td>{% if r.d.last_sync_at %}<span class="pill {% if r.d.last_sync_ok %}approved{% else %}rejected{% endif %}">{% if r.d.last_sync_ok %}OK{% else %}Gagal{% endif %}</span><small>{{ r.d.last_sync_at|date:"d M H:i" }} · {{ r.d.last_sync_note }}</small>{% else %}-{% endif %}</td>
+<td>{% if not r.d.active %}<span class="pill nonaktif">Nonaktif</span>{% elif r.idle %}<span class="pill rejected">Tidak ada scan</span>{% else %}<span class="pill approved">Aktif</span>{% endif %}</td><td class="nw"><b>{{ r.n }}</b> scan<small class="nw">s/d {{ r.last|date:"d M Y H:i"|default:"-" }}</small></td>
+<td class="note2">{% if r.d.last_sync_at %}<span class="pill {% if r.d.last_sync_ok %}approved{% else %}rejected{% endif %}">{% if r.d.last_sync_ok %}OK{% else %}Gagal{% endif %}</span><small title="{{ r.d.last_sync_note }}">{{ r.d.last_sync_at|date:"d M H:i" }} · {{ r.d.last_sync_note }}</small>{% else %}-{% endif %}</td>
 <td class="acts"><button type="button" class="btn ghost sm tgl" data-ed="ed{{ r.d.pk }}" aria-expanded="false" aria-controls="ed{{ r.d.pk }}">Ubah</button></td></tr>
-<tr class="ed" id="ed{{ r.d.pk }}" hidden><td colspan="8">
+<tr class="ed" id="ed{{ r.d.pk }}" hidden><td colspan="7">
 <input type="hidden" form="e{{ r.d.pk }}" name="edit" value="1"><input type="hidden" form="e{{ r.d.pk }}" name="code" value="{{ r.d.code }}">
 <div class="grid">
 <label class="f w2">Nama<input form="e{{ r.d.pk }}" name="name" value="{{ r.d.name }}" required maxlength="80"></label><label class="f w2">Lokasi<input form="e{{ r.d.pk }}" name="location" value="{{ r.d.location }}" maxlength="100"></label>
@@ -62,7 +67,8 @@
 <label class="f w2">Kunci komunikasi<input form="e{{ r.d.pk }}" name="comm_key" placeholder="Kosong = tidak diubah" maxlength="100" autocomplete="off"></label><label class="f w2">Catatan<input form="e{{ r.d.pk }}" name="note" value="{{ r.d.note }}" maxlength="200"></label>
 <label class="f chk"><input form="e{{ r.d.pk }}" type="checkbox" name="active" value="1"{% if r.d.active %} checked{% endif %}>Aktif</label><label class="f chk"><input form="e{{ r.d.pk }}" type="checkbox" name="sync_enabled" value="1"{% if r.d.sync_enabled %} checked{% endif %}>Tarik otomatis</label></div>
 <div class="acts2"><button class="btn" type="submit" form="e{{ r.d.pk }}">Simpan</button><button class="btn ghost" type="button" data-ed-close="ed{{ r.d.pk }}">Batal</button></div></td></tr>
-{% empty %}<tr><td class="empty" colspan="8">Belum ada mesin. Impor daftar dari Fingerspot Personnel di bawah.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td class="empty" colspan="7">Belum ada mesin. Impor daftar dari Fingerspot Personnel di bawah.</td></tr>{% endfor %}</tbody></table></div>
+<div class="selbar" role="status"><b id="selcnt">0</b> mesin dicentang — pakai tombol Download scanlog di atas.</div>
 </form>
 {% for r in rows %}<form id="e{{ r.d.pk }}" method="post" hidden>{% csrf_token %}</form>{% endfor %}
 
@@ -80,6 +86,7 @@
 <dialog id="jobdlg" aria-labelledby="jobttl"><div class="jh"><h3 id="jobttl">Proses</h3><progress id="jobbar" value="0" max="1" aria-label="Kemajuan"></progress><p class="jsum" id="jobsum" role="status" aria-live="polite"></p></div><ul id="joblist"></ul>
 <div class="jf"><button type="button" class="btn ghost" id="jobcancel">Batalkan sisa antrean</button><button type="button" class="btn" id="jobclose" disabled>Tutup</button></div></dialog>
 <script>(function(){
+window.selCnt=function(){var e=document.getElementById('selcnt');if(e)e.textContent=document.querySelectorAll('.pick:checked').length};document.addEventListener('change',function(e){if(e.target.classList&&e.target.classList.contains('pick'))selCnt()});selCnt();
 var rng=document.getElementById('rng');function sync(){var m=document.querySelector('input[name=mode]:checked');rng.hidden=!(m&&m.value==='range')}
 document.querySelectorAll('input[name=mode]').forEach(function(r){r.addEventListener('change',sync)});sync();
 (function(){
