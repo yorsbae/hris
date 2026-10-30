@@ -158,7 +158,10 @@ class _Fk:
         except (OSError, subprocess.TimeoutExpired) as e: raise SyncError(f"Tidak dapat menjalankan pembaca FK ({type(e).__name__}: {e}). Periksa ATTENDANCE_FK_PYTHON32.")
         try: js = json.loads(r.stdout.strip().splitlines()[-1])
         except (ValueError, IndexError): raise SyncError(f"Pembaca FK gagal: {(r.stderr or r.stdout or 'tanpa keluaran')[-200:]}")
-        if not js.get("ok"): raise SyncError(js.get("error", "FK gagal."))
+        if not js.get("ok"):
+            msg = js.get("error", "FK gagal.")
+            if not getattr(settings, "ATTENDANCE_FK_PYTHON32", ""): msg += " [ATTENDANCE_FK_PYTHON32 kosong di server ini — pastikan ada di .env lalu RESTART runserver (.env hanya dibaca saat start)]"
+            raise SyncError(msg)
         return js
     def fetch(self, d1, d2):
         out = []
@@ -359,9 +362,9 @@ def _numstr(v):
     return str(int(f)) if f == int(f) else v
 
 
-def import_machine_list(raw, filename="paste.txt", protocol="zk", port=4370):
+def import_machine_list(raw, filename="paste.txt", protocol="zk", port=4370, set_protocol=False):
     """Salin tabel Mesin dari Fingerspot Personnel (atau Export-nya) → master mesin. Kode mesin = SN. Mesin yang sudah ada (SN sama) hanya diperbarui nama/IP/dll,
-    kunci komunikasi & status tidak diubah. → (dibuat, diperbarui, daftar peringatan)."""
+    kunci komunikasi & status tidak diubah (protokol ikut diubah hanya bila set_protocol=True). → (dibuat, diperbarui, daftar peringatan)."""
     grid = imp.read_grid(raw, filename); cols = None; made = upd = 0; warn = []
     for r in grid:
         cells = [str(c).strip() if c is not None else "" for c in r]
@@ -378,6 +381,7 @@ def import_machine_list(raw, filename="paste.txt", protocol="zk", port=4370):
         d.name = (g("name") or d.name)[:80]; d.serial = sn; d.machine_no = _numstr(g("machine_no"))[:10]; d.screen = g("screen")[:10]
         if g("connection") in dict(AttendanceDevice.CONNECTIONS): d.connection = g("connection")
         if host_ok: d.host = host
+        if set_protocol and not created: d.protocol = protocol
         if created: d.sync_enabled = host_ok
         d.save(); made += created; upd += not created
     if not cols: raise ValueError("Kolom tidak dikenali. Butuh minimal kolom 'SN' dan 'IP Address / URL' (salin tabel dari Fingerspot Personnel termasuk judul kolom).")

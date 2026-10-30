@@ -16,7 +16,7 @@ def main():
     a.add_argument("--new", action="store_true", help="hanya scan yang belum pernah dibaca (nReadMark=1)"); a.add_argument("--probe", action="store_true")
     a = a.parse_args()
     if os.name != "nt": out(ok=False, error="FKAttend.dll hanya berjalan di Windows.")
-    if ctypes.sizeof(ctypes.c_void_p) != 4: out(ok=False, error="Perlu Python 32-bit (FKAttend.dll 32-bit). Set FKATTEND_PYTHON32 ke python.exe 32-bit.")
+    if ctypes.sizeof(ctypes.c_void_p) != 4: out(ok=False, error=f"Python yang dipakai: {sys.executable} ({8 * ctypes.sizeof(ctypes.c_void_p)}-bit). Perlu Python 32-bit (FKAttend.dll 32-bit). Pasang Python 32-bit (installer 'Windows installer (32-bit)') di folder terpisah, lalu set ATTENDANCE_FK_PYTHON32 di .env ke python.exe 32-bit tersebut (bukan Python 64-bit/venv).")
     try:
         os.add_dll_directory(os.path.dirname(os.path.abspath(a.dll))) if hasattr(os, "add_dll_directory") else None
         dll = ctypes.WinDLL(a.dll)

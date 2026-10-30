@@ -329,3 +329,29 @@ class FkDriverTests(TestCase):
         with mock.patch("subprocess.run", run):
             taps, err = sy.fetch_device(self._dev(), date(2026, 10, 1), date(2026, 10, 30))
         self.assertEqual(taps, []); self.assertIn("FK_ConnectNet gagal", err)
+
+
+class ProtocolReimportTests(TestCase):
+    def test_import_mesin_switches_existing_devices_to_fk(self):
+        AttendanceDevice.objects.create(code="FIO616202022322344", name="POLISI", host="192.168.10.36", protocol="zk", port=5005)
+        call_command("import_mesin", verbosity=0)
+        self.assertEqual(AttendanceDevice.objects.get(code="FIO616202022322344").protocol, "fk")
+
+
+class DevicesPageLayoutTests(TestCase):
+    def test_footer_stays_inside_main_column(self):
+        """Regresi: </div> berlebih di halaman Mesin pernah menutup .col lebih awal → footer jatuh ke samping konten & halaman menyempit."""
+        from django.contrib.auth import get_user_model
+        from html.parser import HTMLParser
+        self.client.force_login(get_user_model().objects.create_superuser("adm", "a@a.a", "pw"))
+        class P(HTMLParser):
+            def __init__(s): super().__init__(); s.st = []; s.foot = None
+            def handle_starttag(s, t, a):
+                if t in ("meta", "link", "br", "img", "input", "hr", "use", "path", "source", "col"): return
+                if t == "footer": s.foot = [c for _, c in s.st]
+                s.st.append((t, dict(a).get("class") or ""))
+            def handle_endtag(s, t):
+                for i in range(len(s.st) - 1, -1, -1):
+                    if s.st[i][0] == t: del s.st[i:]; return
+        p = P(); p.feed(self.client.get("/absensi/mesin/").content.decode())
+        self.assertIn("col", p.foot or [])
