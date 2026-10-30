@@ -1,4 +1,5 @@
 import json, threading
+from unittest import mock
 from datetime import date
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from django.core.management import call_command
@@ -310,25 +311,66 @@ class FkDriverTests(TestCase):
     def _dev(self, **kw):
         return AttendanceDevice.objects.create(code="FK1", name="FK", host="192.168.11.40", port=5005, protocol="fk", machine_no="12", **kw)
 
+    def _fake(self, lines, seen=None, rc=0, delay=0):
+        def _exec(inst, cmd, on_line, limit):
+            if seen is not None: seen["cmd"] = cmd; seen["limit"] = limit
+            for ln in lines: on_line(json.dumps(ln) + "\n")
+            return rc, ""
+        return mock.patch.object(sy._Fk, "_exec", _exec)
+
     def test_fetch_filters_range_and_passes_machine_no(self):
-        import json, subprocess
-        from unittest import mock
         seen = {}
-        def run(cmd, **kw):
-            seen["cmd"] = cmd
-            return subprocess.CompletedProcess(cmd, 0, json.dumps({"ok": True, "rows": [["101", "2026-10-28 07:01:02"], ["0", "2026-10-28 07:02:00"], ["102", "2026-09-01 07:00:00"]]}), "")
-        with mock.patch("subprocess.run", run):
+        rows = [["101", "2026-10-28 07:01:02"], ["0", "2026-10-28 07:02:00"], ["102", "2026-09-01 07:00:00"]]
+        with self._fake([{"p": 15, "stage": "load"}, {"ok": True, "rows": rows}], seen):
             taps, err = sy.fetch_device(self._dev(), date(2026, 10, 1), date(2026, 10, 30))
         self.assertEqual((taps, err), ([("101", "2026-10-28 07:01:02")], ""))
-        self.assertEqual(seen["cmd"][seen["cmd"].index("--machine") + 1], "12")
+        self.assertEqual(seen["cmd"][seen["cmd"].index("--machine") + 1], "12"); self.assertGreaterEqual(seen["limit"], 600)   # batas baca jauh di atas 120 dtk lama
 
     def test_error_from_reader_is_clean(self):
-        import json, subprocess
-        from unittest import mock
-        run = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, json.dumps({"ok": False, "error": "FK_ConnectNet gagal"}), "")   # noqa: E731
-        with mock.patch("subprocess.run", run):
+        with self._fake([{"ok": False, "error": "FK_ConnectNet gagal"}], rc=1):
             taps, err = sy.fetch_device(self._dev(), date(2026, 10, 1), date(2026, 10, 30))
         self.assertEqual(taps, []); self.assertIn("FK_ConnectNet gagal", err)
+
+    def test_timeout_reports_stage_where_it_hung(self):
+        import time
+        with mock.patch.object(sy.settings, "ATTENDANCE_FK_TIMEOUT", 0, create=True), self._fake([{"p": 15, "stage": "load", "n": 0}, {"p": 40, "stage": "read", "n": 4000}]):
+            taps, err = sy.fetch_device(self._dev(), date(2026, 10, 1), date(2026, 10, 30))
+        self.assertEqual(taps, []); self.assertIn("tahap 'read'", err); self.assertIn("4000 scan", err); self.assertIn("ATTENDANCE_FK_TIMEOUT", err)
+
+    def test_progress_published_for_job(self):
+        from django.core.cache import cache
+        d = self._dev(); cache.clear(); seen = []
+        orig = sy.set_progress
+        with self._fake([{"p": 15, "stage": "load"}, {"p": 60, "stage": "read", "n": 4000}, {"ok": True, "rows": [["101", "2026-10-28 07:01:02"]]}]), \
+                mock.patch.object(sy, "set_progress", lambda pct, note="": (seen.append(pct), orig(pct, note))), mock.patch.object(sy, "check_host"):
+            r = sy.run_action(d, "sync", mode="all", job="abc-123")
+        self.assertTrue(r["ok"]); self.assertEqual(sy.get_progress("abc-123", d.pk)["pct"], 100); self.assertEqual(seen, sorted(seen))   # naik terus, berakhir 100
+        self.assertIn(88, seen); self.assertTrue(any(0 < x < 85 for x in seen))
+
+    def test_users_on_fk_explain_what_is_missing(self):
+        d = self._dev()
+        with mock.patch.object(sy, "check_host"):
+            for r in (sy.download_users(d), sy.upload_users(d)):
+                self.assertFalse(r["ok"]); self.assertIn("--exports", r["note"])
+
+    def test_exec_streams_lines_and_kills_at_limit(self):
+        import sys, time
+        slow = "print('{\"p\": 5}'); import time; time.sleep(30)"; fast = "print('{\"ok\": true}')"
+        got = []; t = time.time(); fk = sy._Fk(self._dev())
+        rc, _ = fk._exec([sys.executable, "-u", "-c", slow], got.append, 1)
+        self.assertLess(time.time() - t, 10); self.assertEqual(got, ['{"p": 5}\n']); self.assertNotEqual(rc, 0)      # baris terbaca & proses dibunuh setelah batas
+        got.clear(); rc, _ = fk._exec([sys.executable, "-c", fast], got.append, 30); self.assertEqual((rc, got), (0, ['{"ok": true}\n']))
+
+
+class ProgressEndpointTests(TestCase):
+    def test_endpoint_requires_login_and_validates(self):
+        from django.contrib.auth import get_user_model
+        from django.core.cache import cache
+        url = reverse("att_device_progress"); self.assertEqual(self.client.get(url, {"job": "a1", "id": "1"}).status_code, 302)
+        u = get_user_model().objects.create_superuser("p", "p@x.id", "pw"); self.client.force_login(u)
+        self.assertEqual(self.client.get(url, {"job": "../x", "id": "1"}).status_code, 400)
+        cache.set(sy.progress_key("a1", 1), {"pct": 42, "note": "Membaca scan"}); j = self.client.get(url, {"job": "a1", "id": "1"}).json()
+        self.assertEqual((j["pct"], j["note"]), (42, "Membaca scan")); self.assertEqual(self.client.get(url, {"job": "zz", "id": "1"}).json()["pct"], 0)
 
 
 class ProtocolReimportTests(TestCase):

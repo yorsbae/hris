@@ -338,10 +338,20 @@ def device_job(request):
         d1 = date.fromisoformat(p["from"]) if p.get("from") else None; d2 = date.fromisoformat(p["to"]) if p.get("to") else None
         if act == "sync" and mode == "range" and not (d1 or d2): raise ValueError("Isi tanggal Dari/Sampai untuk mode rentang.")
     except ValueError as e: return JsonResponse({"ok": False, "note": f"Gagal: {e}"}, status=400)
-    res = sy.run_action(dev, act, mode=mode, d1=d1, d2=d2, pins=_pins(p.get("pins")), fingerprints=p.get("fingerprints", "1") == "1")
+    job = p.get("job", "")[:40] if p.get("job", "").replace("-", "").isalnum() else None
+    res = sy.run_action(dev, act, mode=mode, d1=d1, d2=d2, pins=_pins(p.get("pins")), fingerprints=p.get("fingerprints", "1") == "1", job=job)
     log(request, "hr", "attendance_device_" + act, dev, None, {k: res.get(k) for k in ("ok", "new", "users", "fingers", "failed", "skipped") if k in res})
     return JsonResponse({"device": dev.code, "name": dev.name, "ok": bool(res.get("ok")), "note": res.get("note", ""),
                          **{k: res[k] for k in ("new", "dup", "fetched", "users", "updated", "fingers", "failed", "skipped") if k in res}})
+
+
+@hrd
+def device_progress(request):
+    """Kemajuan 0-100% satu pekerjaan/mesin (dipoll popup tiap detik). Catatan: kemajuan disimpan di cache Django — bila server memakai banyak proses, set REDIS_URL agar cache dipakai bersama."""
+    from . import attendance_sync as sy
+    job = request.GET.get("job", "")[:40]; dev = request.GET.get("id", "")
+    if not job.replace("-", "").isalnum() or not dev.isdigit(): return JsonResponse({"pct": 0, "note": ""}, status=400)
+    return JsonResponse(sy.get_progress(job, int(dev)))
 
 
 @hrd

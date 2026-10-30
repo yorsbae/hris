@@ -22,6 +22,8 @@ PERSONALIA_SIGNER_TITLE = env("PERSONALIA_SIGNER_TITLE", default="Kabag Personal
 POLI_BPJS_COMPANY_PCT = env.int("POLI_BPJS_COMPANY_PCT", default=75)
 APP_VERSION = "1.1.0"
 ATTENDANCE_FK_DLL = env("ATTENDANCE_FK_DLL", default="")  # jalur FKAttend.dll (bawaan: C:\\Program Files (x86)\\Fingerspot Personnel\\FKAttend.dll)
+ATTENDANCE_FK_TIMEOUT = env.int("ATTENDANCE_FK_TIMEOUT", default=900)  # detik maksimal membaca satu mesin FK (log besar bisa lama; bawaan lama = 120)
+ATTENDANCE_FK_NO_DISABLE = env.bool("ATTENDANCE_FK_NO_DISABLE", default=False)  # True = jangan kunci mesin saat membaca (bila firmware macet di tahap 'disable')
 ATTENDANCE_FK_PYTHON32 = env("ATTENDANCE_FK_PYTHON32", default="")  # python.exe 32-bit untuk memuat DLL 32-bit; kosong = Python yang sedang jalan
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")  # enkripsi kolom sensitif; lihat apps/core/crypto.py
 DEBUG = env.bool("DJANGO_DEBUG", False)

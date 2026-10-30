@@ -20,6 +20,28 @@ MAX_PAGES = 200
 class SyncError(Exception): pass
 
 
+# ---- kemajuan 0-100% per mesin: disimpan di cache (kunci job+mesin), dibaca popup lewat device_progress ----
+import threading
+_ctx = threading.local()
+
+
+def progress_key(job, dev_id): return f"attjob:{job}:{dev_id}"
+
+
+def set_progress(pct, note=""):
+    """Laporkan kemajuan pekerjaan yang sedang berjalan (no-op bila tidak dijalankan dari popup)."""
+    k = getattr(_ctx, "key", None)
+    if not k: return
+    from django.core.cache import cache
+    try: cache.set(k, {"pct": max(0, min(100, int(pct))), "note": note}, 600)
+    except Exception: pass                                                       # cache bermasalah tidak boleh menggagalkan unduhan
+
+
+def get_progress(job, dev_id):
+    from django.core.cache import cache
+    return cache.get(progress_key(job, dev_id)) or {"pct": 0, "note": ""}
+
+
 def check_host(host):
     """Hanya IP/hostname yang resolve ke alamat privat/loopback/link-local (jaringan lokal)."""
     host = (host or "").strip()
@@ -116,8 +138,8 @@ class _Zk:
         def f(c):
             have = {str(u.user_id).strip(): u.uid for u in (c.get_users() or [])}; used = set(have.values())
             nxt = 1; sent = fps = skipped = 0; bad = []; ver = _fpver(c)
-            for it in items:
-                n0 = len(it["fingers"])
+            for i, it in enumerate(items):
+                set_progress(10 + 85 * i / max(len(items), 1), f"Mengirim user {i + 1} dari {len(items)}"); n0 = len(it["fingers"])
                 it = dict(it, fingers=[x for x in it["fingers"] if not (ver and x[3] and x[3] != ver)]); skipped += n0 - len(it["fingers"])
                 uid = have.get(it["pin"])
                 if uid is None:
@@ -144,28 +166,58 @@ class _Fk:
     DLL 32-bit/Windows → dijalankan sebagai proses terpisah (apps/hr/fk/fk_dump.py) dengan Python 32-bit.
     Pengaturan: ATTENDANCE_FK_DLL (jalur FKAttend.dll), ATTENDANCE_FK_PYTHON32 (python.exe 32-bit; bawaan = Python yang sedang jalan)."""
     def __init__(self, dev): self.dev = dev
-    def _call(self, *extra):
-        import subprocess, sys
+    STAGES = {"connect": "Menghubungi mesin", "disable": "Mengunci mesin", "load": "Mesin menyiapkan log (bisa lama bila log besar)", "read": "Membaca scan"}
+
+    def _exec(self, cmd, on_line, limit):
+        """Jalankan pembaca; setiap baris keluarannya diteruskan ke on_line. Dihentikan paksa setelah `limit` detik. → (returncode, stderr). Dipisah agar mudah dipalsukan di tes."""
+        import subprocess, threading
+        pr = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+        err = []; rd = threading.Thread(target=lambda: err.append(pr.stderr.read()), daemon=True); rd.start()
+        timer = threading.Timer(limit, pr.kill); timer.start()
+        try:
+            for ln in pr.stdout: on_line(ln)
+            rc = pr.wait()
+        finally:
+            timer.cancel()
+            if pr.poll() is None: pr.kill()
+        rd.join(2); return rc, "".join(err)
+
+    def _call(self, *extra, base=0, span=100):
+        import sys, time
         from pathlib import Path
         dll = getattr(settings, "ATTENDANCE_FK_DLL", "") or r"C:\Program Files (x86)\Fingerspot Personnel\FKAttend.dll"
         py = getattr(settings, "ATTENDANCE_FK_PYTHON32", "") or sys.executable
+        limit = getattr(settings, "ATTENDANCE_FK_TIMEOUT", 900)
         try: pw = int(self.dev.comm_key or 0)
         except ValueError: raise SyncError("Kunci komunikasi mesin harus angka (bawaan 0).")
         try: no = int(self.dev.machine_no or 1)
         except ValueError: raise SyncError("No Mesin harus angka (lihat kolom No Mesin di Fingerspot Personnel).")
         cmd = [py, str(Path(__file__).parent / "fk" / "fk_dump.py"), "--dll", dll, "--ip", self.dev.host, "--port", str(self.dev.port), "--machine", str(no), "--key", str(pw), *extra]
-        try: r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT * 8)
-        except (OSError, subprocess.TimeoutExpired) as e: raise SyncError(f"Tidak dapat menjalankan pembaca FK ({type(e).__name__}: {e}). Periksa ATTENDANCE_FK_PYTHON32.")
-        try: js = json.loads(r.stdout.strip().splitlines()[-1])
-        except (ValueError, IndexError): raise SyncError(f"Pembaca FK gagal: {(r.stderr or r.stdout or 'tanpa keluaran')[-200:]}")
-        if not js.get("ok"):
-            msg = js.get("error", "FK gagal.")
+        if getattr(settings, "ATTENDANCE_FK_NO_DISABLE", False): cmd.append("--no-disable")
+        last = {}; final = {}; t0 = time.time()
+        def on_line(ln):
+            try: j = json.loads(ln)
+            except ValueError: return
+            if not isinstance(j, dict): return
+            if "ok" in j: final.update(j); return
+            last.update(j); st = self.STAGES.get(j.get("stage"), "")
+            set_progress(base + span * j.get("p", 0) / 100, st + (f" · {j['n']:,} scan".replace(",", ".") if j.get("n") else ""))
+        try: rc, stderr = self._exec(cmd, on_line, limit)
+        except OSError as e: raise SyncError(f"Tidak dapat menjalankan pembaca FK ({type(e).__name__}: {e}). Periksa ATTENDANCE_FK_PYTHON32.")
+        if not final and time.time() - t0 >= limit - 1:
+            raise SyncError(f"Pembaca FK dihentikan setelah {limit} detik pada tahap '{last.get('stage', '?')}'"
+                            f"{' (' + str(last['n']) + ' scan terbaca)' if last.get('n') else ''}. "
+                            "Tahap 'load' = mesin lambat menyiapkan log: coba unduh 'Sejak scan terakhir' atau naikkan ATTENDANCE_FK_TIMEOUT di .env. "
+                            "Tahap 'disable' = firmware macet saat dikunci: set ATTENDANCE_FK_NO_DISABLE=1. Tahap 'connect' = periksa No Mesin/kunci komunikasi.")
+        if not final: raise SyncError(f"Pembaca FK gagal: {(stderr or 'tanpa keluaran')[-200:]}")
+        if not final.get("ok"):
+            msg = final.get("error", "FK gagal.")
             if not getattr(settings, "ATTENDANCE_FK_PYTHON32", ""): msg += " [ATTENDANCE_FK_PYTHON32 kosong di server ini — pastikan ada di .env lalu RESTART runserver (.env hanya dibaca saat start)]"
             raise SyncError(msg)
-        return js
+        return final
     def fetch(self, d1, d2):
         out = []
-        for pin, at in self._call()["rows"]:
+        for pin, at in self._call(span=85)["rows"]:
             try: t = datetime.strptime(at, "%Y-%m-%d %H:%M:%S")
             except ValueError: continue
             if pin and pin != "0" and d1 <= t.date() <= d2: out.append((pin, at))
@@ -253,7 +305,9 @@ def window(dev, mode="latest", d1=None, d2=None):
 
 
 def sync_device(dev, d1=None, d2=None, commit=True, mode="latest"):
-    a, b = window(dev, mode, d1, d2); taps, err = fetch_device(dev, a, b); return ingest(dev, taps, err, commit, window=(a, b))
+    set_progress(1, "Memulai"); a, b = window(dev, mode, d1, d2); taps, err = fetch_device(dev, a, b)
+    set_progress(88, f"{len(taps):,} scan diterima · menyimpan ke HRIS".replace(",", ".")) if not err else None
+    r = ingest(dev, taps, err, commit, window=(a, b)); set_progress(100, "Selesai" if r["ok"] else "Gagal"); return r
 
 
 def sync_many(devs, d1=None, d2=None, commit=True, workers=8, mode="latest"):
@@ -273,7 +327,8 @@ def _clean(v, n): return str(v if v is not None else "").replace("\x00", "").str
 
 def _zk_only(dev):
     check_host(dev.host)
-    if dev.protocol != "zk": raise SyncError("Download/Upload user hanya untuk protokol ZK (TCP); protokol FK/EasyLink belum mendukung user & sidik jari (scanlog saja).")
+    if dev.protocol == "fk": raise SyncError("Mesin ini berprotokol FK (FKAttend.dll): scanlog sudah didukung, tetapi Download/Upload user & sidik jari BELUM — butuh tanda tangan fungsi FK_*User* dari DLL. Jalankan: python32 apps/hr/fk/fk_dump.py --dll <FKAttend.dll> --exports, lalu kirim hasilnya agar dukungan dapat ditambahkan. Sementara itu, kelola user lewat Fingerspot Personnel.")
+    if dev.protocol != "zk": raise SyncError("Download/Upload user hanya untuk protokol ZK (TCP); protokol EasyLink belum mendukung user & sidik jari (scanlog saja).")
 
 
 def download_users(dev):
@@ -283,7 +338,7 @@ def download_users(dev):
     from .models import DeviceFingerprint, DeviceUser
     out = {"device": dev.code, "ok": False, "users": 0, "new": 0, "updated": 0, "fingers": 0, "note": ""}
     try:
-        _zk_only(dev); users, fingers, fp_err, ver = _Zk(dev).users_down()
+        _zk_only(dev); set_progress(10, "Menghubungi mesin & membaca user · sidik jari"); users, fingers, fp_err, ver = _Zk(dev).users_down(); set_progress(60, f"{len(users)} user terbaca · menyimpan ke HRIS")
     except SyncError as e: out["note"] = str(e); return out
     by_uid = {}; new = upd = nfp = 0
     with transaction.atomic():
@@ -305,7 +360,7 @@ def download_users(dev):
                                                                                                    "fp_version": ver, "source_device": dev.code})
             if not made and fp.template != tpl: fp.template, fp.valid, fp.fp_version, fp.source_device = tpl, int(f.valid or 1), ver, dev.code; fp.save()
             nfp += 1
-    out.update(ok=True, users=len(by_uid), new=new, updated=upd, fingers=nfp)
+    set_progress(100, "Selesai"); out.update(ok=True, users=len(by_uid), new=new, updated=upd, fingers=nfp)
     out["note"] = (f"{len(by_uid)} user dibaca ({new} baru, {upd} diperbarui), {nfp} sidik jari." + (f" Algoritma sidik jari v{ver}." if ver and nfp else "")
                    + (f" Sidik jari tidak terbaca: {fp_err}" if fp_err else ""))
     return out
@@ -315,6 +370,8 @@ def upload_users(dev, pins=None, fingerprints=True):
     """Kirim user (+ sidik jari) tersimpan di HRIS ke mesin. pins = daftar PIN (None/kosong = semua). Tidak menghapus user yang sudah ada di mesin."""
     from .models import DeviceUser
     out = {"device": dev.code, "ok": False, "users": 0, "fingers": 0, "failed": 0, "note": ""}
+    try: _zk_only(dev)                                                      # protokol dulu: mesin FK/EasyLink tidak perlu diberi tahu "belum ada user"
+    except SyncError as e: out["note"] = str(e); return out
     qs = DeviceUser.objects.prefetch_related("fingers")
     if pins: qs = qs.filter(pin__in=pins)
     items = [{"pin": u.pin, "name": u.name, "privilege": u.privilege, "password": u.password or "", "group_id": u.group_id, "card": u.card,
@@ -322,7 +379,7 @@ def upload_users(dev, pins=None, fingerprints=True):
     if not items:
         out["note"] = "Belum ada user tersimpan di HRIS" + (" untuk PIN tersebut." if pins else ". Lakukan Download user dari mesin lebih dulu.")
         return out
-    try: _zk_only(dev); sent, fps, bad, skip = _Zk(dev).users_up(items)
+    try: _zk_only(dev); set_progress(5, "Menghubungi mesin"); sent, fps, bad, skip = _Zk(dev).users_up(items)
     except SyncError as e: out["note"] = str(e); return out
     out.update(ok=not bad or sent > 0, users=sent, fingers=fps, failed=len(bad), skipped=skip)
     note = f"{sent} dari {len(items)} user dikirim, {fps} sidik jari."
@@ -330,19 +387,22 @@ def upload_users(dev, pins=None, fingerprints=True):
     if bad: note += f" {len(bad)} gagal: " + "; ".join(bad[:3])
     out["note"] = note
     if not sent: out["ok"] = False
-    return out
+    set_progress(100, "Selesai" if out["ok"] else "Gagal"); return out
 
 
 ACTIONS = ("sync", "test", "users_down", "users_up")
 
 
-def run_action(dev, action, mode="latest", d1=None, d2=None, pins=None, fingerprints=True):
-    """Satu aksi untuk SATU mesin (dipanggil per mesin oleh popup progres)."""
-    if action == "sync": return sync_device(dev, d1, d2, mode=mode)
-    if action == "test": return probe(dev)
-    if action == "users_down": return download_users(dev)
-    if action == "users_up": return upload_users(dev, pins, fingerprints)
-    raise ValueError("Aksi tidak dikenal.")
+def run_action(dev, action, mode="latest", d1=None, d2=None, pins=None, fingerprints=True, job=None):
+    """Satu aksi untuk SATU mesin (dipanggil per mesin oleh popup progres). job = id pekerjaan dari popup → kemajuan 0-100% dibaca lewat get_progress."""
+    _ctx.key = progress_key(job, dev.pk) if job else None
+    try:
+        if action == "sync": return sync_device(dev, d1, d2, mode=mode)
+        if action == "test": set_progress(10, "Menguji koneksi"); r = probe(dev); set_progress(100, "Selesai"); return r
+        if action == "users_down": return download_users(dev)
+        if action == "users_up": return upload_users(dev, pins, fingerprints)
+        raise ValueError("Aksi tidak dikenal.")
+    finally: _ctx.key = None
 
 
 def probe_many(devs, workers=8):
