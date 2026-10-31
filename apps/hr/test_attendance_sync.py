@@ -321,7 +321,12 @@ class ApplyPortsTests(TestCase):
 class FkReadLogsTests(TestCase):
     """read_logs memakai DLL palsu: jalur numerik, jalur ID teks (PIN 0 → muat ulang + StringID), dan penghitungan rekaman yang dibuang."""
     class Dll:
-        def __init__(self, numeric, texts): self.numeric, self.texts, self.loads, self.i = list(numeric), list(texts), 0, 0; self.FK_GetGeneralLogData_StringID = lambda h, sbuf, *refs: self._str(h, sbuf, *refs)      # fungsi biasa agar boleh diberi .argtypes seperti fungsi DLL
+        def __init__(self, numeric, texts): self.numeric, self.texts, self.loads, self.i = list(numeric), list(texts), 0, 0; self.FK_GetGeneralLogData_StringID = self._strfn(10)      # fungsi biasa (boleh diberi .argtypes); meniru stdcall: salah jumlah argumen → ValueError seperti ctypes
+        def _strfn(self, n):
+            def fn(*a):
+                if len(a) > n: raise ValueError(f"Procedure probably called with too many arguments ({4 * (len(a) - n)} bytes in excess)")
+                return self._str(*a)
+            return fn
         def FK_LoadGeneralLogData(self, h, m): self.loads += 1; self.i = 0; return 1
         def FK_GetLastError(self, h): return 0
         def _set(self, refs, vals):
@@ -347,6 +352,27 @@ class FkReadLogsTests(TestCase):
         with mock.patch.object(fk_dump, "_line", lambda d: sent.append(d)), self.assertRaises(SystemExit):
             fk_dump.diag(dll, 5, SimpleNamespace(machine=3))
         d = sent[-1]; self.assertTrue(d["ok"]); self.assertEqual(d["diag"]["machine"], 3); self.assertEqual(d["diag"]["load"]["nReadMark=0"]["first_reads"][0]["ret"], 0)
+
+    def test_text_id_machine_where_numeric_reader_returns_nothing(self):
+        """Mesin ber-ID teks yang fungsi numeriknya GAGAL (bukan PIN 0): dulu 'OK 0 scan'; kini dimuat ulang & dibaca lewat StringID."""
+        dll = self.Dll([], [("A101", (1, 0, 2026, 10, 28, 7, 1, 2)), ("A102", (1, 0, 2026, 10, 28, 8, 0, 0))])
+        st, rows = self._run(dll)
+        self.assertEqual(rows, [["A101", "2026-10-28 07:01:02"], ["A102", "2026-10-28 08:00:00"]]); self.assertTrue(st["stringid"]); self.assertTrue(st["numeric_empty"]); self.assertEqual((dll.loads, st["str_argc"]), (1, 10))
+
+    def test_stringid_not_used_when_argument_count_unproven(self):
+        dll = self.Dll([], [("A101", (1, 0, 2026, 10, 28, 7, 1, 2))]); dll.FK_GetGeneralLogData_StringID = dll._strfn(9)        # DLL punya 9 argumen: bukan tata letak yang kita kenal
+        st, rows = self._run(dll); self.assertEqual((rows, st["raw"], st["str_argc"], st["stringid"]), ([], 0, 9, False)); self.assertEqual(dll.loads, 0)
+        from apps.hr.attendance_sync import _Fk
+        with mock.patch.object(_Fk, "_exec", lambda inst, cmd, on_line, limit: (on_line(json.dumps(dict(ok=True, count=0, raw=0, first_err=7, str_argc=9, probe={"status": {"1": 3}})) + "\n"), (0, ""))[1]):
+            taps, err = sy.fetch_device(AttendanceDevice.objects.create(code="FKZ", name="Z", host="192.168.11.40", port=5005, protocol="fk", machine_no="3"), date(2026, 10, 1), date(2026, 10, 30))
+        self.assertEqual(taps, []); self.assertIn("argc=9", err); self.assertIn("kode galat DLL 7", err); self.assertIn("'status'", err)
+
+    def test_heartbeat_progress_creeps_during_load_only(self):
+        from apps.hr.fk import fk_dump as f
+        st = {"p": 15, "stage": "load", "n": 0, "ts": 1000.0}
+        a = f.hb_line(st, 1005.0, 990.0); b = f.hb_line(st, 1600.0, 990.0); c = f.hb_line(st, 99999.0, 990.0)
+        self.assertGreater(a["p"], 15); self.assertGreater(b["p"], a["p"]); self.assertLess(c["p"], 29.0001); self.assertEqual((a["hb"], a["est"], "ts" in a), (1, 1, False))   # merayap pelan, tidak pernah masuk rentang 'read' (30+)
+        r = f.hb_line({"p": 60, "stage": "read", "n": 4000, "ts": 1000.0}, 1100.0, 990.0); self.assertEqual((r["p"], "est" in r), (60, False))
 
     def test_numeric_ids(self):
         st, rows = self._run(self.Dll([(101, 1, 0, 2026, 10, 28, 7, 1, 2), (0, 1, 0, 2026, 10, 28, 8, 0, 0), (102, 1, 0, 26, 13, 40, 8, 0, 0), (102, 1, 0, 26, 10, 28, 9, 0, 0)], []))

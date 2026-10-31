@@ -25,14 +25,23 @@ def _line(d):
 
 def prog(p=None, stage=None, n=None):
     if p is not None: _ST["p"] = p
-    if stage is not None: _ST["stage"] = stage
+    if stage is not None:
+        if stage != _ST.get("stage"): _ST["ts"] = time.time()
+        _ST["stage"] = stage
     if n is not None: _ST["n"] = n
-    _line(dict(_ST, t=round(time.time() - _T0, 1)))
+    _line({k: v for k, v in _ST.items() if k != "ts"} | {"t": round(time.time() - _T0, 1)})
+
+
+def hb_line(st, now, t0):
+    """Satu detak. Saat tahap 'load' (satu panggilan DLL tanpa laporan kemajuan) persen merayap pelan 15→29 supaya tidak tampak macet; ini PERKIRAAN WAKTU, bukan kemajuan mesin."""
+    d = {k: v for k, v in st.items() if k != "ts"}; d.update(t=round(now - t0, 1), hb=1)
+    if st.get("stage") == "load" and st.get("ts"): d["p"] = round(max(st["p"], 15 + 14 * (1 - math.exp(-(now - st["ts"]) / 240))), 1); d["est"] = 1
+    return d
 
 
 def _heartbeat():
     while True:
-        time.sleep(5); _line(dict(_ST, t=round(time.time() - _T0, 1), hb=1))     # ctypes melepas GIL saat DLL menunggu → detak tetap jalan
+        time.sleep(5); _line(hb_line(_ST, time.time(), _T0))     # ctypes melepas GIL saat DLL menunggu → detak tetap jalan
 
 
 BATCH = 5000; CAP = 2_000_000                                                     # CAP: pengaman memori; bila tercapai → truncated=true (HRIS menolak hasil terpotong)
@@ -198,14 +207,32 @@ def bydate_test(a):
         petunjuk=(f"Set ATTENDANCE_FK_BYDATE={rec} di .env lalu restart." if rec else "Tidak ada kandidat yang cocok+lebih cepat: tetap pakai pembacaan penuh (jangan set ATTENDANCE_FK_BYDATE)."))
 
 
+def probe_info(dll, h):
+    """Keadaan mesin untuk diagnosis (BACA SAJA): 'mendukung ID teks' + nilai status 1..12. Hanya memanggil fungsi yang jumlah argumennya terbukti cocok."""
+    I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); v = I(); info = {}
+    for name, n in (("FK_GetLogDataIsSupportStringID", 2), ("FK_GetIsSupportStringID", 2)):
+        try:
+            if argc(dll, name) == n: fn = getattr(dll, name); fn.argtypes = [I, P]; fn.restype = I; r = fn(h, ctypes.byref(v)); info[name] = [r, v.value]
+        except Exception as e: info[name] = f"{type(e).__name__}"
+    try:
+        if argc(dll, "FK_GetDeviceStatus") == 3:
+            fn = dll.FK_GetDeviceStatus; fn.argtypes = [I, I, P]; fn.restype = I; info["status"] = {i: (v.value if fn(h, i, ctypes.byref(v)) == 1 else None) for i in range(1, 13)}
+    except Exception as e: info["status"] = f"{type(e).__name__}"
+    return info
+
+
 def read_logs(dll, h, new=False, cap=CAP, load=None, emit=True, win=None):
     """Baca seluruh log yang sudah dimuat. Mesin ber-ID teks (StringID) mengembalikan PIN 0 lewat fungsi numerik → bila rekaman pertama ber-PIN 0
     dan FK_GetGeneralLogData_StringID tersedia, log dimuat ulang & dibaca lewat fungsi StringID (tata letak argumen sama: pointer 32-bit).
     → statistik {count, raw, pin0, baddate, stringid, sample, inwin}; baris scan dikirim bertahap lewat _line (emit=False: hanya hitung). win=(YYYY-MM-DD, YYYY-MM-DD) → inwin = jumlah scan di rentang itu."""
     I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); v = [I() for _ in range(9)]; refs = [ctypes.byref(x) for x in v]
     sbuf = ctypes.create_string_buffer(64); st = {"count": 0, "raw": 0, "pin0": 0, "baddate": 0, "stringid": False, "sample": None, "truncated": False, "inwin": 0, "first_err": None}
-    has_str = hasattr(dll, "FK_GetGeneralLogData_StringID")
-    if has_str: dll.FK_GetGeneralLogData_StringID.argtypes = [I, ctypes.c_char_p, P, P, P, P, P, P, P, P]; dll.FK_GetGeneralLogData_StringID.restype = I
+    def str_ok():
+        """Fungsi StringID dipakai hanya bila ada DAN jumlah argumennya terbukti 10 (handle + id + 8 angka) — tanda tangan salah di DLL 32-bit bisa merusak tumpukan. Dipanggil hanya di jalur 'kosong/PIN 0'."""
+        if not hasattr(dll, "FK_GetGeneralLogData_StringID"): return False
+        n = argc(dll, "FK_GetGeneralLogData_StringID"); st["str_argc"] = n
+        if n != 10: return False
+        dll.FK_GetGeneralLogData_StringID.argtypes = [I, ctypes.c_char_p, P, P, P, P, P, P, P, P]; dll.FK_GetGeneralLogData_StringID.restype = I; return True
     def nxt():
         if st["stringid"]:
             ctypes.memset(sbuf, 0, 64)
@@ -215,10 +242,12 @@ def read_logs(dll, h, new=False, cap=CAP, load=None, emit=True, win=None):
         return (str(v[0].value),) + tuple(x.value for x in v[1:])
     rec = nxt()
     if rec is None: st["first_err"] = dll.FK_GetLastError(h)             # daftar kosong: simpan kode galat DLL untuk diagnosis
-    if rec and rec[0] == "0" and has_str:                                # PIN 0 = ID teks → ulangi dengan fungsi StringID
-        prog(20, "load"); st["stringid"] = True
+    if (rec is None or rec[0] == "0") and str_ok():                      # kosong ATAU PIN 0 = mesin ber-ID teks → muat ulang & baca lewat fungsi StringID
+        prog(20, "load"); st["stringid"] = True; st["numeric_empty"] = rec is None
         if (load or (lambda: dll.FK_LoadGeneralLogData(h, 1 if new else 0)))() != 1: raise RuntimeError(f"FK_LoadGeneralLogData (ulang, StringID) gagal (error {dll.FK_GetLastError(h)}).")
         prog(30, "read", 0); rec = nxt()
+        if rec is None: st["first_err_str"] = dll.FK_GetLastError(h)
+    if rec is None: st["probe"] = probe_info(dll, h)                    # tetap kosong → sertakan keadaan mesin di hasil (tanpa perlu menjalankan --diag)
     rows = []
     while rec:
         if st["count"] + st["pin0"] + st["baddate"] >= cap: st["truncated"] = True; break
