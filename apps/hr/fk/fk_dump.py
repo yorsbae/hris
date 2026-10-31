@@ -2,12 +2,16 @@
 Dijalankan sebagai PROSES TERPISAH oleh HRIS karena DLL-nya 32-bit & hanya untuk Windows:
     python32 fk_dump.py --dll "C:\\Program Files (x86)\\Fingerspot Personnel\\FKAttend.dll" --ip 192.168.11.40 --port 5005 --machine 12 [--key 0] [--new]
     python32 fk_dump.py --dll "...\\FKAttend.dll" --exports        # diagnostik: daftar fungsi yang diekspor DLL
+    python32 fk_dump.py --dll ... --ip ... --machine 12 --users-down            # baca user + sidik jari (+ password/kartu)
+    python32 fk_dump.py --dll ... --ip ... --machine 12 --users-up berkas.json  # kirim user dari berkas JSON (dihapus HRIS setelah selesai)
 Keluaran (satu JSON per baris):
     {"p": <persen 0-100>, "stage": "connect|disable|load|read", "n": <jumlah scan>, "t": <detik>}   ← kemajuan + detak (tiap 5 dtk, juga saat DLL sedang menunggu mesin)
     {"rows": [["PIN","YYYY-MM-DD HH:MM:SS"],...]}   ← bertahap (5000 scan per baris) agar log besar tidak jadi satu JSON raksasa
+    {"users": [{"pin","name","priv","password","card","fps":[[jari,"<base64>"],...]},...]}   ← bertahap (--users-down)
     {"ok": true, "count": N, "truncated": false} atau {"ok": false, "error": "..."}   ← baris terakhir
+    (--users-up) baris terakhir {"ok": true, "sent": N, "fps": M, "bad": ["PIN x: ..."]}
 Tanda tangan fungsi diturunkan dari disassembly FKAttend.dll (jumlah argumen stdcall cocok); verifikasi akhir tetap pada mesin sungguhan."""
-import argparse, ctypes, json, math, os, struct, sys, threading, time
+import argparse, base64, ctypes, json, math, os, struct, sys, threading, time
 
 _T0 = time.time(); _ST = {"p": 0, "stage": "start", "n": 0}; _LOCK = threading.Lock()
 
@@ -50,12 +54,85 @@ def exports(path):
     return sorted(res)
 
 
+# ---- user & sidik jari (nomor cadangan FK: 0-9 = jari, 10 = password, 11 = kartu; >= 12 = wajah/lainnya → dilewati)
+BK_PSW, BK_CARD, FP_SIZE, BUF = 10, 11, 1680, 65536
+
+
+def _bind_users(dll):
+    I, P, V = ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.c_void_p
+    dll.FK_ReadAllUserID.argtypes = [I]
+    dll.FK_GetAllUserID.argtypes = [I, P, P, P, P]                       # handle, &pin, &backup, &privilege, &enable
+    dll.FK_GetEnrollData.argtypes = [I, I, I, P, V, P]                   # handle, pin, backup, &privilege, buffer, &password/kartu
+    dll.FK_PutEnrollData.argtypes = [I, I, I, I, V, I]                   # handle, pin, backup, privilege, buffer, password/kartu
+    dll.FK_SaveEnrollData.argtypes = [I]
+    dll.FK_GetUserName.argtypes = [I, I, ctypes.c_char_p]; dll.FK_SetUserName.argtypes = [I, I, ctypes.c_char_p]
+
+
+def _txt(raw):
+    raw = raw.split(b"\0", 1)[0]
+    for enc in ("mbcs", "utf-8", "latin-1"):
+        try: return raw.decode(enc).strip()
+        except (LookupError, UnicodeDecodeError): continue
+    return ""
+
+
+def users_down(dll, h):
+    _bind_users(dll); I = ctypes.c_int
+    if dll.FK_ReadAllUserID(h) != 1: out(ok=False, error=f"FK_ReadAllUserID gagal (error {dll.FK_GetLastError(h)}).")
+    pin, bk, pv, en = I(), I(), I(), I(); users = {}
+    while dll.FK_GetAllUserID(h, ctypes.byref(pin), ctypes.byref(bk), ctypes.byref(pv), ctypes.byref(en)) == 1:
+        u = users.setdefault(pin.value, {"pin": str(pin.value), "priv": pv.value, "bks": []}); u["bks"].append(bk.value)
+    prog(30, "read", 0); buf = ctypes.create_string_buffer(BUF); nm = ctypes.create_string_buffer(256); batch = []; n = len(users); skipped = fps = 0
+    for i, (num, u) in enumerate(sorted(users.items())):
+        u.update(name="", password="", card=0, fps=[])
+        if dll.FK_GetUserName(h, num, nm) == 1: u["name"] = _txt(nm.raw)
+        for b in sorted(set(u.pop("bks"))):
+            ctypes.memset(buf, 0, BUF); priv, pw = I(), I()
+            if dll.FK_GetEnrollData(h, num, b, ctypes.byref(priv), buf, ctypes.byref(pw)) != 1: continue
+            u["priv"] = priv.value
+            if b < BK_PSW: u["fps"].append([b, base64.b64encode(buf.raw[:FP_SIZE]).decode()]); fps += 1
+            elif b == BK_PSW: u["password"] = str(pw.value) if pw.value else ""
+            elif b == BK_CARD: u["card"] = pw.value
+            else: skipped += 1                                           # wajah/palm dll.: belum didukung
+        batch.append(u)
+        if len(batch) >= 100: _line({"users": batch}); batch = []
+        if i % 5 == 0: prog(round(30 + 65 * (i + 1) / n), "read", i + 1)
+    if batch: _line({"users": batch})
+    prog(95, "read", n); out(ok=True, count=n, fps=fps, skipped=skipped)
+
+
+def users_up(dll, h, path):
+    _bind_users(dll); sent = fps = 0; bad = []
+    with open(path, encoding="utf-8") as f: items = json.load(f)
+    buf = ctypes.create_string_buffer(BUF); n = len(items)
+    def put(num, bk, priv, data, val):
+        ctypes.memset(buf, 0, BUF); ctypes.memmove(buf, data, min(len(data), BUF)) if data else None
+        return dll.FK_PutEnrollData(h, num, bk, priv, buf, val) == 1
+    for i, it in enumerate(items):
+        prog(round(15 + 78 * i / max(n, 1)), "read", i + 1); pin = str(it.get("pin", "")).strip()
+        if not pin.isdigit(): bad.append(f"PIN {pin}: mesin FK hanya menerima PIN angka"); continue
+        num = int(pin); priv = it.get("priv", 0); ok = False
+        try:
+            for bk, b64 in it.get("fps", []):
+                if put(num, int(bk), priv, base64.b64decode(b64), 0): fps += 1; ok = True
+                else: bad.append(f"PIN {pin} jari {bk}: ditolak mesin (error {dll.FK_GetLastError(h)})")
+            if str(it.get("password", "")).isdigit() and it.get("password"): ok = put(num, BK_PSW, priv, b"", int(it["password"])) or ok
+            if it.get("card"): ok = put(num, BK_CARD, priv, b"", int(it["card"])) or ok
+            if ok and it.get("name"): dll.FK_SetUserName(h, num, it["name"].encode("mbcs", "replace")[:20])
+        except Exception as e: bad.append(f"PIN {pin}: {type(e).__name__}: {e}"[:120]); continue
+        if ok: sent += 1
+        else: bad.append(f"PIN {pin}: tidak ada jari/password/kartu yang bisa dikirim")
+    if sent and dll.FK_SaveEnrollData(h) != 1: out(ok=False, error=f"FK_SaveEnrollData gagal (error {dll.FK_GetLastError(h)}); user belum tersimpan permanen di mesin.")
+    prog(95, "read", n); out(ok=sent > 0 or not items, sent=sent, fps=fps, bad=bad[:50], error=("" if sent else "Tidak ada user yang terkirim."))
+
+
 def main():
     a = argparse.ArgumentParser()
     a.add_argument("--dll", required=True); a.add_argument("--ip"); a.add_argument("--port", type=int, default=5005)
     a.add_argument("--machine", type=int, default=1); a.add_argument("--key", type=int, default=0); a.add_argument("--timeout", type=int, default=5000)
     a.add_argument("--new", action="store_true", help="hanya scan yang belum pernah dibaca (nReadMark=1)"); a.add_argument("--probe", action="store_true")
     a.add_argument("--no-disable", action="store_true", help="jangan panggil FK_EnableDevice(0) (sebagian firmware macet di sini)")
+    a.add_argument("--users-down", action="store_true", help="baca semua user + sidik jari"); a.add_argument("--users-up", metavar="BERKAS.JSON", help="kirim user dari berkas JSON ke mesin")
     a.add_argument("--exports", action="store_true", help="tampilkan fungsi yang diekspor DLL lalu selesai")
     a = a.parse_args()
     if a.exports:
@@ -84,6 +161,8 @@ def main():
         if a.probe: out(ok=True, rows=[], note="terhubung")
         if not a.no_disable: prog(12, "disable"); dll.FK_EnableDevice(h, 0)
         try:
+            if a.users_down: prog(15, "read"); users_down(dll, h)
+            if a.users_up: prog(12, "read"); users_up(dll, h, a.users_up)
             prog(15, "load")                                              # tahap ini bisa lama bila log mesin besar (satu panggilan DLL, tanpa laporan kemajuan)
             r = dll.FK_LoadGeneralLogData(h, 1 if a.new else 0)
             if r != 1: out(ok=False, error=f"FK_LoadGeneralLogData gagal (kode {r}, error {dll.FK_GetLastError(h)}).")

@@ -6,7 +6,7 @@ Protokol 'easylink' = web server Fingerspot EasyLink SDK (Windows, biasanya http
 Respons JSON: {"Result": true, "Data": [{"SN","ScanDate","PIN","VerifyMode","IOMode","WorkCode"}], "IsSession"/"Next": ...}
 CATATAN: bentuk endpoint/respons mengikuti dokumentasi SDK yang dikenal; cocokkan dengan dokumen SDK mesin Anda dan ubah `_Easylink` saja bila beda.
 Keamanan: host hanya boleh alamat privat (LAN) kecuali ATTENDANCE_SYNC_ALLOW_PUBLIC=True (cegah SSRF dari form admin)."""
-import csv, io, ipaddress, json, socket, urllib.error, urllib.parse, urllib.request
+import base64, csv, io, ipaddress, json, socket, urllib.error, urllib.parse, urllib.request
 from datetime import date, datetime, timedelta
 from django.conf import settings
 from django.utils import timezone
@@ -182,7 +182,7 @@ class _Fk:
             if pr.poll() is None: pr.kill()
         rd.join(2); return rc, "".join(err)
 
-    def _call(self, *extra, base=0, span=100):
+    def _call(self, *extra, base=0, span=100, unit="scan"):
         import sys, time
         from pathlib import Path
         dll = getattr(settings, "ATTENDANCE_FK_DLL", "") or r"C:\Program Files (x86)\Fingerspot Personnel\FKAttend.dll"
@@ -194,15 +194,16 @@ class _Fk:
         except ValueError: raise SyncError("No Mesin harus angka (lihat kolom No Mesin di Fingerspot Personnel).")
         cmd = [py, str(Path(__file__).parent / "fk" / "fk_dump.py"), "--dll", dll, "--ip", self.dev.host, "--port", str(self.dev.port), "--machine", str(no), "--key", str(pw), *extra]
         if getattr(settings, "ATTENDANCE_FK_NO_DISABLE", False): cmd.append("--no-disable")
-        last = {}; final = {}; got = []; t0 = time.time()
+        last = {}; final = {}; got = []; got_u = []; t0 = time.time()
         def on_line(ln):
             try: j = json.loads(ln)
             except ValueError: return
             if not isinstance(j, dict): return
             if "rows" in j and "ok" not in j: got.extend(j["rows"]); return                 # baris scan bertahap (log besar)
+            if "users" in j and "ok" not in j: got_u.extend(j["users"]); return              # user + sidik jari bertahap (--users-down)
             if "ok" in j: final.update(j); return
             last.update(j); st = self.STAGES.get(j.get("stage"), "")
-            set_progress(base + span * j.get("p", 0) / 100, st + (f" · {j['n']:,} scan".replace(",", ".") if j.get("n") else ""))
+            set_progress(base + span * j.get("p", 0) / 100, st + (f" · {j['n']:,} {unit}".replace(",", ".") if j.get("n") else ""))
         try: rc, stderr = self._exec(cmd, on_line, limit)
         except OSError as e: raise SyncError(f"Tidak dapat menjalankan pembaca FK ({type(e).__name__}: {e}). Periksa ATTENDANCE_FK_PYTHON32.")
         if not final and time.time() - t0 >= limit - 1:
@@ -216,7 +217,7 @@ class _Fk:
             if not getattr(settings, "ATTENDANCE_FK_PYTHON32", ""): msg += " [ATTENDANCE_FK_PYTHON32 kosong di server ini — pastikan ada di .env lalu RESTART runserver (.env hanya dibaca saat start)]"
             raise SyncError(msg)
         if final.get("truncated"): raise SyncError("Log mesin melebihi batas aman 2.000.000 scan sehingga terpotong — hasil DITOLAK agar tidak ada data hilang diam-diam. Arsipkan lalu kosongkan log di mesin (Fingerspot Personnel), atau pecah dengan 'Sejak scan terakhir'.")
-        final.setdefault("rows", got); return final
+        final.setdefault("rows", got); final.setdefault("users", got_u); return final
     def fetch(self, d1, d2):
         out = []
         for pin, at in self._call(span=85)["rows"]:
@@ -225,6 +226,29 @@ class _Fk:
             if pin and pin != "0" and d1 <= t.date() <= d2: out.append((pin, at))
         return out
     def info(self): self._call("--probe"); return {"serial": self.dev.serial, "time": "-", "users": "?"}
+
+    def users_down(self):
+        """→ (users, fingers, fp_error, fp_version) seperti _Zk.users_down. Algoritma sidik jari FK tidak dilaporkan DLL → fp_version 0 (tidak diketahui)."""
+        from types import SimpleNamespace as NS
+        r = self._call("--users-down", base=0, span=85, unit="user"); users = []; fingers = []
+        for i, u in enumerate(r["users"], 1):
+            users.append(NS(uid=i, user_id=str(u["pin"]), name=u.get("name", ""), privilege=u.get("priv", 0), password=u.get("password", ""), card=u.get("card", 0), group_id=""))
+            fingers += [NS(uid=i, fid=fid, template=base64.b64decode(b64), valid=1) for fid, b64 in u.get("fps", [])]
+        return users, fingers, (f"{r['skipped']} data non-jari (wajah dll.) dilewati." if r.get("skipped") else ""), 0
+
+    def users_up(self, items):
+        """Kirim user (+ jari, password, kartu) ke mesin FK. PIN harus angka. → (terkirim, jari, gagal[list pesan], jari dilewati=0)."""
+        import os, tempfile
+        data = [{"pin": it["pin"], "name": it["name"], "priv": it["privilege"] if it["privilege"] in (0, 1, 2, 3) else (1 if it["privilege"] else 0),
+                 "password": it["password"], "card": it["card"], "fps": [[f[0], base64.b64encode(f[2]).decode()] for f in it["fingers"]]} for it in items]
+        fd, path = tempfile.mkstemp(suffix=".json", prefix="hris_fk_")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f: json.dump(data, f)
+            r = self._call("--users-up", path, base=5, span=90, unit="user")
+        finally:
+            try: os.remove(path)                                             # berisi template sidik jari: jangan tinggalkan di disk
+            except OSError: pass
+        return r.get("sent", 0), r.get("fps", 0), list(r.get("bad") or []), 0
 
 
 DRIVERS = {"easylink": _Easylink, "zk": _Zk, "fk": _Fk}
@@ -347,16 +371,18 @@ def sync_many(devs, d1=None, d2=None, commit=True, workers=8, mode="latest"):
 
 
 # ---------------------------------------------------------------- user & sidik jari (Download user / Upload user)
-import base64
 
 
 def _clean(v, n): return str(v if v is not None else "").replace("\x00", "").strip()[:n]
 
 
 def _zk_only(dev):
+    """Gerbang protokol Download/Upload user: ZK (pyzk) dan FK (FKAttend.dll) didukung; EasyLink hanya scanlog. (Nama lama dipertahankan.)"""
     check_host(dev.host)
-    if dev.protocol == "fk": raise SyncError("Mesin ini berprotokol FK (FKAttend.dll): scanlog sudah didukung, tetapi Download/Upload user & sidik jari BELUM — butuh tanda tangan fungsi FK_*User* dari DLL. Jalankan: python32 apps/hr/fk/fk_dump.py --dll <FKAttend.dll> --exports, lalu kirim hasilnya agar dukungan dapat ditambahkan. Sementara itu, kelola user lewat Fingerspot Personnel.")
-    if dev.protocol != "zk": raise SyncError("Download/Upload user hanya untuk protokol ZK (TCP); protokol EasyLink belum mendukung user & sidik jari (scanlog saja).")
+    if dev.protocol not in ("zk", "fk"): raise SyncError("Download/Upload user hanya untuk protokol ZK (TCP) atau FK (FKAttend.dll); protokol EasyLink belum mendukung user & sidik jari (scanlog saja).")
+
+
+def _user_driver(dev): return _Fk(dev) if dev.protocol == "fk" else _Zk(dev)
 
 
 def download_users(dev):
@@ -366,7 +392,7 @@ def download_users(dev):
     from .models import DeviceFingerprint, DeviceUser
     out = {"device": dev.code, "ok": False, "users": 0, "new": 0, "updated": 0, "fingers": 0, "note": ""}
     try:
-        _zk_only(dev); set_progress(10, "Menghubungi mesin & membaca user · sidik jari"); users, fingers, fp_err, ver = _Zk(dev).users_down(); set_progress(60, f"{len(users)} user terbaca · menyimpan ke HRIS")
+        _zk_only(dev); set_progress(10, "Menghubungi mesin & membaca user · sidik jari"); users, fingers, fp_err, ver = _user_driver(dev).users_down(); set_progress(60, f"{len(users)} user terbaca · menyimpan ke HRIS")
     except SyncError as e: out["note"] = str(e); return out
     by_uid = {}; new = upd = nfp = 0
     with transaction.atomic():
@@ -402,16 +428,22 @@ def upload_users(dev, pins=None, fingerprints=True):
     except SyncError as e: out["note"] = str(e); return out
     qs = DeviceUser.objects.prefetch_related("fingers")
     if pins: qs = qs.filter(pin__in=pins)
+    fk_codes = set(AttendanceDevice.objects.filter(protocol="fk").values_list("code", flat=True)); fam_skip = [0]
+    def _fp_fits(d, f, codes):
+        """Template FK ≠ template ZK: hanya kirim jari yang berasal dari jenis mesin yang sama dengan tujuan."""
+        ok = (f.source_device in codes) == (d.protocol == "fk")
+        if not ok: fam_skip[0] += 1
+        return ok
     items = [{"pin": u.pin, "name": u.name, "privilege": u.privilege, "password": u.password or "", "group_id": u.group_id, "card": u.card,
-              "fingers": [(f.finger, f.valid, base64.b64decode(f.template), f.fp_version) for f in u.fingers.all()] if fingerprints else []} for u in qs]
+              "fingers": [(f.finger, f.valid, base64.b64decode(f.template), f.fp_version) for f in u.fingers.all() if _fp_fits(dev, f, fk_codes)] if fingerprints else []} for u in qs]
     if not items:
         out["note"] = "Belum ada user tersimpan di HRIS" + (" untuk PIN tersebut." if pins else ". Lakukan Download user dari mesin lebih dulu.")
         return out
-    try: _zk_only(dev); set_progress(5, "Menghubungi mesin"); sent, fps, bad, skip = _Zk(dev).users_up(items)
+    try: _zk_only(dev); set_progress(5, "Menghubungi mesin"); sent, fps, bad, skip = _user_driver(dev).users_up(items); skip += fam_skip[0]
     except SyncError as e: out["note"] = str(e); return out
     out.update(ok=not bad or sent > 0, users=sent, fingers=fps, failed=len(bad), skipped=skip)
     note = f"{sent} dari {len(items)} user dikirim, {fps} sidik jari."
-    if skip: note += f" {skip} sidik jari dilewati (versi algoritma beda dengan mesin ini)."
+    if skip: note += f" {skip} sidik jari dilewati (versi algoritma / jenis mesin FK-ZK beda dengan mesin ini)."
     if bad: note += f" {len(bad)} gagal: " + "; ".join(bad[:3])
     out["note"] = note
     if not sent: out["ok"] = False

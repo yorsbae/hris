@@ -116,7 +116,7 @@ function start(act){
  ttl.textContent=T[act];ul.textContent='';bar.value=0;bar.max=Math.max(ms.length,1);anyOk=false;cancelled=false;
  if(!ms.length){sum.textContent='Centang minimal satu mesin aktif di tabel.';bc.disabled=false;bx.hidden=true;dlg.showModal();return}
  if(act==='users_up'&&!confirm('Kirim user'+(mf.elements.fingerprints&&mf.elements.fingerprints.checked?' beserta sidik jari':'')+' tersimpan ke '+ms.length+' mesin?\nUser lain yang sudah ada di mesin tidak dihapus.'))return;
- var fd0=new FormData(mf),rows=ms.map(function(m){var li=document.createElement('li'),b=document.createElement('b'),st=document.createElement('span'),sm=document.createElement('small');b.textContent=m.name;pill(st,'pending','Menunggu');li.appendChild(b);li.appendChild(st);li.appendChild(pg);li.appendChild(sm);ul.appendChild(li);return{m:m,st:st,sm:sm,pg:pg,pct:0,t0:0}});
+ var fd0=new FormData(mf),rows=ms.map(function(m){var li=document.createElement('li'),b=document.createElement('b'),st=document.createElement('span'),sm=document.createElement('small'),pg=document.createElement('progress');pg.className='rp';pg.max=100;pg.value=0;pg.hidden=true;b.textContent=m.name;pill(st,'pending','Menunggu');li.appendChild(b);li.appendChild(st);li.appendChild(pg);li.appendChild(sm);ul.appendChild(li);return{m:m,st:st,sm:sm,pg:pg,pct:0,t0:0}});
  var done=0,okn=0,next=0,conc=act==='sync'?3:2;running=true;bc.disabled=true;bx.hidden=false;bx.disabled=false;dlg.showModal();
  function upd(){var part=rows.reduce(function(a,r){return a+(r.fin?0:r.pct/100)},0);bar.value=done+part;sum.textContent=Math.round((done+part)/ms.length*100)+'% · '+done+' dari '+ms.length+' mesin selesai · '+okn+' berhasil'+(cancelled?' · sisa antrean dibatalkan':'')}
  upd();

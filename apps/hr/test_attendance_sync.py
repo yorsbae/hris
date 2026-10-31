@@ -347,11 +347,37 @@ class FkDriverTests(TestCase):
         self.assertTrue(r["ok"]); self.assertEqual(sy.get_progress("abc-123", d.pk)["pct"], 100); self.assertEqual(seen, sorted(seen))   # naik terus, berakhir 100
         self.assertIn(88, seen); self.assertTrue(any(0 < x < 85 for x in seen))
 
-    def test_users_on_fk_explain_what_is_missing(self):
-        d = self._dev()
-        with mock.patch.object(sy, "check_host"):
-            for r in (sy.download_users(d), sy.upload_users(d)):
-                self.assertFalse(r["ok"]); self.assertIn("--exports", r["note"])
+    def test_users_download_via_fk(self):
+        """Download user mesin FK: pembaca dipalsukan; user + jari + password + kartu tersimpan di HRIS, idempoten, jari ditandai tanpa versi algoritma."""
+        import base64
+        from apps.hr.models import DeviceFingerprint, DeviceUser
+        d = self._dev(); seen = {}
+        users = [{"pin": "101", "name": "Budi", "priv": 0, "password": "1234", "card": 777, "fps": [[0, base64.b64encode(b"TPL-FK-101-0").decode()], [1, base64.b64encode(b"TPL-FK-101-1").decode()]]},
+                 {"pin": "102", "name": "Sari", "priv": 1, "password": "", "card": 0, "fps": []}]
+        with mock.patch.object(sy, "check_host"), self._fake([{"p": 30, "stage": "read", "n": 1}, {"users": users}, {"ok": True, "count": 2, "fps": 2}], seen):
+            r = sy.download_users(d); r2 = sy.download_users(d)
+        self.assertIn("--users-down", seen["cmd"]); self.assertTrue(r["ok"], r["note"]); self.assertEqual((r["users"], r["new"], r["updated"], r["fingers"]), (2, 2, 0, 2))
+        self.assertEqual((r2["new"], r2["updated"]), (0, 0)); b = DeviceUser.objects.get(pin="101")
+        self.assertEqual((b.name, b.password, b.card, b.source_device), ("Budi", "1234", 777, "FK1")); self.assertEqual(DeviceFingerprint.objects.filter(user=b).count(), 2)
+        self.assertEqual(DeviceFingerprint.objects.filter(user=b).first().fp_version, 0)
+
+    def test_users_upload_via_fk_filters_zk_templates_and_cleans_temp_file(self):
+        """Upload user ke mesin FK: hanya jari dari mesin FK yang dikirim (template ZK ≠ FK); berkas sementara berisi template dihapus; PIN non-angka dilaporkan gagal oleh pembaca."""
+        import base64, os
+        from apps.hr.models import DeviceFingerprint, DeviceUser
+        d = self._dev(); AttendanceDevice.objects.create(code="ZK1", name="ZK", host="192.168.11.41", port=4370, protocol="zk")
+        u = DeviceUser.objects.create(pin="101", name="Budi", privilege=14, card=5)
+        DeviceFingerprint.objects.create(user=u, finger=0, template=base64.b64encode(b"FKTPL").decode(), source_device="FK1")
+        DeviceFingerprint.objects.create(user=u, finger=1, template=base64.b64encode(b"ZKTPL").decode(), source_device="ZK1")
+        seen = {}; sent_json = {}
+        def _exec(inst, cmd, on_line, limit):
+            path = cmd[cmd.index("--users-up") + 1]; sent_json.update(path=path, data=json.load(open(path, encoding="utf-8")))
+            on_line(json.dumps({"ok": True, "sent": 1, "fps": 1, "bad": []}) + "\n"); return 0, ""
+        with mock.patch.object(sy, "check_host"), mock.patch.object(sy._Fk, "_exec", _exec):
+            r = sy.upload_users(d)
+        self.assertTrue(r["ok"], r["note"]); self.assertEqual((r["users"], r["fingers"], r["skipped"]), (1, 1, 1)); self.assertIn("dilewati", r["note"])
+        item = sent_json["data"][0]; self.assertEqual(item["priv"], 1); self.assertEqual([f[0] for f in item["fps"]], [0])        # privilege ZK 14 → admin FK 1; hanya jari FK
+        self.assertFalse(os.path.exists(sent_json["path"]))
 
     def test_exec_streams_lines_and_kills_at_limit(self):
         import sys, time
@@ -360,6 +386,15 @@ class FkDriverTests(TestCase):
         rc, _ = fk._exec([sys.executable, "-u", "-c", slow], got.append, 1)
         self.assertLess(time.time() - t, 10); self.assertEqual(got, ['{"p": 5}\n']); self.assertNotEqual(rc, 0)      # baris terbaca & proses dibunuh setelah batas
         got.clear(); rc, _ = fk._exec([sys.executable, "-c", fast], got.append, 30); self.assertEqual((rc, got), (0, ['{"ok": true}\n']))
+
+
+class DevicesPopupScriptTests(TestCase):
+    """Regresi: skrip popup menu Mesin memakai bar progres per mesin (`pg`); bila tidak dibuat, SEMUA tombol (scanlog, user, tes koneksi) mati karena ReferenceError."""
+    def test_popup_script_creates_row_progress_bar(self):
+        u = User.objects.create_superuser("adm", "a@x.id", "pw"); self.client.force_login(u)
+        html = self.client.get(reverse("att_devices")).content.decode()
+        self.assertIn("pg=document.createElement('progress')", html)
+        for act in ("sync", "users_down", "users_up", "test"): self.assertIn(f'name="action" value="{act}"', html)
 
 
 class ProgressEndpointTests(TestCase):
