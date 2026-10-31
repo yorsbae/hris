@@ -232,7 +232,8 @@ class _Fk:
     def _taps(self, r, d1, d2):
         out = []; raw = r.get("raw", len(r["rows"]))
         if not r["rows"]:                                                    # jangan diam-diam "OK 0 scan": jelaskan kenapa tidak ada yang terpakai
-            if not raw: raise SyncError("Mesin tidak mengembalikan satu pun scan (FK_LoadGeneralLogData sukses tetapi daftar kosong). Bila mesin seharusnya punya scan: periksa 'No Mesin', coba ATTENDANCE_FK_NO_DISABLE=1, atau log memang sudah dikosongkan.")
+            if not raw: raise SyncError(f"Mesin tidak mengembalikan satu pun scan (FK_LoadGeneralLogData sukses tetapi daftar kosong; kode galat DLL {r.get('first_err')}). Kemungkinan: 'No Mesin' ({self.dev.machine_no or 1}) bukan mesin yang dituju, log memang kosong, atau pembacaan belum cocok dengan firmware. "
+                                  "Jalankan diagnosis: python32 apps/hr/fk/fk_dump.py --dll <FKAttend.dll> --ip <ip> --port <port> --machine <no> --diag , lalu kirim keluarannya.")
             raise SyncError(f"DLL membaca {raw} scan tetapi tidak ada yang terpakai ({r.get('pin0', 0)} ber-PIN 0, {r.get('baddate', 0)} tanggal tidak valid"
                             f"{', dibaca lewat StringID' if r.get('stringid') else ''}). Contoh rekaman mentah [PIN, mode, io, th, bln, tgl, jam, mnt, dtk]: {r.get('sample')}. Kirim pesan ini agar pembacaan disesuaikan.")
         for pin, at in r["rows"]:

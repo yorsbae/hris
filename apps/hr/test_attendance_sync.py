@@ -339,6 +339,15 @@ class FkReadLogsTests(TestCase):
         with mock.patch.object(fk_dump, "_line", lambda d: sent.append(d)): st = fk_dump.read_logs(dll, 1)
         return st, [r for d in sent if "rows" in d and "ok" not in d for r in d["rows"]]
 
+    def test_empty_log_reports_dll_error_code_and_diag_runs(self):
+        from apps.hr.fk import fk_dump
+        dll = self.Dll([], []); dll.FK_GetLastError = lambda h: 7
+        st, rows = self._run(dll); self.assertEqual((rows, st["raw"], st["first_err"]), ([], 0, 7))
+        sent = []
+        with mock.patch.object(fk_dump, "_line", lambda d: sent.append(d)), self.assertRaises(SystemExit):
+            fk_dump.diag(dll, 5, SimpleNamespace(machine=3))
+        d = sent[-1]; self.assertTrue(d["ok"]); self.assertEqual(d["diag"]["machine"], 3); self.assertEqual(d["diag"]["load"]["nReadMark=0"]["first_reads"][0]["ret"], 0)
+
     def test_numeric_ids(self):
         st, rows = self._run(self.Dll([(101, 1, 0, 2026, 10, 28, 7, 1, 2), (0, 1, 0, 2026, 10, 28, 8, 0, 0), (102, 1, 0, 26, 13, 40, 8, 0, 0), (102, 1, 0, 26, 10, 28, 9, 0, 0)], []))
         self.assertEqual(rows, [["101", "2026-10-28 07:01:02"], ["102", "2026-10-28 09:00:00"]]); self.assertEqual((st["raw"], st["pin0"], st["baddate"], st["stringid"]), (4, 1, 1, False))
@@ -350,24 +359,24 @@ class FkReadLogsTests(TestCase):
 
 
 class FkArgcTests(TestCase):
-    """Pembaca jumlah argumen stdcall dari tabel ekspor PE: diuji dengan DLL sintetis (dua fungsi: ret 8 dan ret 0x28; satu thunk jmp)."""
-    def _pe(self):
-        import struct
-        b = bytearray(0x800); struct.pack_into("<H", b, 0, 0x5A4D); struct.pack_into("<I", b, 0x3C, 0x80); b[0x80:0x84] = b"PE\0\0"
-        struct.pack_into("<HH", b, 0x84, 0x14C, 1); struct.pack_into("<H", b, 0x80 + 20, 0xE0); opt = 0x80 + 24; struct.pack_into("<H", b, opt, 0x10B); struct.pack_into("<I", b, opt + 96, 0x1000)
-        sec = opt + 0xE0; struct.pack_into("<IIII", b, sec + 8, 0x400, 0x1000, 0x400, 0x400)                 # VirtualSize, VA, RawSize, RawPtr
-        e = 0x400; struct.pack_into("<I", b, e + 24, 3); struct.pack_into("<III", b, e + 28, 0x1100, 0x1110, 0x1120)
-        names = [b"FK_A", b"FK_B", b"FK_JMP"]; codes = [b"\x55\x8B\xEC\x5D\xC2\x08\x00\xCC\xCC", b"\x55\xC2\x28\x00\xCC", b"\xE9\x00\x00\x00\x00\xCC"]
-        for i, (n, c) in enumerate(zip(names, codes)):
-            struct.pack_into("<I", b, 0x500 + 4 * i, 0x1200 + 0x20 * i); struct.pack_into("<I", b, 0x510 + 4 * i, 0x1130 + 0x10 * i); struct.pack_into("<H", b, 0x520 + 2 * i, i)
-            b[0x530 + 0x10 * i:0x530 + 0x10 * i + len(n)] = n; b[0x600 + 0x20 * i:0x600 + 0x20 * i + len(c)] = c
-        return bytes(b)
+    """Jumlah argumen dibaca dari pesan ValueError ctypes (selisih tumpukan) — format pesan CPython; dan jalur --argc dengan DLL palsu."""
+    def test_parse_message(self):
+        from apps.hr.fk import fk_dump as f
+        self.assertEqual(f.parse_argc_error("Procedure probably called with too many arguments (40 bytes in excess)", 12), 2)     # fungsi 2 argumen
+        self.assertEqual(f.parse_argc_error("Procedure probably called with too many arguments (8 bytes in excess)", 12), 10)
+        self.assertEqual(f.parse_argc_error("Procedure probably called with not enough arguments (4 bytes missing)", 3), 4)
+        self.assertIsNone(f.parse_argc_error("hal lain", 12))
 
-    def test_argc_from_ret_operand(self):
-        import tempfile, os
-        from apps.hr.fk import fk_dump
-        f = tempfile.NamedTemporaryFile(delete=False, suffix=".dll"); f.write(self._pe()); f.close(); self.addCleanup(os.remove, f.name)
-        self.assertEqual((fk_dump.argc(f.name, "FK_A"), fk_dump.argc(f.name, "FK_B"), fk_dump.argc(f.name, "FK_JMP"), fk_dump.argc(f.name, "TIDAK_ADA")), (2, 10, None, None))
+    def test_argc_with_fake_functions(self):
+        from apps.hr.fk import fk_dump as f
+        def mk(n):
+            def fn(*a):
+                if len(a) > n: raise ValueError(f"Procedure probably called with too many arguments ({4 * (len(a) - n)} bytes in excess)")
+                return 0
+            return fn
+        d = SimpleNamespace(FK_LoadGeneralLogData=mk(2), FK_GetGeneralLogData_1=mk(10), FK_ConnectNet=mk(7), FK_LoadGeneralLogDataByDate=mk(3))     # fungsi biasa (boleh diberi .argtypes seperti fungsi DLL)
+        for name, want in dict(f.CALIB, FK_LoadGeneralLogDataByDate=3).items(): self.assertEqual(f.argc(d, name), want)
+        self.assertIsNone(f.argc(d, "FK_TidakAda"))
 
 
 class FkDriverTests(TestCase):

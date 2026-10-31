@@ -14,7 +14,7 @@ Keluaran (satu JSON per baris):
     {"ok": true, "count": N, "truncated": false} atau {"ok": false, "error": "..."}   ← baris terakhir
     (--users-up) baris terakhir {"ok": true, "sent": N, "fps": M, "bad": ["PIN x: ..."]}
 Tanda tangan fungsi diturunkan dari disassembly FKAttend.dll (jumlah argumen stdcall cocok); verifikasi akhir tetap pada mesin sungguhan."""
-import argparse, base64, ctypes, json, math, os, struct, sys, threading, time
+import argparse, base64, ctypes, json, math, os, re, struct, sys, threading, time
 
 _T0 = time.time(); _ST = {"p": 0, "stage": "start", "n": 0}; _LOCK = threading.Lock()
 
@@ -134,26 +134,30 @@ BYDATE = {"i3": 3, "s3": 3, "i4": 4, "s4": 4, "d7": 7, "d8": 8}     # id → jum
 CALIB = {"FK_LoadGeneralLogData": 2, "FK_GetGeneralLogData_1": 10, "FK_ConnectNet": 7}   # tanda tangan yang sudah diketahui → bukti pembacaan argc benar
 
 
-def argc(path, name):
-    """Jumlah argumen fungsi stdcall = operand 'ret N' / 4. Heuristik byte (tanpa disassembler): ambil nilai 'C2 nn 00' terbanyak sebelum padding; None bila tidak ditemukan (mis. thunk jmp)."""
-    from collections import Counter
-    b = open(path, "rb").read(); pe = struct.unpack_from("<I", b, 0x3C)[0]; nsec = struct.unpack_from("<H", b, pe + 6)[0]; opt = pe + 24; magic = struct.unpack_from("<H", b, opt)[0]
-    rva = struct.unpack_from("<I", b, opt + (96 if magic == 0x10B else 112))[0]
-    secs = [struct.unpack_from("<IIII", b, opt + struct.unpack_from("<H", b, pe + 20)[0] + 40 * i + 8) for i in range(nsec)]
-    def off(r):
-        for vs, va, rs, ro in secs:
-            if va <= r < va + max(vs, rs): return r - va + ro
-        raise ValueError("RVA di luar seksi")
-    e = off(rva); cnt, nam, ords, funcs = struct.unpack_from("<I", b, e + 24)[0], off(struct.unpack_from("<I", b, e + 32)[0]), off(struct.unpack_from("<I", b, e + 36)[0]), off(struct.unpack_from("<I", b, e + 28)[0])
-    for i in range(cnt):
-        o = off(struct.unpack_from("<I", b, nam + 4 * i)[0])
-        if b[o:b.index(b"\0", o)].decode("ascii", "replace") != name: continue
-        fo = off(struct.unpack_from("<I", b, funcs + 4 * struct.unpack_from("<H", b, ords + 2 * i)[0])[0]); body = b[fo:fo + 6000]; c = Counter(); j = 0
-        while j < len(body) - 3:
-            if body[j] == 0xC2 and body[j + 2] == 0 and body[j + 1] % 4 == 0 and (j + 3 >= len(body) or body[j + 3] in (0xCC, 0x90)): c[body[j + 1] // 4] += 1; j += 3
-            else: j += 1
-        return c.most_common(1)[0][0] if c else None
-    return None
+def parse_argc_error(msg, tried):
+    """Pesan ValueError ctypes ('... N bytes in excess' / '... N bytes missing') → jumlah argumen sebenarnya; None bila bukan pesan itu."""
+    m = re.search(r"\((\d+) bytes (in excess|missing)\)", str(msg))
+    if not m: return None
+    d = int(m.group(1)) // 4
+    return tried - d if m.group(2) == "in excess" else tried + d
+
+
+def argc(dll, name, tried=12):
+    """Jumlah argumen fungsi stdcall (termasuk handle) TANPA disassembler: panggil dengan `tried` argumen bernilai 0 (handle 0 = tidak valid → fungsi langsung menolak)
+    dan baca selisih tumpukan yang dilaporkan ctypes. Dikalibrasi dengan fungsi yang jumlah argumennya sudah diketahui (CALIB). None bila tidak dapat ditentukan."""
+    try: fn = getattr(dll, name)
+    except AttributeError: return None
+    fn.argtypes = None; fn.restype = ctypes.c_int
+    try: fn(*([0] * tried)); return tried                                  # tidak ada selisih → tepat sejumlah itu
+    except ValueError as e: return parse_argc_error(e, tried)
+    except OSError: return None                                            # pelanggaran akses di dalam DLL: tidak dapat ditentukan
+
+
+def load_dll(path):
+    try:
+        os.add_dll_directory(os.path.dirname(os.path.abspath(path))) if hasattr(os, "add_dll_directory") else None
+        return ctypes.WinDLL(path)
+    except OSError as e: out(ok=False, error=f"DLL tidak dapat dimuat: {e}")
 
 
 def bydate_call(dll, h, sig, d1, d2):
@@ -169,7 +173,8 @@ def bydate_test(a):
     """Jalankan pembacaan penuh (patokan) lalu tiap kandidat tanda tangan, MASING-MASING di proses terpisah (tanda tangan salah bisa membuat proses crash).
     Kandidat dinyatakan cocok bila jumlah scan di rentang SAMA dengan patokan; 'cepat' bila waktunya lebih singkat."""
     import subprocess
-    cal = {n: (argc(a.dll, n), want) for n, want in CALIB.items()}; got = argc(a.dll, "FK_LoadGeneralLogDataByDate")
+    if os.name != "nt" or ctypes.sizeof(ctypes.c_void_p) != 4: out(ok=False, error="--bydate-test butuh Windows + Python 32-bit.")
+    d0 = load_dll(a.dll); cal = {n: (argc(d0, n), want) for n, want in CALIB.items()}; got = argc(d0, "FK_LoadGeneralLogDataByDate")
     if any(g != w for g, w in cal.values()): out(ok=False, error=f"Kalibrasi jumlah argumen gagal {cal} → pembacaan argc tidak dapat dipercaya; ByDate tidak dipakai.", calib=cal)
     if not a.date_from or not a.date_to: out(ok=False, error="--from dan --to wajib untuk --bydate-test.")
     base = [sys.executable, os.path.abspath(__file__), "--dll", a.dll, "--ip", a.ip, "--port", str(a.port), "--machine", str(a.machine), "--key", str(a.key), "--from", a.date_from, "--to", a.date_to, "--count-only"]
@@ -198,7 +203,7 @@ def read_logs(dll, h, new=False, cap=CAP, load=None, emit=True, win=None):
     dan FK_GetGeneralLogData_StringID tersedia, log dimuat ulang & dibaca lewat fungsi StringID (tata letak argumen sama: pointer 32-bit).
     → statistik {count, raw, pin0, baddate, stringid, sample, inwin}; baris scan dikirim bertahap lewat _line (emit=False: hanya hitung). win=(YYYY-MM-DD, YYYY-MM-DD) → inwin = jumlah scan di rentang itu."""
     I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); v = [I() for _ in range(9)]; refs = [ctypes.byref(x) for x in v]
-    sbuf = ctypes.create_string_buffer(64); st = {"count": 0, "raw": 0, "pin0": 0, "baddate": 0, "stringid": False, "sample": None, "truncated": False, "inwin": 0}
+    sbuf = ctypes.create_string_buffer(64); st = {"count": 0, "raw": 0, "pin0": 0, "baddate": 0, "stringid": False, "sample": None, "truncated": False, "inwin": 0, "first_err": None}
     has_str = hasattr(dll, "FK_GetGeneralLogData_StringID")
     if has_str: dll.FK_GetGeneralLogData_StringID.argtypes = [I, ctypes.c_char_p, P, P, P, P, P, P, P, P]; dll.FK_GetGeneralLogData_StringID.restype = I
     def nxt():
@@ -209,6 +214,7 @@ def read_logs(dll, h, new=False, cap=CAP, load=None, emit=True, win=None):
         if dll.FK_GetGeneralLogData_1(h, *refs) != 1: return None
         return (str(v[0].value),) + tuple(x.value for x in v[1:])
     rec = nxt()
+    if rec is None: st["first_err"] = dll.FK_GetLastError(h)             # daftar kosong: simpan kode galat DLL untuk diagnosis
     if rec and rec[0] == "0" and has_str:                                # PIN 0 = ID teks → ulangi dengan fungsi StringID
         prog(20, "load"); st["stringid"] = True
         if (load or (lambda: dll.FK_LoadGeneralLogData(h, 1 if new else 0)))() != 1: raise RuntimeError(f"FK_LoadGeneralLogData (ulang, StringID) gagal (error {dll.FK_GetLastError(h)}).")
@@ -232,6 +238,25 @@ def read_logs(dll, h, new=False, cap=CAP, load=None, emit=True, win=None):
     return st
 
 
+def diag(dll, h, a):
+    """Diagnosis 'mesin tidak mengembalikan scan' (hanya BACA): status mesin, hasil muat untuk nReadMark 0 dan 1, kode galat tiap langkah, dan beberapa rekaman pertama mentah."""
+    I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); rep = {"machine": a.machine, "handle": h}
+    try: dll.FK_GetDeviceStatus.argtypes = [I, I, P]; dll.FK_GetDeviceStatus.restype = I; v = I(); rep["status"] = {}
+    except AttributeError: dll = dll
+    else:
+        for i in range(1, 13):                                            # indeks status (jumlah user/jari/log dsb. — arti tiap indeks menurut SDK; dicatat apa adanya)
+            r = dll.FK_GetDeviceStatus(h, i, ctypes.byref(v)); rep["status"][i] = v.value if r == 1 else f"gagal(err {dll.FK_GetLastError(h)})"
+    rep["load"] = {}
+    for mark in (0, 1):
+        r = dll.FK_LoadGeneralLogData(h, mark); e = dll.FK_GetLastError(h); first = []
+        v9 = [I() for _ in range(9)]; refs = [ctypes.byref(x) for x in v9]
+        for _ in range(3):
+            g = dll.FK_GetGeneralLogData_1(h, *refs); first.append({"ret": g, "err": dll.FK_GetLastError(h), "val": [x.value for x in v9] if g == 1 else None})
+            if g != 1: break
+        rep["load"][f"nReadMark={mark}"] = {"load_ret": r, "load_err": e, "first_reads": first}
+    out(ok=True, diag=rep, catatan="Kirim seluruh keluaran ini. load_ret=1 & first_reads[0].ret!=1 → mesin menjawab tetapi daftar kosong; status = jumlah data di mesin menurut indeks SDK.")
+
+
 def main():
     a = argparse.ArgumentParser()
     a.add_argument("--dll", required=True); a.add_argument("--ip"); a.add_argument("--port", type=int, default=5005)
@@ -241,14 +266,15 @@ def main():
     a.add_argument("--users-down", action="store_true", help="baca semua user + sidik jari"); a.add_argument("--users-up", metavar="BERKAS.JSON", help="kirim user dari berkas JSON ke mesin")
     a.add_argument("--from", dest="date_from"); a.add_argument("--to", dest="date_to"); a.add_argument("--bydate", choices=sorted(BYDATE)); a.add_argument("--bydate-test", action="store_true")
     a.add_argument("--count-only", action="store_true", help="hanya hitung scan di rentang --from/--to (tanpa mengirim baris)"); a.add_argument("--argc", action="store_true", help="tampilkan jumlah argumen fungsi (kalibrasi + ByDate)")
-    a.add_argument("--exports", action="store_true", help="tampilkan fungsi yang diekspor DLL lalu selesai")
+    a.add_argument("--diag", action="store_true", help="diagnosis baca-saja: status mesin + hasil muat log (kirim keluarannya bila scan 0)"); a.add_argument("--exports", action="store_true", help="tampilkan fungsi yang diekspor DLL lalu selesai")
     a = a.parse_args()
     if a.exports:
         try: out(ok=True, exports=exports(a.dll))
         except Exception as e: out(ok=False, error=f"Tidak dapat membaca ekspor DLL: {type(e).__name__}: {e}")
     if a.argc:
-        try: out(ok=True, calib={n: [argc(a.dll, n), w] for n, w in CALIB.items()}, bydate=argc(a.dll, "FK_LoadGeneralLogDataByDate"), catatan="calib = [terbaca, seharusnya]; bydate = jumlah argumen termasuk handle")
-        except Exception as e: out(ok=False, error=f"{type(e).__name__}: {e}")
+        if os.name != "nt" or ctypes.sizeof(ctypes.c_void_p) != 4: out(ok=False, error="--argc butuh Windows + Python 32-bit.")
+        d0 = load_dll(a.dll); cal = {n: [argc(d0, n), w] for n, w in CALIB.items()}
+        out(ok=all(g == w for g, w in cal.values()), calib=cal, bydate=argc(d0, "FK_LoadGeneralLogDataByDate"), catatan="calib = [terbaca, seharusnya] harus cocok semua; bydate = jumlah argumen termasuk handle")
     if a.bydate_test:
         if not a.ip: out(ok=False, error="--ip wajib.")
         bydate_test(a)
@@ -256,10 +282,7 @@ def main():
     if os.name != "nt": out(ok=False, error="FKAttend.dll hanya berjalan di Windows.")
     if ctypes.sizeof(ctypes.c_void_p) != 4: out(ok=False, error=f"Python yang dipakai: {sys.executable} ({8 * ctypes.sizeof(ctypes.c_void_p)}-bit). Perlu Python 32-bit (FKAttend.dll 32-bit). Pasang Python 32-bit (installer 'Windows installer (32-bit)') di folder terpisah, lalu set ATTENDANCE_FK_PYTHON32 di .env ke python.exe 32-bit tersebut (bukan Python 64-bit/venv).")
     threading.Thread(target=_heartbeat, daemon=True).start(); prog(2, "connect")
-    try:
-        os.add_dll_directory(os.path.dirname(os.path.abspath(a.dll))) if hasattr(os, "add_dll_directory") else None
-        dll = ctypes.WinDLL(a.dll)
-    except OSError as e: out(ok=False, error=f"DLL tidak dapat dimuat: {e}")
+    dll = load_dll(a.dll)
     I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int)
     dll.FK_ConnectNet.argtypes = [I, ctypes.c_char_p, I, I, I, I, I]; dll.FK_ConnectNet.restype = I
     dll.FK_DisConnect.argtypes = [I]; dll.FK_EnableDevice.argtypes = [I, I]; dll.FK_LoadGeneralLogData.argtypes = [I, I]
@@ -275,6 +298,7 @@ def main():
         if a.probe: out(ok=True, rows=[], note="terhubung")
         if not a.no_disable: prog(12, "disable"); dll.FK_EnableDevice(h, 0)
         try:
+            if a.diag: diag(dll, h, a)
             if a.users_down: prog(15, "read"); users_down(dll, h)
             if a.users_up: prog(12, "read"); users_up(dll, h, a.users_up)
             prog(15, "load")                                              # tahap ini bisa lama bila log mesin besar (satu panggilan DLL, tanpa laporan kemajuan)
@@ -282,7 +306,7 @@ def main():
             win = (a.date_from, a.date_to) if a.date_from and a.date_to else None
             if a.bydate:
                 if not win: out(ok=False, error="--bydate butuh --from dan --to.")
-                n = argc(a.dll, "FK_LoadGeneralLogDataByDate")
+                n = argc(dll, "FK_LoadGeneralLogDataByDate")
                 if n != BYDATE[a.bydate]: out(ok=False, error=f"FK_LoadGeneralLogDataByDate: jumlah argumen di DLL = {n}, kandidat {a.bydate} butuh {BYDATE[a.bydate]} → tidak dipanggil (mencegah crash).")
                 d1, d2 = _d.fromisoformat(a.date_from), _d.fromisoformat(a.date_to); load = lambda: bydate_call(dll, h, a.bydate, d1, d2)   # noqa: E731
                 r = load(); what = "FK_LoadGeneralLogDataByDate"
