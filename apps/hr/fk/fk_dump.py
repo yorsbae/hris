@@ -286,6 +286,50 @@ def diag(dll, h, a):
     out(ok=True, diag=rep, catatan="Kirim seluruh keluaran ini. load_ret=1 & first_reads[0].ret!=1 → mesin menjawab tetapi daftar kosong; status = jumlah data di mesin menurut indeks SDK.")
 
 
+LICENSES = (1261, 0)       # contoh resmi SDK FK memakai 1261; lisensi 0 bisa tersambung tetapi pembacaan data kosong → 1261 dulu, 0 sebagai cadangan
+
+
+def session(dll, a, lic, last, trace):
+    """Satu sambungan dengan lisensi `lic`. Memanggil out() (keluar) bila ada hasil akhir; return None bila harus mencoba lisensi berikutnya (gagal sambung / log kosong)."""
+    I = ctypes.c_int; h = dll.FK_ConnectNet(a.machine, a.ip.encode(), a.port, a.timeout, 0, a.key, lic)
+    if h <= 0:
+        trace.append(f"lisensi {lic}: kode {h}")
+        if last: out(ok=False, error=f"FK_ConnectNet gagal (kode {h}; lisensi dicoba: {trace}; periksa No Mesin={a.machine}, IP, port, kunci komunikasi).")
+        return None
+    prog(10, "connect")
+    try:
+        if a.probe: out(ok=True, rows=[], note="terhubung", license=lic)
+        if not a.no_disable: prog(12, "disable"); dll.FK_EnableDevice(h, 0)
+        try:
+            if a.diag: diag(dll, h, a)
+            if a.users_down: prog(15, "read"); users_down(dll, h)
+            if a.users_up: prog(12, "read"); users_up(dll, h, a.users_up)
+            prog(15, "load")                                              # tahap ini bisa lama bila log mesin besar (satu panggilan DLL, tanpa laporan kemajuan)
+            from datetime import date as _d
+            win = (a.date_from, a.date_to) if a.date_from and a.date_to else None
+            if a.bydate:
+                if not win: out(ok=False, error="--bydate butuh --from dan --to.")
+                n = argc(dll, "FK_LoadGeneralLogDataByDate")
+                if n != BYDATE[a.bydate]: out(ok=False, error=f"FK_LoadGeneralLogDataByDate: jumlah argumen di DLL = {n}, kandidat {a.bydate} butuh {BYDATE[a.bydate]} → tidak dipanggil (mencegah crash).")
+                d1, d2 = _d.fromisoformat(a.date_from), _d.fromisoformat(a.date_to); load = lambda: bydate_call(dll, h, a.bydate, d1, d2)   # noqa: E731
+                r = load(); what = "FK_LoadGeneralLogDataByDate"
+            else:
+                load = None; r = dll.FK_LoadGeneralLogData(h, 1 if a.new else 0); what = "FK_LoadGeneralLogData"
+            if r != 1:
+                trace.append(f"lisensi {lic}: {what} kode {r}, error {dll.FK_GetLastError(h)}")
+                if last: out(ok=False, error=f"{what} gagal (kode {r}, error {dll.FK_GetLastError(h)}; dicoba: {trace}).")
+                return None
+            prog(30, "read", 0)
+            try: st = read_logs(dll, h, a.new, load=load, emit=not a.count_only, win=win)
+            except RuntimeError as e: out(ok=False, error=str(e))
+            if st["raw"] == 0 and not last: trace.append(f"lisensi {lic}: sambung & muat sukses tetapi 0 scan terbaca"); return None
+            st["license"] = lic; st["tried"] = trace
+            prog(95, "read", st["count"]); out(ok=True, **st)
+        finally:
+            if not a.no_disable: dll.FK_EnableDevice(h, 1)
+    finally: dll.FK_DisConnect(h)
+
+
 def main():
     a = argparse.ArgumentParser()
     a.add_argument("--dll", required=True); a.add_argument("--ip"); a.add_argument("--port", type=int, default=5005)
@@ -295,7 +339,7 @@ def main():
     a.add_argument("--users-down", action="store_true", help="baca semua user + sidik jari"); a.add_argument("--users-up", metavar="BERKAS.JSON", help="kirim user dari berkas JSON ke mesin")
     a.add_argument("--from", dest="date_from"); a.add_argument("--to", dest="date_to"); a.add_argument("--bydate", choices=sorted(BYDATE)); a.add_argument("--bydate-test", action="store_true")
     a.add_argument("--count-only", action="store_true", help="hanya hitung scan di rentang --from/--to (tanpa mengirim baris)"); a.add_argument("--argc", action="store_true", help="tampilkan jumlah argumen fungsi (kalibrasi + ByDate)")
-    a.add_argument("--diag", action="store_true", help="diagnosis baca-saja: status mesin + hasil muat log (kirim keluarannya bila scan 0)"); a.add_argument("--exports", action="store_true", help="tampilkan fungsi yang diekspor DLL lalu selesai")
+    a.add_argument("--license", type=int, default=None, help="paksa lisensi FK_ConnectNet (bawaan: coba 1261 lalu 0)"); a.add_argument("--diag", action="store_true", help="diagnosis baca-saja: status mesin + hasil muat log (kirim keluarannya bila scan 0)"); a.add_argument("--exports", action="store_true", help="tampilkan fungsi yang diekspor DLL lalu selesai")
     a = a.parse_args()
     if a.exports:
         try: out(ok=True, exports=exports(a.dll))
@@ -317,38 +361,10 @@ def main():
     dll.FK_DisConnect.argtypes = [I]; dll.FK_EnableDevice.argtypes = [I, I]; dll.FK_LoadGeneralLogData.argtypes = [I, I]
     dll.FK_GetLastError.argtypes = [I]; dll.FK_GetLastError.restype = I
     dll.FK_GetGeneralLogData_1.argtypes = [I, P, P, P, P, P, P, P, P, P]
-    h = 0
-    for lic in (0, 1261):                                                  # 0 = SDK baru, 1261 = SDK lama
-        h = dll.FK_ConnectNet(a.machine, a.ip.encode(), a.port, a.timeout, 0, a.key, lic)
-        if h > 0: break
-    if h <= 0: out(ok=False, error=f"FK_ConnectNet gagal (kode {h}; periksa No Mesin={a.machine}, IP, port, kunci komunikasi).")
-    prog(10, "connect")
-    try:
-        if a.probe: out(ok=True, rows=[], note="terhubung")
-        if not a.no_disable: prog(12, "disable"); dll.FK_EnableDevice(h, 0)
-        try:
-            if a.diag: diag(dll, h, a)
-            if a.users_down: prog(15, "read"); users_down(dll, h)
-            if a.users_up: prog(12, "read"); users_up(dll, h, a.users_up)
-            prog(15, "load")                                              # tahap ini bisa lama bila log mesin besar (satu panggilan DLL, tanpa laporan kemajuan)
-            from datetime import date as _d
-            win = (a.date_from, a.date_to) if a.date_from and a.date_to else None
-            if a.bydate:
-                if not win: out(ok=False, error="--bydate butuh --from dan --to.")
-                n = argc(dll, "FK_LoadGeneralLogDataByDate")
-                if n != BYDATE[a.bydate]: out(ok=False, error=f"FK_LoadGeneralLogDataByDate: jumlah argumen di DLL = {n}, kandidat {a.bydate} butuh {BYDATE[a.bydate]} → tidak dipanggil (mencegah crash).")
-                d1, d2 = _d.fromisoformat(a.date_from), _d.fromisoformat(a.date_to); load = lambda: bydate_call(dll, h, a.bydate, d1, d2)   # noqa: E731
-                r = load(); what = "FK_LoadGeneralLogDataByDate"
-            else:
-                load = None; r = dll.FK_LoadGeneralLogData(h, 1 if a.new else 0); what = "FK_LoadGeneralLogData"
-            if r != 1: out(ok=False, error=f"{what} gagal (kode {r}, error {dll.FK_GetLastError(h)}).")
-            prog(30, "read", 0)
-            try: st = read_logs(dll, h, a.new, load=load, emit=not a.count_only, win=win)
-            except RuntimeError as e: out(ok=False, error=str(e))
-            prog(95, "read", st["count"]); out(ok=True, **st)
-        finally:
-            if not a.no_disable: dll.FK_EnableDevice(h, 1)
-    finally: dll.FK_DisConnect(h)
+    lics = [a.license] if a.license is not None else list(LICENSES); trace = []
+    for i, lic in enumerate(lics):
+        session(dll, a, lic, last=(i == len(lics) - 1), trace=trace)                # keluar lewat out(); kembali hanya bila perlu mencoba lisensi berikutnya
+    out(ok=False, error="FK_ConnectNet gagal untuk semua lisensi: " + "; ".join(trace))
 
 
 if __name__ == "__main__": main()

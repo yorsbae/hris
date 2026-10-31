@@ -374,6 +374,41 @@ class FkReadLogsTests(TestCase):
         self.assertGreater(a["p"], 15); self.assertGreater(b["p"], a["p"]); self.assertLess(c["p"], 29.0001); self.assertEqual((a["hb"], a["est"], "ts" in a), (1, 1, False))   # merayap pelan, tidak pernah masuk rentang 'read' (30+)
         r = f.hb_line({"p": 60, "stage": "read", "n": 4000, "ts": 1000.0}, 1100.0, 990.0); self.assertEqual((r["p"], "est" in r), (60, False))
 
+    class LicDll:
+        """DLL palsu: data hanya terbaca bila tersambung dengan lisensi `good` (meniru sambungan 'terbatas' dengan lisensi salah: handle valid, load sukses, daftar kosong)."""
+        def __init__(self, good, handle_ok=(1261, 0)): self.good, self.handle_ok, self.lic, self.log, self.i = good, handle_ok, None, [], 0
+        def FK_ConnectNet(self, m, ip, port, to, proto, key, lic):
+            self.log.append(("connect", lic)); self.lic = lic; self.i = 0; return 7 if lic in self.handle_ok else 0
+        def FK_DisConnect(self, h): self.log.append(("disconnect",))
+        def FK_EnableDevice(self, h, on): pass
+        def FK_LoadGeneralLogData(self, h, m): self.i = 0; return 1
+        def FK_GetLastError(self, h): return 0
+        def FK_GetGeneralLogData_1(self, h, *refs):
+            if self.lic != self.good or self.i >= 1: return 0
+            for r, x in zip(refs, (101, 1, 0, 2026, 10, 28, 7, 1, 2)): r._obj.value = x
+            self.i += 1; return 1
+
+    def _session(self, dll, license=None):
+        from apps.hr.fk import fk_dump as f
+        a = SimpleNamespace(machine=3, ip="192.168.11.40", port=5005, timeout=5000, key=0, probe=False, no_disable=False, diag=False, users_down=False, users_up=None, bydate=None,
+                            date_from=None, date_to=None, new=False, count_only=False, license=license); sent = []; trace = []
+        with mock.patch.object(f, "_line", lambda d: sent.append(d)):
+            for i, lic in enumerate([license] if license is not None else list(f.LICENSES)):
+                try: f.session(dll, a, lic, i == (0 if license is not None else len(f.LICENSES) - 1), trace)
+                except SystemExit: break
+        return sent[-1], [x for d in sent if "rows" in d and "ok" not in d for x in d["rows"]], dll.log
+
+    def test_license_1261_is_tried_first_and_other_is_fallback_on_empty(self):
+        fin, rows, log = self._session(self.LicDll(good=1261)); self.assertTrue(fin["ok"]); self.assertEqual((fin["license"], rows), (1261, [["101", "2026-10-28 07:01:02"]])); self.assertEqual(log[0], ("connect", 1261))
+        fin, rows, log = self._session(self.LicDll(good=0)); self.assertTrue(fin["ok"]); self.assertEqual((fin["license"], len(rows)), (0, 1))                  # 1261 kosong → otomatis 0
+        self.assertEqual([x for x in log if x[0] == "connect"], [("connect", 1261), ("connect", 0)]); self.assertEqual(log.count(("disconnect",)), 2)           # tiap sambungan ditutup
+        self.assertTrue(any("0 scan" in t for t in fin["tried"]))
+        fin, rows, log = self._session(self.LicDll(good=None)); self.assertTrue(fin["ok"]); self.assertEqual((fin["raw"], rows, fin["license"]), (0, [], 0))       # dua-duanya kosong → hasil kosong dengan jejak
+        self.assertTrue(any("lisensi 1261" in t for t in fin["tried"]))
+        fin, _, log = self._session(self.LicDll(good=1261, handle_ok=(0,)))                                                                                      # 1261 tak tersambung → 0
+        self.assertEqual(log[0], ("connect", 1261)); self.assertEqual(fin["license"], 0)
+        fin, _, log = self._session(self.LicDll(good=1261), license=0); self.assertEqual([x for x in log if x[0] == "connect"], [("connect", 0)])             # --license memaksa satu nilai
+
     def test_numeric_ids(self):
         st, rows = self._run(self.Dll([(101, 1, 0, 2026, 10, 28, 7, 1, 2), (0, 1, 0, 2026, 10, 28, 8, 0, 0), (102, 1, 0, 26, 13, 40, 8, 0, 0), (102, 1, 0, 26, 10, 28, 9, 0, 0)], []))
         self.assertEqual(rows, [["101", "2026-10-28 07:01:02"], ["102", "2026-10-28 09:00:00"]]); self.assertEqual((st["raw"], st["pin0"], st["baddate"], st["stringid"]), (4, 1, 1, False))

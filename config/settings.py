@@ -26,6 +26,7 @@ ATTENDANCE_FK_DLL = env("ATTENDANCE_FK_DLL", default="")  # jalur FKAttend.dll (
 ATTENDANCE_FK_TIMEOUT = env.int("ATTENDANCE_FK_TIMEOUT", default=900)  # detik maksimal membaca satu mesin FK (log besar bisa lama; bawaan lama = 120)
 ATTENDANCE_FK_BYDATE = env("ATTENDANCE_FK_BYDATE", default="")  # id tanda tangan FK_LoadGeneralLogDataByDate (i3/s3/i4/s4/d7/d8) hasil `fk_dump.py --bydate-test`; kosong = baca seluruh log (aman)
 ATTENDANCE_SYNC_LATEST_HOURS = env.int("ATTENDANCE_SYNC_LATEST_HOURS", default=24)  # "Data terbaru" = sekian jam terakhir (mundur ke scan terakhir tersimpan bila lebih lama → tanpa celah)
+ATTENDANCE_FK_LICENSE = env("ATTENDANCE_FK_LICENSE", default="")  # lisensi FK_ConnectNet; kosong = otomatis (1261 lalu 0). Isi hanya untuk memaksa satu nilai
 ATTENDANCE_FK_NO_DISABLE = env.bool("ATTENDANCE_FK_NO_DISABLE", default=False)  # True = jangan kunci mesin saat membaca (bila firmware macet di tahap 'disable')
 ATTENDANCE_FK_PYTHON32 = env("ATTENDANCE_FK_PYTHON32", default="")  # python.exe 32-bit untuk memuat DLL 32-bit; kosong = Python yang sedang jalan
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")  # enkripsi kolom sensitif; lihat apps/core/crypto.py

@@ -194,6 +194,8 @@ class _Fk:
         except ValueError: raise SyncError("No Mesin harus angka (lihat kolom No Mesin di Fingerspot Personnel).")
         cmd = [py, str(Path(__file__).parent / "fk" / "fk_dump.py"), "--dll", dll, "--ip", self.dev.host, "--port", str(self.dev.port), "--machine", str(no), "--key", str(pw), *extra]
         if getattr(settings, "ATTENDANCE_FK_NO_DISABLE", False): cmd.append("--no-disable")
+        lic = str(getattr(settings, "ATTENDANCE_FK_LICENSE", "") or "").strip()
+        if lic.lstrip("-").isdigit(): cmd += ["--license", lic]                 # bawaan kosong = pembaca mencoba 1261 lalu 0
         last = {}; final = {}; got = []; got_u = []; t0 = time.time()
         def on_line(ln):
             try: j = json.loads(ln)
@@ -232,7 +234,7 @@ class _Fk:
     def _taps(self, r, d1, d2):
         out = []; raw = r.get("raw", len(r["rows"]))
         if not r["rows"]:                                                    # jangan diam-diam "OK 0 scan": jelaskan kenapa tidak ada yang terpakai
-            if not raw: raise SyncError(f"Mesin tidak mengembalikan satu pun scan (FK_LoadGeneralLogData sukses tetapi daftar kosong; kode galat DLL {r.get('first_err')}"
+            if not raw: raise SyncError(f"Mesin tidak mengembalikan satu pun scan (FK_LoadGeneralLogData sukses tetapi daftar kosong; kode galat DLL {r.get('first_err')}; lisensi dicoba: {r.get('tried')}"
                                         f"{', sudah dicoba juga lewat ID teks' if r.get('stringid') else (', pembacaan ID teks tidak dapat dicoba: argc=' + str(r.get('str_argc')) if 'str_argc' in r else '')}). "
                                         f"Keadaan mesin: {r.get('probe')}. Bila angka di Fingerspot Personnel menunjukkan ada scan tetapi di sini kosong, kirim pesan ini lengkap agar pembacaan disesuaikan.")
             raise SyncError(f"DLL membaca {raw} scan tetapi tidak ada yang terpakai ({r.get('pin0', 0)} ber-PIN 0, {r.get('baddate', 0)} tanggal tidak valid"
