@@ -373,6 +373,87 @@ class ProgressEndpointTests(TestCase):
         self.assertEqual((j["pct"], j["note"]), (42, "Membaca scan")); self.assertEqual(self.client.get(url, {"job": "zz", "id": "1"}).json()["pct"], 0)
 
 
+class BigLogTests(ModeTests):
+    """Log scanlog besar: dipecah per bagian agar tidak menabrak batas baris impor; hasil FK terpotong ditolak."""
+    def _taps(self, n):
+        from datetime import datetime, timedelta
+        t0 = datetime(2026, 10, 1, 6, 0, 0)
+        return [(str(100 + i % 7), (t0 + timedelta(minutes=3 * i)).strftime("%Y-%m-%d %H:%M:%S")) for i in range(n)]
+
+    def test_log_over_import_row_limit_is_split_not_rejected(self):
+        from apps.hr import attendance_import as imp
+        d = self._dev(); taps = self._taps(95)
+        with mock.patch.object(sy, "check_host"), mock.patch.object(sy, "fetch_device", lambda *a: (taps, "")), mock.patch.object(imp, "MAX_ROWS", 30), mock.patch.object(sy, "CHUNK", 25):
+            r = sy.sync_device(d, mode="all")
+        self.assertTrue(r["ok"], r["note"]); self.assertEqual((r["fetched"], r["new"], r["dup"]), (95, 95, 0)); self.assertEqual(AttendanceRaw.objects.count(), 95)
+        with mock.patch.object(sy, "check_host"), mock.patch.object(sy, "fetch_device", lambda *a: (taps, "")), mock.patch.object(imp, "MAX_ROWS", 30), mock.patch.object(sy, "CHUNK", 25):
+            r = sy.sync_device(d, mode="all")                                                       # unduh ulang: semua dilewati, tak ada data ganda
+        self.assertEqual((r["new"], r["dup"]), (0, 95)); self.assertEqual(AttendanceRaw.objects.count(), 95)
+
+    def test_single_chunk_unchanged_and_progress_goes_up(self):
+        d = self._dev(); seen = []
+        with mock.patch.object(sy, "check_host"), mock.patch.object(sy, "fetch_device", lambda *a: (self._taps(10), "")), mock.patch.object(sy, "CHUNK", 4), \
+                mock.patch.object(sy, "set_progress", lambda pct, note="": seen.append((round(pct), note))):
+            r = sy.sync_device(d, mode="all")
+        self.assertEqual(r["new"], 10); self.assertTrue(any("bagian 3 dari 3" in n for _, n in seen)); self.assertEqual([p for p, _ in seen], sorted(p for p, _ in seen))
+
+    def test_fk_rows_streamed_in_batches_and_truncated_is_rejected(self):
+        fk = self._fk(); rows = [["101", "2026-10-28 07:01:02"], ["102", "2026-10-28 07:02:02"]]
+        with FkDriverTests._fake(self, [{"p": 40, "stage": "read", "n": 1}, {"rows": rows[:1]}, {"rows": rows[1:]}, {"ok": True, "count": 2, "truncated": False}]):
+            self.assertEqual(sy.fetch_device(fk, date(2026, 10, 1), date(2026, 10, 30)), ([("101", "2026-10-28 07:01:02"), ("102", "2026-10-28 07:02:02")], ""))
+        with FkDriverTests._fake(self, [{"rows": rows}, {"ok": True, "count": 2, "truncated": True}]):
+            taps, err = sy.fetch_device(fk, date(2026, 10, 1), date(2026, 10, 30))
+        self.assertEqual(taps, []); self.assertIn("terpotong", err)
+
+    def _fk(self): return AttendanceDevice.objects.create(code="FKB", name="FK", host="192.168.11.40", port=5005, protocol="fk", machine_no="12")
+
+
+class NoDoubleDataTests(TestCase):
+    """Jaminan tanpa data ganda: mesin kembar diblokir, format PIN berbeda tidak menggandakan, unduh ulang/tumpang tindih aman."""
+    def _d(self, code, host="192.168.11.40", port=5005, proto="fk", **kw): return AttendanceDevice.objects.create(code=code, name=f"M-{code}", host=host, port=port, protocol=proto, sync_enabled=True, **kw)
+
+    def test_same_machine_registered_twice_is_blocked_older_still_syncs(self):
+        old, new = self._d("A1"), self._d("B2"); taps = [("101", "2026-10-28 07:01:02")]; calls = []
+        with mock.patch.object(sy, "check_host"), mock.patch.object(sy, "fetch_device", lambda d, *a: (calls.append(d.code), (taps, ""))[1]):
+            self.assertTrue(sy.sync_device(old, mode="all")["ok"])
+            r = sy.sync_device(new, mode="all")
+            self.assertFalse(r["ok"]); self.assertIn("terdaftar dua kali", r["note"]); self.assertEqual(calls, ["A1"])       # jaringan mesin kembar tidak disentuh
+            old.active = False; old.save(); self.assertTrue(sy.sync_device(new, mode="all")["ok"])                          # yang lama dinonaktifkan → boleh
+        self.assertEqual(sorted(AttendanceRaw.objects.values_list("device_id", flat=True)), ["A1", "B2"])                   # (dua kode hanya bila pengguna sendiri mengizinkan)
+
+    def test_sync_many_skips_twin_without_network(self):
+        old, new = self._d("A1"), self._d("B2"); calls = []
+        with mock.patch.object(sy, "check_host"), mock.patch.object(sy, "fetch_device", lambda d, *a: (calls.append(d.code), ([("101", "2026-10-28 07:01:02")], ""))[1]):
+            res = sy.sync_many([old, new], mode="all")
+        self.assertEqual(calls, ["A1"]); self.assertEqual([r["ok"] for r in res], [True, False]); self.assertEqual(AttendanceRaw.objects.count(), 1)
+
+    def test_different_ip_or_easylink_shared_server_not_blocked(self):
+        a = self._d("A1"); b = self._d("B2", host="192.168.11.41"); e1 = self._d("E1", host="srv", port=8080, proto="easylink"); e2 = self._d("E2", host="srv", port=8080, proto="easylink")
+        self.assertEqual([sy.alias_conflict(x) for x in (a, b, e1, e2)], ["", "", "", ""])
+
+    def test_machine_list_import_warns_and_disables_twin(self):
+        self._d("A1", host="192.168.11.40", port=4370, proto="zk")
+        table = "SN\tIP Address / URL\tNama\nB2\t192.168.11.40\tDouble\n"
+        made, upd, warn = sy.import_machine_list(table.encode(), "paste.txt")
+        twin = AttendanceDevice.objects.get(code="B2"); self.assertFalse(twin.sync_enabled); self.assertTrue(any("terdaftar dua kali" in w for w in warn))
+
+    def test_pin_format_variants_and_overlapping_windows_never_double(self):
+        d = self._d("A1"); t1 = [("101", "2026-10-28 07:01:02"), ("102", "2026-10-28 07:02:02")]; t2 = [("0101", "2026-10-28 07:01:02"), ("102", "2026-10-28 07:02:02"), ("101", "2026-10-29 07:00:00")]
+        with mock.patch.object(sy, "check_host"):
+            with mock.patch.object(sy, "fetch_device", lambda *a: (t1, "")): self.assertEqual(sy.sync_device(d, mode="all")["new"], 2)
+            with mock.patch.object(sy, "fetch_device", lambda *a: (t2, "")): r = sy.sync_device(d, mode="all")
+        self.assertEqual((r["new"], r["dup"]), (1, 2)); self.assertEqual(AttendanceRaw.objects.count(), 3)                  # '0101' = '101'; hanya 29 Okt yang baru
+
+    def test_audit_command_reports_twin_machines_and_cross_code_scans(self):
+        from io import StringIO
+        from datetime import datetime
+        from django.utils import timezone
+        a, b = self._d("A1"), self._d("B2")
+        for dev in ("A1", "B2"): AttendanceRaw.objects.create(pin="101", device_id=dev, punched_at=timezone.make_aware(datetime(2026, 10, 28, 7, 1, 2)))
+        out = StringIO(); call_command("audit_attendance_dupes", stdout=out); t = out.getvalue()
+        self.assertIn("MESIN KEMBAR 192.168.11.40:5005", t); self.assertIn("1 scan tercatat di lebih dari satu kode", t)
+
+
 class ProtocolReimportTests(TestCase):
     def test_import_mesin_switches_existing_devices_to_fk(self):
         AttendanceDevice.objects.create(code="FIO616202022322344", name="POLISI", host="192.168.10.36", protocol="zk", port=5005)

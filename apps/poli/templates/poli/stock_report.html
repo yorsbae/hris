@@ -1,4 +1,5 @@
-{% extends "base.html" %}{% block title %}Rekap stok obat{% endblock %}{% block content %}
+{% extends "base.html" %}{% load kop %}{% block title %}Rekap stok obat{% endblock %}{% block content %}
+{% kop_block "poli" print_only=True %}
 <p class="back"><a href="/poli/medicines/">‹ Obat & kartu stok</a></p>
 <h2>Rekap stok obat: {% if period == "month" %}bulanan{% else %}harian{% endif %}</h2>
 <form method="get" data-fbar class="bar">

@@ -144,7 +144,7 @@ class _Zk:
                 uid = have.get(it["pin"])
                 if uid is None:
                     while nxt in used: nxt += 1
-                    uid = nxt; used.add(uid)
+                    uid = nxt; used.add(uid); have[it["pin"]] = uid         # PIN yang sama muncul lagi di daftar → pakai uid ini (tidak membuat user kembar di mesin)
                 try:
                     if it["fingers"]:
                         c.save_user_template(User(uid, it["name"], it["privilege"], it["password"], it["group_id"], it["pin"], it["card"]),
@@ -194,11 +194,12 @@ class _Fk:
         except ValueError: raise SyncError("No Mesin harus angka (lihat kolom No Mesin di Fingerspot Personnel).")
         cmd = [py, str(Path(__file__).parent / "fk" / "fk_dump.py"), "--dll", dll, "--ip", self.dev.host, "--port", str(self.dev.port), "--machine", str(no), "--key", str(pw), *extra]
         if getattr(settings, "ATTENDANCE_FK_NO_DISABLE", False): cmd.append("--no-disable")
-        last = {}; final = {}; t0 = time.time()
+        last = {}; final = {}; got = []; t0 = time.time()
         def on_line(ln):
             try: j = json.loads(ln)
             except ValueError: return
             if not isinstance(j, dict): return
+            if "rows" in j and "ok" not in j: got.extend(j["rows"]); return                 # baris scan bertahap (log besar)
             if "ok" in j: final.update(j); return
             last.update(j); st = self.STAGES.get(j.get("stage"), "")
             set_progress(base + span * j.get("p", 0) / 100, st + (f" · {j['n']:,} scan".replace(",", ".") if j.get("n") else ""))
@@ -214,7 +215,8 @@ class _Fk:
             msg = final.get("error", "FK gagal.")
             if not getattr(settings, "ATTENDANCE_FK_PYTHON32", ""): msg += " [ATTENDANCE_FK_PYTHON32 kosong di server ini — pastikan ada di .env lalu RESTART runserver (.env hanya dibaca saat start)]"
             raise SyncError(msg)
-        return final
+        if final.get("truncated"): raise SyncError("Log mesin melebihi batas aman 2.000.000 scan sehingga terpotong — hasil DITOLAK agar tidak ada data hilang diam-diam. Arsipkan lalu kosongkan log di mesin (Fingerspot Personnel), atau pecah dengan 'Sejak scan terakhir'.")
+        final.setdefault("rows", got); return final
     def fetch(self, d1, d2):
         out = []
         for pin, at in self._call(span=85)["rows"]:
@@ -249,10 +251,13 @@ def probe(dev, ports=(4370, 5005, 8080)):
     return out
 
 
-def _to_file(dev, taps):
+CHUNK = getattr(settings, "ATTENDANCE_SYNC_CHUNK", 100_000)       # scan per impor; harus < ATTENDANCE_MAX_ROWS (400.000) agar log besar tidak ditolak
+
+
+def _to_file(dev, taps, part=None):
     buf = io.StringIO(); w = csv.writer(buf); w.writerow(["PIN", "Tanggal Scan", "Mesin"])
     for pin, at in taps: w.writerow([pin, at, dev.code])
-    f = io.BytesIO(buf.getvalue().encode("utf-8")); f.name = f"sync_{dev.code}_{timezone.localdate()}.csv"; return f
+    f = io.BytesIO(buf.getvalue().encode("utf-8")); f.name = f"sync_{dev.code}_{timezone.localdate()}{'' if part is None else f'_bagian{part}'}.csv"; return f
 
 
 def fetch_device(dev, d1, d2):
@@ -264,20 +269,31 @@ def fetch_device(dev, d1, d2):
     except SyncError as e: return [], str(e)
 
 
+def _ingest_part(taps, part, dev, commit):
+    """Satu bagian (≤ CHUNK scan) → (baru, dobel, tanggal_min, tanggal_maks | None)."""
+    i = imp.stage_upload(_to_file(dev, taps, part), None); imp.analyze(i); new, dup, span = i.taps_new, i.taps_duplicate, None
+    if not commit or not i.taps_new: imp.cancel(i); i.delete()          # tidak ada yang baru → tidak meninggalkan baris riwayat/berkas sementara
+    else:
+        imp.commit(i, None, ignore_invalid=True); new, dup = i.taps_new, i.taps_duplicate
+        if i.state == "selesai": span = (i.date_min, i.date_max)
+    return new, dup, span
+
+
 def ingest(dev, taps, err="", commit=True, window=None):
+    """Log besar dipecah per CHUNK scan (urut waktu) → tiap bagian diimpor sendiri; satu bagian gagal tidak membatalkan bagian yang sudah tersimpan
+    (impor idempoten: unduh ulang melewati yang sudah ada). Hitung ulang hari kerja sekali di akhir untuk seluruh rentang."""
     out = {"device": dev.code, "ok": False, "new": 0, "dup": 0, "fetched": len(taps), "note": err}
     if not err:
         try:
             if taps:
-                i = imp.stage_upload(_to_file(dev, taps), None); imp.analyze(i)
-                out["new"], out["dup"] = i.taps_new, i.taps_duplicate
-                if not commit or not i.taps_new: imp.cancel(i); i.delete()          # tidak ada yang baru → tidak meninggalkan baris riwayat/berkas sementara
-                else:
-                    imp.commit(i, None, ignore_invalid=True)
-                    out["new"], out["dup"] = i.taps_new, i.taps_duplicate
-                    if i.state == "selesai": calc.process(i.date_min - timedelta(days=1), i.date_max + timedelta(days=1))
+                taps = sorted(set(taps), key=lambda t: (t[1], t[0])); parts = [taps[k:k + CHUNK] for k in range(0, len(taps), CHUNK)]; lo = hi = None
+                for n, part in enumerate(parts):
+                    if len(parts) > 1: set_progress(88 + 11 * n / len(parts), f"Menyimpan bagian {n + 1} dari {len(parts)} ({len(taps):,} scan)".replace(",", "."))
+                    new, dup, span = _ingest_part(part, n + 1 if len(parts) > 1 else None, dev, commit); out["new"] += new; out["dup"] += dup
+                    if span: lo = span[0] if lo is None else min(lo, span[0]); hi = span[1] if hi is None else max(hi, span[1])
+                if lo and hi: calc.process(lo - timedelta(days=1), hi + timedelta(days=1))
             out["ok"] = True; out["note"] = f"{out['fetched']} scan diterima, {out['new']} baru, {out['dup']} sudah ada (dilewati)." + (f" Rentang {window[0] if window[0] > ALL_FROM else 'awal'} s/d {window[1]}." if window else "")
-        except ValueError as e: out["note"] = str(e)[:290]
+        except ValueError as e: out["note"] = (f"{out['new']} scan baru sudah tersimpan sebelum berhenti. " if out["new"] else "") + str(e)[:260]
     if commit:
         dev.last_sync_at, dev.last_sync_ok, dev.last_sync_note = timezone.now(), out["ok"], out["note"][:300]
         dev.save(update_fields=["last_sync_at", "last_sync_ok", "last_sync_note"])
@@ -304,7 +320,18 @@ def window(dev, mode="latest", d1=None, d2=None):
     return (d1 or d2 - timedelta(days=getattr(settings, "ATTENDANCE_SYNC_DAYS", 3))), d2
 
 
+def alias_conflict(dev):
+    """Pesan bila mesin fisik yang SAMA (IP:port sama, protokol langsung ZK/FK) sudah terdaftar aktif dengan kode lain yang lebih lama.
+    Aturan duplikat memperlakukan dua kode mesin sebagai dua mesin → tanpa penjagaan ini scan yang sama tercatat dua kali. Yang lebih lama tetap boleh sinkron."""
+    if dev.protocol not in ("zk", "fk") or not (dev.host or "").strip(): return ""
+    o = AttendanceDevice.objects.filter(active=True, protocol__in=("zk", "fk"), host__iexact=dev.host.strip(), port=dev.port, pk__lt=dev.pk).exclude(pk=dev.pk).order_by("pk").first()
+    return (f"IP {dev.host}:{dev.port} sudah dipakai mesin '{o.name}' (kode {o.code}) — kemungkinan mesin yang sama terdaftar dua kali. "
+            "Unduhan diblokir agar scan tidak tercatat ganda. Hapus/nonaktifkan salah satu, atau perbaiki IP-nya.") if o else ""
+
+
 def sync_device(dev, d1=None, d2=None, commit=True, mode="latest"):
+    msg = alias_conflict(dev)
+    if msg: return ingest(dev, [], msg, commit)
     set_progress(1, "Memulai"); a, b = window(dev, mode, d1, d2); taps, err = fetch_device(dev, a, b)
     set_progress(88, f"{len(taps):,} scan diterima · menyimpan ke HRIS".replace(",", ".")) if not err else None
     r = ingest(dev, taps, err, commit, window=(a, b)); set_progress(100, "Selesai" if r["ok"] else "Gagal"); return r
@@ -314,7 +341,8 @@ def sync_many(devs, d1=None, d2=None, commit=True, workers=8, mode="latest"):
     """Unduh banyak mesin: jaringan paralel (28 mesin tidak menunggu satu per satu), simpan ke DB berurutan."""
     from concurrent.futures import ThreadPoolExecutor
     devs = list(devs); wins = [window(d, mode, d1, d2) for d in devs]       # jendela dihitung di thread utama (butuh DB)
-    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(devs) or 1))) as ex: got = list(ex.map(lambda x: fetch_device(x[0], *x[1]), zip(devs, wins)))
+    blocked = {d.pk: alias_conflict(d) for d in devs}                        # juga butuh DB → thread utama; mesin kembar tidak disentuh jaringannya
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, len(devs) or 1))) as ex: got = list(ex.map(lambda x: ([], blocked[x[0].pk]) if blocked[x[0].pk] else fetch_device(x[0], *x[1]), zip(devs, wins)))
     return [ingest(d, t, e, commit, window=w) for d, (t, e), w in zip(devs, got, wins)]
 
 
@@ -443,6 +471,10 @@ def import_machine_list(raw, filename="paste.txt", protocol="zk", port=4370, set
         if host_ok: d.host = host
         if set_protocol and not created: d.protocol = protocol
         if created: d.sync_enabled = host_ok
+        dup_msg = alias_conflict(d)
+        if dup_msg:
+            warn.append(f"{d.name}: {dup_msg}")
+            if created: d.sync_enabled = False                               # mesin kembar baru tidak ikut tarik otomatis
         d.save(); made += created; upd += not created
     if not cols: raise ValueError("Kolom tidak dikenali. Butuh minimal kolom 'SN' dan 'IP Address / URL' (salin tabel dari Fingerspot Personnel termasuk judul kolom).")
     return made, upd, warn

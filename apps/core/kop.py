@@ -5,10 +5,14 @@ baris usaha sans tebal biru, alamat serif tebal hitam, lalu garis biru tebal + t
 Poliklinik memakai tata letak yang sama dengan logo sendiri (lingkaran + palang medis) dan nama poli.
 """
 import math
+from pathlib import Path
+from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import Color, white, black
 from reportlab.lib.units import mm
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
+LOGO_FILE = Path(__file__).parent / "static" / "core" / "kop-logo.png"   # logo SUKORINTEX asli (bintang-matahari + pita nama)
+LOGO_W, LOGO_H = 24 * mm, 24 * mm * 107 / 151                          # rasio gambar 151×107
 NAVY = Color(0.09, 0.24, 0.56)     # teks & garis kop
 LOGO_DARK = Color(0.06, 0.18, 0.46)
 LOGO_BLUE = Color(0.13, 0.44, 0.88)
@@ -49,20 +53,27 @@ def logo_poli(c, cx, cy, r, label="POLIKLINIK"):
     _banner(c, cx, cy - r * 0.02, r * 1.78, r * 0.34, label)
 
 
+def logo_image(c, cx, cy):
+    """Logo asli dari berkas; False bila berkas tidak ada (→ pakai logo vektor pengganti)."""
+    try: img = ImageReader(str(LOGO_FILE))
+    except Exception: return False
+    c.drawImage(img, cx - LOGO_W / 2, cy - LOGO_H / 2, LOGO_W, LOGO_H, mask="auto"); return True
+
+
 def draw(c, W, top, L, lh, kind="company"):
     """Gambar kop; `top` = batas atas konten (titik tertinggi logo). Mengembalikan y garis bawah kop (semua isi surat diukur dari sana).
-    kind="company" → nama perusahaan; kind="poli" → nama poli + logo poli."""
-    r = 11 * mm; cx = L + r; cy = top - r
-    (logo_poli if kind == "poli" else logo_company)(c, cx, cy, r)
-    x0 = L + 2 * r + 3 * mm; x1 = W - L; mid = (x0 + x1) / 2; maxw = x1 - x0
-    name = lh["poli"] if kind == "poli" else lh["company"]
-    tag = lh.get("tagline")
-    if kind == "poli": tag = lh["company"] if lh["company"].lower() not in name.lower() else lh.get("poli_tagline")  # nama perusahaan selalu tampil di kop poli
+    kind: "company" (surat resmi), "hrd" (cetakan internal HRD), "poli" (Poliklinik) — judul menurut letterhead.heading; logo asli untuk company/hrd, logo Poliklinik untuk poli."""
+    from .letterhead import heading
+    r = 11 * mm; cy = top - r; name, tag, addr = heading(kind, lh); lw = 2 * r
+    if kind == "poli": logo_poli(c, L + r, cy, r)
+    elif logo_image(c, L + LOGO_W / 2, cy): lw = LOGO_W
+    else: logo_company(c, L + r, cy, r)
+    x0 = L + lw + 3 * mm; x1 = W - L; mid = (x0 + x1) / 2; maxw = x1 - x0
     c.setFillColor(NAVY); s = _fit(name, "Times-Bold", 25, maxw, 10); c.setFont("Times-Bold", s)
     y = top - 8.5 * mm; c.drawCentredString(mid, y, name)
     if tag:
         s = _fit(tag, "Helvetica-Bold", 11.5, maxw, 6); c.setFont("Helvetica-Bold", s); y -= 6.3 * mm; c.drawCentredString(mid, y, tag)
-    c.setFillColor(black); addr = lh.get("address") or ""
+    c.setFillColor(black)
     if addr:
         s = _fit(addr, "Times-Bold", 8.5, maxw, 5); c.setFont("Times-Bold", s); y -= 5 * mm; c.drawCentredString(mid, y, addr)
     y = min(y, cy - r + 1.5 * mm) - 2.2 * mm

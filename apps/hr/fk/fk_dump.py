@@ -4,7 +4,8 @@ Dijalankan sebagai PROSES TERPISAH oleh HRIS karena DLL-nya 32-bit & hanya untuk
     python32 fk_dump.py --dll "...\\FKAttend.dll" --exports        # diagnostik: daftar fungsi yang diekspor DLL
 Keluaran (satu JSON per baris):
     {"p": <persen 0-100>, "stage": "connect|disable|load|read", "n": <jumlah scan>, "t": <detik>}   ← kemajuan + detak (tiap 5 dtk, juga saat DLL sedang menunggu mesin)
-    {"ok": true, "rows": [["PIN","YYYY-MM-DD HH:MM:SS"],...]} atau {"ok": false, "error": "..."}   ← baris terakhir
+    {"rows": [["PIN","YYYY-MM-DD HH:MM:SS"],...]}   ← bertahap (5000 scan per baris) agar log besar tidak jadi satu JSON raksasa
+    {"ok": true, "count": N, "truncated": false} atau {"ok": false, "error": "..."}   ← baris terakhir
 Tanda tangan fungsi diturunkan dari disassembly FKAttend.dll (jumlah argumen stdcall cocok); verifikasi akhir tetap pada mesin sungguhan."""
 import argparse, ctypes, json, math, os, struct, sys, threading, time
 
@@ -25,6 +26,9 @@ def prog(p=None, stage=None, n=None):
 def _heartbeat():
     while True:
         time.sleep(5); _line(dict(_ST, t=round(time.time() - _T0, 1), hb=1))     # ctypes melepas GIL saat DLL menunggu → detak tetap jalan
+
+
+BATCH = 5000; CAP = 2_000_000                                                     # CAP: pengaman memori; bila tercapai → truncated=true (HRIS menolak hasil terpotong)
 
 
 def out(**kw): _line(kw); sys.exit(0 if kw.get("ok") else 1)
@@ -83,14 +87,17 @@ def main():
             prog(15, "load")                                              # tahap ini bisa lama bila log mesin besar (satu panggilan DLL, tanpa laporan kemajuan)
             r = dll.FK_LoadGeneralLogData(h, 1 if a.new else 0)
             if r != 1: out(ok=False, error=f"FK_LoadGeneralLogData gagal (kode {r}, error {dll.FK_GetLastError(h)}).")
-            prog(30, "read", 0); v = [I() for _ in range(9)]; rows = []; refs = [ctypes.byref(x) for x in v]
-            while len(rows) < 2_000_000:
+            prog(30, "read", 0); v = [I() for _ in range(9)]; rows = []; refs = [ctypes.byref(x) for x in v]; total = 0; truncated = False
+            while True:
+                if total >= CAP: truncated = True; break
                 if dll.FK_GetGeneralLogData_1(h, *refs) != 1: break
                 pin, _vm, _io, y, mo, d, hh, mi, ss = (x.value for x in v)
                 if y < 100: y += 2000                                    # beberapa firmware memberi tahun 2 digit
-                rows.append([str(pin), f"{y:04d}-{mo:02d}-{d:02d} {hh:02d}:{mi:02d}:{ss:02d}"])
-                if len(rows) % 2000 == 0: prog(round(30 + 60 * (1 - math.exp(-len(rows) / 30000))), "read", len(rows))   # total tidak diketahui → persen perkiraan
-            prog(95, "read", len(rows)); out(ok=True, rows=rows)
+                rows.append([str(pin), f"{y:04d}-{mo:02d}-{d:02d} {hh:02d}:{mi:02d}:{ss:02d}"]); total += 1
+                if len(rows) >= BATCH:
+                    _line({"rows": rows}); rows = []; prog(round(30 + 60 * (1 - math.exp(-total / 30000))), "read", total)   # total tidak diketahui → persen perkiraan
+            if rows: _line({"rows": rows})
+            prog(95, "read", total); out(ok=True, count=total, truncated=truncated)
         finally:
             if not a.no_disable: dll.FK_EnableDevice(h, 1)
     finally: dll.FK_DisConnect(h)

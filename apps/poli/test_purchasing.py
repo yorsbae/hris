@@ -125,6 +125,12 @@ class AccessAndPagesTests(PurchasingBase):
         self.assertContains(self.client.get(f"/poli/orders/{o.pk}/"), "Giliran Anda: terima barang"); self.assertContains(self.client.get("/poli/"), "pesanan menunggu barang"); self.assertContains(self.client.get("/poli/medicines/"), "Pesan obat")
 
 
+class OrderPrintKopTests(PurchasingBase):
+    def test_print_uses_poliklinik_kop_not_company_trade_line(self):
+        self.new_order([self.empty]); o = PurchaseOrder.objects.get(); html = self.client.get(f"/poli/orders/{o.pk}/print/").content.decode()
+        self.assertIn("POLIKLINIK", html); self.assertIn("PELAYANAN KESEHATAN KARYAWAN", html); self.assertNotIn("EXPORT - IMPORT", html)   # bukan kop perusahaan/ekspor-impor
+
+
 class ShortfallTests(PurchasingBase):
     """Pesan 8 datang 4; ada yang tidak datang; semuanya dengan keterangan."""
     lines = ReceiveTests.lines; receive = ReceiveTests.receive

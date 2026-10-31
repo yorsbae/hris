@@ -8,6 +8,7 @@ COMPANY_NAME = env("COMPANY_NAME", default="PT X")  # sementara; kelak dari konf
 # Kop & penanda tangan surat cetak (putaran 20). Nama di formulir contoh hanya TEMPLATE: isi lewat .env sesuai pejabat yang bertugas.
 COMPANY_ADDRESS = env("COMPANY_ADDRESS", default="Jl. Raya Kandeman Km. 4,5 Kandeman - Batang 51261, Jawa Tengah, Telp. (0285) 392884 / 4493084 - Fax. (0285) 392583")
 COMPANY_TAGLINE = env("COMPANY_TAGLINE", default="EXPORT - IMPORT - MANUFACTURE - GENERAL TRADING")  # baris usaha di bawah nama pada kop
+HRD_KOP_UNIT = env("HRD_KOP_UNIT", default="DEPARTEMEN HRD")  # baris di bawah nama perusahaan pada cetakan internal HRD (daftar karyawan dsb.) — tanpa baris usaha ekspor-impor
 POLI_TAGLINE = env("POLI_TAGLINE", default="PELAYANAN KESEHATAN KARYAWAN")  # baris di bawah nama poli pada kop poli
 COMPANY_CITY = env("COMPANY_CITY", default="")  # kota untuk baris "Batang, 11 Oktober 2026" di surat Poli; kosong → hanya tanggal
 POLI_NAME = env("POLI_NAME", default="")  # kosong → "POLIKLINIK <COMPANY_NAME>"

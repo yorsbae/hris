@@ -1,4 +1,4 @@
-{% load static %}<!doctype html><html lang="id"><head><meta charset="utf-8"><title>{{ o.number }}</title>
+{% load static kop %}<!doctype html><html lang="id"><head><meta charset="utf-8"><title>{{ o.number }}</title>
 <style>
 @page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font:12px/1.4 Arial,Helvetica,sans-serif;color:#000;margin:0;padding:16px;background:#fff}
 .sheet{max-width:273mm;margin:0 auto;border:2px solid #000;padding:0}
@@ -19,7 +19,7 @@ tfoot td{font-weight:700;background:#f3f3f3}
 </style></head><body>
 <div class="bar"><button type="button" onclick="window.print()">Cetak</button><a href="{% url 'poli_order_detail' o.pk %}">‹ Kembali</a></div>
 <div class="sheet">
-<div class="kop"><img src="{% static 'core/kop-logo.png' %}" alt=""><div class="t"><div class="nm">{{ kop.company }}</div>{% if kop.tagline %}<div class="tg">{{ kop.tagline }}</div>{% endif %}{% if kop.address %}<div class="ad">{{ kop.address }}</div>{% endif %}</div></div><div class="rule"></div>
+{% kop_block "poli" %}
 <h1>SURAT PESANAN OBAT</h1>
 <table class="meta"><tr><td class="k">Nomor</td><td>: {{ o.number }}</td><td class="k2">Tanggal</td><td>: {{ o.created_at|date:"d F Y" }}</td></tr>
 <tr><td class="k">Kepada (Pemasok)</td><td>: {{ o.supplier|default:"-" }}</td><td class="k2">Catatan</td><td>: {{ o.note|default:"-" }}</td></tr></table>

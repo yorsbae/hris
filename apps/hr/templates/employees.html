@@ -1,4 +1,5 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load kop %}{% block content %}
+{% kop_block "hrd" print_only=True %}
 <h2>Karyawan{% if user.role == "hrd" or user.role == "superadmin" %} <a class="btn" href="/employees/new/">+ Karyawan baru</a> <a class="btn" href="/employees/import/">Impor CSV/XLSX</a>{% endif %}{% if user.role != "poli" %} <a class="btn" href="#" id="export-csv">Ekspor CSV</a> <a class="btn" href="#" id="export-xlsx">Ekspor XLSX</a>{% endif %}</h2>
 <div class="filters" role="search" data-fbar data-sg="server"><input id="q" type="search" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama" autocomplete="off">
 <select id="st" aria-label="Status"><option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select>
