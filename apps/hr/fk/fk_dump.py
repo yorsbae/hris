@@ -126,6 +126,43 @@ def users_up(dll, h, path):
     prog(95, "read", n); out(ok=sent > 0 or not items, sent=sent, fps=fps, bad=bad[:50], error=("" if sent else "Tidak ada user yang terkirim."))
 
 
+def read_logs(dll, h, new=False, cap=CAP):
+    """Baca seluruh log yang sudah dimuat. Mesin ber-ID teks (StringID) mengembalikan PIN 0 lewat fungsi numerik → bila rekaman pertama ber-PIN 0
+    dan FK_GetGeneralLogData_StringID tersedia, log dimuat ulang & dibaca lewat fungsi StringID (tata letak argumen sama: pointer 32-bit).
+    → statistik {count, raw, pin0, baddate, stringid, sample}; baris scan dikirim bertahap lewat _line."""
+    I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); v = [I() for _ in range(9)]; refs = [ctypes.byref(x) for x in v]
+    sbuf = ctypes.create_string_buffer(64); st = {"count": 0, "raw": 0, "pin0": 0, "baddate": 0, "stringid": False, "sample": None, "truncated": False}
+    has_str = hasattr(dll, "FK_GetGeneralLogData_StringID")
+    if has_str: dll.FK_GetGeneralLogData_StringID.argtypes = [I, ctypes.c_char_p, P, P, P, P, P, P, P, P]; dll.FK_GetGeneralLogData_StringID.restype = I
+    def nxt():
+        if st["stringid"]:
+            ctypes.memset(sbuf, 0, 64)
+            if dll.FK_GetGeneralLogData_StringID(h, sbuf, *refs[1:]) != 1: return None
+            return (_txt(sbuf.raw),) + tuple(x.value for x in v[1:])
+        if dll.FK_GetGeneralLogData_1(h, *refs) != 1: return None
+        return (str(v[0].value),) + tuple(x.value for x in v[1:])
+    rec = nxt()
+    if rec and rec[0] == "0" and has_str:                                # PIN 0 = ID teks → ulangi dengan fungsi StringID
+        prog(20, "load"); st["stringid"] = True
+        if dll.FK_LoadGeneralLogData(h, 1 if new else 0) != 1: raise RuntimeError(f"FK_LoadGeneralLogData (ulang, StringID) gagal (error {dll.FK_GetLastError(h)}).")
+        prog(30, "read", 0); rec = nxt()
+    rows = []
+    while rec:
+        if st["count"] + st["pin0"] + st["baddate"] >= cap: st["truncated"] = True; break
+        st["raw"] += 1; pin, _vm, _io, y, mo, d, hh, mi, ss = rec
+        if st["sample"] is None: st["sample"] = list(rec)
+        if y < 100: y += 2000                                            # beberapa firmware memberi tahun 2 digit
+        if not pin or pin == "0": st["pin0"] += 1
+        elif not (1 <= mo <= 12 and 1 <= d <= 31 and 0 <= hh < 24 and 0 <= mi < 60 and 0 <= ss < 60 and 1990 <= y <= 2100): st["baddate"] += 1
+        else:
+            rows.append([pin, f"{y:04d}-{mo:02d}-{d:02d} {hh:02d}:{mi:02d}:{ss:02d}"]); st["count"] += 1
+            if len(rows) >= BATCH:
+                _line({"rows": rows}); rows = []; prog(round(30 + 60 * (1 - math.exp(-st["count"] / 30000))), "read", st["count"])   # total tidak diketahui → persen perkiraan
+        rec = nxt()
+    if rows: _line({"rows": rows})
+    return st
+
+
 def main():
     a = argparse.ArgumentParser()
     a.add_argument("--dll", required=True); a.add_argument("--ip"); a.add_argument("--port", type=int, default=5005)
@@ -166,17 +203,10 @@ def main():
             prog(15, "load")                                              # tahap ini bisa lama bila log mesin besar (satu panggilan DLL, tanpa laporan kemajuan)
             r = dll.FK_LoadGeneralLogData(h, 1 if a.new else 0)
             if r != 1: out(ok=False, error=f"FK_LoadGeneralLogData gagal (kode {r}, error {dll.FK_GetLastError(h)}).")
-            prog(30, "read", 0); v = [I() for _ in range(9)]; rows = []; refs = [ctypes.byref(x) for x in v]; total = 0; truncated = False
-            while True:
-                if total >= CAP: truncated = True; break
-                if dll.FK_GetGeneralLogData_1(h, *refs) != 1: break
-                pin, _vm, _io, y, mo, d, hh, mi, ss = (x.value for x in v)
-                if y < 100: y += 2000                                    # beberapa firmware memberi tahun 2 digit
-                rows.append([str(pin), f"{y:04d}-{mo:02d}-{d:02d} {hh:02d}:{mi:02d}:{ss:02d}"]); total += 1
-                if len(rows) >= BATCH:
-                    _line({"rows": rows}); rows = []; prog(round(30 + 60 * (1 - math.exp(-total / 30000))), "read", total)   # total tidak diketahui → persen perkiraan
-            if rows: _line({"rows": rows})
-            prog(95, "read", total); out(ok=True, count=total, truncated=truncated)
+            prog(30, "read", 0)
+            try: st = read_logs(dll, h, a.new)
+            except RuntimeError as e: out(ok=False, error=str(e))
+            prog(95, "read", st["count"]); out(ok=True, **st)
         finally:
             if not a.no_disable: dll.FK_EnableDevice(h, 1)
     finally: dll.FK_DisConnect(h)

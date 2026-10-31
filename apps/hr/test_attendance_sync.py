@@ -1,4 +1,4 @@
-import json, threading
+import ctypes, json, threading
 from unittest import mock
 from datetime import date
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -306,6 +306,37 @@ class ApplyPortsTests(TestCase):
         d.refresh_from_db(); self.assertEqual(d.port, 1)                    # tanpa --apply-ports: tidak mengubah apa pun
 
 
+class FkReadLogsTests(TestCase):
+    """read_logs memakai DLL palsu: jalur numerik, jalur ID teks (PIN 0 → muat ulang + StringID), dan penghitungan rekaman yang dibuang."""
+    class Dll:
+        def __init__(self, numeric, texts): self.numeric, self.texts, self.loads, self.i = list(numeric), list(texts), 0, 0; self.FK_GetGeneralLogData_StringID = lambda h, sbuf, *refs: self._str(h, sbuf, *refs)      # fungsi biasa agar boleh diberi .argtypes seperti fungsi DLL
+        def FK_LoadGeneralLogData(self, h, m): self.loads += 1; self.i = 0; return 1
+        def FK_GetLastError(self, h): return 0
+        def _set(self, refs, vals):
+            for r, x in zip(refs, vals): r._obj.value = x
+        def FK_GetGeneralLogData_1(self, h, *refs):
+            if self.i >= len(self.numeric): return 0
+            self._set(refs, self.numeric[self.i]); self.i += 1; return 1
+        def _str(self, h, sbuf, *refs):
+            if self.i >= len(self.texts): return 0
+            pin, rest = self.texts[self.i]; self._set(refs, rest); ctypes.memmove(sbuf, pin.encode(), len(pin)); self.i += 1; return 1
+
+    def _run(self, dll):
+        from apps.hr.fk import fk_dump
+        sent = []
+        with mock.patch.object(fk_dump, "_line", lambda d: sent.append(d)): st = fk_dump.read_logs(dll, 1)
+        return st, [r for d in sent if "rows" in d and "ok" not in d for r in d["rows"]]
+
+    def test_numeric_ids(self):
+        st, rows = self._run(self.Dll([(101, 1, 0, 2026, 10, 28, 7, 1, 2), (0, 1, 0, 2026, 10, 28, 8, 0, 0), (102, 1, 0, 26, 13, 40, 8, 0, 0), (102, 1, 0, 26, 10, 28, 9, 0, 0)], []))
+        self.assertEqual(rows, [["101", "2026-10-28 07:01:02"], ["102", "2026-10-28 09:00:00"]]); self.assertEqual((st["raw"], st["pin0"], st["baddate"], st["stringid"]), (4, 1, 1, False))
+
+    def test_text_ids_switch_to_stringid_and_reload_log(self):
+        dll = self.Dll([(0, 1, 0, 2026, 10, 28, 7, 0, 0)] * 3, [("A101", (1, 0, 2026, 10, 28, 7, 1, 2)), ("A102", (1, 0, 2026, 10, 28, 8, 0, 0))])
+        st, rows = self._run(dll)
+        self.assertEqual(rows, [["A101", "2026-10-28 07:01:02"], ["A102", "2026-10-28 08:00:00"]]); self.assertTrue(st["stringid"]); self.assertEqual(dll.loads, 1)
+
+
 class FkDriverTests(TestCase):
     """Driver FK (FKAttend.dll lewat proses terpisah): subprocess dipalsukan; jalur nyata hanya bisa diuji di Windows + mesin."""
     def _dev(self, **kw):
@@ -346,6 +377,18 @@ class FkDriverTests(TestCase):
             r = sy.run_action(d, "sync", mode="all", job="abc-123")
         self.assertTrue(r["ok"]); self.assertEqual(sy.get_progress("abc-123", d.pk)["pct"], 100); self.assertEqual(seen, sorted(seen))   # naik terus, berakhir 100
         self.assertIn(88, seen); self.assertTrue(any(0 < x < 85 for x in seen))
+
+    def test_zero_scans_are_explained_not_reported_ok(self):
+        """Dulu 'OK, 0 scan' tanpa alasan. Kini: DLL tidak mengembalikan apa pun / semua PIN 0 / tanggal rusak → galat yang menjelaskan + contoh rekaman mentah."""
+        d = self._dev(); win = (date(2026, 10, 1), date(2026, 10, 30))
+        with self._fake([{"ok": True, "count": 0, "raw": 0}]): taps, err = sy.fetch_device(d, *win)
+        self.assertEqual(taps, []); self.assertIn("tidak mengembalikan satu pun scan", err)
+        with self._fake([{"ok": True, "count": 0, "raw": 500, "pin0": 500, "baddate": 0, "stringid": False, "sample": [0, 1, 0, 2026, 10, 28, 7, 0, 0]}]): taps, err = sy.fetch_device(d, *win)
+        self.assertEqual(taps, []); self.assertIn("500 scan", err); self.assertIn("PIN 0", err); self.assertIn("[0, 1, 0, 2026, 10, 28, 7, 0, 0]", err)
+        rows = [["101", "2026-09-01 07:00:00"]]                              # ada data terpakai tetapi di luar jendela → bukan galat (memang tidak ada yang baru)
+        with self._fake([{"ok": True, "count": 1, "raw": 1, "rows": rows}]): taps, err = sy.fetch_device(d, *win)
+        self.assertEqual((taps, err), ([], ""))
+
 
     def test_users_download_via_fk(self):
         """Download user mesin FK: pembaca dipalsukan; user + jari + password + kartu tersimpan di HRIS, idempoten, jari ditandai tanpa versi algoritma."""

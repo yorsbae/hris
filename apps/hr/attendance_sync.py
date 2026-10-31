@@ -219,8 +219,12 @@ class _Fk:
         if final.get("truncated"): raise SyncError("Log mesin melebihi batas aman 2.000.000 scan sehingga terpotong — hasil DITOLAK agar tidak ada data hilang diam-diam. Arsipkan lalu kosongkan log di mesin (Fingerspot Personnel), atau pecah dengan 'Sejak scan terakhir'.")
         final.setdefault("rows", got); final.setdefault("users", got_u); return final
     def fetch(self, d1, d2):
-        out = []
-        for pin, at in self._call(span=85)["rows"]:
+        out = []; r = self._call(span=85); raw = r.get("raw", len(r["rows"]))
+        if not r["rows"]:                                                    # jangan diam-diam "OK 0 scan": jelaskan kenapa tidak ada yang terpakai
+            if not raw: raise SyncError("Mesin tidak mengembalikan satu pun scan (FK_LoadGeneralLogData sukses tetapi daftar kosong). Bila mesin seharusnya punya scan: periksa 'No Mesin', coba ATTENDANCE_FK_NO_DISABLE=1, atau log memang sudah dikosongkan.")
+            raise SyncError(f"DLL membaca {raw} scan tetapi tidak ada yang terpakai ({r.get('pin0', 0)} ber-PIN 0, {r.get('baddate', 0)} tanggal tidak valid"
+                            f"{', dibaca lewat StringID' if r.get('stringid') else ''}). Contoh rekaman mentah [PIN, mode, io, th, bln, tgl, jam, mnt, dtk]: {r.get('sample')}. Kirim pesan ini agar pembacaan disesuaikan.")
+        for pin, at in r["rows"]:
             try: t = datetime.strptime(at, "%Y-%m-%d %H:%M:%S")
             except ValueError: continue
             if pin and pin != "0" and d1 <= t.date() <= d2: out.append((pin, at))
