@@ -196,7 +196,10 @@ class _Fk:
         if getattr(settings, "ATTENDANCE_FK_NO_DISABLE", False): cmd.append("--no-disable")
         lic = str(getattr(settings, "ATTENDANCE_FK_LICENSE", "") or "").strip()
         if lic.lstrip("-").isdigit(): cmd += ["--license", lic]                 # bawaan kosong = pembaca mencoba 1261 lalu 0
-        last = {}; final = {}; got = []; got_u = []; t0 = time.time()
+        from django.core.cache import cache
+        ck = f"fkload:{self.dev.pk}"; est = cache.get(ck)
+        if est: cmd += ["--load-est", str(round(est))]                       # lama load tarikan sebelumnya → animasi persen lebih mendekati kenyataan
+        last = {}; final = {}; got = []; got_u = []; t0 = time.time(); tm = {}
         def on_line(ln):
             try: j = json.loads(ln)
             except ValueError: return
@@ -204,7 +207,9 @@ class _Fk:
             if "rows" in j and "ok" not in j: got.extend(j["rows"]); return                 # baris scan bertahap (log besar)
             if "users" in j and "ok" not in j: got_u.extend(j["users"]); return              # user + sidik jari bertahap (--users-down)
             if "ok" in j: final.update(j); return
-            last.update(j); st = self.STAGES.get(j.get("stage"), "")
+            last.update(j); st = self.STAGES.get(j.get("stage"), ""); now = time.time()
+            if j.get("stage") == "load": tm.setdefault("l0", now)
+            elif j.get("stage") == "read" and "l0" in tm: tm.setdefault("l1", now)
             set_progress(base + span * j.get("p", 0) / 100, st + (f" · {j['n']:,} {unit}".replace(",", ".") if j.get("n") else ""))
         try: rc, stderr = self._exec(cmd, on_line, limit)
         except OSError as e: raise SyncError(f"Tidak dapat menjalankan pembaca FK ({type(e).__name__}: {e}). Periksa ATTENDANCE_FK_PYTHON32.")
@@ -218,6 +223,9 @@ class _Fk:
             msg = final.get("error", "FK gagal.")
             if not getattr(settings, "ATTENDANCE_FK_PYTHON32", ""): msg += " [ATTENDANCE_FK_PYTHON32 kosong di server ini — pastikan ada di .env lalu RESTART runserver (.env hanya dibaca saat start)]"
             raise SyncError(msg)
+        if "l0" in tm and "l1" in tm and tm["l1"] - tm["l0"] >= 3:
+            try: cache.set(ck, tm["l1"] - tm["l0"], 30 * 86400)
+            except Exception: pass                                               # cache bermasalah tidak boleh menggagalkan unduhan
         if final.get("truncated"): raise SyncError("Log mesin melebihi batas aman 2.000.000 scan sehingga terpotong — hasil DITOLAK agar tidak ada data hilang diam-diam. Arsipkan lalu kosongkan log di mesin (Fingerspot Personnel), atau ambil per potongan tanggal (mode Rentang tanggal; cepat bila ATTENDANCE_FK_BYDATE diset).")
         final.setdefault("rows", got); final.setdefault("users", got_u); return final
     def fetch(self, d1, d2):

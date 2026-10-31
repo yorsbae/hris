@@ -367,6 +367,23 @@ class FkReadLogsTests(TestCase):
             taps, err = sy.fetch_device(AttendanceDevice.objects.create(code="FKZ", name="Z", host="192.168.11.40", port=5005, protocol="fk", machine_no="3"), date(2026, 10, 1), date(2026, 10, 30))
         self.assertEqual(taps, []); self.assertIn("argc=9", err); self.assertIn("kode galat DLL 7", err); self.assertIn("'status'", err)
 
+    def test_heartbeat_follows_estimate_and_hris_remembers_load_time(self):
+        from apps.hr.fk import fk_dump as f
+        st = {"p": 15, "stage": "load", "n": 0, "ts": 1000.0}
+        fast = f.hb_line(st, 1030.0, 990.0, est=60); slow = f.hb_line(st, 1030.0, 990.0, est=600)
+        self.assertGreater(fast["p"], slow["p"]); self.assertGreater(fast["p"], 23); self.assertLessEqual(f.hb_line(st, 9e9, 990.0, est=60)["p"], 29)      # est kecil → cepat naik; tidak pernah > 29
+        from django.core.cache import cache
+        d = AttendanceDevice.objects.create(code="FKE", name="E", host="192.168.11.40", port=5005, protocol="fk", machine_no="3"); cache.delete(f"fkload:{d.pk}"); seen = {}; clock = iter([100.0 + 0.1 * i for i in range(200)])
+        def _exec(inst, cmd, on_line, limit):
+            seen.setdefault("cmds", []).append(cmd)
+            on_line(json.dumps({"p": 15, "stage": "load", "n": 0}) + "\n"); on_line(json.dumps({"p": 30, "stage": "read", "n": 0}) + "\n"); on_line(json.dumps({"ok": True, "rows": [], "raw": 1}) + "\n"); return 0, ""
+        t = {"v": 1000.0}
+        def fake_time(): t["v"] += 20; return t["v"]                       # tiap panggilan time.time() maju 20 dtk → selisih load > 3 dtk
+        with mock.patch.object(sy._Fk, "_exec", _exec), mock.patch("time.time", fake_time):
+            sy._Fk(d)._call(); saved = cache.get(f"fkload:{d.pk}") or 0          # dibaca selagi jam palsu aktif (cache memakai jam yang sama untuk kedaluwarsa)
+            sy._Fk(d)._call()                                                     # tarikan berikutnya (jam palsu masih aktif): lama load tersimpan dipakai sebagai --load-est
+        self.assertNotIn("--load-est", seen["cmds"][0]); self.assertGreater(saved, 3); self.assertIn("--load-est", seen["cmds"][1])
+
     def test_heartbeat_progress_creeps_during_load_only(self):
         from apps.hr.fk import fk_dump as f
         st = {"p": 15, "stage": "load", "n": 0, "ts": 1000.0}

@@ -32,10 +32,13 @@ def prog(p=None, stage=None, n=None):
     _line({k: v for k, v in _ST.items() if k != "ts"} | {"t": round(time.time() - _T0, 1)})
 
 
-def hb_line(st, now, t0):
-    """Satu detak. Saat tahap 'load' (satu panggilan DLL tanpa laporan kemajuan) persen merayap pelan 15→29 supaya tidak tampak macet; ini PERKIRAAN WAKTU, bukan kemajuan mesin."""
+LOAD_EST = 90.0                                                                    # detik; HRIS mengisi dari lama tahap load tarikan sebelumnya untuk mesin yang sama (--load-est)
+
+
+def hb_line(st, now, t0, est=None):
+    """Satu detak. Saat tahap 'load' (satu panggilan DLL tanpa laporan kemajuan) persen naik 15→29 mengikuti PERKIRAAN lama load (est detik; ±89% di titik est) supaya tidak tampak macet — bukan kemajuan mesin."""
     d = {k: v for k, v in st.items() if k != "ts"}; d.update(t=round(now - t0, 1), hb=1)
-    if st.get("stage") == "load" and st.get("ts"): d["p"] = round(max(st["p"], 15 + 14 * (1 - math.exp(-(now - st["ts"]) / 240))), 1); d["est"] = 1
+    if st.get("stage") == "load" and st.get("ts"): d["p"] = round(min(29, max(st["p"], 15 + 14 * (1 - math.exp(-2.2 * (now - st["ts"]) / max(est or LOAD_EST, 5))))), 1); d["est"] = 1
     return d
 
 
@@ -258,6 +261,7 @@ def read_logs(dll, h, new=False, cap=CAP, load=None, emit=True, win=None):
         elif not (1 <= mo <= 12 and 1 <= d <= 31 and 0 <= hh < 24 and 0 <= mi < 60 and 0 <= ss < 60 and 1990 <= y <= 2100): st["baddate"] += 1
         else:
             ymd = f"{y:04d}-{mo:02d}-{d:02d}"; st["count"] += 1
+            if st["count"] % 2000 == 0: prog(round(30 + 60 * (1 - math.exp(-st["count"] / 30000))), "read", st["count"])        # tiap 2000 scan (bukan tiap 5000) agar log kecil juga tampak bergerak
             if win and win[0] <= ymd <= win[1]: st["inwin"] += 1
             if emit: rows.append([pin, f"{ymd} {hh:02d}:{mi:02d}:{ss:02d}"])
             if emit and len(rows) >= BATCH:
@@ -339,7 +343,7 @@ def main():
     a.add_argument("--users-down", action="store_true", help="baca semua user + sidik jari"); a.add_argument("--users-up", metavar="BERKAS.JSON", help="kirim user dari berkas JSON ke mesin")
     a.add_argument("--from", dest="date_from"); a.add_argument("--to", dest="date_to"); a.add_argument("--bydate", choices=sorted(BYDATE)); a.add_argument("--bydate-test", action="store_true")
     a.add_argument("--count-only", action="store_true", help="hanya hitung scan di rentang --from/--to (tanpa mengirim baris)"); a.add_argument("--argc", action="store_true", help="tampilkan jumlah argumen fungsi (kalibrasi + ByDate)")
-    a.add_argument("--license", type=int, default=None, help="paksa lisensi FK_ConnectNet (bawaan: coba 1261 lalu 0)"); a.add_argument("--diag", action="store_true", help="diagnosis baca-saja: status mesin + hasil muat log (kirim keluarannya bila scan 0)"); a.add_argument("--exports", action="store_true", help="tampilkan fungsi yang diekspor DLL lalu selesai")
+    a.add_argument("--load-est", type=float, default=None, help="perkiraan lama tahap load (detik) untuk animasi persen"); a.add_argument("--license", type=int, default=None, help="paksa lisensi FK_ConnectNet (bawaan: coba 1261 lalu 0)"); a.add_argument("--diag", action="store_true", help="diagnosis baca-saja: status mesin + hasil muat log (kirim keluarannya bila scan 0)"); a.add_argument("--exports", action="store_true", help="tampilkan fungsi yang diekspor DLL lalu selesai")
     a = a.parse_args()
     if a.exports:
         try: out(ok=True, exports=exports(a.dll))
@@ -361,6 +365,8 @@ def main():
     dll.FK_DisConnect.argtypes = [I]; dll.FK_EnableDevice.argtypes = [I, I]; dll.FK_LoadGeneralLogData.argtypes = [I, I]
     dll.FK_GetLastError.argtypes = [I]; dll.FK_GetLastError.restype = I
     dll.FK_GetGeneralLogData_1.argtypes = [I, P, P, P, P, P, P, P, P, P]
+    global LOAD_EST
+    if a.load_est: LOAD_EST = a.load_est
     lics = [a.license] if a.license is not None else list(LICENSES); trace = []
     for i, lic in enumerate(lics):
         session(dll, a, lic, last=(i == len(lics) - 1), trace=trace)                # keluar lewat out(); kembali hanya bila perlu mencoba lisensi berikutnya

@@ -99,3 +99,5 @@ Setelah menarik: `python manage.py migrate` (`company/0001`, 13 tabel baru) lalu
 **FK scan 0 / progres 12% (patch):** mesin ber-ID teks yang fungsi numeriknya gagal (bukan hanya PIN 0) kini otomatis dibaca lewat `FK_GetGeneralLogData_StringID` (dipakai hanya bila jumlah argumennya terbukti 10). Bila tetap kosong, pesan galat memuat kode galat DLL + status mesin. Tahap "load" adalah satu panggilan DLL tanpa laporan kemajuan: persen kini merayap 15→29 sebagai PERKIRAAN waktu (bukan kemajuan mesin); lamanya ditentukan ukuran log di mesin.
 
 **FK lisensi (patch):** `FK_ConnectNet` kini mencoba lisensi **1261** dulu (contoh resmi SDK FK), lalu 0; bila sambung & muat sukses tetapi 0 scan, otomatis mencoba lisensi satunya. Paksa satu nilai lewat `ATTENDANCE_FK_LICENSE` di `.env` (atau `--license` di `fk_dump.py`). Lisensi yang dipakai dan jejak percobaan ikut di pesan galat.
+
+**Progres FK (patch):** tahap "load" (satu panggilan DLL) tidak punya kemajuan nyata; persen 15→29 mengikuti PERKIRAAN lama load tarikan sebelumnya untuk mesin yang sama (bawaan 90 dtk untuk tarikan pertama), lalu tahap baca melaporkan tiap 2000 scan, simpan 88-99%, selesai 100%.
