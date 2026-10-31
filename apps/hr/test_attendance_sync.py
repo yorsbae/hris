@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
+from django.utils import timezone
 from apps.hr.attendance_sync import SyncError, check_host, sync_device
 from apps.hr.models import AttendanceDevice, AttendanceRaw
 
@@ -150,15 +151,26 @@ class ModeTests(DirectMachineTests):
             r = sy.sync_device(d, mode="all"); self.assertEqual((r["fetched"], r["new"], r["dup"]), (3, 0, 3))  # semua sudah ada → dilewati
         self.assertEqual(AttendanceRaw.objects.count(), 3); self.assertEqual(AttendanceImport.objects.count(), n_imp)   # tidak ada riwayat kosong menumpuk
 
-    def test_latest_window_starts_at_last_stored_minus_overlap(self):
-        d = self._dev()
-        with mock.patch.object(sy, "check_host"): sy.sync_device(d, mode="all")
-        a, b = sy.window(d, "latest", None, date(2026, 10, 28)); self.assertEqual(a, date(2026, 10, 26))
+    def test_latest_is_last_24_hours_and_bridges_gaps(self):
+        from datetime import datetime, timedelta
+        d = self._dev(); now = timezone.localtime().replace(tzinfo=None)
+        a, _ = sy.window(d, "latest"); self.assertEqual(a, (now - timedelta(hours=24)).date())              # mesin tanpa data: 24 jam saja
+        self.assertLess(abs((sy.latest_since(d) - (now - timedelta(hours=24))).total_seconds()), 5)
+        AttendanceRaw.objects.create(device_id=d.code, pin="101", punched_at=timezone.make_aware(now - timedelta(hours=5)))   # scan terakhir 5 jam lalu → tetap 24 jam
+        self.assertLess(abs((sy.latest_since(d) - (now - timedelta(hours=24))).total_seconds()), 5)
+        AttendanceRaw.objects.all().delete(); old = now - timedelta(days=3)
+        AttendanceRaw.objects.create(device_id=d.code, pin="101", punched_at=timezone.make_aware(old))        # terakhir tersimpan 3 hari lalu → mundur ke sana (−1 jam): tanpa celah
+        self.assertLess(abs((sy.latest_since(d) - (old - timedelta(hours=1))).total_seconds()), 5); self.assertEqual(sy.window(d, "latest")[0], (old - timedelta(hours=1)).date())
         self.assertEqual(sy.window(d, "all", None, date(2026, 10, 28))[0], sy.ALL_FROM)
+        self.assertEqual(sy.window(d, "range", date(2026, 10, 1), date(2026, 10, 5)), (date(2026, 10, 1), date(2026, 10, 5)))   # rentang = tanggal apa adanya
 
-    def test_new_machine_latest_means_everything(self):
-        d = self._dev()
-        self.assertEqual(sy.window(d, "latest")[0], sy.ALL_FROM)
+    def test_latest_filters_by_exact_time_not_just_date(self):
+        from datetime import timedelta
+        d = self._dev(); now = timezone.localtime().replace(tzinfo=None); f = lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S")   # noqa: E731
+        taps = [("101", f(now - timedelta(hours=30))), ("102", f(now - timedelta(hours=23))), ("103", f(now - timedelta(hours=1)))]
+        with mock.patch.object(sy, "fetch_device", lambda dev, a, b: (list(taps), "")), mock.patch.object(sy, "check_host"):
+            r = sy.sync_device(d, mode="latest")
+        self.assertEqual((r["fetched"], r["new"]), (2, 2)); self.assertEqual(set(AttendanceRaw.objects.values_list("pin", flat=True)), {"102", "103"})   # 30 jam lalu tidak ikut
 
     def test_page_mode_all(self):
         self.client.force_login(self.user); self._dev(); ids = list(AttendanceDevice.objects.values_list("pk", flat=True)[:1])
@@ -337,6 +349,27 @@ class FkReadLogsTests(TestCase):
         self.assertEqual(rows, [["A101", "2026-10-28 07:01:02"], ["A102", "2026-10-28 08:00:00"]]); self.assertTrue(st["stringid"]); self.assertEqual(dll.loads, 1)
 
 
+class FkArgcTests(TestCase):
+    """Pembaca jumlah argumen stdcall dari tabel ekspor PE: diuji dengan DLL sintetis (dua fungsi: ret 8 dan ret 0x28; satu thunk jmp)."""
+    def _pe(self):
+        import struct
+        b = bytearray(0x800); struct.pack_into("<H", b, 0, 0x5A4D); struct.pack_into("<I", b, 0x3C, 0x80); b[0x80:0x84] = b"PE\0\0"
+        struct.pack_into("<HH", b, 0x84, 0x14C, 1); struct.pack_into("<H", b, 0x80 + 20, 0xE0); opt = 0x80 + 24; struct.pack_into("<H", b, opt, 0x10B); struct.pack_into("<I", b, opt + 96, 0x1000)
+        sec = opt + 0xE0; struct.pack_into("<IIII", b, sec + 8, 0x400, 0x1000, 0x400, 0x400)                 # VirtualSize, VA, RawSize, RawPtr
+        e = 0x400; struct.pack_into("<I", b, e + 24, 3); struct.pack_into("<III", b, e + 28, 0x1100, 0x1110, 0x1120)
+        names = [b"FK_A", b"FK_B", b"FK_JMP"]; codes = [b"\x55\x8B\xEC\x5D\xC2\x08\x00\xCC\xCC", b"\x55\xC2\x28\x00\xCC", b"\xE9\x00\x00\x00\x00\xCC"]
+        for i, (n, c) in enumerate(zip(names, codes)):
+            struct.pack_into("<I", b, 0x500 + 4 * i, 0x1200 + 0x20 * i); struct.pack_into("<I", b, 0x510 + 4 * i, 0x1130 + 0x10 * i); struct.pack_into("<H", b, 0x520 + 2 * i, i)
+            b[0x530 + 0x10 * i:0x530 + 0x10 * i + len(n)] = n; b[0x600 + 0x20 * i:0x600 + 0x20 * i + len(c)] = c
+        return bytes(b)
+
+    def test_argc_from_ret_operand(self):
+        import tempfile, os
+        from apps.hr.fk import fk_dump
+        f = tempfile.NamedTemporaryFile(delete=False, suffix=".dll"); f.write(self._pe()); f.close(); self.addCleanup(os.remove, f.name)
+        self.assertEqual((fk_dump.argc(f.name, "FK_A"), fk_dump.argc(f.name, "FK_B"), fk_dump.argc(f.name, "FK_JMP"), fk_dump.argc(f.name, "TIDAK_ADA")), (2, 10, None, None))
+
+
 class FkDriverTests(TestCase):
     """Driver FK (FKAttend.dll lewat proses terpisah): subprocess dipalsukan; jalur nyata hanya bisa diuji di Windows + mesin."""
     def _dev(self, **kw):
@@ -389,6 +422,28 @@ class FkDriverTests(TestCase):
         with self._fake([{"ok": True, "count": 1, "raw": 1, "rows": rows}]): taps, err = sy.fetch_device(d, *win)
         self.assertEqual((taps, err), ([], ""))
 
+
+    def test_bydate_used_when_enabled_and_falls_back_to_full_read(self):
+        d = self._dev(); win = (date(2026, 10, 30), date(2026, 10, 31)); calls = []
+        def run(lines):
+            def _exec(inst, cmd, on_line, limit):
+                calls.append(cmd)
+                for ln in lines(cmd): on_line(json.dumps(ln) + "\n")
+                return 0, ""
+            return mock.patch.object(sy._Fk, "_exec", _exec)
+        row = ["101", "2026-10-31 07:00:00"]
+        with mock.patch.object(sy.settings, "ATTENDANCE_FK_BYDATE", "i4", create=True):
+            with run(lambda c: [{"ok": True, "rows": [row], "raw": 1}]): taps, err = sy.fetch_device(d, *win)       # ByDate berhasil → satu panggilan
+            self.assertEqual((taps, err, len(calls)), ([("101", row[1])], "", 1)); self.assertEqual(calls[0][calls[0].index("--bydate") + 1], "i4"); self.assertEqual(calls[0][calls[0].index("--from") + 1], "2026-10-30")
+            calls.clear()                                                                                    # ByDate gagal → otomatis pembacaan penuh
+            with run(lambda c: [{"ok": False, "error": "FK_LoadGeneralLogDataByDate gagal"}] if "--bydate" in c else [{"ok": True, "rows": [row], "raw": 1}]): taps, err = sy.fetch_device(d, *win)
+            self.assertEqual((taps, err, len(calls)), ([("101", row[1])], "", 2)); self.assertNotIn("--bydate", calls[1])
+            calls.clear()                                                                                    # ByDate kosong → dipastikan dengan pembacaan penuh (tidak ada data terlewat)
+            with run(lambda c: [{"ok": True, "rows": [], "raw": 0}] if "--bydate" in c else [{"ok": True, "rows": [row], "raw": 1}]): taps, err = sy.fetch_device(d, *win)
+            self.assertEqual((len(taps), len(calls)), (1, 2))
+            calls.clear(); taps, err = None, None                                                            # tarikan 'Semua' (tanpa batas awal) selalu penuh
+            with run(lambda c: [{"ok": True, "rows": [row], "raw": 1}]): sy.fetch_device(d, sy.ALL_FROM, win[1])
+            self.assertEqual(len(calls), 1); self.assertNotIn("--bydate", calls[0])
 
     def test_users_download_via_fk(self):
         """Download user mesin FK: pembaca dipalsukan; user + jari + password + kartu tersimpan di HRIS, idempoten, jari ditandai tanpa versi algoritma."""

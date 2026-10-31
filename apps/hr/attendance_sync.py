@@ -209,17 +209,28 @@ class _Fk:
         if not final and time.time() - t0 >= limit - 1:
             raise SyncError(f"Pembaca FK dihentikan setelah {limit} detik pada tahap '{last.get('stage', '?')}'"
                             f"{' (' + str(last['n']) + ' scan terbaca)' if last.get('n') else ''}. "
-                            "Tahap 'load' = mesin lambat menyiapkan log: coba unduh 'Sejak scan terakhir' atau naikkan ATTENDANCE_FK_TIMEOUT di .env. "
+                            "Tahap 'load' = mesin menyiapkan SELURUH log (mode Data terbaru/Rentang tidak mempercepat ini kecuali ATTENDANCE_FK_BYDATE diset): naikkan ATTENDANCE_FK_TIMEOUT di .env, arsipkan+kosongkan log mesin, atau uji ByDate dengan fk_dump.py --bydate-test. "
                             "Tahap 'disable' = firmware macet saat dikunci: set ATTENDANCE_FK_NO_DISABLE=1. Tahap 'connect' = periksa No Mesin/kunci komunikasi.")
         if not final: raise SyncError(f"Pembaca FK gagal: {(stderr or 'tanpa keluaran')[-200:]}")
         if not final.get("ok"):
             msg = final.get("error", "FK gagal.")
             if not getattr(settings, "ATTENDANCE_FK_PYTHON32", ""): msg += " [ATTENDANCE_FK_PYTHON32 kosong di server ini — pastikan ada di .env lalu RESTART runserver (.env hanya dibaca saat start)]"
             raise SyncError(msg)
-        if final.get("truncated"): raise SyncError("Log mesin melebihi batas aman 2.000.000 scan sehingga terpotong — hasil DITOLAK agar tidak ada data hilang diam-diam. Arsipkan lalu kosongkan log di mesin (Fingerspot Personnel), atau pecah dengan 'Sejak scan terakhir'.")
+        if final.get("truncated"): raise SyncError("Log mesin melebihi batas aman 2.000.000 scan sehingga terpotong — hasil DITOLAK agar tidak ada data hilang diam-diam. Arsipkan lalu kosongkan log di mesin (Fingerspot Personnel), atau ambil per potongan tanggal (mode Rentang tanggal; cepat bila ATTENDANCE_FK_BYDATE diset).")
         final.setdefault("rows", got); final.setdefault("users", got_u); return final
     def fetch(self, d1, d2):
-        out = []; r = self._call(span=85); raw = r.get("raw", len(r["rows"]))
+        """Bawaan: muat SELURUH log lalu saring tanggal di HRIS. Opsional (ATTENDANCE_FK_BYDATE=<id> hasil `fk_dump.py --bydate-test`): muat hanya rentang
+        d1..d2 di mesin → jauh lebih cepat untuk 'Data terbaru'/'Rentang'. Hasil kosong/galat ByDate/crash → otomatis kembali ke pembacaan penuh (tidak ada data terlewat)."""
+        sig = getattr(settings, "ATTENDANCE_FK_BYDATE", "")
+        if sig and d1 > ALL_FROM:
+            try:
+                r = self._call("--from", d1.isoformat(), "--to", d2.isoformat(), "--bydate", sig, span=85)
+                if r["rows"]: return self._taps(r, d1, d2)
+            except SyncError as e:
+                if "ByDate" not in str(e) and "Pembaca FK gagal" not in str(e): raise      # timeout/koneksi: jangan diulang dua kali
+        return self._taps(self._call(span=85), d1, d2)
+    def _taps(self, r, d1, d2):
+        out = []; raw = r.get("raw", len(r["rows"]))
         if not r["rows"]:                                                    # jangan diam-diam "OK 0 scan": jelaskan kenapa tidak ada yang terpakai
             if not raw: raise SyncError("Mesin tidak mengembalikan satu pun scan (FK_LoadGeneralLogData sukses tetapi daftar kosong). Bila mesin seharusnya punya scan: periksa 'No Mesin', coba ATTENDANCE_FK_NO_DISABLE=1, atau log memang sudah dikosongkan.")
             raise SyncError(f"DLL membaca {raw} scan tetapi tidak ada yang terpakai ({r.get('pin0', 0)} ber-PIN 0, {r.get('baddate', 0)} tanggal tidak valid"
@@ -329,7 +340,8 @@ def ingest(dev, taps, err="", commit=True, window=None):
 
 
 ALL_FROM = date(2000, 1, 1)
-OVERLAP_DAYS = getattr(settings, "ATTENDANCE_SYNC_OVERLAP_DAYS", 1)   # tumpang-tindih pengaman; duplikat dilewati, jadi tidak ada data ganda
+LATEST_HOURS = getattr(settings, "ATTENDANCE_SYNC_LATEST_HOURS", 24)  # "Data terbaru" = sekian jam terakhir
+OVERLAP_HOURS = getattr(settings, "ATTENDANCE_SYNC_OVERLAP_HOURS", 1)  # tumpang-tindih pengaman di atas scan terakhir tersimpan; duplikat dilewati, jadi tidak ada data ganda
 
 
 def last_stored(dev):
@@ -338,14 +350,31 @@ def last_stored(dev):
     return AttendanceRaw.objects.filter(device_id=dev.code).aggregate(m=Max("punched_at"))["m"]
 
 
+def latest_since(dev):
+    """Batas bawah WAKTU untuk 'Data terbaru': 24 jam terakhir. Bila scan terakhir yang tersimpan di HRIS lebih lama dari itu (mesin lama tidak ditarik),
+    mundur ke scan tersebut (−OVERLAP_HOURS) supaya tidak ada celah data. Mesin yang belum punya data = 24 jam terakhir saja (pakai 'Semua scanlog' untuk tarikan pertama)."""
+    since = timezone.localtime().replace(tzinfo=None, microsecond=0) - timedelta(hours=LATEST_HOURS); last = last_stored(dev)
+    if last: since = min(since, timezone.localtime(last).replace(tzinfo=None) - timedelta(hours=OVERLAP_HOURS))
+    return since
+
+
 def window(dev, mode="latest", d1=None, d2=None):
-    """mode: 'all' = seluruh log di mesin · 'latest' = sejak scan terakhir tersimpan (−OVERLAP_DAYS; mesin baru/kosong = seluruhnya) · 'range' = d1..d2 (bawaan ATTENDANCE_SYNC_DAYS hari)."""
+    """mode: 'all' = seluruh log di mesin · 'latest' = 24 jam terakhir (lihat latest_since) · 'range' = d1..d2 berdasarkan TANGGAL (bawaan ATTENDANCE_SYNC_DAYS hari)."""
     d2 = d2 or timezone.localdate()
     if mode == "all": return ALL_FROM, d2
-    if mode == "latest" and not d1:
-        last = last_stored(dev)
-        return (timezone.localtime(last).date() - timedelta(days=OVERLAP_DAYS) if last else ALL_FROM), d2
+    if mode == "latest" and not d1: return latest_since(dev).date(), d2
     return (d1 or d2 - timedelta(days=getattr(settings, "ATTENDANCE_SYNC_DAYS", 3))), d2
+
+
+def _since_for(dev, mode, d1):
+    """Batas waktu eksak hanya untuk mode 'latest' (mode lain memakai tanggal saja)."""
+    return latest_since(dev) if mode == "latest" and not d1 else None
+
+
+def _apply_since(taps, since):
+    if not since: return taps
+    cut = since.strftime("%Y-%m-%d %H:%M:%S")
+    return [t for t in taps if str(t[1]).replace("T", " ")[:19] >= cut]
 
 
 def alias_conflict(dev):
@@ -360,7 +389,7 @@ def alias_conflict(dev):
 def sync_device(dev, d1=None, d2=None, commit=True, mode="latest"):
     msg = alias_conflict(dev)
     if msg: return ingest(dev, [], msg, commit)
-    set_progress(1, "Memulai"); a, b = window(dev, mode, d1, d2); taps, err = fetch_device(dev, a, b)
+    set_progress(1, "Memulai"); a, b = window(dev, mode, d1, d2); since = _since_for(dev, mode, d1); taps, err = fetch_device(dev, a, b); taps = _apply_since(taps, since)
     set_progress(88, f"{len(taps):,} scan diterima · menyimpan ke HRIS".replace(",", ".")) if not err else None
     r = ingest(dev, taps, err, commit, window=(a, b)); set_progress(100, "Selesai" if r["ok"] else "Gagal"); return r
 
@@ -369,9 +398,10 @@ def sync_many(devs, d1=None, d2=None, commit=True, workers=8, mode="latest"):
     """Unduh banyak mesin: jaringan paralel (28 mesin tidak menunggu satu per satu), simpan ke DB berurutan."""
     from concurrent.futures import ThreadPoolExecutor
     devs = list(devs); wins = [window(d, mode, d1, d2) for d in devs]       # jendela dihitung di thread utama (butuh DB)
+    sinces = [_since_for(d, mode, d1) for d in devs]
     blocked = {d.pk: alias_conflict(d) for d in devs}                        # juga butuh DB → thread utama; mesin kembar tidak disentuh jaringannya
     with ThreadPoolExecutor(max_workers=max(1, min(workers, len(devs) or 1))) as ex: got = list(ex.map(lambda x: ([], blocked[x[0].pk]) if blocked[x[0].pk] else fetch_device(x[0], *x[1]), zip(devs, wins)))
-    return [ingest(d, t, e, commit, window=w) for d, (t, e), w in zip(devs, got, wins)]
+    return [ingest(d, _apply_since(t, sn), e, commit, window=w) for d, (t, e), w, sn in zip(devs, got, wins, sinces)]
 
 
 # ---------------------------------------------------------------- user & sidik jari (Download user / Upload user)
