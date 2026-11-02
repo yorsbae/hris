@@ -247,6 +247,11 @@ def pins(request):
                 n = imp.link_pin(request.user, request.POST.get("pin", ""), e, "manual"); log(request, "hr", "attendance_pin_link", e, None, {"pin": request.POST.get("pin", "")[:40], "scans": n})
                 if n: _reprocess_scans(e, request.POST.get("pin", ""))
                 messages.success(request, f"PIN dipetakan ke {e.nik} {e.name}; {n} scan lama ikut terhubung.")
+            elif act == "auto_name":
+                n, scans, pairs = imp.apply_name_matches(request.user)
+                for pin, e in pairs: _reprocess_scans(e, pin)
+                log(request, "hr", "attendance_pin_auto_name", None, None, {"pins": n, "scans": scans})
+                messages.success(request, f"{n} PIN dipetakan otomatis berdasarkan nama ({scans} scan terhubung)." if n else "Tidak ada PIN yang namanya cocok tepat satu karyawan. Jalankan 'Download user' dari mesin dulu agar nama tersedia.")
             elif act == "move":
                 e = Employee.objects.filter(nik=request.POST.get("nik", "").strip()).first()
                 if not e: raise ValueError("NIK tujuan tidak ditemukan.")
@@ -264,6 +269,8 @@ def pins(request):
     qs = AttendancePin.objects.select_related("employee__department").order_by("pin")
     if g.get("q", "").strip(): q = g["q"].strip()[:40]; qs = qs.filter(Q(pin__icontains=q) | Q(employee__nik__icontains=q) | Q(employee__name__icontains=q))
     orphans = list(AttendanceRaw.objects.filter(employee__isnull=True).values("pin").annotate(n=Count("id"), last=Max("punched_at")).order_by("-n")[:50])
+    sug = imp.name_suggestions([o["pin"] for o in orphans])
+    for o in orphans: o["sug"] = sug.get(o["pin"], {})
     return render(request, "attendance/pins.html", {"page": Paginator(qs, 50).get_page(g.get("page", 1)), "orphans": orphans, "q": g.get("q", ""), "res": res,
                                                     "no_pin": Employee.objects.exclude(status="nonaktif").exclude(pins__isnull=False).count()})
 

@@ -321,12 +321,7 @@ class ApplyPortsTests(TestCase):
 class FkReadLogsTests(TestCase):
     """read_logs memakai DLL palsu: jalur numerik, jalur ID teks (PIN 0 → muat ulang + StringID), dan penghitungan rekaman yang dibuang."""
     class Dll:
-        def __init__(self, numeric, texts): self.numeric, self.texts, self.loads, self.i = list(numeric), list(texts), 0, 0; self.FK_GetGeneralLogData_StringID = self._strfn(10)      # fungsi biasa (boleh diberi .argtypes); meniru stdcall: salah jumlah argumen → ValueError seperti ctypes
-        def _strfn(self, n):
-            def fn(*a):
-                if len(a) > n: raise ValueError(f"Procedure probably called with too many arguments ({4 * (len(a) - n)} bytes in excess)")
-                return self._str(*a)
-            return fn
+        def __init__(self, numeric, texts): self.numeric, self.texts, self.loads, self.i = list(numeric), list(texts), 0, 0; self.argc_map = {"FK_GetGeneralLogData_StringID": 5}; self.FK_GetGeneralLogData_StringID = lambda *a: self._str(*a)      # fungsi biasa (boleh diberi .argtypes)
         def FK_LoadGeneralLogData(self, h, m): self.loads += 1; self.i = 0; return 1
         def FK_GetLastError(self, h): return 0
         def _set(self, refs, vals):
@@ -334,14 +329,16 @@ class FkReadLogsTests(TestCase):
         def FK_GetGeneralLogData_1(self, h, *refs):
             if self.i >= len(self.numeric): return 0
             self._set(refs, self.numeric[self.i]); self.i += 1; return 1
-        def _str(self, h, sbuf, *refs):
+        def _str(self, h, pp, vm, io, tm):
             if self.i >= len(self.texts): return 0
-            pin, rest = self.texts[self.i]; self._set(refs, rest); ctypes.memmove(sbuf, pin.encode(), len(pin)); self.i += 1; return 1
+            from datetime import datetime as D
+            pin, (v, i_, y, mo, d, hh, mi, ss) = self.texts[self.i]; vm._obj.value, io._obj.value = v, i_; ctypes.memmove(pp._obj.value, pin.encode(), len(pin))
+            (ctypes.c_double * 2).from_address(tm)[0] = (D(y, mo, d, hh, mi, ss) - D(1899, 12, 30)).total_seconds() / 86400; self.i += 1; return 1
 
     def _run(self, dll):
         from apps.hr.fk import fk_dump
         sent = []
-        with mock.patch.object(fk_dump, "_line", lambda d: sent.append(d)): st = fk_dump.read_logs(dll, 1)
+        with mock.patch.object(fk_dump, "_line", lambda d: sent.append(d)), mock.patch.object(fk_dump, "argc", lambda d, name, *a, **k: getattr(d, "argc_map", {}).get(name)): st = fk_dump.read_logs(dll, 1)
         return st, [r for d in sent if "rows" in d and "ok" not in d for r in d["rows"]]
 
     def test_empty_log_reports_dll_error_code_and_diag_runs(self):
@@ -350,17 +347,17 @@ class FkReadLogsTests(TestCase):
         st, rows = self._run(dll); self.assertEqual((rows, st["raw"], st["first_err"]), ([], 0, 7))
         sent = []
         with mock.patch.object(fk_dump, "_line", lambda d: sent.append(d)), self.assertRaises(SystemExit):
-            fk_dump.diag(dll, 5, SimpleNamespace(machine=3))
+            fk_dump.diag(dll, 5, SimpleNamespace(machine=3, diag_timeout=5.0, diag_marks=True))
         d = sent[-1]; self.assertTrue(d["ok"]); self.assertEqual(d["diag"]["machine"], 3); self.assertEqual(d["diag"]["load"]["nReadMark=0"]["first_reads"][0]["ret"], 0)
 
     def test_text_id_machine_where_numeric_reader_returns_nothing(self):
         """Mesin ber-ID teks yang fungsi numeriknya GAGAL (bukan PIN 0): dulu 'OK 0 scan'; kini dimuat ulang & dibaca lewat StringID."""
         dll = self.Dll([], [("A101", (1, 0, 2026, 10, 28, 7, 1, 2)), ("A102", (1, 0, 2026, 10, 28, 8, 0, 0))])
         st, rows = self._run(dll)
-        self.assertEqual(rows, [["A101", "2026-10-28 07:01:02"], ["A102", "2026-10-28 08:00:00"]]); self.assertTrue(st["stringid"]); self.assertTrue(st["numeric_empty"]); self.assertEqual((dll.loads, st["str_argc"]), (1, 10))
+        self.assertEqual(rows, [["A101", "2026-10-28 07:01:02"], ["A102", "2026-10-28 08:00:00"]]); self.assertTrue(st["stringid"]); self.assertTrue(st["numeric_empty"]); self.assertEqual((dll.loads, st["str_argc"]), (1, 5))
 
     def test_stringid_not_used_when_argument_count_unproven(self):
-        dll = self.Dll([], [("A101", (1, 0, 2026, 10, 28, 7, 1, 2))]); dll.FK_GetGeneralLogData_StringID = dll._strfn(9)        # DLL punya 9 argumen: bukan tata letak yang kita kenal
+        dll = self.Dll([], [("A101", (1, 0, 2026, 10, 28, 7, 1, 2))]); dll.argc_map = {"FK_GetGeneralLogData_StringID": 9}        # DLL punya 9 argumen: bukan tata letak yang kita kenal
         st, rows = self._run(dll); self.assertEqual((rows, st["raw"], st["str_argc"], st["stringid"]), ([], 0, 9, False)); self.assertEqual(dll.loads, 0)
         from apps.hr.attendance_sync import _Fk
         with mock.patch.object(_Fk, "_exec", lambda inst, cmd, on_line, limit: (on_line(json.dumps(dict(ok=True, count=0, raw=0, first_err=7, str_argc=9, probe={"status": {"1": 3}})) + "\n"), (0, ""))[1]):
@@ -459,16 +456,17 @@ class FkArgcTests(TestCase):
         self.assertEqual(f.parse_argc_error("Procedure probably called with not enough arguments (4 bytes missing)", 3), 4)
         self.assertIsNone(f.parse_argc_error("hal lain", 12))
 
-    def test_argc_with_fake_functions(self):
+    def test_argc_static_from_ret_n(self):
+        """argc dibaca statis dari epilog `pop ebp; ret N` (Python 3.12 tak lagi melaporkan selisih tumpukan): fungsi palsu dalam 'berkas PE' palsu."""
         from apps.hr.fk import fk_dump as f
-        def mk(n):
-            def fn(*a):
-                if len(a) > n: raise ValueError(f"Procedure probably called with too many arguments ({4 * (len(a) - n)} bytes in excess)")
-                return 0
-            return fn
-        d = SimpleNamespace(FK_LoadGeneralLogData=mk(2), FK_GetGeneralLogData_1=mk(10), FK_ConnectNet=mk(7), FK_LoadGeneralLogDataByDate=mk(3))     # fungsi biasa (boleh diberi .argtypes seperti fungsi DLL)
-        for name, want in dict(f.CALIB, FK_LoadGeneralLogDataByDate=3).items(): self.assertEqual(f.argc(d, name), want)
-        self.assertIsNone(f.argc(d, "FK_TidakAda"))
+        fn = lambda n: b"\x55\x8b\xec\x33\xc0\x5d\xc2" + bytes([4 * n, 0]) + b"\xcc\xcc\xcc"      # noqa: E731
+        blob = fn(2) + fn(10) + fn(7) + fn(5) + b"\x55\x8b\xec\x5d\xc2\x08\x00\x33\xc0\x5d\xc2\x0c\x00\xcc\xcc"       # fungsi terakhir: epilog tak seragam
+        offs = {}; o = 0
+        for name, n in (("FK_LoadGeneralLogData", 2), ("FK_GetGeneralLogData_1", 10), ("FK_ConnectNet", 7), ("FK_LoadGeneralLogDataByDate", 5)): offs[name] = o; o += 9 + 3
+        offs["FK_Aneh"] = o
+        with mock.patch.object(f, "_pe_funcs", lambda path: (blob, offs)):
+            for name, want in dict(f.CALIB, FK_LoadGeneralLogDataByDate=5).items(): self.assertEqual(f.argc(None, name, path="x"), want)
+            self.assertIsNone(f.argc(None, "FK_Aneh", path="x")); self.assertIsNone(f.argc(None, "FK_TidakAda", path="x"))
 
 
 class FkDriverTests(TestCase):

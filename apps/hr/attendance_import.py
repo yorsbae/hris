@@ -573,3 +573,33 @@ def import_pin_table(user, raw, filename, commit_it):
     with transaction.atomic():
         for pin, emp, note in plan: res["linked"] += link_pin(user, pin, emp, "impor", note); res["created"] += 1
     return res
+
+
+def _norm_name(x): return " ".join(re.sub(r"[^a-z0-9 ]", " ", (x or "").lower()).split())
+
+
+def name_suggestions(pins):
+    """Usulan pemetaan untuk PIN yatim: nama user di mesin (DeviceUser hasil 'Download user') dicocokkan PERSIS (huruf besar/kecil & tanda baca diabaikan) dengan nama karyawan aktif.
+    → {pin: {device_name, employee (atau None), status 'ok'|'ambigu'|'tidak ada'|'tanpa nama'}}. Tidak mengubah data."""
+    from .models import DeviceUser, Employee
+    names = {u.pin: u.name for u in DeviceUser.objects.filter(pin__in=list(pins))}; by = {}
+    for e in Employee.objects.exclude(status="nonaktif").only("id", "nik", "name"): by.setdefault(_norm_name(e.name), []).append(e)
+    res = {}
+    for pin in pins:
+        nm = names.get(pin, ""); key = _norm_name(nm)
+        if not key: res[pin] = {"device_name": nm, "employee": None, "status": "tanpa nama"}; continue
+        c = by.get(key, [])
+        res[pin] = {"device_name": nm, "employee": c[0] if len(c) == 1 else None, "status": "ok" if len(c) == 1 else ("ambigu" if c else "tidak ada")}
+    return res
+
+
+def apply_name_matches(user):
+    """Petakan semua PIN yatim yang namanya cocok tepat satu karyawan aktif dan karyawan itu belum punya PIN lain. → (jumlah PIN dipetakan, jumlah scan terhubung, [(pin, karyawan)])."""
+    orphan = list(AttendanceRaw.objects.filter(employee__isnull=True).values_list("pin", flat=True).distinct()); done = scans = 0; emps = []
+    for pin, s in name_suggestions(orphan).items():
+        e = s["employee"]
+        if s["status"] != "ok" or AttendancePin.objects.filter(employee=e).exists(): continue
+        try: scans += link_pin(user, pin, e, "manual", "Cocok nama dengan user mesin")
+        except ValueError: continue
+        done += 1; emps.append((pin, e))
+    return done, scans, emps

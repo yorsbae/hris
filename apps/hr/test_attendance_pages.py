@@ -98,6 +98,15 @@ class PinHolidayTests(PageBase):
         self.assertEqual(AttendanceDaily.objects.get(employee=self.e2, date=d).status, "hadir")
         self.assertEqual(AuditLog.objects.get(action="attendance_pin_link").after["scans"], 2)
 
+    def test_auto_map_orphan_pin_by_device_user_name(self):
+        from .models import DeviceUser
+        d = workday(); self.e2.shift = self.pagi; self.e2.save(); self.up(self.file_for(d, "777")); i = AttendanceImport.objects.get(); self.client.post(reverse("att_import_detail", args=[i.pk]), {"action": "commit"})
+        r = self.client.post(reverse("att_pins"), {"action": "auto_name"}, follow=True); self.assertContains(r, "Tidak ada PIN")           # belum ada nama dari mesin
+        DeviceUser.objects.create(pin="777", name="  " + self.e2.name.upper() + " ")
+        r = self.client.get(reverse("att_pins")); self.assertContains(r, "cocok: " + self.e2.nik)
+        r = self.client.post(reverse("att_pins"), {"action": "auto_name"}, follow=True); self.assertContains(r, "1 PIN dipetakan otomatis")
+        self.assertEqual(AttendancePin.objects.get(pin="777").employee, self.e2); self.assertEqual(AttendanceDaily.objects.get(employee=self.e2, date=d).status, "hadir")
+
     def test_link_unknown_nik_and_move_needs_reason(self):
         self.login("hrd"); r = self.client.post(reverse("att_pins"), {"action": "link", "pin": "5", "nik": "NOPE"}, follow=True); self.assertContains(r, "NIK tidak ditemukan")
         AttendancePin.objects.create(pin="5", employee=self.e1)

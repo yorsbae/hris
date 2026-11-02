@@ -261,7 +261,9 @@ class _Fk:
         for i, u in enumerate(r["users"], 1):
             users.append(NS(uid=i, user_id=str(u["pin"]), name=u.get("name", ""), privilege=u.get("priv", 0), password=u.get("password", ""), card=u.get("card", 0), group_id=""))
             fingers += [NS(uid=i, fid=fid, template=base64.b64decode(b64), valid=1) for fid, b64 in u.get("fps", [])]
-        return users, fingers, (f"{r['skipped']} data non-jari (wajah dll.) dilewati." if r.get("skipped") else ""), 0
+        note = f"{r['skipped']} data non-jari (wajah dll.) dilewati." if r.get("skipped") else ""
+        if not users: note = (note + " " if note else "") + f"DIAGNOSIS 0 user: mode={r.get('mode')}, flag ID-teks={r.get('str_flag')}, argc StringID={r.get('str_argc')}, kode galat DLL={r.get('last_err')} — kirim baris ini."
+        return users, fingers, note, 0
 
     def users_up(self, items):
         """Kirim user (+ jari, password, kartu) ke mesin FK. PIN harus angka. → (terkirim, jari, gagal[list pesan], jari dilewati=0)."""

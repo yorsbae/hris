@@ -50,6 +50,27 @@ def _heartbeat():
 BATCH = 5000; CAP = 2_000_000                                                     # CAP: pengaman memori; bila tercapai → truncated=true (HRIS menolak hasil terpotong)
 
 
+class DllTimeout(Exception): pass
+
+
+def timed_call(fn, timeout, *args):
+    """Jalankan satu panggilan DLL di thread daemon dengan batas waktu (detik). DLL FK bisa menggantung tanpa batas bila mesin tidak menjawab
+    (mis. FK_LoadGeneralLogData pada log besar / sesi macet); ctypes tidak bisa dibatalkan, jadi thread dibiarkan & pemanggil diberi DllTimeout."""
+    box = {}
+    def run():
+        try: box["r"] = fn(*args)
+        except BaseException as e: box["e"] = e
+    t = threading.Thread(target=run, daemon=True); t.start(); t.join(timeout)
+    if t.is_alive(): raise DllTimeout(f"{getattr(fn, '__name__', 'fungsi DLL')} tidak menjawab dalam {timeout:g} dtk")
+    if "e" in box: raise box["e"]
+    return box["r"]
+
+
+def hard_exit(**kw):
+    """Keluar TANPA menjalankan finally (FK_EnableDevice/FK_DisConnect akan ikut menggantung bila DLL sedang macet)."""
+    _line(kw); sys.stdout.flush(); os._exit(1)
+
+
 def out(**kw): _line(kw); sys.exit(0 if kw.get("ok") else 1)
 
 
@@ -91,19 +112,49 @@ def _txt(raw):
     return ""
 
 
-def users_down(dll, h):
-    _bind_users(dll); I = ctypes.c_int
+def _list_users(dll, h):
+    """Daftar user. → (users{kunci: {pin, priv, bks}}, mode 'num'|'str', info). Mesin ber-ID teks mengembalikan daftar numerik KOSONG → bila FK_GetAllUserID_StringID tersedia (hasil bongkar DLL: 5 argumen =
+    handle, char** id, int* backup, int* priv, int* enable; argumen ke-2 pointer-ke-pointer buffer) dipakai itu. Kunci = int (num) atau str (str)."""
+    I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); pin, bk, pv, en = I(), I(), I(), I(); users = {}; info = {"str_flag": stringid_flag(dll, h)}
     if dll.FK_ReadAllUserID(h) != 1: out(ok=False, error=f"FK_ReadAllUserID gagal (error {dll.FK_GetLastError(h)}).")
-    pin, bk, pv, en = I(), I(), I(), I(); users = {}
-    while dll.FK_GetAllUserID(h, ctypes.byref(pin), ctypes.byref(bk), ctypes.byref(pv), ctypes.byref(en)) == 1:
-        u = users.setdefault(pin.value, {"pin": str(pin.value), "priv": pv.value, "bks": []}); u["bks"].append(bk.value)
-    prog(30, "read", 0); buf = ctypes.create_string_buffer(BUF); nm = ctypes.create_string_buffer(256); batch = []; n = len(users); skipped = fps = 0
+    if info["str_flag"] != 1:                                             # flag 1 = mesin ber-ID teks → lewati jalur numerik
+        while dll.FK_GetAllUserID(h, ctypes.byref(pin), ctypes.byref(bk), ctypes.byref(pv), ctypes.byref(en)) == 1:
+            u = users.setdefault(pin.value, {"pin": str(pin.value), "priv": pv.value, "bks": []}); u["bks"].append(bk.value)
+    if users: return users, "num", info
+    if hasattr(dll, "FK_GetAllUserID_StringID") and argc(dll, "FK_GetAllUserID_StringID") == 5:
+        if info["str_flag"] != 1: dll.FK_ReadAllUserID(h)                 # daftar numerik sudah habis terbaca → muat ulang untuk jalur StringID
+        fn = dll.FK_GetAllUserID_StringID; fn.argtypes = [I, ctypes.POINTER(ctypes.c_void_p), P, P, P]; fn.restype = I
+        buf = ctypes.create_string_buffer(256); bp = ctypes.c_void_p(ctypes.addressof(buf))
+        for _ in range(500_000):                                          # pengaman: tidak pernah berputar selamanya
+            ctypes.memset(buf, 0, 256)
+            if fn(h, ctypes.byref(bp), ctypes.byref(bk), ctypes.byref(pv), ctypes.byref(en)) != 1: break
+            key = _txt(buf.raw)
+            if not key: continue
+            u = users.setdefault(key, {"pin": key, "priv": pv.value, "bks": []}); u["bks"].append(bk.value)
+    info["str_argc"] = argc(dll, "FK_GetAllUserID_StringID"); info["last_err"] = dll.FK_GetLastError(h)
+    return users, "str", info
+
+
+def users_down(dll, h):
+    _bind_users(dll); I, V = ctypes.c_int, ctypes.c_void_p; P = ctypes.POINTER(I)
+    users, mode, info = _list_users(dll, h); _line({"users_info": {"mode": mode, "n": len(users), **info}, "p": 15, "stage": "read", "n": 0})
+    # FK_GetUserName* : argumen ke-3 = char** (pointer ke pointer buffer; bukan buffer langsung) — hasil bongkar DLL
+    nm = ctypes.create_string_buffer(256); nmp = V(ctypes.addressof(nm)); PV = ctypes.POINTER(V)
+    if mode == "str":
+        dll.FK_GetUserName_StringID.argtypes = [I, ctypes.c_char_p, PV]; dll.FK_GetEnrollData_StringID.argtypes = [I, ctypes.c_char_p, I, P, V, P]
+        get_name = lambda key: dll.FK_GetUserName_StringID(h, key.encode("mbcs", "replace"), ctypes.byref(nmp))      # noqa: E731
+        get_enr = lambda key, b, priv, buf, pw: dll.FK_GetEnrollData_StringID(h, key.encode("mbcs", "replace"), b, ctypes.byref(priv), buf, ctypes.byref(pw))      # noqa: E731
+    else:
+        dll.FK_GetUserName.argtypes = [I, I, PV]
+        get_name = lambda key: dll.FK_GetUserName(h, key, ctypes.byref(nmp))      # noqa: E731
+        get_enr = lambda key, b, priv, buf, pw: dll.FK_GetEnrollData(h, key, b, ctypes.byref(priv), buf, ctypes.byref(pw))      # noqa: E731
+    prog(30, "read", 0); buf = ctypes.create_string_buffer(BUF); batch = []; n = len(users); skipped = fps = 0
     for i, (num, u) in enumerate(sorted(users.items())):
-        u.update(name="", password="", card=0, fps=[])
-        if dll.FK_GetUserName(h, num, nm) == 1: u["name"] = _txt(nm.raw)
+        u.update(name="", password="", card=0, fps=[]); ctypes.memset(nm, 0, 256)
+        if get_name(num) == 1: u["name"] = _txt(nm.raw)
         for b in sorted(set(u.pop("bks"))):
             ctypes.memset(buf, 0, BUF); priv, pw = I(), I()
-            if dll.FK_GetEnrollData(h, num, b, ctypes.byref(priv), buf, ctypes.byref(pw)) != 1: continue
+            if get_enr(num, b, priv, buf, pw) != 1: continue
             u["priv"] = priv.value
             if b < BK_PSW: u["fps"].append([b, base64.b64encode(buf.raw[:FP_SIZE]).decode()]); fps += 1
             elif b == BK_PSW: u["password"] = str(pw.value) if pw.value else ""
@@ -113,7 +164,7 @@ def users_down(dll, h):
         if len(batch) >= 100: _line({"users": batch}); batch = []
         if i % 5 == 0: prog(round(30 + 65 * (i + 1) / n), "read", i + 1)
     if batch: _line({"users": batch})
-    prog(95, "read", n); out(ok=True, count=n, fps=fps, skipped=skipped)
+    prog(95, "read", n); out(ok=True, count=n, fps=fps, skipped=skipped, mode=mode, **{k: v for k, v in info.items() if k != "str_flag"}, str_flag=info["str_flag"])
 
 
 def users_up(dll, h, path):
@@ -142,7 +193,7 @@ def users_up(dll, h, path):
 
 
 # ---- FK_LoadGeneralLogDataByDate: tanda tangan TIDAK didokumentasikan di berkas ekspor → jumlah argumen dibaca dari DLL, bentuk argumen dipilih dari kandidat & DIUJI (--bydate-test)
-BYDATE = {"i3": 3, "s3": 3, "i4": 4, "s4": 4, "d7": 7, "d8": 8}     # id → jumlah argumen (termasuk handle). i=YYYYMMDD int, s="YYYY-MM-DD" teks, d=tahun,bulan,tanggal terpisah; angka 4/8 = ada argumen nReadMark(0)
+BYDATE = {"dd": 5, "i3": 3, "s3": 3, "i4": 4, "s4": 4, "d7": 7, "d8": 8}     # id → jumlah argumen (termasuk handle). i=YYYYMMDD int, s="YYYY-MM-DD" teks, d=tahun,bulan,tanggal terpisah; angka 4/8 = ada argumen nReadMark(0)
 CALIB = {"FK_LoadGeneralLogData": 2, "FK_GetGeneralLogData_1": 10, "FK_ConnectNet": 7}   # tanda tangan yang sudah diketahui → bukti pembacaan argc benar
 
 
@@ -154,18 +205,43 @@ def parse_argc_error(msg, tried):
     return tried - d if m.group(2) == "in excess" else tried + d
 
 
-def argc(dll, name, tried=12):
-    """Jumlah argumen fungsi stdcall (termasuk handle) TANPA disassembler: panggil dengan `tried` argumen bernilai 0 (handle 0 = tidak valid → fungsi langsung menolak)
-    dan baca selisih tumpukan yang dilaporkan ctypes. Dikalibrasi dengan fungsi yang jumlah argumennya sudah diketahui (CALIB). None bila tidak dapat ditentukan."""
-    try: fn = getattr(dll, name)
-    except AttributeError: return None
-    fn.argtypes = None; fn.restype = ctypes.c_int
-    try: fn(*([0] * tried)); return tried                                  # tidak ada selisih → tepat sejumlah itu
-    except ValueError as e: return parse_argc_error(e, tried)
-    except OSError: return None                                            # pelanggaran akses di dalam DLL: tidak dapat ditentukan
+_PE = {}
+
+
+def _pe_funcs(path):
+    """Tabel ekspor PE → {nama: offset berkas}. Di-cache."""
+    if path in _PE: return _PE[path]
+    b = open(path, "rb").read(); pe = struct.unpack_from("<I", b, 0x3C)[0]; nsec = struct.unpack_from("<H", b, pe + 6)[0]; opt = pe + 24
+    magic = struct.unpack_from("<H", b, opt)[0]; rva = struct.unpack_from("<I", b, opt + (96 if magic == 0x10B else 112))[0]; osz = struct.unpack_from("<H", b, pe + 20)[0]
+    secs = [struct.unpack_from("<IIII", b, opt + osz + 40 * k + 8) for k in range(nsec)]
+    def off(r):
+        for vs, va, rs, ro in secs:
+            if va <= r < va + max(vs, rs): return r - va + ro
+        raise ValueError("RVA di luar seksi")
+    e = off(rva); cnt = struct.unpack_from("<I", b, e + 24)[0]; fa, na, oa = (off(struct.unpack_from("<I", b, e + d)[0]) for d in (28, 32, 36)); res = {}
+    for k in range(cnt):
+        o = off(struct.unpack_from("<I", b, na + 4 * k)[0]); n = b[o:b.index(b"\0", o)].decode("ascii", "replace")
+        res[n] = off(struct.unpack_from("<I", b, fa + 4 * struct.unpack_from("<H", b, oa + 2 * k)[0])[0])
+    _PE[path] = (b, res); return _PE[path]
+
+
+def argc(dll, name, tried=12, path=None):
+    """Jumlah argumen fungsi stdcall (termasuk handle), dibaca STATIS dari berkas DLL: epilog `pop ebp; ret N` di dalam fungsi (dibatasi padding 0xCC) → N/4.
+    (Trik lama — memanggil dengan argumen berlebih & membaca ValueError ctypes — mati sejak Python 3.12 karena pemeriksaan tumpukan dihapus.) Dikalibrasi dengan CALIB.
+    None bila fungsi tidak ada / epilognya tidak seragam."""
+    path = path or _DLL_PATH.get("p")
+    try: b, fn = _pe_funcs(path); o = fn[name]
+    except (KeyError, OSError, ValueError, TypeError): return None
+    seg = b[o:o + 8000]; k = seg.find(b"\xcc\xcc"); seg = seg[:k if k > 0 else len(seg)]
+    vals = {seg[m + 2] for m in range(len(seg) - 3) if seg[m] == 0x5D and seg[m + 1] == 0xC2 and seg[m + 3] == 0}
+    return vals.pop() // 4 if len(vals) == 1 else None
+
+
+_DLL_PATH = {}
 
 
 def load_dll(path):
+    _DLL_PATH["p"] = path
     try:
         os.add_dll_directory(os.path.dirname(os.path.abspath(path))) if hasattr(os, "add_dll_directory") else None
         return ctypes.WinDLL(path)
@@ -176,7 +252,9 @@ def bydate_call(dll, h, sig, d1, d2):
     """Muat log hanya rentang d1..d2 (date). d2 dimajukan 1 hari agar batas akhir tidak terpotong; HRIS tetap menyaring ulang menurut tanggal."""
     from datetime import timedelta
     d2 = d2 + timedelta(days=1); f8, t8 = int(d1.strftime("%Y%m%d")), int(d2.strftime("%Y%m%d")); fs, ts = d1.isoformat().encode(), d2.isoformat().encode()
-    args = {"i3": (f8, t8), "s3": (fs, ts), "i4": (0, f8, t8), "s4": (0, fs, ts), "d7": (d1.year, d1.month, d1.day, d2.year, d2.month, d2.day), "d8": (0, d1.year, d1.month, d1.day, d2.year, d2.month, d2.day)}[sig]
+    from datetime import date as _dt, datetime as _dtt
+    ole = lambda x: float((_dtt(x.year, x.month, x.day) - _dtt(1899, 12, 30)).days)   # noqa: E731  tanggal OLE/TDateTime: hari sejak 1899-12-30
+    args = {"dd": (ole(d1), ole(d2)), "i3": (f8, t8), "s3": (fs, ts), "i4": (0, f8, t8), "s4": (0, fs, ts), "d7": (d1.year, d1.month, d1.day, d2.year, d2.month, d2.day), "d8": (0, d1.year, d1.month, d1.day, d2.year, d2.month, d2.day)}[sig]
     dll.FK_LoadGeneralLogDataByDate.argtypes = None; dll.FK_LoadGeneralLogDataByDate.restype = ctypes.c_int
     return dll.FK_LoadGeneralLogDataByDate(h, *args)
 
@@ -210,13 +288,19 @@ def bydate_test(a):
         petunjuk=(f"Set ATTENDANCE_FK_BYDATE={rec} di .env lalu restart." if rec else "Tidak ada kandidat yang cocok+lebih cepat: tetap pakai pembacaan penuh (jangan set ATTENDANCE_FK_BYDATE)."))
 
 
+def stringid_flag(dll, h, name="FK_GetLogDataIsSupportStringID"):
+    """Dari bongkar DLL: fungsi ini hanya menerima handle (ret 4) dan mengembalikan flag lewat nilai return (bukan lewat pointer). None bila tidak ada / argumen tidak cocok."""
+    try:
+        if argc(dll, name) != 1: return None
+        fn = getattr(dll, name); fn.argtypes = [ctypes.c_int]; fn.restype = ctypes.c_int; return fn(h)
+    except Exception as e: return f"{type(e).__name__}"
+
+
 def probe_info(dll, h):
     """Keadaan mesin untuk diagnosis (BACA SAJA): 'mendukung ID teks' + nilai status 1..12. Hanya memanggil fungsi yang jumlah argumennya terbukti cocok."""
     I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); v = I(); info = {}
-    for name, n in (("FK_GetLogDataIsSupportStringID", 2), ("FK_GetIsSupportStringID", 2)):
-        try:
-            if argc(dll, name) == n: fn = getattr(dll, name); fn.argtypes = [I, P]; fn.restype = I; r = fn(h, ctypes.byref(v)); info[name] = [r, v.value]
-        except Exception as e: info[name] = f"{type(e).__name__}"
+    for name in ("FK_GetLogDataIsSupportStringID", "FK_GetIsSupportStringID"):
+        info[name] = stringid_flag(dll, h, name)
     try:
         if argc(dll, "FK_GetDeviceStatus") == 3:
             fn = dll.FK_GetDeviceStatus; fn.argtypes = [I, I, P]; fn.restype = I; info["status"] = {i: (v.value if fn(h, i, ctypes.byref(v)) == 1 else None) for i in range(1, 13)}
@@ -231,18 +315,26 @@ def read_logs(dll, h, new=False, cap=CAP, load=None, emit=True, win=None):
     I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); v = [I() for _ in range(9)]; refs = [ctypes.byref(x) for x in v]
     sbuf = ctypes.create_string_buffer(64); st = {"count": 0, "raw": 0, "pin0": 0, "baddate": 0, "stringid": False, "sample": None, "truncated": False, "inwin": 0, "first_err": None}
     def str_ok():
-        """Fungsi StringID dipakai hanya bila ada DAN jumlah argumennya terbukti 10 (handle + id + 8 angka) — tanda tangan salah di DLL 32-bit bisa merusak tumpukan. Dipanggil hanya di jalur 'kosong/PIN 0'."""
+        """Fungsi StringID dipakai hanya bila ada DAN jumlah argumennya terbukti 5 (hasil bongkar FKAttend.dll: handle, char** id, int* mode verifikasi, int* mode in/out, double* tanggal OLE).
+        Argumen ke-2 adalah POINTER KE POINTER buffer (DLL mengisi buffer dengan spasi lalu menyalin ID); tanggal diberi buffer 16 byte supaya aman bila ternyata DWORD 4 byte."""
         if not hasattr(dll, "FK_GetGeneralLogData_StringID"): return False
         n = argc(dll, "FK_GetGeneralLogData_StringID"); st["str_argc"] = n
-        if n != 10: return False
-        dll.FK_GetGeneralLogData_StringID.argtypes = [I, ctypes.c_char_p, P, P, P, P, P, P, P, P]; dll.FK_GetGeneralLogData_StringID.restype = I; return True
+        if n != 5: return False
+        dll.FK_GetGeneralLogData_StringID.argtypes = [I, ctypes.POINTER(ctypes.c_void_p), P, P, ctypes.c_void_p]; dll.FK_GetGeneralLogData_StringID.restype = I; return True
+    from datetime import datetime as _dtm, timedelta as _td
+    sid = ctypes.create_string_buffer(128); sid_p = ctypes.c_void_p(ctypes.addressof(sid)); tmb = (ctypes.c_double * 2)(); vm_, io_ = I(), I()
     def nxt():
         if st["stringid"]:
-            ctypes.memset(sbuf, 0, 64)
-            if dll.FK_GetGeneralLogData_StringID(h, sbuf, *refs[1:]) != 1: return None
-            return (_txt(sbuf.raw),) + tuple(x.value for x in v[1:])
+            ctypes.memset(sid, 0, 128); tmb[0] = tmb[1] = 0.0
+            if dll.FK_GetGeneralLogData_StringID(h, ctypes.byref(sid_p), ctypes.byref(vm_), ctypes.byref(io_), ctypes.addressof(tmb)) != 1: return None
+            try: t = _dtm(1899, 12, 30) + _td(days=tmb[0]) + _td(seconds=0.5)                   # tanggal OLE (hari sejak 1899-12-30); +0.5 dtk meredam galat pembulatan double
+            except (OverflowError, ValueError): t = None
+            st.setdefault("tm_raw", [tmb[0], tmb[1]])
+            if t is None: return (_txt(sid.raw), vm_.value, io_.value, 0, 0, 0, 0, 0, 0)       # tanggal tak terbaca → dihitung baddate
+            return (_txt(sid.raw), vm_.value, io_.value, t.year, t.month, t.day, t.hour, t.minute, t.second)
         if dll.FK_GetGeneralLogData_1(h, *refs) != 1: return None
         return (str(v[0].value),) + tuple(x.value for x in v[1:])
+    st["str_flag"] = stringid_flag(dll, h)
     rec = nxt()
     if rec is None: st["first_err"] = dll.FK_GetLastError(h)             # daftar kosong: simpan kode galat DLL untuk diagnosis
     if (rec is None or rec[0] == "0") and str_ok():                      # kosong ATAU PIN 0 = mesin ber-ID teks → muat ulang & baca lewat fungsi StringID
@@ -272,20 +364,28 @@ def read_logs(dll, h, new=False, cap=CAP, load=None, emit=True, win=None):
 
 
 def diag(dll, h, a):
-    """Diagnosis 'mesin tidak mengembalikan scan' (hanya BACA): status mesin, hasil muat untuk nReadMark 0 dan 1, kode galat tiap langkah, dan beberapa rekaman pertama mentah."""
-    I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); rep = {"machine": a.machine, "handle": h}
+    """Diagnosis 'mesin tidak mengembalikan scan' (hanya BACA): status mesin, hasil muat untuk nReadMark 0 dan 1, kode galat tiap langkah, dan beberapa rekaman pertama mentah.
+    Tiap panggilan DLL diberi batas waktu (--diag-timeout) & tahap kemajuan sendiri; hasil per langkah dikirim LANGSUNG ({"diag_step": ...}) sehingga bila mesin macet,
+    langkah yang macet tampak jelas dan keluaran sebagian tetap ada."""
+    I, P = ctypes.c_int, ctypes.POINTER(ctypes.c_int); rep = {"machine": a.machine, "handle": h}; tmo = a.diag_timeout
+    def step(name, fn, *args):
+        prog(stage=f"diag:{name}")
+        try: r = timed_call(fn, tmo, *args)
+        except DllTimeout as e: hard_exit(ok=False, error=str(e), diag=rep, macet=name, catatan=f"Mesin/DLL macet di langkah '{name}'. Coba --no-disable, naikkan --diag-timeout, atau restart mesin (putus listrik) lalu ulangi.")
+        _line({"diag_step": name, "ret": r, "err": dll.FK_GetLastError(h)}); return r
     try: dll.FK_GetDeviceStatus.argtypes = [I, I, P]; dll.FK_GetDeviceStatus.restype = I; v = I(); rep["status"] = {}
-    except AttributeError: dll = dll
+    except AttributeError: pass
     else:
         for i in range(1, 13):                                            # indeks status (jumlah user/jari/log dsb. — arti tiap indeks menurut SDK; dicatat apa adanya)
-            r = dll.FK_GetDeviceStatus(h, i, ctypes.byref(v)); rep["status"][i] = v.value if r == 1 else f"gagal(err {dll.FK_GetLastError(h)})"
+            r = step(f"status{i}", dll.FK_GetDeviceStatus, h, i, ctypes.byref(v)); rep["status"][i] = v.value if r == 1 else f"gagal(err {dll.FK_GetLastError(h)})"
     rep["load"] = {}
-    for mark in (0, 1):
-        r = dll.FK_LoadGeneralLogData(h, mark); e = dll.FK_GetLastError(h); first = []
+    for mark in ((0, 1) if a.diag_marks else (0,)):
+        r = step(f"load{mark}", dll.FK_LoadGeneralLogData, h, mark); e = dll.FK_GetLastError(h); first = []
         v9 = [I() for _ in range(9)]; refs = [ctypes.byref(x) for x in v9]
-        for _ in range(3):
-            g = dll.FK_GetGeneralLogData_1(h, *refs); first.append({"ret": g, "err": dll.FK_GetLastError(h), "val": [x.value for x in v9] if g == 1 else None})
-            if g != 1: break
+        if r == 1:
+            for k in range(3):
+                g = step(f"read{mark}.{k}", dll.FK_GetGeneralLogData_1, h, *refs); first.append({"ret": g, "err": dll.FK_GetLastError(h), "val": [x.value for x in v9] if g == 1 else None})
+                if g != 1: break
         rep["load"][f"nReadMark={mark}"] = {"load_ret": r, "load_err": e, "first_reads": first}
     out(ok=True, diag=rep, catatan="Kirim seluruh keluaran ini. load_ret=1 & first_reads[0].ret!=1 → mesin menjawab tetapi daftar kosong; status = jumlah data di mesin menurut indeks SDK.")
 
@@ -306,7 +406,10 @@ def session(dll, a, lic, last, trace, empty=None):
     prog(10, "connect")
     try:
         if a.probe: out(ok=True, rows=[], note="terhubung", license=lic)
-        if not a.no_disable: prog(12, "disable"); dll.FK_EnableDevice(h, 0)
+        if not a.no_disable:
+            prog(12, "disable")
+            try: timed_call(dll.FK_EnableDevice, 30, h, 0)
+            except DllTimeout: hard_exit(ok=False, error="FK_EnableDevice(0) tidak menjawab dalam 30 dtk; ulangi dengan --no-disable.")
         try:
             if a.diag: diag(dll, h, a)
             if a.users_down: prog(15, "read"); users_down(dll, h)
@@ -350,6 +453,8 @@ def main():
     a.add_argument("--from", dest="date_from"); a.add_argument("--to", dest="date_to"); a.add_argument("--bydate", choices=sorted(BYDATE)); a.add_argument("--bydate-test", action="store_true")
     a.add_argument("--count-only", action="store_true", help="hanya hitung scan di rentang --from/--to (tanpa mengirim baris)"); a.add_argument("--argc", action="store_true", help="tampilkan jumlah argumen fungsi (kalibrasi + ByDate)")
     a.add_argument("--load-est", type=float, default=None, help="perkiraan lama tahap load (detik) untuk animasi persen"); a.add_argument("--license", type=int, default=None, help="paksa lisensi FK_ConnectNet (bawaan: coba 1261 lalu 0)"); a.add_argument("--diag", action="store_true", help="diagnosis baca-saja: status mesin + hasil muat log (kirim keluarannya bila scan 0)"); a.add_argument("--exports", action="store_true", help="tampilkan fungsi yang diekspor DLL lalu selesai")
+    a.add_argument("--diag-timeout", type=float, default=120.0, help="batas waktu (detik) tiap panggilan DLL pada --diag; lewat batas → berhenti dengan keterangan langkah yang macet")
+    a.add_argument("--diag-marks", action="store_true", help="--diag juga mencoba nReadMark=1 (bawaan: hanya 0)")
     a = a.parse_args()
     if a.exports:
         try: out(ok=True, exports=exports(a.dll))
