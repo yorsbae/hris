@@ -62,19 +62,29 @@ class PeriodTests(TestCase):
         for i, st in enumerate(["hadir", "cuti_hamil", "sakit", "alfa", "izin", "cuti", "libur", "libur_nasional", "tanpa_scan"], start=1): self.day(date(2026, 10, i), st)
         AttendanceDaily.objects.create(employee=e2, department=self.d, date=date(2026, 10, 2), status="hadir")
         rows, counts = self._daily_sheet(date(2026, 10, 1), date(2026, 10, 31))
-        head = rows[0]; self.assertEqual(head[:3], ("NIK", "Nama", "Departemen")); self.assertEqual(head[3:6], ("1", "2", "3")); self.assertEqual(head[3 + 30], "31")   # kolom tgl 1..31
-        self.assertEqual(head[34:], ("Hadir", "Libur", "Cuti", "Cuti melahirkan", "Izin", "Sakit", "Alfa", "Tanpa scan"))
+        head = rows[0]; self.assertEqual(head[:5], ("NIK", "Nama", "Departemen", "Bagian / Jabatan", "Shift")); self.assertEqual(head[5:8], ("1", "2", "3")); self.assertEqual(head[5 + 30], "31")   # kolom tgl 1..31
+        self.assertEqual(head[36:44], ("Hadir", "Libur", "Cuti", "Cuti melahirkan", "Izin", "Sakit", "Alfa", "Tanpa scan")); self.assertTrue(head[44].startswith("Keterangan"))
         by = {r[0]: r for r in rows[1:3]}; self.assertEqual(counts["Detail Absensi Harian"], 2)
-        self.assertEqual([by["P1"][3 + i] for i in range(9)], ["H", "CH", "S", "A", "I", "C", "L", "LN", "TS"]); self.assertIn(by["P1"][3 + 9], (None, ""))           # tgl 10 tanpa rekap → kosong
-        self.assertEqual(list(by["P1"][34:]), [1, 2, 1, 1, 1, 1, 1, 1]); self.assertEqual((by["P2"][4], by["P2"][34]), ("H", 1))
+        self.assertEqual([by["P1"][5 + i] for i in range(9)], ["H", "CH", "S", "A", "I", "C", "L", "LN", "NS"]); self.assertIn(by["P1"][5 + 9], (None, ""))           # tgl 10 tanpa rekap → kosong
+        self.assertEqual(list(by["P1"][36:44]), [1, 2, 1, 1, 1, 1, 1, 1]); self.assertEqual((by["P2"][6], by["P2"][36]), ("H", 1))
         self.assertEqual(rows[1][0], "P2")                                                                                                       # urut nama dalam departemen: Aaa sebelum Pee
-        legend = [r[0] for r in rows if r[0] in ("H", "CH", "A", "S", "TS")]; self.assertEqual(legend[-5:], ["H", "CH", "S", "A", "TS"])           # legenda di bawah tabel
+        legend = [r[0] for r in rows if r[0] in ("H", "CH", "A", "S", "NS")]; self.assertEqual(legend[-5:], ["H", "CH", "S", "A", "NS"])           # legenda di bawah tabel
+
+    def test_daily_detail_sheet_has_shift_position_and_swap_notes(self):
+        from apps.hr.models import ChangeRequest, Position, ShiftAssignment
+        pos = Position.objects.create(name="Operator"); Employee.objects.filter(pk=self.e.pk).update(position=pos)
+        self.day(date(2026, 10, 5)); self.day(date(2026, 10, 6), "izin")
+        rq = ChangeRequest.objects.create(type="tukar_shift", employee=self.e, department=self.d, status="executed", payload={"date": "2026-10-05"}, requested_by=self.hrd)
+        ShiftAssignment.objects.create(employee=self.e, date=date(2026, 10, 5), kind="shift", shift=self.sh, request=rq)
+        ChangeRequest.objects.create(type="izin", employee=self.e, department=self.d, status="executed", payload={"start_date": "2026-10-06", "end_date": "2026-10-06"}, requested_by=self.hrd)
+        rows, _ = self._daily_sheet(date(2026, 10, 1), date(2026, 10, 31)); r = rows[1]
+        self.assertEqual((r[3], r[4]), ("Operator", "Pagi9")); self.assertEqual(r[5 + 4], "TS"); self.assertIn("Tukar shift", r[44]); self.assertIn("Izin", r[44])
 
     def test_daily_detail_sheet_range_across_months_labels_include_month(self):
         self.day(date(2026, 9, 30), "alfa"); self.day(date(2026, 10, 1), "hadir")
         rows, _ = self._daily_sheet(date(2026, 9, 26), date(2026, 10, 3))
-        self.assertEqual(rows[0][3:11], ("26 Sep", "27 Sep", "28 Sep", "29 Sep", "30 Sep", "1 Okt", "2 Okt", "3 Okt"))
-        self.assertEqual((rows[1][7], rows[1][8]), ("A", "H"))                                                                                  # 30 Sep = alfa, 1 Okt = hadir
+        self.assertEqual(rows[0][5:13], ("26 Sep", "27 Sep", "28 Sep", "29 Sep", "30 Sep", "1 Okt", "2 Okt", "3 Okt"))
+        self.assertEqual((rows[1][9], rows[1][10]), ("A", "H"))                                                                                  # 30 Sep = alfa, 1 Okt = hadir
 
     def test_daily_detail_sheet_empty_period_and_formula_safe_names(self):
         rows, counts = self._daily_sheet(date(2026, 10, 1), date(2026, 10, 5)); self.assertEqual(counts["Detail Absensi Harian"], 0); self.assertEqual(rows[0][0], "NIK")
@@ -153,3 +163,13 @@ class PoliBillLockTests(PeriodTests):
         with self.assertRaisesMessage(ValueError, "sudah ditutup"):
             services.create_partner_bill(self.hrd, p, "INV-1", date(2026, 10, 30), self.e, date(2026, 10, 10), "rawat_jalan", "", None, "non_bpjs", 100000)
         services.create_partner_bill(self.hrd, p, "INV-2", date(2026, 10, 30), self.e, date(2026, 10, 26), "rawat_jalan", "", None, "non_bpjs", 100000)
+
+    def test_daily_detail_sheet_swap_off_marks_both_days_with_direction_and_partner_name(self):
+        from apps.hr.models import ChangeRequest, ShiftAssignment
+        e2 = Employee.objects.create(nik="P2", name="Rekan", gender="P", department=self.d, join_date=date(2020, 1, 1), shift=self.sh)
+        self.day(date(2026, 10, 5), "libur"); self.day(date(2026, 10, 6)); AttendanceDaily.objects.create(employee=e2, department=self.d, date=date(2026, 10, 5), status="hadir")
+        rq = ChangeRequest.objects.create(type="tukar_libur", employee=self.e, department=self.d, status="executed", payload={"date": "2026-10-05", "date_to": "2026-10-06", "partner_id": e2.pk}, requested_by=self.hrd)
+        ShiftAssignment.objects.create(employee=self.e, date=date(2026, 10, 5), kind="work", request=rq); ShiftAssignment.objects.create(employee=self.e, date=date(2026, 10, 6), kind="off", request=rq)
+        rows, _ = self._daily_sheet(date(2026, 10, 1), date(2026, 10, 31)); r = {x[0]: x for x in rows[1:3]}["P1"]
+        self.assertEqual((r[5 + 4], r[5 + 5]), ("TL+", "TL-")); self.assertIn("Rekan", r[44])
+        self.assertIn("TL+", [x[0] for x in rows]); self.assertIn("TL-", [x[0] for x in rows])

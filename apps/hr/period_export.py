@@ -21,7 +21,7 @@ from openpyxl.utils import get_column_letter
 
 from apps.core.money import XLSX_RUPIAH_FORMAT
 from . import attendance_calc as calc
-from .models import AttendanceDaily, Employee
+from .models import AttendanceDaily, ChangeRequest, Employee, ShiftAssignment
 
 SHEETS = ("Rekap Absensi", "Detail Absensi Harian", "Lembur & Standby", "BPJS", "Seragam", "Bantuan & Lainnya", "Perubahan Karyawan")
 DATE_FMT = "DD-MM-YYYY"
@@ -97,12 +97,12 @@ def _attendance(wb, start, end, label=None):
 
 
 # ---------------------------------------------------------------- sheet 2: detail absensi per tanggal
-DAY_CODES = {"hadir": "H", "libur": "L", "libur_nasional": "LN", "cuti": "C", "cuti_hamil": "CH", "izin": "I", "sakit": "S", "alfa": "A", "tanpa_scan": "TS"}
+DAY_CODES = {"hadir": "H", "libur": "L", "libur_nasional": "LN", "cuti": "C", "cuti_hamil": "CH", "izin": "I", "sakit": "S", "alfa": "A", "tanpa_scan": "NS"}
 DAY_LEGEND = (("H", "Hadir (berangkat)"), ("L", "Libur / hari libur jadwal"), ("LN", "Libur nasional"), ("C", "Cuti"), ("CH", "Cuti melahirkan (cuti hamil)"), ("I", "Izin"),
-              ("S", "Sakit"), ("A", "Alfa"), ("TS", "Tanpa scan (hari kerja tanpa scan, belum ada keterangan)"), ("(kosong)", "Tidak ada rekap harian pada tanggal itu"))
+              ("S", "Sakit"), ("A", "Alfa"), ("NS", "Tanpa scan (hari kerja tanpa scan, belum ada keterangan)"), ("TS", "Tukar shift (hari itu jadwal shift ditukar)"), ("TL+", "Tukar libur: hari yang tadinya libur menjadi masuk"), ("TL-", "Tukar libur: hari yang tadinya masuk menjadi libur"), ("(kosong)", "Tidak ada rekap harian pada tanggal itu"))
 DAY_TOTALS = (("Hadir", ("hadir",)), ("Libur", ("libur", "libur_nasional")), ("Cuti", ("cuti",)), ("Cuti melahirkan", ("cuti_hamil",)), ("Izin", ("izin",)), ("Sakit", ("sakit",)),
               ("Alfa", ("alfa",)), ("Tanpa scan", ("tanpa_scan",)))
-DAY_FILL = {"A": "F8D7DA", "TS": "FFF3CD", "S": "D1ECF1", "I": "E2E3F3", "C": "D4EDDA", "CH": "D4EDDA", "L": "ECECEC", "LN": "ECECEC"}
+DAY_FILL = {"A": "F8D7DA", "NS": "FFF3CD", "TS": "FDE2C4", "TL+": "E8D9F5", "TL-": "D9C2EE", "S": "D1ECF1", "I": "E2E3F3", "C": "D4EDDA", "CH": "D4EDDA", "L": "ECECEC", "LN": "ECECEC"}
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
 
 
@@ -111,25 +111,70 @@ def _day_label(d, multi_month):
     return f"{d.day} {MONTHS[d.month - 1]}" if multi_month else str(d.day)
 
 
+REQ_LABEL = {"tukar_shift": "Tukar shift", "tukar_libur": "Tukar libur", "izin": "Izin", "cuti": "Cuti", "sakit": "Sakit", "izin_terlambat": "Izin terlambat", "izin_pulang": "Izin pulang cepat",
+             "izin_khusus": "Izin khusus", "lembur": "Lembur", "standby": "Stand by", "shift": "Ubah shift", "rotasi": "Rotasi"}
+ASSIGN_LABEL = {ShiftAssignment.SHIFT: "masuk shift {shift}", ShiftAssignment.WORK: "masuk (shift reguler)", ShiftAssignment.OFF: "libur"}
+
+
+def _iso(v):
+    try: return date.fromisoformat(str(v)[:10])
+    except (TypeError, ValueError): return None
+
+
+def _notes(emp_ids, start, end):
+    """{employee_id: [(tanggal, teks)]} — keterangan per hari di rentang: hasil tukar shift/libur (penyesuaian jadwal yang berlaku), pengajuan yang dilaksanakan
+    (izin, cuti, sakit, lembur, stand by, dst.) dan catatan rekap harian. Hanya membaca."""
+    out = {}; names = {}
+    def put(eid, d, txt):
+        if d and start <= d <= end and txt not in [t for dd, t in out.get(eid, []) if dd == d]: out.setdefault(eid, []).append((d, txt))
+    for part in _chunks(emp_ids):
+        for a in ShiftAssignment.objects.filter(employee_id__in=part, date__gte=start, date__lte=end).select_related("shift", "request", "request__employee"):
+            rq = a.request; lbl = REQ_LABEL.get(rq.type, rq.type); pid = (rq.payload or {}).get("partner_id")
+            other = rq.employee_id if rq.employee_id != a.employee_id else pid       # lawan tukar: pemohon (bila ini rekan) atau rekan (bila ini pemohon)
+            if other and other not in names: names[other] = (Employee.all_objects.filter(pk=other).values_list("name", flat=True).first() or "")
+            who = f" dgn {names[other]}" if other and names.get(other) else ""
+            put(a.employee_id, a.date, f"{lbl}: {ASSIGN_LABEL.get(a.kind, a.kind).format(shift=a.shift.name if a.shift_id else '')}{who}")
+        for r in ChangeRequest.objects.filter(employee_id__in=part, status="executed", type__in=[t for t in REQ_LABEL if not t.startswith("tukar")]):
+            p = r.payload or {}; a, b = _iso(p.get("start_date") or p.get("date")), _iso(p.get("end_date") or p.get("date"))
+            if not a or not b or b < start or a > end: continue
+            extra = f" ({p['minutes']} mnt)" if p.get("minutes") else ""
+            d = max(a, start)
+            while d <= min(b, end): put(r.employee_id, d, REQ_LABEL[r.type] + extra); d = date.fromordinal(d.toordinal() + 1)
+        for eid, d, nt in AttendanceDaily.objects.filter(employee_id__in=part, date__gte=start, date__lte=end).exclude(notes="").values_list("employee_id", "date", "notes"): put(eid, d, nt)
+    return out
+
+
 def _attendance_daily(wb, start, end, label=None):
     from datetime import timedelta
     days = [start + timedelta(days=i) for i in range((end - start).days + 1)]; multi = (start.year, start.month) != (end.year, end.month)
-    sh = _Sheet(wb, SHEETS[1], [("NIK", "t"), ("Nama", "t"), ("Departemen", "t")] + [(_day_label(d, multi), "t") for d in days] + [(n, "n") for n, _ in DAY_TOTALS])
+    sh = _Sheet(wb, SHEETS[1], [("NIK", "t"), ("Nama", "t"), ("Departemen", "t"), ("Bagian / Jabatan", "t"), ("Shift", "t")] + [(_day_label(d, multi), "t") for d in days] + [(n, "n") for n, _ in DAY_TOTALS]
+                + [("Keterangan (tukar shift, tukar libur, izin, dst.)", "t")])
     people = {}
     for eid, d, st, dept, nik, name in AttendanceDaily.objects.filter(date__gte=start, date__lte=end).order_by("date").values_list(
             "employee_id", "date", "status", "department__name", "employee__nik", "employee__name"):
-        p = people.setdefault(eid, {"nik": nik, "name": name, "dept": dept or "", "days": {}}); p["days"][d] = st; p["dept"] = dept or p["dept"]      # departemen = yang terakhir tercatat
-    first = 4
+        p = people.setdefault(eid, {"id": eid, "nik": nik, "name": name, "dept": dept or "", "days": {}}); p["days"][d] = st; p["dept"] = dept or p["dept"]      # departemen = yang terakhir tercatat
+    emps = {}
+    for part in _chunks(list(people)):
+        for e in Employee.all_objects.filter(pk__in=part).select_related("position", "shift", "shift_group"): emps[e.pk] = e
+    notes = _notes(list(people), start, end)
+    swaps = {}                                                                   # (karyawan, tanggal) → TS / TL bila hari itu hasil tukar shift / tukar libur yang berlaku
+    for part in _chunks(list(people)):
+        for eid, d, t, k in ShiftAssignment.objects.filter(employee_id__in=part, date__gte=start, date__lte=end, request__type__in=("tukar_shift", "tukar_libur")).values_list("employee_id", "date", "request__type", "kind"):
+            swaps[(eid, d)] = "TS" if t == "tukar_shift" else ("TL-" if k == ShiftAssignment.OFF else "TL+")
+    first = 6
     for p in sorted(people.values(), key=lambda p: (p["dept"].casefold(), p["name"].casefold(), p["nik"])):
         codes = [DAY_CODES.get(p["days"].get(d), "") if p["days"].get(d) else "" for d in days]
-        sts = list(p["days"].values())
-        sh.add(p["nik"], p["name"], p["dept"], *codes, *[sum(1 for x in sts if x in keys) for _, keys in DAY_TOTALS])
+        codes = [swaps.get((p["id"], d), c) if c in ("H", "L") else c for c, d in zip(codes, days)]   # TS/TL+/TL- menimpa H/L saja; alfa, izin, sakit, cuti, CH tetap terlihat
+        sts = list(p["days"].values()); e = emps.get(p["id"])
+        ket = "; ".join(f"{_day_label(d, True)}: {t}" for d, t in sorted(notes.get(p["id"], [])))
+        sh.add(p["nik"], p["name"], p["dept"], (e.position.name if e and e.position_id else ""), (e.shift_label if e else ""), *codes, *[sum(1 for x in sts if x in keys) for _, keys in DAY_TOTALS], ket)
         r = sh.n + 1
         for i, c in enumerate(codes):
             cell = sh.ws.cell(row=r, column=first + i); cell.alignment = Alignment(horizontal="center")
             if c in DAY_FILL: cell.fill = PatternFill("solid", fgColor=DAY_FILL[c])
     n = sh.finish(); ws = sh.ws; ws.freeze_panes = "D2"
     for i in range(len(days)): ws.column_dimensions[get_column_letter(first + i)].width = 6 if multi else 4.5
+    ws.column_dimensions[get_column_letter(len(sh.cols))].width = 60
     for c in ws[1][first - 1:first - 1 + len(days)]: c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws.append([]); ws.append(["Kode", "Keterangan"])
     for c in ws[ws.max_row]: c.font = Font(bold=True)

@@ -40,8 +40,6 @@
  .ih .c-conn::before,.ih .c-scan::before,.ih .c-last::before{content:attr(data-l);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--mu);font-weight:600}
 }
 .ih td.nw,.ih td small.nw{white-space:nowrap}
-.ih .fbar{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 12px;align-items:end}.ih .fbar .w2{grid-column:span 2}
-.ih .fbar .f{font-size:12px}.ih .fbar select,.ih .fbar input{min-height:36px}
 .ih .fcnt{color:var(--mu);font-size:13px;margin:8px 0 0}
 .ih .mgrp{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--hov);border-bottom:1px solid var(--bd);font-size:13px}
 .ih .mgrp label{display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;min-width:0}.ih .mgrp .gn{color:var(--mu);font-size:12px}
@@ -58,20 +56,9 @@
 {% include "attendance/_mesin_tabs.html" with tab="mesin" %}
 {% if idle %}<details class="idle"><summary>{{ idle|length }} mesin aktif tidak ada scan ≥ {{ idle_days }} hari</summary><p>{% for r in idle %}{{ r.d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p></details>{% endif %}
 
-<form method="get" class="panel" id="fform" aria-label="Filter, urutan, dan pengelompokan mesin"><div class="fbar">
-<label class="f w2">Cari<input type="search" name="q" value="{{ f.q }}" placeholder="nama, lokasi, SN, IP, No Mesin…" maxlength="80" autocomplete="off"></label>
-<label class="f">Protokol<select name="protokol"><option value="">Semua</option>{% for v, l in f_protocols %}<option value="{{ v }}"{% if f.protokol == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-<label class="f">Port<select name="port"><option value="">Semua</option>{% for pt in ports %}<option value="{{ pt }}"{% if f.port == pt %} selected{% endif %}>{{ pt }}</option>{% endfor %}</select></label>
-<label class="f">Status<select name="status"><option value="">Semua</option>{% for v, l in f_statuses %}<option value="{{ v }}"{% if f.status == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-<label class="f">Tarik otomatis<select name="otomatis"><option value="">Semua</option>{% for v, l in f_yesno %}<option value="{{ v }}"{% if f.otomatis == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-<label class="f">Tarikan terakhir<select name="hasil"><option value="">Semua</option>{% for v, l in f_results %}<option value="{{ v }}"{% if f.hasil == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-<label class="f">Urutkan<select name="urut"><option value="">Bawaan</option>{% for v, l in f_sorts %}<option value="{{ v }}"{% if f.urut == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-<label class="f">Arah<select name="arah"><option value="naik">Naik (A→Z, kecil→besar)</option><option value="turun"{% if f.arah == "turun" %} selected{% endif %}>Turun</option></select></label>
-{% for slot in f_group_slots %}<label class="f">Kelompokkan {{ forloop.counter }}<select name="g{{ forloop.counter }}"><option value="">—</option>{% for v, l in f_groups %}<option value="{{ v }}"{% if slot == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>{% endfor %}
-<div class="acts2"><button class="btn" type="submit">Terapkan</button><a class="btn ghost" href="{% url 'att_devices' %}">Reset</a></div></div>
-<p class="fcnt" role="status">{% if filtered %}{{ rows|length }} dari {{ total }} mesin cocok dengan filter.{% else %}{{ total }} mesin.{% endif %}{% if grouped %} Dikelompokkan bertingkat; kotak di judul kelompok mencentang semua mesin di dalamnya.{% endif %}</p></form>
 
-<form method="post">{% csrf_token %}
+
+<form method="post" id="syncform">{% csrf_token %}
 <div class="panel sync"><div><h3>Download scanlog dari mesin</h3><p class="sub" style="margin:0">Centang mesin di tabel, pilih cakupan data, lalu unduh.</p></div>
 <div class="row"><div class="f" role="group" aria-labelledby="mdl">Cakupan data<span class="seg" id="mdl"><label title="24 jam terakhir (mundur ke scan terakhir tersimpan bila lebih lama)"><input type="radio" name="mode" value="latest" checked>Data terbaru (24 jam)</label><label><input type="radio" name="mode" value="all">Semua scanlog</label><label title="Berdasarkan tanggal Dari–Sampai"><input type="radio" name="mode" value="range">Rentang tanggal</label></span></div>
 <div class="dr" id="rng" hidden><label class="f">Dari<input type="date" name="from"></label><span aria-hidden="true">–</span><label class="f">Sampai<input type="date" name="to"></label></div></div>
@@ -80,11 +67,24 @@
 <p class="help2" style="margin:12px 0 0"><b>Download user</b> membaca user + sidik jari dari mesin yang dicentang dan menyimpannya di HRIS (kunci PIN; terenkripsi, tidak ditampilkan). <b>Upload user</b> mengirim user tersimpan ke mesin yang dicentang: menambah/memperbarui, <u>tidak menghapus</u> user lain di mesin. Sidik jari hanya dikirim bila versi algoritma mesin sama (9/10). Tersimpan sekarang: <b>{{ stored_users }}</b> user · <b>{{ stored_fingers }}</b> sidik jari.</p></div></details>
 <p class="help2" style="margin:0"><b>Data terbaru</b> = scan 24 jam terakhir; bila scan terakhir yang tersimpan di HRIS (kolom “Tersimpan s/d”) lebih lama dari itu, dimulai dari sana agar tidak ada celah. Mesin yang belum punya data: lakukan <b>Semua scanlog</b> sekali. <b>Rentang tanggal</b> = scan pada tanggal Dari–Sampai. <b>Semua</b> = seluruh log di mesin. Scan yang sudah pernah diunduh otomatis dilewati (tidak ganda, tidak membuat riwayat kosong); hanya yang belum ada yang disimpan. Mesin FK membaca seluruh log di mesin lebih dulu, jadi tahap “Mesin menyiapkan log” bisa lama pada log besar.</p></div>
 
+</form>
 <div class="hd"><h3>Mesin terdaftar</h3></div>
+<form method="get" data-fbar data-sg="server" class="bar" id="fform" aria-label="Filter, urutan, dan pengelompokan mesin">
+<label>Cari<input type="search" name="q" value="{{ f.q }}" placeholder="nama, lokasi, SN, IP, No Mesin…" maxlength="80" autocomplete="off"></label>
+<label>Protokol<select name="protokol"><option value="">Semua</option>{% for v, l in f_protocols %}<option value="{{ v }}"{% if f.protokol == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Port<select name="port"><option value="">Semua</option>{% for pt in ports %}<option value="{{ pt }}"{% if f.port == pt %} selected{% endif %}>{{ pt }}</option>{% endfor %}</select></label>
+<label>Status<select name="status"><option value="">Semua</option>{% for v, l in f_statuses %}<option value="{{ v }}"{% if f.status == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Tarik otomatis<select name="otomatis"><option value="">Semua</option>{% for v, l in f_yesno %}<option value="{{ v }}"{% if f.otomatis == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Tarikan terakhir<select name="hasil"><option value="">Semua</option>{% for v, l in f_results %}<option value="{{ v }}"{% if f.hasil == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Urutkan<select name="urut"><option value="">Bawaan</option>{% for v, l in f_sorts %}<option value="{{ v }}"{% if f.urut == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Arah<select name="arah" data-default="naik"><option value="naik">Naik (A→Z, kecil→besar)</option><option value="turun"{% if f.arah == "turun" %} selected{% endif %}>Turun</option></select></label>
+{% for slot in f_group_slots %}<label>Kelompokkan {{ forloop.counter }}<select name="g{{ forloop.counter }}"><option value="">—</option>{% for v, l in f_groups %}<option value="{{ v }}"{% if slot == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>{% endfor %}
+<a class="chip" href="{% url 'att_devices' %}">Reset</a>
+<p class="fcnt" role="status">{% if filtered %}{{ rows|length }} dari {{ total }} mesin cocok dengan filter.{% else %}{{ total }} mesin.{% endif %}{% if grouped %} Dikelompokkan bertingkat; kotak di judul kelompok mencentang semua mesin di dalamnya.{% endif %}</p></form>
 <div class="mlist">
 <div class="mhead"><div class="c-sel"><input type="checkbox" aria-label="Pilih semua" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked);window.selCnt&&selCnt()"></div><div>Nama / Lokasi</div><div>Koneksi</div><div>Status</div><div>Scan (30 hr)</div><div>Tarikan terakhir</div><div></div></div>
 {% for r in items %}{% if r.hdr %}<div class="mgrp lv{{ r.level }}"><label><input type="checkbox" class="gpick" data-gk="{{ r.key }}" aria-label="Pilih semua mesin di kelompok {{ r.label }}"><span class="dim">{{ r.dim }}</span><b>{{ r.label }}</b><span class="gn">{{ r.n }} mesin</span></label></div>{% else %}<div class="mrow">
-<div class="c-sel">{% if r.d.active %}<input class="pick" type="checkbox" name="ids" value="{{ r.d.pk }}" data-g="{{ r.gkey }}" aria-label="Pilih {{ r.d.name }}"{% if r.d.sync_enabled and r.d.host %} checked{% endif %}>{% endif %}</div>
+<div class="c-sel">{% if r.d.active %}<input class="pick" form="syncform" type="checkbox" name="ids" value="{{ r.d.pk }}" data-g="{{ r.gkey }}" aria-label="Pilih {{ r.d.name }}"{% if r.d.sync_enabled and r.d.host %} checked{% endif %}>{% endif %}</div>
 <div class="c-name"><b>{{ r.d.name }}</b><small>{% if r.d.location %}{{ r.d.location }} · {% endif %}SN {{ r.d.serial|default:r.d.code }}{% if r.d.machine_no %} · No {{ r.d.machine_no }}{% endif %}</small></div>
 <div class="c-conn" data-l="Koneksi">{{ r.d.get_connection_display|default:"-" }}<small>{% if r.d.host %}{{ r.d.host }}:{{ r.d.port }}{% else %}-{% endif %} · {{ r.d.protocol|upper }}{% if r.d.screen %} · Layar {{ r.d.screen }}{% endif %}</small></div>
 <div class="c-st">{% if not r.d.active %}<span class="pill nonaktif">Nonaktif</span>{% elif r.idle %}<span class="pill rejected">Tidak ada scan</span>{% else %}<span class="pill approved">Aktif</span>{% endif %}</div>
@@ -106,7 +106,6 @@
 {% endif %}{% empty %}<div class="empty">{% if filtered %}Tidak ada mesin yang cocok dengan filter. <a href="{% url 'att_devices' %}">Reset filter</a>{% else %}Belum ada mesin. Impor daftar dari Fingerspot Personnel di bawah.{% endif %}</div>{% endfor %}
 </div>
 <div class="selbar" role="status"><b id="selcnt">0</b> mesin dicentang — pakai tombol Download scanlog di atas.</div>
-</form>
 {% for r in rows %}<form id="e{{ r.d.pk }}" method="post" hidden>{% csrf_token %}</form>{% endfor %}
 
 <div class="hd"><h3>Tambah mesin</h3></div>
