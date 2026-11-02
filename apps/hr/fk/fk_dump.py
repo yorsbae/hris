@@ -120,9 +120,15 @@ def _list_users(dll, h):
     if info["str_flag"] != 1:                                             # flag 1 = mesin ber-ID teks → lewati jalur numerik
         while dll.FK_GetAllUserID(h, ctypes.byref(pin), ctypes.byref(bk), ctypes.byref(pv), ctypes.byref(en)) == 1:
             u = users.setdefault(pin.value, {"pin": str(pin.value), "priv": pv.value, "bks": []}); u["bks"].append(bk.value)
+    users.pop(0, None)                                                    # mesin ber-ID teks mengembalikan PIN 0 lewat fungsi numerik = bukan user nyata (sama seperti log PIN 0)
     if users: return users, "num", info
-    if hasattr(dll, "FK_GetAllUserID_StringID") and argc(dll, "FK_GetAllUserID_StringID") == 5:
-        if info["str_flag"] != 1: dll.FK_ReadAllUserID(h)                 # daftar numerik sudah habis terbaca → muat ulang untuk jalur StringID
+    sargc = argc(dll, "FK_GetAllUserID_StringID") if hasattr(dll, "FK_GetAllUserID_StringID") else -1
+    info["str_argc"] = sargc
+    # argc None = epilog tidak terbaca statis (bukan berarti fungsi tidak ada) → tanda tangan hasil bongkar DLL (5 argumen) dipercaya; hanya ditolak bila terbaca JELAS bukan 5.
+    # Dulu syarat `== 5` membuat jalur ini terlewat (argc=None) → 0 user padahal scanlog (argc terbaca) tetap terbaca.
+    if sargc in (5, None):
+        info["str_assumed"] = sargc is None
+        dll.FK_ReadAllUserID(h)                                           # daftar numerik sudah habis terbaca → muat ulang untuk jalur StringID
         fn = dll.FK_GetAllUserID_StringID; fn.argtypes = [I, ctypes.POINTER(ctypes.c_void_p), P, P, P]; fn.restype = I
         buf = ctypes.create_string_buffer(256); bp = ctypes.c_void_p(ctypes.addressof(buf))
         for _ in range(500_000):                                          # pengaman: tidak pernah berputar selamanya
@@ -131,7 +137,7 @@ def _list_users(dll, h):
             key = _txt(buf.raw)
             if not key: continue
             u = users.setdefault(key, {"pin": key, "priv": pv.value, "bks": []}); u["bks"].append(bk.value)
-    info["str_argc"] = argc(dll, "FK_GetAllUserID_StringID"); info["last_err"] = dll.FK_GetLastError(h)
+    info["last_err"] = dll.FK_GetLastError(h)
     return users, "str", info
 
 

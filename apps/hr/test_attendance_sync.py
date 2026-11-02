@@ -318,6 +318,36 @@ class ApplyPortsTests(TestCase):
         d.refresh_from_db(); self.assertEqual(d.port, 1)                    # tanpa --apply-ports: tidak mengubah apa pun
 
 
+class FkListUsersTests(TestCase):
+    """_list_users pada mesin ber-ID teks: argc FK_GetAllUserID_StringID tidak terbaca (None) tetap harus memakai jalur StringID (bug: 0 user padahal scanlog terbaca)."""
+    class Dll:
+        def __init__(self, ids, argc_map): self.ids, self.i, self.argc_map = list(ids), 0, argc_map; self.FK_GetAllUserID_StringID = self._str
+        def FK_GetLogDataIsSupportStringID(self, h): return 0
+        def FK_ReadAllUserID(self, h): self.i = 0; return 1
+        def FK_GetLastError(self, h): return 1
+        def FK_GetAllUserID(self, h, *refs): refs[0]._obj.value = 0; return 1 if self.i < 1 else 0          # mesin ber-ID teks: jalur numerik hanya mengembalikan PIN 0
+        def _str(self, h, pp, bk, pv, en):
+            if self.i >= len(self.ids): return 0
+            pin, b = self.ids[self.i]; ctypes.memmove(pp._obj.value, pin.encode(), len(pin)); bk._obj.value = b; pv._obj.value = 0; en._obj.value = 1; self.i += 1; return 1
+
+    def _run(self, dll):
+        from apps.hr.fk import fk_dump
+        with mock.patch.object(fk_dump, "stringid_flag", lambda d, h, name="": 0), mock.patch.object(fk_dump, "argc", lambda d, name, *a, **k: d.argc_map.get(name)):
+            return fk_dump._list_users(dll, 1)
+
+    def test_string_id_users_read_when_argc_unknown(self):
+        users, mode, info = self._run(self.Dll([("A101", 0), ("A101", 1), ("A102", 0)], {}))
+        self.assertEqual((mode, sorted(users), users["A101"]["bks"]), ("str", ["A101", "A102"], [0, 1])); self.assertTrue(info["str_assumed"])
+
+    def test_string_id_users_read_when_argc_is_5(self):
+        users, mode, info = self._run(self.Dll([("A101", 0)], {"FK_GetAllUserID_StringID": 5}))
+        self.assertEqual((mode, sorted(users), info["str_assumed"]), ("str", ["A101"], False))
+
+    def test_string_id_users_skipped_when_argc_clearly_other(self):
+        users, mode, info = self._run(self.Dll([("A101", 0)], {"FK_GetAllUserID_StringID": 9}))
+        self.assertEqual((users, info["str_argc"]), ({}, 9))
+
+
 class FkReadLogsTests(TestCase):
     """read_logs memakai DLL palsu: jalur numerik, jalur ID teks (PIN 0 → muat ulang + StringID), dan penghitungan rekaman yang dibuang."""
     class Dll:
