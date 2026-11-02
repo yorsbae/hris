@@ -426,6 +426,20 @@ class FkReadLogsTests(TestCase):
         self.assertEqual(log[0], ("connect", 1261)); self.assertEqual(fin["license"], 0)
         fin, _, log = self._session(self.LicDll(good=1261), license=0); self.assertEqual([x for x in log if x[0] == "connect"], [("connect", 0)])             # --license memaksa satu nilai
 
+    def test_empty_read_then_fallback_connect_fail_is_not_an_error(self):
+        """Kasus nyata FINISHING 1: lisensi 1261 sambung+muat sukses (0 scan), lisensi 0 gagal -2 → harus ok=True/0 scan, bukan 'FK_ConnectNet gagal'."""
+        from apps.hr.fk import fk_dump as f
+        class D(self.LicDll):
+            def FK_ConnectNet(self, m, ip, port, to, proto, key, lic):
+                self.log.append(("connect", lic)); self.lic = lic; self.i = 0; return 7 if lic == 1261 else -2
+        a = SimpleNamespace(machine=3, ip="192.168.11.40", port=5005, timeout=5000, key=0, probe=False, no_disable=False, diag=False, users_down=False, users_up=None, bydate=None,
+                            date_from=None, date_to=None, new=False, count_only=False, license=None); sent = []; trace = []; empty = {}
+        with mock.patch.object(f, "_line", lambda d: sent.append(d)), mock.patch.object(f.time, "sleep", lambda s: None):
+            dll = D(good=None); f.session(dll, a, 1261, False, trace, empty); self.assertEqual(empty["raw"], 0)
+            self.assertIsNone(f.session(dll, a, 0, True, trace, empty))               # lisensi cadangan gagal sambung: tidak memanggil out(ok=False)
+            self.assertFalse(any(d.get("ok") is False for d in sent))
+            self.assertEqual([x for x in dll.log if x[0] == "connect"].count(("connect", 0)), 2)    # -2 diulang sekali
+
     def test_numeric_ids(self):
         st, rows = self._run(self.Dll([(101, 1, 0, 2026, 10, 28, 7, 1, 2), (0, 1, 0, 2026, 10, 28, 8, 0, 0), (102, 1, 0, 26, 13, 40, 8, 0, 0), (102, 1, 0, 26, 10, 28, 9, 0, 0)], []))
         self.assertEqual(rows, [["101", "2026-10-28 07:01:02"], ["102", "2026-10-28 09:00:00"]]); self.assertEqual((st["raw"], st["pin0"], st["baddate"], st["stringid"]), (4, 1, 1, False))

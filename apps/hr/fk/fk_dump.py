@@ -290,15 +290,18 @@ def diag(dll, h, a):
     out(ok=True, diag=rep, catatan="Kirim seluruh keluaran ini. load_ret=1 & first_reads[0].ret!=1 → mesin menjawab tetapi daftar kosong; status = jumlah data di mesin menurut indeks SDK.")
 
 
+SESSION_GAP = 2.0          # jeda (detik) antar sambungan: mesin perlu waktu melepas sesi sebelumnya, kalau tidak sambungan berikutnya gagal kode -2
 LICENSES = (1261, 0)       # contoh resmi SDK FK memakai 1261; lisensi 0 bisa tersambung tetapi pembacaan data kosong → 1261 dulu, 0 sebagai cadangan
 
 
-def session(dll, a, lic, last, trace):
-    """Satu sambungan dengan lisensi `lic`. Memanggil out() (keluar) bila ada hasil akhir; return None bila harus mencoba lisensi berikutnya (gagal sambung / log kosong)."""
+def session(dll, a, lic, last, trace, empty=None):
+    """Satu sambungan dengan lisensi `lic`. Memanggil out() (keluar) bila ada hasil akhir; return None bila harus mencoba lisensi berikutnya (gagal sambung / log kosong).
+    `empty` (dict) menampung hasil sambungan yang SUKSES tetapi 0 scan, agar kegagalan sambung pada lisensi cadangan tidak menutupi fakta itu."""
     I = ctypes.c_int; h = dll.FK_ConnectNet(a.machine, a.ip.encode(), a.port, a.timeout, 0, a.key, lic)
+    if h == -2: time.sleep(SESSION_GAP); h = dll.FK_ConnectNet(a.machine, a.ip.encode(), a.port, a.timeout, 0, a.key, lic)      # -2 sering = sesi lama belum dilepas mesin → satu kali ulang setelah jeda
     if h <= 0:
         trace.append(f"lisensi {lic}: kode {h}")
-        if last: out(ok=False, error=f"FK_ConnectNet gagal (kode {h}; lisensi dicoba: {trace}; periksa No Mesin={a.machine}, IP, port, kunci komunikasi).")
+        if last and not empty: out(ok=False, error=f"FK_ConnectNet gagal (kode {h}; lisensi dicoba: {trace}; periksa No Mesin={a.machine}, IP, port, kunci komunikasi).")
         return None
     prog(10, "connect")
     try:
@@ -326,7 +329,10 @@ def session(dll, a, lic, last, trace):
             prog(30, "read", 0)
             try: st = read_logs(dll, h, a.new, load=load, emit=not a.count_only, win=win)
             except RuntimeError as e: out(ok=False, error=str(e))
-            if st["raw"] == 0 and not last: trace.append(f"lisensi {lic}: sambung & muat sukses tetapi 0 scan terbaca"); return None
+            if st["raw"] == 0 and not last:
+                trace.append(f"lisensi {lic}: sambung & muat sukses tetapi 0 scan terbaca")
+                if empty is not None: st["license"] = lic; empty.update(st)
+                return None
             st["license"] = lic; st["tried"] = trace
             prog(95, "read", st["count"]); out(ok=True, **st)
         finally:
@@ -368,8 +374,11 @@ def main():
     global LOAD_EST
     if a.load_est: LOAD_EST = a.load_est
     lics = [a.license] if a.license is not None else list(LICENSES); trace = []
+    empty = {}
     for i, lic in enumerate(lics):
-        session(dll, a, lic, last=(i == len(lics) - 1), trace=trace)                # keluar lewat out(); kembali hanya bila perlu mencoba lisensi berikutnya
+        if i: time.sleep(SESSION_GAP)                                              # beri waktu mesin melepas sesi sebelumnya
+        session(dll, a, lic, last=(i == len(lics) - 1), trace=trace, empty=empty)  # keluar lewat out(); kembali hanya bila perlu mencoba lisensi berikutnya
+    if empty: empty["tried"] = trace; out(ok=True, **empty)                         # sambung+muat sukses (0 scan) lalu lisensi cadangan gagal sambung → itu hasil sahih (log kosong), bukan galat
     out(ok=False, error="FK_ConnectNet gagal untuk semua lisensi: " + "; ".join(trace))
 
 
