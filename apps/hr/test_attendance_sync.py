@@ -698,3 +698,62 @@ class DevicesPageLayoutTests(TestCase):
                     if s.st[i][0] == t: del s.st[i:]; return
         p = P(); p.feed(self.client.get("/absensi/mesin/").content.decode())
         self.assertIn("col", p.foot or [])
+
+
+# ------------------------------------------------------------------ Mesin: filter, urutan, multi group by
+class DeviceListTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        mk = lambda code, **k: AttendanceDevice.objects.create(code=code, name=k.pop("name", code), **k)   # noqa: E731
+        cls.a = mk("A", name="Gerbang A", location="Gerbang", host="192.168.10.9", port=5005, protocol="fk", machine_no="3", connection="Ethernet", sync_enabled=True)
+        cls.b = mk("B", name="Pack 1", location="Packing", host="192.168.10.100", port=5005, protocol="fk", machine_no="12", connection="WiFi")
+        cls.c = mk("C", name="Kantor", location="", host="192.168.11.5", port=4370, protocol="zk", machine_no="", connection="Ethernet", sync_enabled=True)
+        cls.d = mk("D", name="Mati", location="Gerbang", host="", port=4370, protocol="zk", active=False)
+
+    def rows(self):
+        from apps.hr.attendance_reports import device_status
+        r, _, _ = device_status(); return r
+
+    def run_q(self, **q):
+        from apps.hr import device_list as dl
+        f = dl.parse(q); rows, items, total = dl.build(self.rows(), f); return f, rows, items, total
+
+    def codes(self, rows): return [r["d"].code for r in rows]
+
+    def test_filters(self):
+        self.assertEqual(self.run_q()[3], 4)
+        self.assertEqual(sorted(self.codes(self.run_q(protokol="fk")[1])), ["A", "B"]); self.assertEqual(sorted(self.codes(self.run_q(port="4370")[1])), ["C", "D"])
+        self.assertEqual(self.codes(self.run_q(q="pack")[1]), ["B"]); self.assertEqual(self.codes(self.run_q(q="192.168.11")[1]), ["C"]); self.assertEqual(sorted(self.codes(self.run_q(q="gerbang")[1])), ["A", "D"])
+        self.assertEqual(self.codes(self.run_q(q="gerbang 10.9")[1]), ["A"]); self.assertEqual(self.codes(self.run_q(q="10.9 gerbang")[1]), ["A"])   # semua kata harus ada, urutan bebas
+        self.assertEqual(self.codes(self.run_q(status="nonaktif")[1]), ["D"]); self.assertEqual(sorted(self.codes(self.run_q(otomatis="ya")[1])), ["A", "C"])
+        self.assertEqual(sorted(self.codes(self.run_q(hasil="belum")[1])), ["A", "B", "C", "D"]); self.assertEqual(self.run_q(koneksi="WiFi")[1][0]["d"].code, "B")
+        f, rows, _, total = self.run_q(protokol="rm -rf", port="abc", status="x"); self.assertEqual((len(rows), total, f["protokol"], f["port"], f["status"]), (4, 4, "", None, ""))   # nilai tak dikenal diabaikan
+
+    def test_sorting_numeric_ip_missing_last_and_direction(self):
+        self.assertEqual(self.codes(self.run_q(urut="ip")[1]), ["A", "B", "C", "D"])                           # 192.168.10.9 < .10.100 (numerik, bukan teks); tanpa IP di akhir
+        self.assertEqual(self.codes(self.run_q(urut="ip", arah="turun")[1]), ["C", "B", "A", "D"])             # turun: tetap tanpa IP di akhir
+        self.assertEqual(self.codes(self.run_q(urut="no")[1]), ["A", "B", "C", "D"]); self.assertEqual(self.codes(self.run_q(urut="nama")[1]), ["A", "C", "D", "B"])
+        self.assertEqual(self.codes(self.run_q(urut="lokasi")[1])[:3], ["A", "D", "B"])                        # lokasi kosong (C) di akhir
+
+    def test_multi_group_by_port_then_protocol_builds_nested_headers(self):
+        f, rows, items, _ = self.run_q(g1="port", g2="protokol", g3="port")                                    # dimensi sama tidak dihitung dua kali
+        self.assertEqual(f["group"], ["port", "protokol"])
+        shape = [("H%d" % i["level"], i["label"], i["n"]) if i.get("hdr") else i["d"].code for i in items]
+        self.assertEqual(shape, [("H0", "Port 4370", 2), ("H1", "ZK (TCP)", 2), "C", "D", ("H0", "Port 5005", 2), ("H1", "FK (FKAttend.dll)", 2), "A", "B"])
+        keys = {i["key"] for i in items if i.get("hdr")}; self.assertIn("port=5005;", keys); self.assertIn("port=5005;protokol=fk;", keys)
+        self.assertTrue(all(i["gkey"].startswith("port=") for i in items if not i.get("hdr")))
+
+    def test_group_keeps_sort_inside_group_and_segment_and_empty_values(self):
+        _, _, items, _ = self.run_q(g1="segmen", urut="nama", arah="turun")
+        labels = [i["label"] for i in items if i.get("hdr")]; self.assertEqual(labels, ["192.168.10.x", "192.168.11.x", "(tanpa IP / bukan IPv4)"])
+        self.assertEqual([i["d"].code for i in items if not i.get("hdr")][:2], ["B", "A"])                      # dalam kelompok .10.x: nama turun (Pack 1 → Gerbang A)
+        _, _, items, _ = self.run_q(g1="lokasi"); self.assertEqual([i["label"] for i in items if i.get("hdr")], ["Gerbang", "Packing", "(tanpa lokasi)"])
+
+    def test_page_renders_filter_group_and_group_checkbox(self):
+        u = User.objects.create_superuser("adm2", "a@x.id", "pw"); self.client.force_login(u)
+        html = self.client.get(reverse("att_devices"), {"g1": "port", "g2": "protokol", "urut": "ip", "protokol": "fk"}).content.decode()
+        self.assertIn('name="g1"', html); self.assertIn('name="urut"', html); self.assertIn("Port 5005", html); self.assertNotIn("Port 4370", html)    # filter FK → hanya kelompok 5005
+        self.assertIn('class="gpick"', html); self.assertIn('data-g="port=5005;protokol=fk;"', html); self.assertIn("2 dari 4 mesin cocok", html)
+        self.assertContains(self.client.get(reverse("att_devices"), {"q": "tidak-ada-mesin-ini"}), "Tidak ada mesin yang cocok")
+        self.assertContains(self.client.get(reverse("att_devices"), {"urut": "ip", "arah": "turun", "g1": "bukan-dimensi"}), "Gerbang A")           # parameter ngawur tidak merusak halaman
+

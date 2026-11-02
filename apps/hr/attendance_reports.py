@@ -377,7 +377,11 @@ def devices(request):
             log(request, "hr", "attendance_device_create" if created else "attendance_device_update", d, None, {"code": d.code, "name": d.name, "active": d.active})
             messages.success(request, f"Mesin {d.name} {'ditambahkan' if created else 'diperbarui'}.")
         return redirect("att_devices")
-    rows, unknown, idle = device_status()
-    return render(request, "attendance/devices.html", {"rows": rows, "unknown": unknown, "idle": idle, "idle_days": DEVICE_IDLE_DAYS, "protocols": AttendanceDevice.PROTOCOLS,
+    from . import device_list as dl
+    all_rows, unknown, idle = device_status(); f = dl.parse(request.GET); rows, items, total = dl.build(all_rows, f)
+    return render(request, "attendance/devices.html", {"rows": rows, "items": items, "total": total, "f": f, "filtered": dl.is_filtered(f), "grouped": bool(f["group"]),
+                                                        "ports": sorted({r["d"].port for r in all_rows}), "f_protocols": list(dl.PROTO_SHORT.items()), "f_statuses": dl.STATUSES, "f_sorts": dl.SORTS,
+                                                        "f_groups": dl.GROUPS, "f_results": dl.RESULTS, "f_yesno": dl.YESNO, "f_group_slots": [f["group"][i] if i < len(f["group"]) else "" for i in range(3)],
+                                                        "unknown": unknown, "idle": idle, "idle_days": DEVICE_IDLE_DAYS, "protocols": AttendanceDevice.PROTOCOLS,
                                                         "connections": AttendanceDevice.CONNECTIONS, "default_days": getattr(settings, "ATTENDANCE_SYNC_DAYS", 3),
                                                         "stored_users": DeviceUser.objects.count(), "stored_fingers": DeviceFingerprint.objects.count()})

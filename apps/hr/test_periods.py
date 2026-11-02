@@ -52,6 +52,35 @@ class PeriodTests(TestCase):
         self.assertEqual(calc.process(date(2026, 9, 28), date(2026, 9, 30), [self.e.pk], today)["rows"], 0); self.assertEqual(AttendanceDaily.objects.count(), 0)
         calc.process(date(2026, 10, 6), date(2026, 10, 8), [self.e.pk], today); self.assertEqual(AttendanceDaily.objects.count(), 3)   # di luar rentang tetap jalan
 
+    # ---- sheet Detail Absensi Harian (karyawan × tanggal)
+    def _daily_sheet(self, a, b):
+        data, counts = period_export.build(a, b, "2026-10")
+        return list(load_workbook(io.BytesIO(data))["Detail Absensi Harian"].iter_rows(values_only=True)), counts
+
+    def test_daily_detail_sheet_one_month_range_has_day_numbers_and_codes(self):
+        e2 = Employee.objects.create(nik="P2", name="Aaa", gender="P", department=self.d, join_date=date(2020, 1, 1), shift=self.sh)
+        for i, st in enumerate(["hadir", "cuti_hamil", "sakit", "alfa", "izin", "cuti", "libur", "libur_nasional", "tanpa_scan"], start=1): self.day(date(2026, 10, i), st)
+        AttendanceDaily.objects.create(employee=e2, department=self.d, date=date(2026, 10, 2), status="hadir")
+        rows, counts = self._daily_sheet(date(2026, 10, 1), date(2026, 10, 31))
+        head = rows[0]; self.assertEqual(head[:3], ("NIK", "Nama", "Departemen")); self.assertEqual(head[3:6], ("1", "2", "3")); self.assertEqual(head[3 + 30], "31")   # kolom tgl 1..31
+        self.assertEqual(head[34:], ("Hadir", "Libur", "Cuti", "Cuti melahirkan", "Izin", "Sakit", "Alfa", "Tanpa scan"))
+        by = {r[0]: r for r in rows[1:3]}; self.assertEqual(counts["Detail Absensi Harian"], 2)
+        self.assertEqual([by["P1"][3 + i] for i in range(9)], ["H", "CH", "S", "A", "I", "C", "L", "LN", "TS"]); self.assertIn(by["P1"][3 + 9], (None, ""))           # tgl 10 tanpa rekap → kosong
+        self.assertEqual(list(by["P1"][34:]), [1, 2, 1, 1, 1, 1, 1, 1]); self.assertEqual((by["P2"][4], by["P2"][34]), ("H", 1))
+        self.assertEqual(rows[1][0], "P2")                                                                                                       # urut nama dalam departemen: Aaa sebelum Pee
+        legend = [r[0] for r in rows if r[0] in ("H", "CH", "A", "S", "TS")]; self.assertEqual(legend[-5:], ["H", "CH", "S", "A", "TS"])           # legenda di bawah tabel
+
+    def test_daily_detail_sheet_range_across_months_labels_include_month(self):
+        self.day(date(2026, 9, 30), "alfa"); self.day(date(2026, 10, 1), "hadir")
+        rows, _ = self._daily_sheet(date(2026, 9, 26), date(2026, 10, 3))
+        self.assertEqual(rows[0][3:11], ("26 Sep", "27 Sep", "28 Sep", "29 Sep", "30 Sep", "1 Okt", "2 Okt", "3 Okt"))
+        self.assertEqual((rows[1][7], rows[1][8]), ("A", "H"))                                                                                  # 30 Sep = alfa, 1 Okt = hadir
+
+    def test_daily_detail_sheet_empty_period_and_formula_safe_names(self):
+        rows, counts = self._daily_sheet(date(2026, 10, 1), date(2026, 10, 5)); self.assertEqual(counts["Detail Absensi Harian"], 0); self.assertEqual(rows[0][0], "NIK")
+        Employee.objects.filter(pk=self.e.pk).update(name="=HYPERLINK(1)"); self.day(date(2026, 10, 2))
+        rows, _ = self._daily_sheet(date(2026, 10, 1), date(2026, 10, 5)); self.assertEqual(rows[1][1], "'=HYPERLINK(1)")
+
     # ---- tutup lewat halaman
     def test_close_builds_history_row_and_xlsx_with_all_sheets(self):
         self.day(date(2026, 9, 28), overtime_minutes=90, overtime_approved_minutes=90); self.day(date(2026, 9, 29), standby_minutes=30)
