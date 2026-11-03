@@ -215,17 +215,25 @@ def employees_page(request):
     return render(request, "employees.html", ctx)
 
 
-EXPORT_COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "shift_group", "gs_short", "status", "pay_basis", "grade", "grade_tier", "off_day"]  # tanpa data sensitif
+EXPORT_COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "shift_group", "gs_short", "status", "pay_basis", "grade", "grade_tier", "off_day",
+                  "supervisor_nik"]  # semua peran: atasan juga tampil di detail Admin Dept
+EXPORT_COLUMNS_HRD = ["marital_status", "education", "birth_date", "phone", "address"]  # tambahan HRD/Superadmin (sama dengan yang tampil di detail); NIK KTP/BPJS/NPWP/rekening tetap tidak diekspor
 
 
 @require_roles(Role.HRD, Role.DEPT_ADMIN)
 def employee_export(request):
-    """Ekspor karyawan (CSV/XLSX) dengan filter yang sama seperti daftar; Admin Dept hanya departemennya. Kolom sama dengan template impor; tanpa data sensitif."""
+    """Ekspor karyawan (CSV/XLSX) dengan filter yang sama seperti daftar; Admin Dept hanya departemennya. Nama kolom sama dengan template impor, isinya data karyawan terkini; tanpa data sensitif."""
     from apps.core import tabular
+    hrd = request.user.role in (Role.HRD, Role.SUPERADMIN)
     qs, _g = order_employees(_employee_qs(request), request.GET.get("sort", ""), request.GET.get("group", ""))  # ekspor mengikuti urutan layar (HRD saja yang boleh mengekspor)
-    qs = qs.select_related("department", "position", "shift", "shift_group")[:20000]
-    rows = [[e.nik, e.name, e.gender, e.join_date, e.department.code, e.position.name if e.position_id else "", e.shift.name if e.shift_id else "",
-             e.shift_group.label if e.shift_group_id else "", e.gs_short if e.shift_id and e.shift.is_gs else "", e.status,
-             e.pay_basis, e.grade if e.grade is not None else "", e.grade_tier, e.get_off_weekday_display() if e.off_weekday is not None else ""] for e in qs]
+    qs = qs.select_related("department", "position", "shift", "shift_group", "supervisor")[:20000]
+    rows = []
+    for e in qs:
+        row = [e.nik, e.name, e.gender, e.join_date, e.department.code, e.position.name if e.position_id else "", e.shift.name if e.shift_id else "",
+               e.shift_group.label if e.shift_group_id else "", e.gs_short if e.shift_id and e.shift.is_gs else "", e.status,
+               e.pay_basis, e.grade if e.grade is not None else "", e.grade_tier, e.get_off_weekday_display() if e.off_weekday is not None else "",
+               e.supervisor.nik if e.supervisor_id else ""]
+        if hrd: row += [e.marital_status, e.education, e.birth_date or "", e.phone, e.address]
+        rows.append(row)
     log(request, "hr", "employee_export", None, None, {"rows": len(rows), "format": tabular.fmt(request)})
-    return tabular.export_response("karyawan", EXPORT_COLUMNS, rows, request, sheet="Karyawan")
+    return tabular.export_response("karyawan", EXPORT_COLUMNS + (EXPORT_COLUMNS_HRD if hrd else []), rows, request, sheet="Karyawan")

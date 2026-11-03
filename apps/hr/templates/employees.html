@@ -37,7 +37,6 @@ table.ec tr.grow{padding:0;background:transparent;border:0;margin:12px 0 6px}tab
 @media print{.filters,.fwrap,.fchips,.viewbar,.bulkbar,.pager,.selcol,h2 .btn{display:none!important}.printmeta{display:block;margin:0 0 8px;font-size:12px}table.ec{box-shadow:none}}
 </style>
 <div class="viewbar"><details class="colmenu" id="colmenu"><summary>Kolom</summary><div class="cols" id="collist"></div></details>
-<button type="button" class="ghost sm" id="print">Cetak</button>
 <select id="saved" aria-label="Filter tersimpan"><option value="">Filter tersimpan…</option></select><button type="button" class="ghost sm" id="savefilter">Simpan filter…</button><button type="button" class="ghost sm danger" id="delfilter" hidden>Hapus filter</button></div>
 {% if hrd %}<form id="bulk" method="post" action="/employees/bulk/" hidden>{% csrf_token %}<input type="hidden" name="action"><input type="hidden" name="ids"></form>
 <div class="bulkbar" role="region" aria-label="Aksi massal"><label class="chk"><input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini"> Pilih semua di halaman ini</label>
@@ -98,7 +97,7 @@ function chipsRefresh(){const r=document.querySelector("[data-fbar]");if(r)r.dis
 async function syncPositions(want){if(!present("department"))return;const my=++pseq,s=$("position"),keep=want!==undefined?want:s.value;  // want = jabatan yang ingin dipertahankan (mis. dari filter tersimpan)
   try{const r=await fetch("/api/employees/facets/?department="+encodeURIComponent($("department").value));if(!r.ok||my!==pseq)return;const d=await r.json();if(my!==pseq)return;
     const o=[new Option("Semua jabatan","")];d.positions.forEach(p=>o.push(new Option(p.name,String(p.id))));s.replaceChildren(...o);s.value=d.positions.some(p=>String(p.id)===keep)?keep:""}catch(e){}}
-async function load(){const my=++seq,p=params();history.replaceState(null,"","?"+p);lastData=null;
+async function load(){const my=++seq,p=params();history.replaceState(null,"","?"+p);lastData=null;expLinks();  // tautan ekspor selalu disegarkan: filter tersimpan/reset/departemen mengubah nilai lewat kode (tanpa event change)
   $("rows").replaceChildren(msgRow("Memuat…"));$("prev").disabled=$("next").disabled=true;
   try{const r=await fetch("/api/employees/?"+p);if(!r.ok)throw new Error(r.status);const d=await r.json();if(my!==seq)return;
     total=Math.ceil(d.count/(d.size||50))||1;lastData=d;draw(d);
@@ -142,7 +141,6 @@ $("q").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{page=1;clearSel();load()},
 ALL.filter(k=>k!=="q").forEach(k=>{const el=$(k);if(el)el.onchange=async()=>{page=1;if(!NOCLEAR.includes(k))clearSel();if(k==="department")await syncPositions();load()}});
 $("reset").onclick=async()=>{ALL.forEach(k=>{const el=$(k);if(el&&k!=="size")el.value=""});page=1;clearSel();$("saved").value="";$("delfilter").hidden=true;await syncPositions();chipsRefresh();load()};
 $("prev").onclick=()=>{if(page>1){page--;load()}};$("next").onclick=()=>{if(page<total){page++;load()}};
-$("print").onclick=()=>window.print();
 renderHead();renderColMenu();restore();
 (async()=>{if($("department")&&$("department").value){await syncPositions();restore()}load();try{await sfCall("/api/saved-filters/?page=employees");renderSaved()}catch(e){}})();
 </script>{% endblock %}

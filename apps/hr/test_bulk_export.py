@@ -100,6 +100,20 @@ class EmployeeImportExportTests(BulkBase):
         self.login("adm"); self.assertEqual(self.client.get("/api/employees/export/").status_code, 200)
         self.login("poli"); self.assertEqual(self.client.get("/api/employees/export/").status_code, 403)
 
+    def test_export_follows_employee_data_incl_supervisor_and_profile(self):
+        boss = Employee.objects.create(nik="B1", name="Bos", gender="P", join_date=date(2020, 1, 1), department=self.d)
+        Employee.objects.create(nik="K1", name="Kar", gender="L", join_date=date(2024, 1, 1), department=self.d, supervisor=boss, marital_status="Belum menikah", education="SMA")
+        self.login("hrd"); x = load_workbook(io.BytesIO(self.client.get("/api/employees/export/?format=xlsx").content)).active
+        head = [c.value for c in x[1]]; row = next(r for r in x.iter_rows(min_row=2, values_only=True) if r[0] == "K1")
+        self.assertEqual(row[head.index("supervisor_nik")], "B1"); self.assertEqual((row[head.index("marital_status")], row[head.index("education")]), ("Belum menikah", "SMA"))
+        for sensitive in ("nik_ktp", "bpjs_kes", "npwp", "bank_account"): self.assertNotIn(sensitive, head)
+        self.login("adm"); head = [c.value for c in load_workbook(io.BytesIO(self.client.get("/api/employees/export/?format=xlsx").content)).active[1]]
+        self.assertIn("supervisor_nik", head); self.assertNotIn("marital_status", head)  # Admin Dept: tanpa data pribadi
+
+    def test_employees_page_has_no_print_button(self):
+        self.login("hrd"); html = self.client.get("/employees/").content.decode()
+        self.assertNotIn('id="print"', html); self.assertIn('id="export-csv"', html)
+
     def test_dept_admin_export_limited_to_own_department(self):
         other = Department.objects.create(code="QC", name="QC")
         for n, d in (("A1", self.d), ("B1", other)): Employee.objects.create(nik=n, name=n, gender="L", join_date=date(2024, 1, 1), department=d)
