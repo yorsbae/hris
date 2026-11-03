@@ -11,6 +11,16 @@
 .fu tr.off td{opacity:.62}.fu td small{display:block;color:var(--mu,#666)}.fu td.ck,.fu th.ck{width:2rem;text-align:center}
 .fu .menu{display:grid;gap:4px;padding:6px 0;min-width:10rem}.fu .menu form{margin:0}.fu .menu .btn{width:100%;text-align:left;margin:0}
 .fu .pill + .pill{margin-left:4px}
+.fu .tb form#pfform{display:contents}.fu .tb .fchips{order:10;flex:1 1 100%}.fu .fcnt{color:var(--mu,#666);font-size:13px;margin:0 0 10px}
+/* tabel ramping: 1 data = 1 baris; geser horizontal, kolom PIN & Aksi menempel */
+.fu .wrap{overflow-x:auto;overscroll-behavior-x:contain}.fu .wrap:has(details[open]){min-height:16rem}
+.fu table.sepfit{width:max-content;min-width:100%;overflow:visible}
+.fu table.sepfit th,.fu table.sepfit td{white-space:nowrap;padding:6px 8px;vertical-align:middle;background:var(--card)}
+.fu table.sepfit tbody tr:hover td{background:var(--hov)}.fu table.sepfit td small{display:inline;margin-left:6px;font-size:12px}
+.fu table.sepfit tr.off td{color:var(--mu,#666)}
+.fu table.sepfit .ck{position:sticky;left:0;z-index:2;width:2.5rem;min-width:2.5rem}.fu table.sepfit .pin{position:sticky;left:2.5rem;z-index:2;box-shadow:1px 0 0 var(--bd)}
+.fu table.sepfit .act{position:sticky;right:0;z-index:2;box-shadow:-1px 0 0 var(--bd)}.fu table.sepfit td.act details.more>div{left:auto;right:0}
+.fu table.sepfit td .bar{flex-wrap:nowrap;gap:6px}.fu table.sepfit td input[data-emp]{width:12rem}
 .fu .bulk{position:sticky;bottom:0;z-index:5;display:none;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin:10px 0;border:1px solid var(--bd);border-radius:var(--r);background:var(--card);box-shadow:0 -2px 10px rgba(0,0,0,.12)}
 .fu .bulk.on{display:flex}.fu .bulk input[name=reason]{flex:1 1 14rem;max-width:22rem}
 .fu dialog{border:1px solid var(--bd);border-radius:var(--r);background:var(--card);color:inherit;padding:0;width:min(32rem,calc(100vw - 32px))}
@@ -34,8 +44,11 @@
 <a class="kpi{% if stat.nopin %} warn{% endif %}" href="?tab=nopin"><b>{{ stat.nopin }}</b><span>karyawan aktif belum punya PIN</span></a>
 </div>
 
+<div class="tb">
+{% if stat.unmapped and stat.auto %}<form method="post" style="margin:0">{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><button class="btn ghost" name="action" value="auto_name" data-confirm="Petakan semua PIN (scan maupun user mesin) yang namanya di mesin sama persis dengan SATU karyawan aktif? PIN yang ambigu dilewati.">Petakan otomatis dari nama ({{ stat.auto }})</button></form>{% endif %}
+<span class="sp"></span>
 <form method="get" data-fbar class="bar" id="pfform" aria-label="Filter dan urutan user mesin"><input type="hidden" name="tab" value="{{ f.tab }}">
-<input type="search" name="q" value="{{ f.q }}" placeholder="Cari PIN / NIK / nama…" maxlength="40" autocomplete="off" aria-label="Cari PIN, NIK, atau nama">
+<label>Cari<input type="search" name="q" value="{{ f.q }}" placeholder="PIN / NIK / nama…" maxlength="40" autocomplete="off"></label>
 <fieldset><legend>Departemen (boleh pilih beberapa)</legend><div class="deps"><label><input type="checkbox" name="dept" value="{{ no_dept }}"{% if no_dept in dept_sel %} checked{% endif %}> <i>Belum dipetakan</i></label>
 {% for d in departments %}<label><input type="checkbox" name="dept" value="{{ d.pk }}"{% if d.pk|stringformat:"s" in dept_sel %} checked{% endif %}> {{ d.name }}</label>{% endfor %}</div></fieldset>
 <label>Asal PIN belum dipetakan<select name="origin"><option value="">Semua</option><option value="scan"{% if f.origin == "scan" %} selected{% endif %}>Ada scan (belum masuk rekap)</option><option value="noscan"{% if f.origin == "noscan" %} selected{% endif %}>User mesin tanpa scan</option></select></label>
@@ -46,13 +59,11 @@
 <label>Urutkan<select name="sort" data-default="pin">{% for v, l in sorts %}<option value="{{ v }}"{% if f.sort == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
 <label><input type="checkbox" name="desc" value="1"{% if f.desc %} checked{% endif %}> Urutan terbalik</label>
 <a class="chip" href="{% url 'att_pins' %}?tab={{ f.tab }}">Reset</a>
-<p class="fcnt" role="status">{% if nfilter %}{{ page.paginator.count }} data cocok dengan filter.{% else %}{{ page.paginator.count }} data.{% endif %}</p></form>
-<div class="tb">
-{% if stat.unmapped and stat.auto %}<form method="post" style="margin:0">{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><button class="btn ghost" name="action" value="auto_name" data-confirm="Petakan semua PIN (scan maupun user mesin) yang namanya di mesin sama persis dengan SATU karyawan aktif? PIN yang ambigu dilewati.">Petakan otomatis dari nama ({{ stat.auto }})</button></form>{% endif %}
-<span class="sp"></span>
+</form>
 <a class="btn ghost" href="?{% if qs %}{{ qs }}&amp;{% endif %}export=1">⭳ Ekspor</a>
 <button type="button" class="btn" data-dlg="user" data-mode="add">+ Tambah user</button>
 </div>
+<p class="fcnt" role="status">{% if nfilter %}{{ page.paginator.count }} data cocok dengan filter.{% else %}{{ page.paginator.count }} data.{% endif %}</p>
 
 <nav class="tabs" aria-label="Kelompok user">{% for k, label in tabs_def %}<a href="?tab={{ k }}{% if qs_notab %}&amp;{{ qs_notab }}{% endif %}"{% if f.tab == k %} aria-current="page"{% endif %}>{{ label }}<small>{% for tk, tv in tabs.items %}{% if tk == k %}{{ tv }}{% endif %}{% endfor %}</small></a>{% endfor %}</nav>
 
@@ -67,10 +78,10 @@
 <form method="post" id="bulkf" class="bulk" data-bulk>{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><b class="cnt">0 dipilih</b>
 <button class="btn" name="action" value="create_for_employees" data-confirm="Buat user mesin (PIN = NIK) dan petakan untuk karyawan terpilih?">Buat user mesin (PIN = NIK)</button></form>
 {% else %}
-<div class="wrap"><table class="sepfit"><thead><tr><th class="ck"><input type="checkbox" id="ckall" aria-label="Pilih semua"></th><th>PIN</th><th>Nama di mesin</th><th>Karyawan</th><th>Status</th><th>Data</th><th>Aksi</th></tr></thead><tbody>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="ck"><input type="checkbox" id="ckall" aria-label="Pilih semua"></th><th class="pin">PIN</th><th>Nama di mesin</th><th>Karyawan</th><th>Status</th><th>Data</th><th class="act">Aksi</th></tr></thead><tbody>
 {% for r in page %}<tr class="{% if r.state == 'inactive' %}off{% endif %}">
 <td class="ck"><input type="checkbox" class="pk" name="pins" value="{{ r.pin }}" form="bulkf" aria-label="Pilih PIN {{ r.pin }}"></td>
-<td class="nw"><b>{{ r.pin }}</b></td>
+<td class="nw pin"><b>{{ r.pin }}</b></td>
 <td>{{ r.name|default:"—" }}{% if r.priv %} <span class="pill pending">Admin mesin</span>{% endif %}{% if r.state == "unmapped" %}{% if r.sug.status == "ok" %}<small>cocok: {{ r.sug.employee.nik }} {{ r.sug.employee.name }}</small>{% elif r.sug.status == "ambigu" %}<small>nama sama dengan &gt;1 karyawan</small>{% elif r.sug.status == "tidak ada" %}<small>tidak ada karyawan bernama sama</small>{% endif %}{% endif %}</td>
 <td>{% if r.emp %}<a href="{% url 'att_employee' r.emp.pk %}">{{ r.emp.name }}</a><small>{{ r.emp.nik }} · {{ r.dept.name }}{% if r.emp.status == "nonaktif" %} · <b>nonaktif</b>{% endif %}</small>
 {% elif r.state == "unmapped" %}<form method="post" class="bar" style="margin:0">{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="action" value="link"><input type="hidden" name="pin" value="{{ r.pin }}"><input name="nik" list="empl" data-emp value="{{ r.sug.employee.nik|default:'' }}" placeholder="NIK / nama karyawan" required maxlength="20" autocomplete="off" style="width:11em"><button class="btn" type="submit">Petakan</button></form>
@@ -78,7 +89,7 @@
 <td>{% if r.state == "inactive" %}<span class="pill nonaktif" title="{{ r.u.deactivated_reason }}">Nonaktif</span>{% elif r.state == "mapped" %}<span class="pill approved">Terpetakan</span>{% else %}<span class="pill pending">Belum dipetakan</span>{% endif %}{% if r.attention %}<span class="pill rejected" title="{{ r.reason }}">Karyawan keluar</span>{% endif %}
 {% if r.state == "inactive" and r.u.deactivated_reason %}<small>{{ r.u.deactivated_reason }}</small>{% endif %}</td>
 <td class="nw">{% if r.n %}{{ r.n }} scan{% if r.last %}<small>terakhir {{ r.last|date:"d M Y H:i" }}</small>{% endif %}{% else %}<span class="hint">0 scan</span>{% endif %}<small>{% if r.in_user %}ada di user mesin{% else %}belum diunduh dari mesin{% endif %}{% if r.fingers %} · {{ r.fingers }} jari{% endif %}</small></td>
-<td><details class="more"><summary>Aksi ▾</summary><div class="menu">
+<td class="act"><details class="more"><summary>Aksi ▾</summary><div class="menu">
 {% if r.in_user %}<button type="button" class="btn ghost" data-dlg="user" data-mode="edit" data-pin="{{ r.pin }}" data-name="{{ r.u.name }}" data-priv="{% if r.priv %}14{% else %}0{% endif %}" data-card="{{ r.card|default:'' }}">Ubah data user</button>{% endif %}
 {% if r.emp %}<button type="button" class="btn ghost" data-dlg="reason" data-action="move" data-pin="{{ r.pin }}" data-title="Pindahkan PIN {{ r.pin }} (salah orang)" data-nik="1" data-confirm="Semua scan PIN ini ikut pindah ke karyawan tujuan.">Pindahkan ke karyawan lain</button>
 <button type="button" class="btn ghost" data-dlg="reason" data-action="unlink" data-pin="{{ r.pin }}" data-title="Lepas pemetaan PIN {{ r.pin }}" data-confirm="Hanya bisa bila belum ada scan terhubung.">Lepas pemetaan</button>{% endif %}
