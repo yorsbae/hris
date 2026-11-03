@@ -412,6 +412,10 @@ class DeviceUser(models.Model):
     group_id = models.CharField("Grup", max_length=10, blank=True)
     source_device = models.CharField("Diunduh dari mesin (kode)", max_length=40, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Siklus hidup: user nonaktif tetap tersimpan (riwayat PIN & sidik jari) tetapi TIDAK ikut Upload user ke mesin dan tidak muncul di daftar "belum dipetakan".
+    active = models.BooleanField("Aktif", default=True, db_index=True)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
+    deactivated_reason = models.CharField(max_length=200, blank=True)
     class Meta: ordering = ["pin"]
     def __str__(self): return f"{self.pin} {self.name}".strip()
 

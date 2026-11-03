@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, mcu_views as mcuv, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap, attendance_reports as ar
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, mcu_views as mcuv, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap, attendance_reports as ar, fingerspot_pages as fp
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import health, lookup, search_views
@@ -55,7 +55,7 @@ urlpatterns = [
     path("absensi/impor/", ap.import_home, name="att_import"),
     path("absensi/impor/<int:pk>/", ap.import_detail, name="att_import_detail"),
     path("absensi/impor/<int:pk>/gagal/", ap.import_errors, name="att_import_errors"),
-    path("absensi/pin/", ap.pins, name="att_pins"),
+    path("absensi/pin/", fp.users_page, name="att_pins"),   # Kelola User Fingerspot (dulu Pemetaan PIN; URL & nama dipertahankan agar tautan lama tetap jalan)
     path("absensi/libur/", ap.holidays, name="att_holidays"),
     path("absensi/periode/", ap.periods_page, name="att_periods"),
     path("absensi/periode/<int:pk>/unduh/", ap.period_download, name="att_period_download"),

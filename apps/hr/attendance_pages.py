@@ -234,52 +234,7 @@ def _process_after_import(request, i):
     r = calc.process(d1, d2); messages.success(request, f"Impor selesai: {i.taps_new} scan baru; rekap diolah ({r['rows']} baris karyawan-tanggal).")
 
 
-# ---------------------------------------------------------------- pemetaan PIN
-@hrd
-def pins(request):
-    g = request.GET; res = None
-    if request.method == "POST":
-        act = request.POST.get("action")
-        try:
-            if act == "link":
-                e = Employee.objects.filter(nik=request.POST.get("nik", "").strip()).first()
-                if not e: raise ValueError("NIK tidak ditemukan.")
-                n = imp.link_pin(request.user, request.POST.get("pin", ""), e, "manual"); log(request, "hr", "attendance_pin_link", e, None, {"pin": request.POST.get("pin", "")[:40], "scans": n})
-                if n: _reprocess_scans(e, request.POST.get("pin", ""))
-                messages.success(request, f"PIN dipetakan ke {e.nik} {e.name}; {n} scan lama ikut terhubung.")
-            elif act == "auto_name":
-                n, scans, pairs = imp.apply_name_matches(request.user)
-                for pin, e in pairs: _reprocess_scans(e, pin)
-                log(request, "hr", "attendance_pin_auto_name", None, None, {"pins": n, "scans": scans})
-                messages.success(request, f"{n} PIN dipetakan otomatis berdasarkan nama ({scans} scan terhubung)." if n else "Tidak ada PIN yang namanya cocok tepat satu karyawan (dan karyawannya belum punya PIN). Jalankan 'Download user' dari mesin dulu agar nama tersedia.")
-            elif act == "move":
-                e = Employee.objects.filter(nik=request.POST.get("nik", "").strip()).first()
-                if not e: raise ValueError("NIK tujuan tidak ditemukan.")
-                old, n = imp.move_pin(request.user, request.POST.get("pin", ""), e, request.POST.get("reason", ""))
-                log(request, "hr", "attendance_pin_move", e, {"from": old.nik}, {"pin": request.POST.get("pin", "")[:40], "scans": n})
-                _reprocess_scans(e, request.POST.get("pin", ""), also=old); messages.success(request, f"PIN dipindah dari {old.nik} ke {e.nik} ({n} scan).")
-            elif act in ("check", "import"):
-                f = request.FILES.get("file")
-                if not f: raise ValueError("Pilih berkas CSV/XLSX (kolom pin, nik).")
-                res = imp.import_pin_table(request.user, f.read(tabular.MAX_BYTES + 1), f.name, act == "import")
-                if act == "import" and res["ok"]: log(request, "hr", "attendance_pin_import", None, None, {"rows": res["total"], "created": res["created"]}); messages.success(request, f"{res['created']} PIN dipetakan; {res['linked']} scan lama terhubung.")
-        except ValueError as e: messages.error(request, str(e))
-        except AttendancePin.DoesNotExist: messages.error(request, "PIN tidak ada di tabel pemetaan.")
-        if res is None: return redirect("att_pins")
-    qs = AttendancePin.objects.select_related("employee__department").order_by("pin")
-    if g.get("q", "").strip(): q = g["q"].strip()[:40]; qs = qs.filter(Q(pin__icontains=q) | Q(employee__nik__icontains=q) | Q(employee__name__icontains=q))
-    src = g.get("src") if g.get("src") in dict(AttendancePin.SOURCES) else ""
-    if src: qs = qs.filter(source=src)
-    origin = g.get("origin") if g.get("origin") in ("scan", "noscan") else ""; match = g.get("match") if g.get("match") in ("ok", "ambigu", "tidak ada", "tanpa nama") else ""
-    unm_all = imp.unmapped_pins(); unm = imp.unmapped_pins(g.get("q", ""), origin, match) if (g.get("q", "").strip() or origin or match) else unm_all
-    stat = {"unmapped": len(unm_all), "scan": sum(1 for r in unm_all if r["in_scan"]), "noscan": sum(1 for r in unm_all if not r["in_scan"]), "auto": sum(1 for r in unm_all if r["sug"].get("status") == "ok"),
-            "mapped": AttendancePin.objects.count(), "users": DeviceUser.objects.count()}
-    keep = g.copy(); keep.pop("upage", None); keep.pop("page", None); nfilter = sum(1 for k in ("q", "src", "origin", "match") if g.get(k))
-    return render(request, "attendance/pins.html", {"page": Paginator(qs, 50).get_page(g.get("page", 1)), "unm": Paginator(unm, 50).get_page(g.get("upage", 1)), "unm_total": len(unm), "stat": stat, "q": g.get("q", ""),
-                                                    "res": res, "src": src, "origin": origin, "match": match, "nfilter": nfilter, "keep": keep.urlencode(), "sources": AttendancePin.SOURCES,
-                                                    "no_pin": Employee.objects.exclude(status="nonaktif").exclude(pins__isnull=False).count()})
-
-
+# ---------------------------------------------------------------- pemetaan PIN → halaman "Kelola User Fingerspot": fingerspot_pages.users_page
 def _reprocess_scans(emp, pin, also=None):
     """Hitung ulang rekap rentang scan milik PIN untuk karyawan terkait (maks 93 hari terakhir dari scan tertua)."""
     r = AttendanceRaw.objects.filter(pin=pin).aggregate(a=Min("punched_at"), b=Max("punched_at"))

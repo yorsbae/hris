@@ -24,7 +24,7 @@ def _absensi(full):
     """Menu Absensi (Tahap 6, putaran 48). HRD: rekap + Data Scanlog (impor lewat tombol di halamannya) + PIN + hari libur. Admin Dept: hanya rekap departemennya."""
     items = [("Absensi", "/absensi/", "clock"), ("Kontrol Harian", "/absensi/kontrol/", "shield", True), ("Shift Harian", "/absensi/shift/", "calendar", True),
              ("Rekap Bulanan", "/absensi/bulanan/", "calendar", True)]
-    if full: items += [("Mesin & Impor", "/absensi/mesin/", "clock", True), ("Pemetaan PIN", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True), ("Tutup Periode", "/absensi/periode/", "shield", True)]
+    if full: items += [("Mesin & Impor", "/absensi/mesin/", "clock", True), ("User Fingerspot", "/absensi/pin/", "users", True), ("Hari Libur", "/absensi/libur/", "calendar", True), ("Tutup Periode", "/absensi/periode/", "shield", True)]
     return items
 
 

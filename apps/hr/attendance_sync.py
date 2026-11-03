@@ -466,8 +466,8 @@ def download_users(dev):
     out["note"] = (f"{len(by_uid)} user dibaca ({new} baru, {upd} diperbarui), {nfp} sidik jari." + (f" Algoritma sidik jari v{ver}." if ver and nfp else "")
                    + (f" Sidik jari tidak terbaca: {fp_err}" if fp_err else ""))
     from .models import AttendancePin
-    unmapped = DeviceUser.objects.exclude(pin__in=AttendancePin.objects.values("pin")).count()
-    if unmapped: out["note"] += f" {unmapped} user belum dipetakan ke karyawan — buka Pemetaan PIN."
+    unmapped = DeviceUser.objects.filter(active=True).exclude(pin__in=AttendancePin.objects.values("pin")).count()
+    if unmapped: out["note"] += f" {unmapped} user belum dipetakan ke karyawan — buka Kelola User Fingerspot."
     return out
 
 
@@ -477,9 +477,9 @@ def upload_users(dev, pins=None, fingerprints=True):
     out = {"device": dev.code, "ok": False, "users": 0, "fingers": 0, "failed": 0, "note": ""}
     try: _zk_only(dev)                                                      # protokol dulu: mesin FK/EasyLink tidak perlu diberi tahu "belum ada user"
     except SyncError as e: out["note"] = str(e); return out
-    qs = DeviceUser.objects.prefetch_related("fingers")
+    qs = DeviceUser.objects.filter(active=True).prefetch_related("fingers")      # user nonaktif (karyawan keluar / PIN sampah) tidak dikirim ke mesin
     if pins: qs = qs.filter(pin__in=pins)
-    missing = sorted(set(pins) - set(DeviceUser.objects.filter(pin__in=pins).values_list("pin", flat=True))) if pins else []     # PIN diminta tapi tidak ada di HRIS
+    missing = sorted(set(pins) - set(DeviceUser.objects.filter(pin__in=pins, active=True).values_list("pin", flat=True))) if pins else []     # PIN diminta tapi tidak ada di HRIS
     fk_codes = set(AttendanceDevice.objects.filter(protocol="fk").values_list("code", flat=True)); fam_skip = [0]
     def _fp_fits(d, f, codes):
         """Template FK ≠ template ZK: hanya kirim jari yang berasal dari jenis mesin yang sama dengan tujuan."""

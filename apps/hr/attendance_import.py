@@ -601,9 +601,11 @@ def unmapped_pins(q="", origin="", match=""):
     from django.db.models import Count, Max
     from .models import DeviceUser
     mapped = set(AttendancePin.objects.values_list("pin", flat=True)); rows = {}
+    off = set(DeviceUser.objects.filter(active=False).values_list("pin", flat=True))     # user nonaktif sengaja disisihkan: tidak masuk antrean pemetaan
     for r in AttendanceRaw.objects.filter(employee__isnull=True).values("pin").annotate(n=Count("id"), last=Max("punched_at")):
+        if r["pin"] in off: continue
         rows[r["pin"]] = {"pin": r["pin"], "n": r["n"], "last": r["last"], "in_scan": True, "in_user": False}
-    for u in DeviceUser.objects.all():
+    for u in DeviceUser.objects.filter(active=True):
         if u.pin in mapped: continue
         rows.setdefault(u.pin, {"pin": u.pin, "n": 0, "last": None, "in_scan": False, "in_user": True})["in_user"] = True
     sug = name_suggestions(list(rows))
