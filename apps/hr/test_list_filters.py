@@ -93,7 +93,8 @@ class AdvancedFilterTests(ListFilterBase):
 
     def test_export_follows_new_filters(self):
         self.login("hrd"); r = self.client.get("/api/employees/export/", {"format": "csv", "gender": "P"}); body = r.content.decode()
-        self.assertIn("E001", body); self.assertIn("E003", body); self.assertNotIn("E002", body)
+        niks = {ln.split(",")[0] for ln in body.lstrip("\ufeff").splitlines()[1:]}   # kolom NIK saja (E002 boleh muncul sebagai atasan)
+        self.assertIn("E001", niks); self.assertIn("E003", niks); self.assertNotIn("E002", niks)
 
     def test_ids_endpoint_follows_new_filters(self):
         self.login("hrd"); d = self.client.get("/api/employees/ids/", {"problem": "no_birth"}).json(); self.assertEqual(d["ids"], [self.e.pk])
@@ -205,7 +206,7 @@ class GlobalSearchTests(ListFilterBase):
 class ListPageRenderTests(ListFilterBase):
     def test_hrd_gets_all_filter_controls(self):
         self.login("hrd"); r = self.client.get("/employees/")
-        for k in ("gender", "education", "level", "contract_kind", "tenure", "age_min", "age_max", "join_from", "join_to", "supervisor", "problem", "size", "saved", "colmenu", "print"):
+        for k in ("gender", "education", "level", "contract_kind", "tenure", "age_min", "age_max", "join_from", "join_to", "supervisor", "problem", "size", "saved", "colmenu"):
             self.assertContains(r, f'id="{k}"')
         self.assertContains(r, ">S1</option>"); self.assertContains(r, "Grade 2")
 

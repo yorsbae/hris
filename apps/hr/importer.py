@@ -6,11 +6,11 @@ from .emp_forms import EmployeeForm, IDENT_FIELDS, identifier_owners, norm_ident
 from .models import Department, Employee, Position, Shift, ShiftGroup
 
 COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "status", "marital_status", "education",
-           "shift_group", "gs_short", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "supervisor_nik", "birth_date",
+           "gs_short", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "supervisor_nik", "birth_date",
            "pay_basis", "grade", "grade_tier", "off_day"]
 REQUIRED = ["nik", "name", "gender", "join_date", "department_code"]
 MAX_ROWS, MAX_BYTES = tabular.MAX_ROWS, tabular.MAX_BYTES
-EXAMPLE = ["EMP-0001", "Budi Santoso", "L", "2024-01-15", "PROD", "Staff", "", "aktif", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "bulanan", "9", "A", ""]
+EXAMPLE = ["EMP-0001", "Budi Santoso", "L", "2024-01-15", "PROD", "Staff", "GS", "aktif", "Belum menikah", "SMA", "14", "", "", "", "", "", "", "", "", "", "", "bulanan", "9", "A", ""]
 DAYS = {n.lower(): i for i, n in enumerate(["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"])}   # kolom off_day (hari libur GS / GS/N)
 
 
@@ -41,16 +41,19 @@ def run(raw, commit, filename=""):
         errs = []
         for k, v in r.items():
             if v[:1] in ("=", "@"): errs.append(f"Kolom {k}: tidak boleh diawali '{v[:1]}' (risiko formula spreadsheet).")
-        d, p, s = deps.get(r.get("department_code", "").upper()), poss.get(r.get("position", "").lower()), shifts.get(r.get("shift", "").lower())
+        d, p = deps.get(r.get("department_code", "").upper()), poss.get(r.get("position", "").lower())
         if not d: errs.append(f"Departemen dengan kode '{r.get('department_code', '')}' tidak ada.")
         if r.get("position") and not p: errs.append(f"Jabatan '{r['position']}' tidak ada (buat dulu di Master).")
-        g = groups.get(r.get("shift_group", "").lower().replace(" ", ""))
-        if r.get("shift_group") and not g: errs.append(f"Shift '{r['shift_group']}' tidak ada (GS, GS/N, A7–G7, A7Pack–G7Pack).")
-        if not g and s and s.is_gs: g = groups.get("gs")           # kolom shift berisi GS-16/GS-14/GS-12 → shift 'GS'
+        # Satu kolom `shift`: GS, GS/N, A7–G7, A7Pack–G7Pack (kode lama A, A_pack juga diterima). Berkas lama dengan kolom `shift_group` tetap terbaca.
+        raw_shift = r.get("shift") or r.get("shift_group", ""); key = raw_shift.lower().replace(" ", "")
+        g, s = groups.get(key), None
+        if raw_shift and not g:
+            s = shifts.get(raw_shift.lower())                       # nama/kode Master Shift: GS-16/GS-14/GS-12 → GS; shift tetap non-GS (format lama) tetap diterima
+            if not s: errs.append(f"Shift '{raw_shift}' tidak ada (pakai GS, GS/N, A7–G7 atau A7Pack–G7Pack).")
+            elif s.is_gs: g = groups.get("gs")
         if r.get("pay_basis") and r["pay_basis"].lower() not in ("harian", "bulanan"): errs.append("pay_basis harus harian atau bulanan.")
         if r.get("off_day") and r["off_day"].lower() not in DAYS: errs.append("off_day harus Senin, Selasa, Rabu, Kamis, Jumat, Sabtu atau Minggu.")
         if r.get("gs_short") and r["gs_short"] not in ("12", "14"): errs.append("gs_short harus 14 atau 12.")
-        if r.get("shift") and not s: errs.append(f"Shift '{r['shift']}' tidak ada (buat dulu di Master).")
         nik = r.get("nik", "")
         if nik in seen: errs.append("NIK dobel di dalam file.")
         seen.add(nik)
@@ -61,7 +64,7 @@ def run(raw, commit, filename=""):
             if n and n in file_ident[f] and file_ident[f][n] != nik: errs.append(f"{f}: {label} sama dengan baris NIK {file_ident[f][n]} di file ini (orang yang sama terdaftar dua kali).")
             elif n: file_ident[f].setdefault(n, nik)
         if not errs:
-            form = EmployeeForm({**{c: r.get(c, "") for c in COLUMNS if c not in ("department_code", "position", "shift", "shift_group", "gs_short", "supervisor_nik", "off_day", "pay_basis")},
+            form = EmployeeForm({**{c: r.get(c, "") for c in COLUMNS if c not in ("department_code", "position", "shift", "gs_short", "supervisor_nik", "off_day", "pay_basis")},
                                  "shift_choice": g.pk if g else "", "gs_short": r.get("gs_short") or "14", "pay_basis": (r.get("pay_basis") or "bulanan").lower(),
                                  "off_weekday": DAYS[r["off_day"].lower()] if r.get("off_day") else "",
                                  "status": r.get("status") or "aktif", "department": d.pk, "position": p.pk if p else "",

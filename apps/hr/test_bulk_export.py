@@ -89,12 +89,12 @@ class EmployeeImportExportTests(BulkBase):
     def test_xlsx_import_with_group_and_gs_short_then_export_scope(self):
         Position.objects.create(name="Operator"); g = Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
         ShiftGroup.objects.create(code="A_pack", pattern="3_SHIFT"); self.login("hrd")
-        hdr = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "shift_group", "gs_short"]
-        r = self.post("/employees/import/", [hdr, ["E1", "Satu", "L", "2024-01-15", "PRD", "Operator", "GS-16", "", "12"], ["E2", "Dua", "P", "2024-02-01", "PRD", "Operator", "", "A_pack", ""]])
+        hdr = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "gs_short"]
+        r = self.post("/employees/import/", [hdr, ["E1", "Satu", "L", "2024-01-15", "PRD", "Operator", "GS-16", "12"], ["E2", "Dua", "P", "2024-02-01", "PRD", "Operator", "A7Pack", ""]])
         self.assertContains(r, "2 karyawan diimpor")
         e1, e2 = Employee.objects.get(nik="E1"), Employee.objects.get(nik="E2")
         self.assertEqual((e1.shift_id, e1.gs_short, e2.shift_group.code), (g.pk, "12", "A_pack"))
-        bad = self.post("/employees/import/", [hdr, ["E3", "Tiga", "L", "2024-01-15", "PRD", "", "", "Z9", ""]]); self.assertContains(bad, "Shift &#x27;Z9&#x27; tidak ada")
+        bad = self.post("/employees/import/", [hdr, ["E3", "Tiga", "L", "2024-01-15", "PRD", "", "Z9", ""]]); self.assertContains(bad, "Shift &#x27;Z9&#x27; tidak ada")
         x = load_workbook(io.BytesIO(self.client.get("/api/employees/export/?format=xlsx").content)).active
         self.assertEqual({r[0].value for r in list(x.rows)[1:]}, {"E1", "E2"}); self.assertEqual([c.value for c in x[1]][:2], ["nik", "name"])
         self.login("adm"); self.assertEqual(self.client.get("/api/employees/export/").status_code, 200)
@@ -109,6 +109,18 @@ class EmployeeImportExportTests(BulkBase):
         for sensitive in ("nik_ktp", "bpjs_kes", "npwp", "bank_account"): self.assertNotIn(sensitive, head)
         self.login("adm"); head = [c.value for c in load_workbook(io.BytesIO(self.client.get("/api/employees/export/?format=xlsx").content)).active[1]]
         self.assertIn("supervisor_nik", head); self.assertNotIn("marital_status", head)  # Admin Dept: tanpa data pribadi
+
+    def test_single_shift_column_in_template_import_and_export(self):
+        from . import importer
+        self.assertNotIn("shift_group", importer.COLUMNS); self.assertEqual(len(importer.COLUMNS), len(importer.EXAMPLE)); self.assertIn("shift", importer.COLUMNS)
+        self.login("hrd"); html = self.client.get("/employees/import/").content.decode(); self.assertNotIn("shift_group", html)
+        ShiftGroup.objects.create(code="B", pattern="2_SHIFT"); Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)
+        ShiftGroup.objects.get_or_create(code="GS", defaults={"pattern": "GS"})
+        for v in ("B7", "b7", "B"):  # kode baru, huruf kecil, kode lama
+            self.assertTrue(importer.run(f"nik,name,gender,join_date,department_code,shift\nX{v},N,L,2024-01-01,PRD,{v}\n".encode(), False, "a.csv")["ok"], v)
+        old = importer.run(b"nik,name,gender,join_date,department_code,shift_group\nXO,N,L,2024-01-01,PRD,B7\n", False, "a.csv"); self.assertTrue(old["ok"])  # berkas lama masih terbaca
+        x = load_workbook(io.BytesIO(self.client.get("/api/employees/export/?format=xlsx").content)).active; head = [c.value for c in x[1]]
+        self.assertNotIn("shift_group", head); self.assertIn("shift", head)
 
     def test_employees_page_has_no_print_button(self):
         self.login("hrd"); html = self.client.get("/employees/").content.decode()

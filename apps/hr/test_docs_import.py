@@ -144,8 +144,10 @@ class ImportTests(CoreBase):
 
     def test_template_roundtrip_is_valid_after_master_exists(self):
         from .importer import template_csv
-        from .models import Department, Position
+        from datetime import time
+        from .models import Department, Position, Shift
         Department.objects.create(code="PROD", name="Prod"); Position.objects.create(name="Staff")
+        Shift.objects.create(code="GS-16", name="GS 16", start=time(8), end=time(16), is_gs=True)   # contoh di template memakai shift GS → Master Shift GS harus ada
         self.login("hrd"); self.assertContains(self.imp(template_csv(), "check"), "Semua 1 baris valid")
 
     def test_import_of_3000_rows(self):

@@ -1,16 +1,46 @@
 {% extends "base.html" %}{% block title %}Impor karyawan{% endblock %}{% block content %}
+<style>
+.imp{display:grid;gap:14px;margin:0 0 14px}
+.imp h3{margin:0 0 8px;font-size:15px}
+.imp .tpl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.imp ul{margin:0;padding-left:18px;display:grid;gap:6px}
+.imp code{font-size:12.5px;padding:1px 5px;border-radius:5px;background:var(--hov)}
+.imp .req{color:var(--er);font-weight:600}
+.imp .cols{display:flex;flex-wrap:wrap;gap:6px}
+.imp .cols code{padding:3px 8px}
+.imp details summary{cursor:pointer;color:var(--ac);font-weight:600}
+.imp .wrap{margin-top:8px}
+.imp td,.imp th{vertical-align:top}
+.imp .warn{border-left:4px solid var(--c-wn);padding:8px 12px;background:var(--hov);border-radius:6px}
+</style>
 <p class="back"><a href="/employees/">‹ Daftar karyawan</a></p>
 <h2>Impor karyawan (CSV / XLSX)</h2>
-<div class="card" style="margin-bottom:12px"><p>Kolom: <code>{{ columns|join:", " }}</code>. Wajib: <code>{{ required|join:", " }}</code>.
-Departemen dirujuk lewat <b>kode</b>; jabatan &amp; shift lewat <b>nama</b> (shift boleh juga lewat <b>kode</b>) dan harus sudah ada di Master. Tanggal <code>YYYY-MM-DD</code> atau <code>DD/MM/YYYY</code>. CSV: pemisah koma atau titik-koma, UTF-8. <code>shift_group</code> = <b>Shift</b> karyawan: <b>GS</b>, <b>GS/N</b>, <b>A7–G7</b> (2 shift) atau <b>A7Pack–G7Pack</b> (3 shift/PACK); kode lama (A, A_pack) juga diterima. Kolom <code>shift</code> berisi GS-16/GS-14/GS-12 dibaca sebagai GS. <code>gs_short</code>: 14 atau 12 (GS dan GS/N, jam pulang sebelum hari libur karyawan). <code>off_day</code>: hari libur GS/GS/N (Senin–Minggu; kosong = Minggu). <code>pay_basis</code>: harian atau bulanan (kosong = bulanan). <code>grade</code> (angka) dan <code>grade_tier</code> (huruf) hanya untuk profil.
-Template: <a class="chip" href="/employees/import/template.csv">CSV</a> <a class="chip" href="/employees/import/template.csv?format=xlsx">XLSX</a></p>
-<p>Semua baris divalidasi lebih dulu; <b>satu baris salah = tidak ada yang tersimpan</b>. Gunakan "Periksa saja" dahulu.</p></div>
+<div class="imp">
+<div class="card"><h3>1. Unduh template</h3>
+<div class="tpl"><a class="chip" href="/employees/import/template.csv">CSV</a><a class="chip" href="/employees/import/template.csv?format=xlsx">XLSX</a><span class="sub">Baris pertama = nama kolom, baris kedua = contoh isian (hapus sebelum impor).</span></div></div>
+
+<div class="card"><h3>2. Isi data</h3>
+<ul>
+<li>Kolom <span class="req">wajib</span>: {% for c in required %}<code>{{ c }}</code>{% if not forloop.last %} {% endif %}{% endfor %}. Kolom lain boleh kosong.</li>
+<li><code>department_code</code> memakai <strong>kode</strong> departemen; <code>position</code> memakai <strong>nama</strong> jabatan. Keduanya harus sudah ada di Master.</li>
+<li><code>shift</code> satu kolom untuk semua jenis shift: <code>GS</code>, <code>GS/N</code>, <code>A7</code> … <code>G7</code> (2 shift) atau <code>A7Pack</code> … <code>G7Pack</code> (3 shift/pack). Kode lama (<code>A</code>, <code>A_pack</code>) dan nama shift GS di Master (GS-16/GS-14/GS-12, dibaca sebagai GS) juga diterima.</li>
+<li><code>gs_short</code> (<code>14</code> atau <code>12</code>) dan <code>off_day</code> (Senin–Minggu) hanya untuk GS dan GS/N. <code>off_day</code> kosong = Minggu.</li>
+<li><code>pay_basis</code>: <code>harian</code> atau <code>bulanan</code> (kosong = bulanan). <code>grade</code> angka, <code>grade_tier</code> huruf.</li>
+<li><code>supervisor_nik</code> = NIK atasan; boleh menunjuk karyawan lain di file yang sama.</li>
+<li>Tanggal: <code>YYYY-MM-DD</code> atau <code>DD/MM/YYYY</code>. CSV: pemisah koma atau titik-koma, UTF-8.</li>
+</ul>
+<details style="margin-top:10px"><summary>Semua kolom ({{ columns|length }})</summary>
+<div class="cols" style="margin-top:8px">{% for c in columns %}<code>{{ c }}</code>{% endfor %}</div></details></div>
+
+<p class="warn">Semua baris divalidasi lebih dulu. <strong>Satu baris salah = tidak ada yang tersimpan.</strong> Impor hanya menambah karyawan baru, tidak mengubah yang sudah ada. Gunakan “Periksa saja” dahulu.</p>
+</div>
+
 {% if res %}<div class="msg{% if not res.ok %} error{% endif %}">
-{% if res.fatal %}{{ res.fatal }}{% elif res.ok and res.commit %}Berhasil: {{ res.created }} karyawan diimpor.{% elif res.ok %}Semua {{ res.total }} baris valid. Pilih "Impor" untuk menyimpan.{% else %}{{ res.errors|length }} baris bermasalah dari {{ res.total }}. Tidak ada yang disimpan.{% endif %}</div>
+{% if res.fatal %}{{ res.fatal }}{% elif res.ok and res.commit %}Berhasil: {{ res.created }} karyawan diimpor.{% elif res.ok %}Semua {{ res.total }} baris valid. Pilih “Impor” untuk menyimpan.{% else %}{{ res.errors|length }} baris bermasalah dari {{ res.total }}. Tidak ada yang disimpan.{% endif %}</div>
 {% if res.errors_shown %}<div class="wrap"><table><thead><tr><th>Baris</th><th>NIK</th><th>Masalah</th></tr></thead><tbody>
 {% for n, nik, errs in res.errors_shown %}<tr><td>{{ n }}</td><td>{{ nik }}</td><td>{{ errs|join:" · " }}</td></tr>{% endfor %}</tbody></table></div>
 {% if res.errors|length > 100 %}<p>Menampilkan 100 baris pertama.</p>{% endif %}{% endif %}{% endif %}
-<form method="post" enctype="multipart/form-data" class="card form" style="margin-top:12px">{% csrf_token %}
+<form method="post" enctype="multipart/form-data" class="card form" style="margin-top:12px"><h3 style="margin:0 0 8px;font-size:15px">3. Unggah file</h3>{% csrf_token %}
 <div class="fld"><label>File CSV atau XLSX</label><input type="file" name="file" accept=".csv,.xlsx,text/csv" required></div>
 <p><button name="mode" value="check">Periksa saja</button> <button name="mode" value="import">Impor</button></p></form>
 {% endblock %}
