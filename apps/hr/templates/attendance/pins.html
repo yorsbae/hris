@@ -12,22 +12,17 @@
 .fu .menu{display:grid;gap:4px;padding:6px 0;min-width:10rem}.fu .menu form{margin:0}.fu .menu .btn{width:100%;text-align:left;margin:0}
 .fu .pill + .pill{margin-left:4px}
 .fu .tb form#pfform{display:contents}.fu .tb .fchips{order:10;flex:1 1 100%}.fu .fcnt{color:var(--mu,#666);font-size:13px;margin:0 0 10px}
-/* tabel ramping: 1 data = 1 baris; geser horizontal, kolom PIN & Aksi menempel */
-.fu .wrap{overflow-x:auto;overscroll-behavior-x:contain}.fu .wrap:has(details[open]){min-height:16rem}
-.fu table.sepfit{width:max-content;min-width:100%;overflow:visible}
-.fu table.sepfit th,.fu table.sepfit td{white-space:nowrap;padding:6px 8px;vertical-align:middle;background:var(--card)}
-.fu table.sepfit tbody tr:hover td{background:var(--hov)}.fu table.sepfit td small{display:inline;margin-left:6px;font-size:12px}
+/* tabel ramping: 1 data = 1 baris, muat di layar; bila layar sempit baru geser horizontal */
+.fu .wrap{overflow-x:auto}.fu .wrap:has(details[open]){min-height:14rem}
+.fu table.sepfit{width:100%;overflow:visible;font-size:13px;line-height:1.25}
+.fu table.sepfit th,.fu table.sepfit td{white-space:nowrap;padding:3px 6px;vertical-align:middle}.fu table.sepfit th{font-size:11px}
+.fu table.sepfit td small{display:inline;margin-left:4px;font-size:11.5px}
+.fu table.sepfit td.cut{max-width:15rem;overflow:hidden;text-overflow:ellipsis}
 .fu table.sepfit tr.off td{color:var(--mu,#666)}
-.fu table.sepfit .ck{position:sticky;left:0;z-index:2;width:2.5rem;min-width:2.5rem}.fu table.sepfit .pin{position:sticky;left:2.5rem;z-index:2;box-shadow:1px 0 0 var(--bd)}
-.fu table.sepfit .act{position:sticky;right:0;z-index:2;box-shadow:-1px 0 0 var(--bd)}.fu table.sepfit td.act details.more>div{left:auto;right:0}
-.fu table.sepfit td .bar{flex-wrap:nowrap;gap:6px}.fu table.sepfit td input[data-emp]{width:12rem}
-.fu .bulk{position:sticky;bottom:0;z-index:5;display:none;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin:10px 0;border:1px solid var(--bd);border-radius:var(--r);background:var(--card);box-shadow:0 -2px 10px rgba(0,0,0,.12)}
-.fu .bulk.on{display:flex}.fu .bulk input[name=reason]{flex:1 1 14rem;max-width:22rem}
-.fu dialog{border:1px solid var(--bd);border-radius:var(--r);background:var(--card);color:inherit;padding:0;width:min(32rem,calc(100vw - 32px))}
-.fu dialog::backdrop{background:rgba(0,0,0,.4)}.fu dialog form.dg{display:grid;gap:12px;padding:18px;max-height:85vh;overflow:auto}.fu dialog h3{margin:0}
-.fu dialog label{display:grid;gap:4px;font-size:13px}.fu dialog label.row{display:flex;gap:8px;align-items:center}.fu dialog .jf{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
-.fu .deps{display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:4px 10px;max-height:11rem;overflow:auto;border:1px solid var(--bd);border-radius:8px;padding:8px}
-.fu .deps label{display:flex;gap:6px;align-items:center}.fu fieldset{border:0;padding:0;margin:0;display:grid;gap:4px}.fu legend{font-size:13px;padding:0}
+.fu table.sepfit .ck{width:1.8rem;padding-left:4px;padding-right:2px}.fu table.sepfit .pill{padding:0 7px;font-size:11px}
+.fu table.sepfit td .bar{flex-wrap:nowrap;gap:4px;margin:0}.fu table.sepfit td input[data-emp]{width:10rem;height:26px;min-height:0;padding:0 6px;font-size:12.5px}
+.fu table.sepfit td .btn,.fu table.sepfit td summary{min-height:0;height:26px;padding:0 9px;font-size:12.5px;line-height:24px;margin:0}
+.fu table.sepfit td.act details.more>div{left:auto;right:0}.fu table.sepfit td.act{width:1%}
 </style>
 <div class="fu">
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
@@ -78,17 +73,17 @@
 <form method="post" id="bulkf" class="bulk" data-bulk>{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><b class="cnt">0 dipilih</b>
 <button class="btn" name="action" value="create_for_employees" data-confirm="Buat user mesin (PIN = NIK) dan petakan untuk karyawan terpilih?">Buat user mesin (PIN = NIK)</button></form>
 {% else %}
-<div class="wrap"><table class="sepfit"><thead><tr><th class="ck"><input type="checkbox" id="ckall" aria-label="Pilih semua"></th><th class="pin">PIN</th><th>Nama di mesin</th><th>Karyawan</th><th>Status</th><th>Data</th><th class="act">Aksi</th></tr></thead><tbody>
+<div class="wrap"><table class="sepfit"><thead><tr><th class="ck"><input type="checkbox" id="ckall" aria-label="Pilih semua"></th><th>PIN</th><th>Nama di mesin</th><th>Karyawan</th><th>Status</th><th>Data</th><th class="act">Aksi</th></tr></thead><tbody>
 {% for r in page %}<tr class="{% if r.state == 'inactive' %}off{% endif %}">
 <td class="ck"><input type="checkbox" class="pk" name="pins" value="{{ r.pin }}" form="bulkf" aria-label="Pilih PIN {{ r.pin }}"></td>
-<td class="nw pin"><b>{{ r.pin }}</b></td>
-<td>{{ r.name|default:"—" }}{% if r.priv %} <span class="pill pending">Admin mesin</span>{% endif %}{% if r.state == "unmapped" %}{% if r.sug.status == "ok" %}<small>cocok: {{ r.sug.employee.nik }} {{ r.sug.employee.name }}</small>{% elif r.sug.status == "ambigu" %}<small>nama sama dengan &gt;1 karyawan</small>{% elif r.sug.status == "tidak ada" %}<small>tidak ada karyawan bernama sama</small>{% endif %}{% endif %}</td>
+<td class="nw"><b>{{ r.pin }}</b></td>
+<td class="cut">{{ r.name|default:"—" }}{% if r.priv %} <span class="pill pending">Admin mesin</span>{% endif %}{% if r.state == "unmapped" %}{% if r.sug.status == "ok" %}<small>cocok: {{ r.sug.employee.nik }} {{ r.sug.employee.name }}</small>{% elif r.sug.status == "ambigu" %}<small>nama sama dengan &gt;1 karyawan</small>{% elif r.sug.status == "tidak ada" %}<small>tidak ada karyawan bernama sama</small>{% endif %}{% endif %}</td>
 <td>{% if r.emp %}<a href="{% url 'att_employee' r.emp.pk %}">{{ r.emp.name }}</a><small>{{ r.emp.nik }} · {{ r.dept.name }}{% if r.emp.status == "nonaktif" %} · <b>nonaktif</b>{% endif %}</small>
 {% elif r.state == "unmapped" %}<form method="post" class="bar" style="margin:0">{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="action" value="link"><input type="hidden" name="pin" value="{{ r.pin }}"><input name="nik" list="empl" data-emp value="{{ r.sug.employee.nik|default:'' }}" placeholder="NIK / nama karyawan" required maxlength="20" autocomplete="off" style="width:11em"><button class="btn" type="submit">Petakan</button></form>
 {% else %}<span class="hint">belum dipetakan</span>{% endif %}</td>
 <td>{% if r.state == "inactive" %}<span class="pill nonaktif" title="{{ r.u.deactivated_reason }}">Nonaktif</span>{% elif r.state == "mapped" %}<span class="pill approved">Terpetakan</span>{% else %}<span class="pill pending">Belum dipetakan</span>{% endif %}{% if r.attention %}<span class="pill rejected" title="{{ r.reason }}">Karyawan keluar</span>{% endif %}
 {% if r.state == "inactive" and r.u.deactivated_reason %}<small>{{ r.u.deactivated_reason }}</small>{% endif %}</td>
-<td class="nw">{% if r.n %}{{ r.n }} scan{% if r.last %}<small>terakhir {{ r.last|date:"d M Y H:i" }}</small>{% endif %}{% else %}<span class="hint">0 scan</span>{% endif %}<small>{% if r.in_user %}ada di user mesin{% else %}belum diunduh dari mesin{% endif %}{% if r.fingers %} · {{ r.fingers }} jari{% endif %}</small></td>
+<td class="nw">{% if r.n %}{{ r.n }} scan{% if r.last %} · {{ r.last|date:"d M y H:i" }}{% endif %}{% else %}<span class="hint">0 scan</span>{% endif %}<small>{% if r.in_user %}di mesin{% else %}belum diunduh{% endif %}{% if r.fingers %} · {{ r.fingers }} jari{% endif %}</small></td>
 <td class="act"><details class="more"><summary>Aksi ▾</summary><div class="menu">
 {% if r.in_user %}<button type="button" class="btn ghost" data-dlg="user" data-mode="edit" data-pin="{{ r.pin }}" data-name="{{ r.u.name }}" data-priv="{% if r.priv %}14{% else %}0{% endif %}" data-card="{{ r.card|default:'' }}">Ubah data user</button>{% endif %}
 {% if r.emp %}<button type="button" class="btn ghost" data-dlg="reason" data-action="move" data-pin="{{ r.pin }}" data-title="Pindahkan PIN {{ r.pin }} (salah orang)" data-nik="1" data-confirm="Semua scan PIN ini ikut pindah ke karyawan tujuan.">Pindahkan ke karyawan lain</button>
