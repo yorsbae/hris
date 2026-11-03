@@ -46,6 +46,7 @@ urlpatterns = [
     path("absensi/kontrol/", ar.control, name="att_control"),
     path("absensi/mesin/", ar.devices, name="att_devices"),
     path("absensi/mesin/job/progress/", ar.device_progress, name="att_device_progress"),   # kemajuan 0-100% (polling popup)
+    path("absensi/mesin/cari/", ar.user_search, name="att_user_search"),   # pencarian user mesin / karyawan (nama, NIK, PIN) untuk kotak saran
     path("absensi/mesin/job/", ar.device_job, name="att_device_job"),   # satu aksi untuk satu mesin (JSON) — dipakai popup progres
     path("absensi/bulanan/", ap.monthly, name="att_monthly"),
     path("absensi/karyawan/<int:pk>/", ap.employee_month, name="att_employee"),

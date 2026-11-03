@@ -107,6 +107,44 @@ class PinHolidayTests(PageBase):
         r = self.client.post(reverse("att_pins"), {"action": "auto_name"}, follow=True); self.assertContains(r, "1 PIN dipetakan otomatis")
         self.assertEqual(AttendancePin.objects.get(pin="777").employee, self.e2); self.assertEqual(AttendanceDaily.objects.get(employee=self.e2, date=d).status, "hadir")
 
+    def test_unmapped_list_includes_device_users_without_scans_and_filters(self):
+        from .models import DeviceUser
+        d = workday(); self.up(self.file_for(d, "777")); i = AttendanceImport.objects.get(); self.client.post(reverse("att_import_detail", args=[i.pk]), {"action": "commit"})
+        DeviceUser.objects.create(pin="888", name="Tanpa Scan"); DeviceUser.objects.create(pin="999", name=self.e2.name)
+        r = self.client.get(reverse("att_pins")); self.assertContains(r, "888"); self.assertContains(r, "999"); self.assertEqual((r.context["stat"]["unmapped"], r.context["stat"]["noscan"]), (3, 2))
+        r = self.client.get(reverse("att_pins"), {"origin": "noscan"}); self.assertEqual(sorted(o["pin"] for o in r.context["unm"]), ["888", "999"])
+        r = self.client.get(reverse("att_pins"), {"origin": "scan"}); self.assertEqual([o["pin"] for o in r.context["unm"]], ["777"])
+        r = self.client.get(reverse("att_pins"), {"match": "ok"}); self.assertEqual([o["pin"] for o in r.context["unm"]], ["999"])
+        r = self.client.get(reverse("att_pins"), {"q": "tanpa"}); self.assertEqual([o["pin"] for o in r.context["unm"]], ["888"])
+        r = self.client.post(reverse("att_pins"), {"action": "auto_name"}, follow=True); self.assertContains(r, "1 PIN dipetakan otomatis")             # user tanpa scan ikut dipetakan
+        self.assertEqual(AttendancePin.objects.get(pin="999").employee, self.e2)
+
+    def test_user_search_by_name_nik_pin_and_employee(self):
+        from .models import DeviceUser
+        self.login("hrd"); DeviceUser.objects.create(pin="112", name="Wahyu Hidayat"); DeviceUser.objects.create(pin="205", name="Siti")
+        AttendancePin.objects.create(pin="205", employee=self.e2, source="manual")
+        g = lambda **k: self.client.get(reverse("att_user_search"), k).json()["items"]                                   # noqa: E731
+        self.assertEqual([i["label"] for i in g(q="wahy")], ["Wahyu Hidayat (112)"]); self.assertEqual([i["pin"] for i in g(q="112")], ["112"])
+        r = g(q=self.e2.nik); self.assertEqual([i["pin"] for i in r], ["205"]); self.assertIn("NIK " + self.e2.nik, r[0]["sub"])         # cari lewat NIK karyawan terpetakan
+        self.assertEqual([i["pin"] for i in g(q=self.e2.name[:4].lower()) if i["pin"] == "205"], ["205"])
+        e = g(q=self.e2.nik, kind="employee"); self.assertEqual(e[0]["label"], f"{self.e2.name} ({self.e2.nik})"); self.assertEqual(g(q=""), [])
+
+    def test_manual_user_add_validates_stores_and_maps(self):
+        from .models import DeviceUser
+        self.login("hrd"); post = lambda **k: self.client.post(reverse("att_devices"), {"action": "user_add", **k}, follow=True)             # noqa: E731
+        self.assertContains(post(pin="", name="X"), "PIN wajib"); self.assertContains(post(pin="9", name=""), "Isi nama"); self.assertContains(post(pin="9", name="X", password="abc"), "Password mesin")
+        self.assertContains(post(pin="9", name="X", nik="NOPE"), "tidak ditemukan"); self.assertEqual(DeviceUser.objects.count(), 0)
+        r = post(pin="321", nik=self.e2.nik, privilege="14", card="12345", password="1234", link="1"); self.assertContains(r, "ditambahkan"); u = DeviceUser.objects.get(pin="321")
+        self.assertEqual((u.name, u.privilege, u.card, u.password, u.source_device), (self.e2.name, 14, 12345, "1234", "manual")); self.assertEqual(AttendancePin.objects.get(pin="321").employee, self.e2)
+        self.assertContains(post(pin="321", name="Nama Baru"), "diperbarui"); self.assertEqual(DeviceUser.objects.get(pin="321").name, "Nama Baru"); self.assertEqual(DeviceUser.objects.get(pin="321").password, "1234")
+
+    def test_pins_page_has_live_filter_container_and_quick_search(self):
+        from .models import DeviceUser
+        self.login("hrd"); DeviceUser.objects.create(pin="888", name="Tanpa Scan")
+        r = self.client.get(reverse("att_pins")); self.assertContains(r, 'id="pmres"'); self.assertContains(r, 'form="pfform"'); self.assertContains(r, 'id="pfform"')
+        r = self.client.get(reverse("att_pins"), {"q": "tanpa"}, HTTP_X_REQUESTED_WITH="fetch"); self.assertContains(r, 'data-unm-total="1"'); self.assertContains(r, "Tanpa Scan")
+        r = self.client.get(reverse("att_pins"), {"q": "zzz"}); self.assertContains(r, 'data-unm-total="0"'); self.assertContains(r, "Tidak ada PIN yang cocok dengan filter")
+
     def test_link_unknown_nik_and_move_needs_reason(self):
         self.login("hrd"); r = self.client.post(reverse("att_pins"), {"action": "link", "pin": "5", "nik": "NOPE"}, follow=True); self.assertContains(r, "NIK tidak ditemukan")
         AttendancePin.objects.create(pin="5", employee=self.e1)

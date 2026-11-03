@@ -593,13 +593,38 @@ def name_suggestions(pins):
     return res
 
 
+def unmapped_pins(q="", origin="", match=""):
+    """PIN yang belum dipetakan ke karyawan = GABUNGAN (a) PIN scan yatim (ada di scanlog, employee kosong) dan (b) PIN user mesin hasil 'Download user'
+    yang belum ada di tabel pemetaan (termasuk yang belum pernah scan). Dulu hanya (a) → 76 user terunduh tetapi yang tampil hanya 22.
+    Filter: q = cari PIN/nama mesin; origin = 'scan' (ada scan) | 'noscan' (user mesin tanpa scan); match = status usulan nama ('ok'|'ambigu'|'tidak ada'|'tanpa nama').
+    → list dict {pin, n, last, in_scan, in_user, device_name, sug}, urut: scan terbanyak dulu lalu PIN. Tidak mengubah data."""
+    from django.db.models import Count, Max
+    from .models import DeviceUser
+    mapped = set(AttendancePin.objects.values_list("pin", flat=True)); rows = {}
+    for r in AttendanceRaw.objects.filter(employee__isnull=True).values("pin").annotate(n=Count("id"), last=Max("punched_at")):
+        rows[r["pin"]] = {"pin": r["pin"], "n": r["n"], "last": r["last"], "in_scan": True, "in_user": False}
+    for u in DeviceUser.objects.all():
+        if u.pin in mapped: continue
+        rows.setdefault(u.pin, {"pin": u.pin, "n": 0, "last": None, "in_scan": False, "in_user": True})["in_user"] = True
+    sug = name_suggestions(list(rows))
+    out = []; qq = (q or "").strip().lower()
+    for pin, r in rows.items():
+        r["sug"] = sug.get(pin, {}); r["device_name"] = r["sug"].get("device_name", "")
+        if qq and qq not in pin.lower() and qq not in r["device_name"].lower(): continue
+        if origin == "scan" and not r["in_scan"]: continue
+        if origin == "noscan" and r["in_scan"]: continue
+        if match and r["sug"].get("status") != match: continue
+        out.append(r)
+    out.sort(key=lambda r: (-r["n"], (0, int(r["pin"])) if r["pin"].isdigit() else (1, r["pin"]))); return out
+
+
 def apply_name_matches(user):
-    """Petakan semua PIN yatim yang namanya cocok tepat satu karyawan aktif dan karyawan itu belum punya PIN lain. → (jumlah PIN dipetakan, jumlah scan terhubung, [(pin, karyawan)])."""
-    orphan = list(AttendanceRaw.objects.filter(employee__isnull=True).values_list("pin", flat=True).distinct()); done = scans = 0; emps = []
-    for pin, s in name_suggestions(orphan).items():
-        e = s["employee"]
-        if s["status"] != "ok" or AttendancePin.objects.filter(employee=e).exists(): continue
-        try: scans += link_pin(user, pin, e, "manual", "Cocok nama dengan user mesin")
+    """Petakan semua PIN belum dipetakan (scan yatim DAN user mesin) yang namanya cocok tepat satu karyawan aktif dan karyawan itu belum punya PIN lain. → (jumlah PIN dipetakan, jumlah scan terhubung, [(pin, karyawan)])."""
+    done = scans = 0; emps = []
+    for r in unmapped_pins(match="ok"):
+        e = r["sug"]["employee"]
+        if AttendancePin.objects.filter(employee=e).exists(): continue
+        try: scans += link_pin(user, r["pin"], e, "manual", "Cocok nama dengan user mesin")
         except ValueError: continue
-        done += 1; emps.append((pin, e))
+        done += 1; emps.append((r["pin"], e))
     return done, scans, emps

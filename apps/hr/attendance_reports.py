@@ -21,7 +21,7 @@ from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles, scope_by_department
 from .views import SHIFT_GROUP_FILTERS, apply_shift_filter
-from .models import AttendanceDaily as AD, AttendanceDevice, AttendanceImport, AttendanceRaw, DeviceFingerprint, DeviceUser, Department, Employee, Shift
+from .models import AttendanceDaily as AD, AttendanceDevice, AttendanceImport, AttendancePin, AttendanceRaw, DeviceFingerprint, DeviceUser, Department, Employee, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))   # noqa: E731
 hrd = lambda fn: login_required(require_roles(Role.HRD)(fn))                       # noqa: E731
@@ -299,6 +299,7 @@ def _device_action(request):
             log(request, "hr", "attendance_device_import", None, None, {"created": made, "updated": upd})
             messages.success(request, f"Daftar mesin diimpor: {made} baru, {upd} diperbarui." + (f" {len(warn)} perlu diperiksa: " + "; ".join(warn[:5]) if warn else ""))
             return redirect("att_devices")
+        if act == "user_add": _user_add(request); return redirect("att_devices")
         ids = [int(i) for i in p.getlist("ids") if i.isdigit()]
         devs = AttendanceDevice.objects.filter(pk__in=ids, active=True)
         if not devs: messages.error(request, "Centang minimal satu mesin aktif."); return redirect("att_devices")
@@ -318,6 +319,54 @@ def _device_action(request):
     (messages.success if ok == len(res) else messages.warning)(request, f"{ {'test': 'Tes koneksi', 'users_down': 'Download user', 'users_up': 'Upload user'}.get(act, 'Download scanlog') }: {ok} dari {len(res)} mesin berhasil.")
     for r in res: (messages.info if r["ok"] else messages.error)(request, f"{names.get(r['device'], r['device'])}: {r['note']}")
     return redirect("att_devices")
+
+
+@hrd
+def user_search(request):
+    """Kotak saran (JSON). kind=user: user mesin tersimpan (DeviceUser) yang cocok dengan PIN / nama mesin / NIK / nama karyawan terpetakan → label 'Nama (PIN)'.
+    kind=employee: karyawan aktif yang cocok NIK / nama → label 'Nama (NIK)'. Maks 15 hasil; hanya baca."""
+    q = request.GET.get("q", "").strip()[:40]
+    if not q: return JsonResponse({"items": []})
+    if request.GET.get("kind") == "employee":
+        es = Employee.objects.exclude(status="nonaktif").filter(Q(nik__icontains=q) | Q(name__icontains=q)).select_related("department").order_by("name")[:15]
+        return JsonResponse({"items": [{"nik": e.nik, "name": e.name, "label": f"{e.name} ({e.nik})", "sub": e.department.name if e.department_id else ""} for e in es]})
+    emp_pins = list(AttendancePin.objects.filter(Q(employee__nik__icontains=q) | Q(employee__name__icontains=q)).values_list("pin", flat=True)[:200])
+    us = list(DeviceUser.objects.filter(Q(pin__icontains=q) | Q(name__icontains=q) | Q(pin__in=emp_pins)).order_by("name", "pin")[:15])
+    emp = {m.pin: m.employee for m in AttendancePin.objects.filter(pin__in=[u.pin for u in us]).select_related("employee")}
+    us.sort(key=lambda u: (u.pin != q, not u.name.lower().startswith(q.lower())))                       # PIN persis dulu, lalu nama yang diawali ketikan
+    return JsonResponse({"items": [{"pin": u.pin, "label": f"{u.name or '(tanpa nama)'} ({u.pin})", "sub": (f"NIK {emp[u.pin].nik}" + ("" if emp[u.pin].name.lower() == u.name.lower() else f" · {emp[u.pin].name}")) if u.pin in emp else "belum dipetakan"} for u in us]})
+
+
+def _user_add(request):
+    """Tambah/perbarui satu user mesin secara manual di HRIS (bahan Upload user). Sidik jari tidak bisa diisi manual: didaftarkan di mesin lalu Download user."""
+    from . import attendance_import as imp
+    p = request.POST; pin = imp.clean_key(p.get("pin", ""))[:24].strip(); nik = p.get("nik", "").strip()
+    e = Employee.objects.filter(nik=nik).first() if nik else None
+    if nik and not e: raise ValueError(f"NIK {nik} tidak ditemukan.")
+    name = p.get("name", "").strip()[:80] or (e.name[:80] if e else "")
+    if not pin: raise ValueError("PIN wajib diisi (huruf/angka, tanpa simbol aneh).")
+    if not name: raise ValueError("Isi nama atau pilih karyawan.")
+    pw = p.get("password", "").strip()
+    if pw and not (pw.isdigit() and len(pw) <= 8): raise ValueError("Password mesin harus angka, maksimal 8 digit.")
+    card = p.get("card", "").strip()
+    if card and not card.isdigit(): raise ValueError("Nomor kartu harus angka.")
+    priv = 14 if p.get("privilege") == "14" else 0
+    u, made = DeviceUser.objects.get_or_create(pin=pin, defaults={"name": name, "privilege": priv, "password": pw, "card": int(card or 0), "source_device": "manual"})
+    if not made:
+        u.name, u.privilege = name, priv
+        if pw: u.password = pw
+        if card: u.card = int(card)
+        u.save()
+    log(request, "hr", "attendance_device_user_add", e, None, {"pin": pin, "new": made})
+    msg = f"User {pin} {name} {'ditambahkan' if made else 'diperbarui'} di HRIS (belum dikirim ke mesin: pakai Upload user)."
+    if not pin.isdigit(): msg += " Perhatian: mesin FK hanya menerima PIN angka."
+    if e and p.get("link", "1") == "1":
+        try:
+            n = imp.link_pin(request.user, pin, e, "manual", "Dari tambah user manual")
+            if n: from .attendance_pages import _reprocess_scans; _reprocess_scans(e, pin)
+            msg += f" PIN dipetakan ke {e.nik} {e.name}."
+        except ValueError as ex: messages.warning(request, str(ex))
+    messages.success(request, msg)
 
 
 def _pins(raw): return [x for x in (raw or "").replace(",", " ").split() if x][:2000]

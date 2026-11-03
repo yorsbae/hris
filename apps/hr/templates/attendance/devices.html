@@ -1,5 +1,16 @@
 {% extends "base.html" %}{% block title %}Mesin &amp; Impor{% endblock %}{% block content %}
 <style>
+#updlg,#uadlg{border:1px solid var(--bd);border-radius:var(--r);background:var(--card);color:inherit;padding:0;width:min(34rem,calc(100vw - 24px));max-width:none;overflow-x:hidden}#updlg::backdrop,#uadlg::backdrop{background:rgba(0,0,0,.4)}
+.updlg{display:grid;gap:16px;padding:20px;margin:0}.updlg .upbody{display:grid;gap:14px}.updlg .jh{margin:0}.updlg .jh h3{margin:0 0 4px}.updlg .jsum{margin:0;color:var(--mu,#666)}
+.updlg .f{display:grid;gap:6px;margin:0;font-size:14px;min-width:0}.updlg label.f>input,.updlg label.f>select,.updlg .cbx input{width:100%;box-sizing:border-box;min-width:0}
+.updlg small{display:block;color:var(--mu,#666);line-height:1.4}.updlg .upstat,.updlg .upnote{margin:0}.updlg .upnote{padding-left:18px;font-size:13px}
+.updlg fieldset{border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;display:grid;gap:10px;min-width:0;margin:0}.updlg legend{padding:0 6px;font-size:13px;color:var(--mu,#666)}
+.updlg .chk{display:flex;gap:8px;align-items:center;margin:0;font-size:14px}.updlg .jf{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.uarow{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));gap:10px}.uarow input,.uarow select{width:100%;box-sizing:border-box;min-width:0}
+.updlg #uapin,.updlg #uaname{width:100%}
+.cbx{position:relative}.cbx ul{position:absolute;left:0;right:0;z-index:5;margin:2px 0 0;padding:4px;list-style:none;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);max-height:14rem;overflow:auto;box-shadow:var(--sh)}.cbx li{padding:6px 8px;border-radius:6px;cursor:pointer}.cbx li small{color:var(--mu,#666)}.cbx li[aria-selected=true]{background:var(--bd)}.cbx li.none{cursor:default;color:var(--mu,#666)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chips:empty{display:none}.chips span{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--bd);border-radius:99px;padding:2px 4px 2px 10px;font-size:13px}.chips button{border:0;background:none;cursor:pointer;font-size:16px;line-height:1;color:inherit;padding:0 4px}
+#upwarn{color:#b45309}
 .ih .panel{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);padding:16px;margin:0 0 16px}
 .ih .panel>h3{margin:0 0 4px;font-size:16px}.ih .panel>.sub{margin:0 0 12px}
 .ih .hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:22px 0 8px}.ih .hd h3{margin:0}
@@ -62,9 +73,8 @@
 <div class="panel sync"><div><h3>Download scanlog dari mesin</h3><p class="sub" style="margin:0">Centang mesin di tabel, pilih cakupan data, lalu unduh.</p></div>
 <div class="row"><div class="f" role="group" aria-labelledby="mdl">Cakupan data<span class="seg" id="mdl"><label title="24 jam terakhir (mundur ke scan terakhir tersimpan bila lebih lama)"><input type="radio" name="mode" value="latest" checked>Data terbaru (24 jam)</label><label><input type="radio" name="mode" value="all">Semua scanlog</label><label title="Berdasarkan tanggal Dari–Sampai"><input type="radio" name="mode" value="range">Rentang tanggal</label></span></div>
 <div class="dr" id="rng" hidden><label class="f">Dari<input type="date" name="from"></label><span aria-hidden="true">–</span><label class="f">Sampai<input type="date" name="to"></label></div></div>
-<div class="acts2"><button class="btn" name="action" value="sync" type="submit">⬇ Download scanlog</button><button class="btn ghost" name="action" value="users_down" type="submit">⬇ Download user</button><button class="btn ghost" name="action" value="users_up" type="submit">⬆ Upload user</button><button class="btn ghost" name="action" value="test" type="submit">Tes koneksi</button><a class="btn ghost" href="{% url 'att_import' %}">+ Impor berkas Fingerspot</a></div>
-<details class="flt" style="margin:0"><summary>Opsi user &amp; sidik jari</summary><div><div class="grid"><label class="f w2">PIN yang dikirim (kosong = semua user tersimpan)<input name="pins" placeholder="mis. 101 102 205" autocomplete="off"></label><label class="f chk"><input type="checkbox" name="fingerprints" value="1" checked>Sertakan sidik jari</label></div>
-<p class="help2" style="margin:12px 0 0"><b>Download user</b> membaca user + sidik jari dari mesin yang dicentang dan menyimpannya di HRIS (kunci PIN; terenkripsi, tidak ditampilkan). <b>Upload user</b> mengirim user tersimpan ke mesin yang dicentang: menambah/memperbarui, <u>tidak menghapus</u> user lain di mesin. Sidik jari hanya dikirim bila versi algoritma mesin sama (9/10). Tersimpan sekarang: <b>{{ stored_users }}</b> user · <b>{{ stored_fingers }}</b> sidik jari.</p></div></details>
+<div class="acts2"><button class="btn" name="action" value="sync" type="submit">⬇ Download scanlog</button><button class="btn ghost" name="action" value="users_down" type="submit">⬇ Download user</button><button class="btn ghost" name="action" value="users_up" type="submit">⬆ Upload user</button><button class="btn ghost" type="button" id="uaopen">+ Tambah user manual</button><button class="btn ghost" name="action" value="test" type="submit">Tes koneksi</button><a class="btn ghost" href="{% url 'att_import' %}">+ Impor berkas Fingerspot</a></div>
+<p class="help2" style="margin:0"><b>Download user</b> membaca user + sidik jari dari mesin yang dicentang lalu menyimpannya di HRIS (kunci PIN; terenkripsi, tidak ditampilkan). <b>Upload user</b> mengirim user tersimpan ke mesin yang dicentang (memilih user &amp; opsi di jendela berikutnya; <u>tidak menghapus</u> user lain di mesin). Tersimpan sekarang: <b>{{ stored_users }}</b> user · <b>{{ stored_fingers }}</b> sidik jari. PIN yang belum punya karyawan: <a href="{% url 'att_pins' %}">Pemetaan PIN</a>.</p>
 <p class="help2" style="margin:0"><b>Data terbaru</b> = scan 24 jam terakhir; bila scan terakhir yang tersimpan di HRIS (kolom “Tersimpan s/d”) lebih lama dari itu, dimulai dari sana agar tidak ada celah. Mesin yang belum punya data: lakukan <b>Semua scanlog</b> sekali. <b>Rentang tanggal</b> = scan pada tanggal Dari–Sampai. <b>Semua</b> = seluruh log di mesin. Scan yang sudah pernah diunduh otomatis dilewati (tidak ganda, tidak membuat riwayat kosong); hanya yang belum ada yang disimpan. Mesin FK membaca seluruh log di mesin lebih dulu, jadi tahap “Mesin menyiapkan log” bisa lama pada log besar.</p></div>
 
 </form>
@@ -119,6 +129,25 @@
 <form method="post" class="grid">{% csrf_token %}<label class="f">Kode (SN)<input name="code" required maxlength="40"></label><label class="f">Nama<input name="name" required maxlength="80"></label><label class="f">Lokasi<input name="location" maxlength="100"></label><label class="f">SN<input name="serial" maxlength="40"></label><label class="f">No Mesin<input name="machine_no" maxlength="10"></label><label class="f">IP Address<input name="host" maxlength="100"></label><label class="f">Port<input name="port" value="4370" inputmode="numeric"></label>
 <div class="acts2"><button class="btn" type="submit">Tambah mesin</button></div></form></div></details>
 </div>
+<dialog id="uadlg" aria-labelledby="uattl"><form method="post" class="updlg" id="uaform">{% csrf_token %}<input type="hidden" name="action" value="user_add"><input type="hidden" name="nik" id="uanik">
+<div class="jh"><h3 id="uattl">Tambah user manual</h3><p class="jsum">Disimpan di HRIS; kirim ke mesin lewat <b>Upload user</b>.</p></div>
+<div class="upbody"><label class="f" for="uaemp">Karyawan (opsional — nama atau NIK)</label><div class="cbx"><input id="uaemp" role="combobox" aria-expanded="false" aria-controls="ualist" aria-autocomplete="list" autocomplete="off" placeholder="mis. Wahyu atau 0345"><ul id="ualist" role="listbox" aria-label="Saran karyawan" hidden></ul></div><small id="uaempinfo" role="status"></small>
+<label class="f">PIN di mesin<input name="pin" id="uapin" required maxlength="24" autocomplete="off" inputmode="numeric" placeholder="angka — terisi otomatis dari NIK"></label>
+<label class="f">Nama di mesin<input name="name" id="uaname" maxlength="80" autocomplete="off"></label>
+<div class="uarow"><label class="f">Hak akses<select name="privilege"><option value="0">Pengguna biasa</option><option value="14">Admin mesin</option></select></label><label class="f">Password mesin<input name="password" maxlength="8" inputmode="numeric" autocomplete="off" placeholder="opsional, angka"></label><label class="f">No. kartu<input name="card" inputmode="numeric" autocomplete="off" placeholder="opsional"></label></div>
+<label class="chk"><input type="checkbox" name="link" value="1" checked id="ualink"> Petakan PIN ini ke karyawan di atas</label>
+<ul class="upnote"><li>Sidik jari tidak bisa diisi manual: daftarkan jari di mesin, lalu <b>Download user</b>.</li><li>PIN yang sudah ada diperbarui (sidik jari tersimpan tidak dihapus).</li></ul></div>
+<div class="jf"><button type="button" class="btn ghost" id="uacancel">Batal</button><button class="btn" type="submit">Simpan user</button></div></form></dialog>
+<dialog id="updlg" aria-labelledby="upttl"><form method="dialog" id="upform" class="updlg"><div class="jh"><h3 id="upttl">Upload user ke mesin</h3><p class="jsum" id="uptarget" role="status"></p></div>
+<div class="upbody"><p class="upstat"><b>{{ stored_users }}</b> user tersimpan di HRIS · <b>{{ stored_fingers }}</b> sidik jari</p>
+<fieldset class="upscope"><legend>User yang dikirim</legend><label class="chk"><input type="radio" name="upscope" value="all" checked> Semua user tersimpan ({{ stored_users }})</label>
+<label class="chk"><input type="radio" name="upscope" value="pins"> Hanya PIN tertentu</label>
+<div class="f" id="uppinswrap" hidden><label for="upq">Cari user: nama, NIK, atau PIN</label><div class="chips" id="upchips"></div>
+<div class="cbx"><input id="upq" role="combobox" aria-expanded="false" aria-controls="uplist" aria-autocomplete="list" autocomplete="off" placeholder="mis. Wahyu, 0345, atau 112"><ul id="uplist" role="listbox" aria-label="Saran user" hidden></ul></div>
+<small id="uppincnt" role="status">0 user dipilih</small><small id="upwarn" role="status" hidden></small><small>Ketik lalu pilih saran (Enter / klik). Tempel banyak nama/NIK/PIN dipisah baris baru atau koma untuk menambah sekaligus.</small></div></fieldset>
+<label class="chk"><input type="checkbox" id="upfp" checked> Sertakan sidik jari <small>(hanya dikirim bila jenis mesin &amp; versi algoritma sama)</small></label>
+<ul class="upnote"><li>User yang sudah ada di mesin diperbarui; user lain <u>tidak dihapus</u>.</li><li>Mesin FK hanya menerima PIN angka.</li></ul><p class="empty" id="upempty" hidden>Belum ada user tersimpan. Jalankan <b>Download user</b> dari satu mesin dulu.</p></div>
+<div class="jf"><button type="button" class="btn ghost" id="upcancel">Batal</button><button type="button" class="btn" id="upgo">Kirim</button></div></form></dialog>
 <dialog id="jobdlg" aria-labelledby="jobttl"><div class="jh"><h3 id="jobttl">Proses</h3><progress id="jobbar" value="0" max="1" aria-label="Kemajuan"></progress><p class="jsum" id="jobsum" role="status" aria-live="polite"></p></div><ul id="joblist"></ul>
 <div class="jf"><button type="button" class="btn ghost" id="jobcancel">Batalkan sisa antrean</button><button type="button" class="btn" id="jobclose" disabled>Tutup</button></div></dialog>
 <script>(function(){
@@ -130,11 +159,10 @@ var dlg=document.getElementById('jobdlg'),ul=document.getElementById('joblist'),
 var T={sync:'Download scanlog',users_down:'Download user',users_up:'Upload user',test:'Tes koneksi'},url="{% url 'att_device_job' %}",purl="{% url 'att_device_progress' %}",running=false,cancelled=false,anyOk=false;
 if(!dlg||!dlg.showModal)return;
 function pill(el,cls,txt){el.className='pill '+cls;el.textContent=txt}
-function start(act){
+function start(act,opts){opts=opts||{};
  var mf=document.querySelector('.pick')&&document.querySelector('.pick').form,ms=[].slice.call(document.querySelectorAll('.pick:checked')).map(function(c){return{id:c.value,name:(c.getAttribute('aria-label')||'').replace(/^Pilih /,'')}});
  ttl.textContent=T[act];ul.textContent='';bar.value=0;bar.max=Math.max(ms.length,1);anyOk=false;cancelled=false;
  if(!ms.length){sum.textContent='Centang minimal satu mesin aktif di tabel.';bc.disabled=false;bx.hidden=true;dlg.showModal();return}
- if(act==='users_up'&&!confirm('Kirim user'+(mf.elements.fingerprints&&mf.elements.fingerprints.checked?' beserta sidik jari':'')+' tersimpan ke '+ms.length+' mesin?\nUser lain yang sudah ada di mesin tidak dihapus.'))return;
  var fd0=new FormData(mf),rows=ms.map(function(m){var li=document.createElement('li'),b=document.createElement('b'),st=document.createElement('span'),sm=document.createElement('small'),pg=document.createElement('progress');pg.className='rp';pg.max=100;pg.value=0;pg.hidden=true;b.textContent=m.name;pill(st,'pending','Menunggu');li.appendChild(b);li.appendChild(st);li.appendChild(pg);li.appendChild(sm);ul.appendChild(li);return{m:m,st:st,sm:sm,pg:pg,pct:0,t0:0}});
  var done=0,okn=0,next=0,conc=act==='sync'?3:2;running=true;bc.disabled=true;bx.hidden=false;bx.disabled=false;dlg.showModal();
  function upd(){var part=rows.reduce(function(a,r){return a+(r.fin?0:r.pct/100)},0);bar.value=done+part;sum.textContent=Math.round((done+part)/ms.length*100)+'% · '+done+' dari '+ms.length+' mesin selesai · '+okn+' berhasil'+(cancelled?' · sisa antrean dibatalkan':'')}
@@ -149,7 +177,7 @@ function start(act){
  }
  function run(r){
   r.t0=Date.now();r.job=(window.crypto&&crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2)).replace(/[^a-zA-Z0-9-]/g,'').slice(0,36);r.pg.hidden=false;pill(r.st,'pending','Berjalan');r.st.insertBefore(Object.assign(document.createElement('span'),{className:'spin'}),r.st.firstChild);r.st.appendChild(document.createTextNode(' 0%'));r.sm.textContent='Memproses…';
-  var fd=new FormData();fd.append('csrfmiddlewaretoken',fd0.get('csrfmiddlewaretoken'));fd.append('action',act);fd.append('id',r.m.id);fd.append('job',r.job);['mode','from','to','pins'].forEach(function(k){if(fd0.get(k))fd.append(k,fd0.get(k))});fd.append('fingerprints',fd0.get('fingerprints')?'1':'0');
+  var fd=new FormData();fd.append('csrfmiddlewaretoken',fd0.get('csrfmiddlewaretoken'));fd.append('action',act);fd.append('id',r.m.id);fd.append('job',r.job);['mode','from','to'].forEach(function(k){if(fd0.get(k))fd.append(k,fd0.get(k))});if(opts.pins)fd.append('pins',opts.pins);fd.append('fingerprints',opts.fp===false?'0':'1');
   fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'fetch'}}).then(function(res){return res.json().then(function(j){return{j:j}},function(){throw new Error('Sesi berakhir atau respons tidak valid — muat ulang halaman.')})})
    .then(function(x){fin(r,x.j.ok,x.j.note)},function(err){fin(r,false,String(err.message||err))});
  }
@@ -158,7 +186,37 @@ function start(act){
 bx.addEventListener('click',function(){cancelled=true;bx.disabled=true});
 bc.addEventListener('click',function(){dlg.close();if(anyOk)location.reload()});
 dlg.addEventListener('cancel',function(e){if(running)e.preventDefault()});
-document.querySelectorAll('button[name=action]').forEach(function(b){if(T[b.value])b.addEventListener('click',function(e){e.preventDefault();start(b.value)})});
+var SURL="{% url 'att_user_search' %}",ud=document.getElementById('updlg'),uscope=document.querySelectorAll('input[name=upscope]'),upw=document.getElementById('uppinswrap'),upq=document.getElementById('upq'),upc=document.getElementById('uppincnt'),upwarn=document.getElementById('upwarn'),chips=document.getElementById('upchips'),upg=document.getElementById('upgo'),upe=document.getElementById('upempty'),STORED={{ stored_users }},sel={};
+function combo(inp,list,kind,pick,onEnter){var t,items=[],ai=-1;
+ function close(){list.hidden=true;inp.setAttribute('aria-expanded','false');ai=-1;inp.removeAttribute('aria-activedescendant')}
+ function mark(){[].forEach.call(list.children,function(li,i){li.setAttribute('aria-selected',i===ai?'true':'false')});if(ai>=0)inp.setAttribute('aria-activedescendant',list.id+'-'+ai)}
+ function choose(i){if(items[i]){var it=items[i];inp.value='';items=[];close();pick(it)}}
+ function render(q){list.textContent='';if(!items.length){var n=document.createElement('li');n.className='none';n.setAttribute('role','presentation');n.textContent='Tidak ada yang cocok dengan “'+q+'”';list.appendChild(n)}
+  items.forEach(function(it,i){var li=document.createElement('li'),b=document.createElement('b');li.id=list.id+'-'+i;li.setAttribute('role','option');b.textContent=it.label;li.appendChild(b);if(it.sub){var s=document.createElement('small');s.textContent=' · '+it.sub;li.appendChild(s)}li.addEventListener('mousedown',function(e){e.preventDefault();choose(i)});list.appendChild(li)});
+  list.hidden=false;inp.setAttribute('aria-expanded','true');ai=items.length?0:-1;mark()}
+ function find(){var q=inp.value.trim();if(!q){items=[];close();return}fetch(SURL+'?kind='+kind+'&q='+encodeURIComponent(q),{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){if(inp.value.trim()!==q)return;items=j.items||[];render(q)}).catch(function(){})}
+ inp.addEventListener('input',function(){clearTimeout(t);t=setTimeout(find,180)});
+ inp.addEventListener('keydown',function(e){var open=!list.hidden&&items.length;
+  if(e.key==='ArrowDown'&&open){e.preventDefault();ai=(ai+1)%items.length;mark()}else if(e.key==='ArrowUp'&&open){e.preventDefault();ai=(ai-1+items.length)%items.length;mark()}
+  else if(e.key==='Enter'){e.preventDefault();if(open&&ai>=0)choose(ai);else if(onEnter&&inp.value.trim()){onEnter(inp.value.trim());inp.value='';close()}}
+  else if(e.key==='Escape'&&!list.hidden){e.preventDefault();e.stopPropagation();close()}});
+ inp.addEventListener('blur',function(){setTimeout(close,120)});
+ return{lookup:function(q){return fetch(SURL+'?kind='+kind+'&q='+encodeURIComponent(q),{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){return j.items||[]})}}}
+function upPins(){return Object.keys(sel)}
+function chipsRender(){chips.textContent='';upPins().forEach(function(pin){var sp=document.createElement('span'),bt=document.createElement('button');sp.appendChild(document.createTextNode(sel[pin]));bt.type='button';bt.textContent='×';bt.setAttribute('aria-label','Hapus '+sel[pin]);bt.addEventListener('click',function(){delete sel[pin];chipsRender();upSync();upq.focus()});sp.appendChild(bt);chips.appendChild(sp)});upSync()}
+function upSync(){var pins=[].some.call(uscope,function(r){return r.checked&&r.value==='pins'}),n=upPins().length,ms=document.querySelectorAll('.pick:checked').length;upw.hidden=!pins;upc.textContent=n+' user dipilih';upg.textContent='Kirim ke '+ms+' mesin';upg.disabled=!STORED||!ms||(pins&&!n);upe.hidden=!!STORED}
+var upCombo=upq?combo(upq,document.getElementById('uplist'),'user',function(it){sel[it.pin]=it.label;upwarn.textContent='';upwarn.hidden=true;chipsRender()},function(tok){addTokens([tok])}):null;
+function addTokens(toks){var bad=[];upwarn.textContent='';upwarn.hidden=true;Promise.all(toks.map(function(tok){return upCombo.lookup(tok).then(function(items){var lo=tok.toLowerCase(),ex=items.filter(function(it){return it.pin===tok||it.label.toLowerCase().indexOf(lo+' (')===0||(it.sub||'').toLowerCase().indexOf('nik '+lo)===0});
+  var hit=ex.length===1?ex[0]:(items.length===1?items[0]:null);if(hit)sel[hit.pin]=hit.label;else if(/^\d+$/.test(tok))sel[tok]='PIN '+tok;else bad.push(tok+(items.length>1?' (lebih dari satu cocok)':''))})})).then(function(){chipsRender();upwarn.textContent=bad.length?'Tidak bisa dipilih otomatis: '+bad.join('; ')+' — ketik lalu pilih dari saran.':'';upwarn.hidden=!bad.length})}
+if(upq)upq.addEventListener('paste',function(e){var tx=(e.clipboardData||window.clipboardData).getData('text');if(/[\n,;]/.test(tx)){e.preventDefault();addTokens(tx.split(/[\n,;]+/).map(function(x){return x.trim()}).filter(Boolean))}});
+function upOpen(){var ms=[].slice.call(document.querySelectorAll('.pick:checked')).map(function(c){return(c.getAttribute('aria-label')||'').replace(/^Pilih /,'')}),t=document.getElementById('uptarget');t.textContent=ms.length?('Tujuan ('+ms.length+' mesin): '+ms.slice(0,4).join(', ')+(ms.length>4?' +'+(ms.length-4)+' lainnya':'')):'Centang minimal satu mesin aktif di tabel lebih dulu.';upSync();ud.showModal()}
+if(ud&&ud.showModal){uscope.forEach(function(r){r.addEventListener('change',upSync)});document.getElementById('upcancel').addEventListener('click',function(){ud.close()});
+ upg.addEventListener('click',function(){var pins=[].some.call(uscope,function(r){return r.checked&&r.value==='pins'})?upPins().join(' '):'';ud.close();start('users_up',{pins:pins,fp:document.getElementById('upfp').checked})})}
+var ad=document.getElementById('uadlg'),aemp=document.getElementById('uaemp'),anik=document.getElementById('uanik'),apin=document.getElementById('uapin'),anm=document.getElementById('uaname'),ainf=document.getElementById('uaempinfo');
+if(ad&&ad.showModal&&aemp){document.getElementById('uaopen').addEventListener('click',function(){document.getElementById('uaform').reset();anik.value='';ainf.textContent='';ad.showModal();aemp.focus()});document.getElementById('uacancel').addEventListener('click',function(){ad.close()});
+ combo(aemp,document.getElementById('ualist'),'employee',function(it){anik.value=it.nik;ainf.textContent='Dipilih: '+it.label+(it.sub?' · '+it.sub:'');if(!anm.value)anm.value=it.name;if(!apin.value)apin.value=it.nik});
+ aemp.addEventListener('input',function(){if(anik.value){anik.value='';ainf.textContent=''}})}
+document.querySelectorAll('button[name=action]').forEach(function(b){if(T[b.value])b.addEventListener('click',function(e){e.preventDefault();if(b.value==='users_up'&&ud&&ud.showModal)upOpen();else start(b.value)})});
 })();
 document.addEventListener('click',function(e){var t=e.target.closest('.tgl'),c=e.target.closest('[data-ed-close]');
 if(t){var row=document.getElementById(t.dataset.ed),o=row.hidden;row.hidden=!o;t.setAttribute('aria-expanded',o?'true':'false')}

@@ -465,6 +465,9 @@ def download_users(dev):
     set_progress(100, "Selesai"); out.update(ok=True, users=len(by_uid), new=new, updated=upd, fingers=nfp)
     out["note"] = (f"{len(by_uid)} user dibaca ({new} baru, {upd} diperbarui), {nfp} sidik jari." + (f" Algoritma sidik jari v{ver}." if ver and nfp else "")
                    + (f" Sidik jari tidak terbaca: {fp_err}" if fp_err else ""))
+    from .models import AttendancePin
+    unmapped = DeviceUser.objects.exclude(pin__in=AttendancePin.objects.values("pin")).count()
+    if unmapped: out["note"] += f" {unmapped} user belum dipetakan ke karyawan — buka Pemetaan PIN."
     return out
 
 
@@ -476,6 +479,7 @@ def upload_users(dev, pins=None, fingerprints=True):
     except SyncError as e: out["note"] = str(e); return out
     qs = DeviceUser.objects.prefetch_related("fingers")
     if pins: qs = qs.filter(pin__in=pins)
+    missing = sorted(set(pins) - set(DeviceUser.objects.filter(pin__in=pins).values_list("pin", flat=True))) if pins else []     # PIN diminta tapi tidak ada di HRIS
     fk_codes = set(AttendanceDevice.objects.filter(protocol="fk").values_list("code", flat=True)); fam_skip = [0]
     def _fp_fits(d, f, codes):
         """Template FK ≠ template ZK: hanya kirim jari yang berasal dari jenis mesin yang sama dengan tujuan."""
@@ -492,6 +496,7 @@ def upload_users(dev, pins=None, fingerprints=True):
     out.update(ok=not bad or sent > 0, users=sent, fingers=fps, failed=len(bad), skipped=skip)
     note = f"{sent} dari {len(items)} user dikirim, {fps} sidik jari."
     if skip: note += f" {skip} sidik jari dilewati (versi algoritma / jenis mesin FK-ZK beda dengan mesin ini)."
+    if missing: note += f" {len(missing)} PIN tidak ditemukan di HRIS: {', '.join(missing[:5])}{'…' if len(missing) > 5 else ''}."
     if bad: note += f" {len(bad)} gagal: " + "; ".join(bad[:3])
     out["note"] = note
     if not sent: out["ok"] = False

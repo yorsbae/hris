@@ -321,11 +321,13 @@ class ApplyPortsTests(TestCase):
 class FkListUsersTests(TestCase):
     """_list_users pada mesin ber-ID teks: argc FK_GetAllUserID_StringID tidak terbaca (None) tetap harus memakai jalur StringID (bug: 0 user padahal scanlog terbaca)."""
     class Dll:
-        def __init__(self, ids, argc_map): self.ids, self.i, self.argc_map = list(ids), 0, argc_map; self.FK_GetAllUserID_StringID = self._str
+        def __init__(self, ids, argc_map): self.ids, self.i, self.argc_map, self.num_done = list(ids), 0, argc_map, False; self.FK_GetAllUserID_StringID = lambda *a: self._str(*a)
         def FK_GetLogDataIsSupportStringID(self, h): return 0
         def FK_ReadAllUserID(self, h): self.i = 0; return 1
         def FK_GetLastError(self, h): return 1
-        def FK_GetAllUserID(self, h, *refs): refs[0]._obj.value = 0; return 1 if self.i < 1 else 0          # mesin ber-ID teks: jalur numerik hanya mengembalikan PIN 0
+        def FK_GetAllUserID(self, h, *refs):                                                                 # mesin ber-ID teks: jalur numerik hanya mengembalikan SATU PIN 0 lalu habis
+            if self.num_done: return 0
+            self.num_done = True; refs[0]._obj.value = 0; return 1
         def _str(self, h, pp, bk, pv, en):
             if self.i >= len(self.ids): return 0
             pin, b = self.ids[self.i]; ctypes.memmove(pp._obj.value, pin.encode(), len(pin)); bk._obj.value = b; pv._obj.value = 0; en._obj.value = 1; self.i += 1; return 1

@@ -18,7 +18,7 @@ from apps.core.scope import get_scoped_or_404, require_roles, scope_by_departmen
 from . import attendance_calc as calc, attendance_check as checks, attendance_import as imp
 from .attendance_reports import STATUS_FILTERS, STATUS_LABELS, _shift_label
 from .views import SHIFT_GROUP_FILTERS, apply_shift_filter
-from .models import AttendanceCheck, AttendanceDaily as AD, AttendanceImport, AttendancePin, AttendanceRaw, Department, Employee, Holiday, Shift
+from .models import AttendanceCheck, AttendanceDaily as AD, AttendanceImport, AttendancePin, AttendanceRaw, Department, DeviceUser, Employee, Holiday, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))
 hrd = lambda fn: login_required(require_roles(Role.HRD)(fn))
@@ -251,7 +251,7 @@ def pins(request):
                 n, scans, pairs = imp.apply_name_matches(request.user)
                 for pin, e in pairs: _reprocess_scans(e, pin)
                 log(request, "hr", "attendance_pin_auto_name", None, None, {"pins": n, "scans": scans})
-                messages.success(request, f"{n} PIN dipetakan otomatis berdasarkan nama ({scans} scan terhubung)." if n else "Tidak ada PIN yang namanya cocok tepat satu karyawan. Jalankan 'Download user' dari mesin dulu agar nama tersedia.")
+                messages.success(request, f"{n} PIN dipetakan otomatis berdasarkan nama ({scans} scan terhubung)." if n else "Tidak ada PIN yang namanya cocok tepat satu karyawan (dan karyawannya belum punya PIN). Jalankan 'Download user' dari mesin dulu agar nama tersedia.")
             elif act == "move":
                 e = Employee.objects.filter(nik=request.POST.get("nik", "").strip()).first()
                 if not e: raise ValueError("NIK tujuan tidak ditemukan.")
@@ -268,10 +268,15 @@ def pins(request):
         if res is None: return redirect("att_pins")
     qs = AttendancePin.objects.select_related("employee__department").order_by("pin")
     if g.get("q", "").strip(): q = g["q"].strip()[:40]; qs = qs.filter(Q(pin__icontains=q) | Q(employee__nik__icontains=q) | Q(employee__name__icontains=q))
-    orphans = list(AttendanceRaw.objects.filter(employee__isnull=True).values("pin").annotate(n=Count("id"), last=Max("punched_at")).order_by("-n")[:50])
-    sug = imp.name_suggestions([o["pin"] for o in orphans])
-    for o in orphans: o["sug"] = sug.get(o["pin"], {})
-    return render(request, "attendance/pins.html", {"page": Paginator(qs, 50).get_page(g.get("page", 1)), "orphans": orphans, "q": g.get("q", ""), "res": res,
+    src = g.get("src") if g.get("src") in dict(AttendancePin.SOURCES) else ""
+    if src: qs = qs.filter(source=src)
+    origin = g.get("origin") if g.get("origin") in ("scan", "noscan") else ""; match = g.get("match") if g.get("match") in ("ok", "ambigu", "tidak ada", "tanpa nama") else ""
+    unm_all = imp.unmapped_pins(); unm = imp.unmapped_pins(g.get("q", ""), origin, match) if (g.get("q", "").strip() or origin or match) else unm_all
+    stat = {"unmapped": len(unm_all), "scan": sum(1 for r in unm_all if r["in_scan"]), "noscan": sum(1 for r in unm_all if not r["in_scan"]), "auto": sum(1 for r in unm_all if r["sug"].get("status") == "ok"),
+            "mapped": AttendancePin.objects.count(), "users": DeviceUser.objects.count()}
+    keep = g.copy(); keep.pop("upage", None); keep.pop("page", None); nfilter = sum(1 for k in ("q", "src", "origin", "match") if g.get(k))
+    return render(request, "attendance/pins.html", {"page": Paginator(qs, 50).get_page(g.get("page", 1)), "unm": Paginator(unm, 50).get_page(g.get("upage", 1)), "unm_total": len(unm), "stat": stat, "q": g.get("q", ""),
+                                                    "res": res, "src": src, "origin": origin, "match": match, "nfilter": nfilter, "keep": keep.urlencode(), "sources": AttendancePin.SOURCES,
                                                     "no_pin": Employee.objects.exclude(status="nonaktif").exclude(pins__isnull=False).count()})
 
 
