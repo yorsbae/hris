@@ -6,7 +6,7 @@
 .hlp .btn{margin:0}
 .hl-years{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 14px}.hl-years .cur{background:var(--ac);color:#fff!important;border-color:var(--ac)}
 .hl-stats{display:flex;gap:6px 20px;flex-wrap:wrap;color:var(--mu);font-size:14px;margin:0 0 12px}.hl-stats b{color:var(--tx,inherit)}
-.hl-add{max-width:760px;margin:0 0 20px;padding:16px 18px}.hl-add h3{margin:0 0 14px;font-size:17px}
+.hl-add{width:100%;max-width:none;margin:0 0 20px;padding:18px 22px}.hl-cols{display:grid;grid-template-columns:minmax(280px,380px) minmax(0,1fr);gap:8px 32px;align-items:start}.hl-cols .hl-sec{margin:0 0 12px}.hl-cols .hl-grid{grid-template-columns:1fr}.hl-foot{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--bd);padding-top:14px;margin-top:4px}.hl-foot .hint{margin:0}.hl-flow{margin:0 0 14px}.hl-add h3{margin:0 0 14px;font-size:17px}
 .hl-sec{margin:0 0 16px}.hl-sec>.hl-h{font-size:14px;font-weight:600;margin:0 0 8px}.hl-sec>.hl-h i{font-style:normal;display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:var(--ac);color:#fff;font-size:12px;margin-right:8px}
 .hl-grid{display:grid;grid-template-columns:150px minmax(0,1fr) 190px;gap:10px 12px}.hl-grid label{display:block;font-size:13px;color:var(--mu);margin:0 0 4px;font-weight:500}.hl-grid input:not([type=checkbox]),.hl-grid select{width:100%}
 .hl-modes{display:flex;flex-direction:column;gap:8px}
@@ -18,36 +18,31 @@
 .hl-dept .roster label{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:14px;margin:0}.hl-prem .help{margin:4px 0 0 24px}
 table.hl td{vertical-align:top}table.hl td small{display:block;color:var(--mu);font-size:12px;margin-top:2px}table.hl tr.past td{color:var(--mu)}table.hl tr.off td:not(.hl-acts){opacity:.6}
 td.hl-acts{white-space:nowrap;text-align:right}td.hl-acts form{display:inline;margin:0}td.hl-acts .btn{margin:0 0 0 6px;padding:4px 10px;font-size:13px;min-height:30px}
-tr.hl-edit td{background:var(--hov);padding:16px}tr.hl-edit[hidden]{display:none}.hl-edit .hl-form{max-width:700px}.hl-edit h4{margin:0 0 10px;font-size:15px}
+tr.hl-edit td{background:var(--hov);padding:16px}tr.hl-edit[hidden]{display:none}.hl-edit .hl-form{max-width:900px}.hl-edit h4{margin:0 0 10px;font-size:15px}
 .hl-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+@media(max-width:1000px){.hl-cols{grid-template-columns:1fr}}
 @media(max-width:640px){.hl-grid{grid-template-columns:1fr}td.hl-acts{white-space:normal;text-align:left}}
 </style>
 <div class="hlp">
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Hari libur {{ year }}</h2>
 <p class="sub">Atur tanggal merah dan libur perusahaan. Setiap hari libur punya <strong>pola</strong>: siapa yang libur dan siapa yang tetap masuk.</p>
-<details class="quick"><summary>Cara mengatur</summary>
-<ol class="hint" style="margin-top:8px">
-<li>Isi tanggal dan nama, lalu pilih satu <strong>pola libur</strong>:
-<br>• <strong>Libur total</strong>: semua karyawan libur.
-<br>• <strong>Harian masuk, bulanan libur</strong>: pola yang paling sering dipakai saat pabrik tetap jalan.
-<br>• <strong>Harian masuk, bulanan sebagian masuk</strong>: pilih departemen Bulanan mana yang masuk, sisanya libur.
-<br>• <strong>Semua masuk</strong>: tidak ada yang libur.</li>
-<li>Status Harian atau Bulanan diambil dari data karyawan (kolom Status karyawan).</li>
-<li>Yang masuk dihitung Hari Libur di Payroll, kecuali centang dimatikan.</li>
-<li>Setelah menambah atau mengubah, olah ulang rekap tanggal itu (Absensi → Lainnya → Olah ulang rekap).</li>
-<li>Hari libur yang sudah lewat tidak bisa dihapus, hanya dinonaktifkan, agar rekap lama tetap bisa ditelusuri.</li>
-</ol></details>
+<div class="hint flow hl-flow"><ol class="flowsteps">
+<li><i>1</i><span><b>Tambah hari libur</b><br>Isi tanggal, nama, jenis, lalu pilih pola siapa yang libur dan siapa yang tetap masuk.</span></li>
+<li><i>2</i><span><b>Olah ulang rekap</b><br>Absensi → Lainnya → Olah ulang rekap untuk tanggal itu, agar status hadir/alfa ikut berubah.</span></li>
+<li><i>3</i><span><b>Dampak ke Payroll</b><br>Yang tetap masuk dihitung Hari Libur (lembur/premi) bila kotak centang aktif; yang libur tanpa scan bukan alfa.</span></li>
+</ol>
+<p class="hint" style="margin:10px 0 0">Status <b>Harian</b> atau <b>Bulanan</b> diambil dari data karyawan. Hari libur yang sudah lewat tidak bisa dihapus, hanya dinonaktifkan, agar rekap lama tetap bisa ditelusuri.</p></div>
 <div class="hl-years"><a class="btn ghost" href="?year={{ year|add:'-1' }}">‹ {{ year|add:"-1" }}</a><a class="btn ghost cur" href="?year={{ year }}" aria-current="page">{{ year }}</a><a class="btn ghost" href="?year={{ year|add:'1' }}">{{ year|add:"1" }} ›</a></div>
 
 <form method="post" class="card hl-add">{% csrf_token %}<input type="hidden" name="action" value="add">
 <h3>Tambah hari libur</h3>
-<div class="hl-sec"><div class="hl-h"><i>1</i>Tanggal dan nama</div><div class="hl-grid">
+<div class="hl-cols"><div class="hl-sec"><div class="hl-h"><i>1</i>Tanggal dan nama</div><div class="hl-grid">
 <div><label for="hl-date">Tanggal</label><input id="hl-date" type="date" name="date" required></div>
 <div><label for="hl-name">Nama hari libur</label><input id="hl-name" name="name" placeholder="mis. Idul Fitri" required maxlength="100"></div>
 <div><label for="hl-kind">Jenis</label><select id="hl-kind" name="kind">{% for k, v in kinds %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div></div></div>
-<div class="hl-sec"><div class="hl-h"><i>2</i>Pola libur</div>{% include "attendance/_holiday_duty.html" %}</div>
-<button class="btn" type="submit">+ Tambah hari libur</button></form>
+<div class="hl-sec"><div class="hl-h"><i>2</i>Pola libur: siapa yang libur, siapa yang masuk</div>{% include "attendance/_holiday_duty.html" %}</div></div>
+<div class="hl-foot"><button class="btn" type="submit">+ Tambah hari libur</button><span class="hint">Setelah disimpan, jangan lupa olah ulang rekap tanggal tersebut.</span></div></form>
 
 <p class="hl-stats"><span><b>{{ stats.total }}</b> hari libur</span><span><b>{{ stats.aktif }}</b> aktif</span><span><b>{{ stats.akan }}</b> akan datang</span><span><b>{{ stats.berangkat }}</b> ada yang tetap masuk</span></p>
 <div class="wrap"><table class="sepfit hl"><thead><tr><th>Tanggal</th><th>Nama</th><th>Pola libur</th><th>Status</th><th class="acts">Aksi</th></tr></thead><tbody>

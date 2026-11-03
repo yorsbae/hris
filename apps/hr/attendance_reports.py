@@ -284,7 +284,7 @@ def control(request):
         return tabular.export_response(f"kontrol-absensi-{d1}-{d2}", head, data, request, sheet="Kontrol", num_cols=tuple(range(1, 11)))
     ctx = {"rows": rows, "tot": tot, "d1": d1, "d2": d2, "qdate": qdate, "is_admin": is_admin, "qs": _qs_without(g, "export", "format")}
     if not is_admin:
-        _, unknown, idle = device_status(); ctx.update(idle=idle, unknown_dev=unknown, last_scan=_latest_scan_date())
+        ctx.update(last_scan=_latest_scan_date())  # notifikasi mesin diam / belum terdaftar dihapus dari halaman ini; tetap ada di menu Mesin & Impor
     return render(request, "attendance/control.html", ctx)
 
 
