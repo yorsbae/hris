@@ -246,6 +246,7 @@ document.addEventListener("click",function(e){var t=e.target.closest&&e.target.c
 document.addEventListener("keydown",function(e){if(e.key==="Escape"){setNav(false);var u=document.querySelector(".um[open]");if(u)u.removeAttribute("open")}});
 document.addEventListener("submit",function(e){var f=e.target,s=e.submitter;if(f.method&&f.method.toLowerCase()!=="post")return;
 if(s&&s.classList.contains("danger")&&!window.confirm("Yakin melanjutkan tindakan ini? Tindakan tercatat di audit dan tidak dapat dibatalkan dari layar ini.")){e.preventDefault();return}
+if(s&&s.dataset&&s.dataset.confirm&&!window.confirm(s.dataset.confirm)){e.preventDefault();return}
 if(f.dataset.locked){e.preventDefault();return}f.dataset.locked="1";if(s){s.classList.add("busy");setTimeout(function(){s.disabled=true},0)}});
 window.addEventListener("pageshow",function(e){if(e.persisted)document.querySelectorAll("form[data-locked]").forEach(function(f){delete f.dataset.locked;f.querySelectorAll("button.busy").forEach(function(b){b.classList.remove("busy");b.disabled=false})})});
 })();

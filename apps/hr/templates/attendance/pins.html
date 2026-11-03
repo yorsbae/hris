@@ -9,7 +9,17 @@
 .fu .tabs a[aria-current=page]{border-bottom-color:var(--pri,#0b57d0);font-weight:600}.fu .tabs a small{display:inline;color:var(--mu,#666);margin-left:4px}
 .fu .chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--bd);border-radius:99px;padding:2px 10px;font-size:13px;background:var(--card)}
 .fu tr.off td{opacity:.62}.fu td small{display:block;color:var(--mu,#666)}.fu td.ck,.fu th.ck{width:2rem;text-align:center}
-.fu .menu{display:grid;gap:4px;padding:6px 0;min-width:10rem}.fu .menu form{margin:0}.fu .menu .btn{width:100%;text-align:left;margin:0}
+.fu .menu{display:grid;gap:2px;padding:6px;min-width:12rem}.fu .menu form{margin:0}
+.fu .menu .btn,.fu .menu button{display:block;width:100%;text-align:left;margin:0;height:auto;min-height:0;line-height:1.3;padding:8px 12px;border:0;border-radius:6px;background:transparent;box-shadow:none;color:var(--tx);font-size:13.5px;font-weight:500;cursor:pointer}
+.fu .menu .btn:hover,.fu .menu button:hover{background:var(--hov)}.fu .menu .btn.danger-item{color:#d92d20}.fu .menu hr{border:0;border-top:1px solid var(--bd);margin:4px 0}
+details.more>div.menu.pop{position:fixed;z-index:200;margin:0;background:var(--card);opacity:1;box-shadow:0 12px 32px rgba(16,24,40,.24)}
+.fu dialog{border:1px solid var(--bd2);border-radius:14px;background:var(--card);color:var(--tx);padding:0;width:min(460px,94vw);max-height:90vh;box-shadow:0 20px 50px rgba(16,24,40,.35)}
+.fu dialog::backdrop{background:rgba(16,24,40,.5)}
+.fu dialog .dg{display:grid;gap:14px;padding:22px 24px}.fu dialog .dg h3{margin:0;font-size:18px;line-height:1.3}
+.fu dialog .dg label{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--tx);margin:0}
+.fu dialog .dg label.row{display:flex;gap:8px;align-items:center;font-weight:400;font-size:14px}.fu dialog .dg input:not([type=checkbox]):not([type=hidden]),.fu dialog .dg select{width:100%;min-height:38px;font-weight:400}
+.fu dialog .dg .hint{font-size:13px;line-height:1.45}.fu dialog .dg .jf{display:flex;gap:8px;justify-content:flex-end;padding-top:6px;border-top:1px solid var(--bd);margin-top:2px}
+.fu dialog .dg .btn.danger{background:#d92d20;border-color:#d92d20;color:#fff}
 .fu .pill + .pill{margin-left:4px}
 .fu .tb form#pfform{display:contents}.fu .tb .fchips{order:10;flex:1 1 100%}.fu .fcnt{color:var(--mu,#666);font-size:13px;margin:0 0 10px}
 /* tabel ramping: 1 data = 1 baris, muat di layar; bila layar sempit baru geser horizontal */
@@ -89,7 +99,7 @@
 {% if r.emp %}<button type="button" class="btn ghost" data-dlg="reason" data-action="move" data-pin="{{ r.pin }}" data-title="Pindahkan PIN {{ r.pin }} (salah orang)" data-nik="1" data-confirm="Semua scan PIN ini ikut pindah ke karyawan tujuan.">Pindahkan ke karyawan lain</button>
 <button type="button" class="btn ghost" data-dlg="reason" data-action="unlink" data-pin="{{ r.pin }}" data-title="Lepas pemetaan PIN {{ r.pin }}" data-confirm="Hanya bisa bila belum ada scan terhubung.">Lepas pemetaan</button>{% endif %}
 {% if r.state == "inactive" %}<form method="post">{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="pins" value="{{ r.pin }}"><button class="btn ghost" name="action" value="activate">Aktifkan kembali</button></form>
-{% if r.in_user %}<form method="post">{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="pins" value="{{ r.pin }}"><button class="btn ghost" name="action" value="delete" data-confirm="Hapus user {{ r.pin }} dari HRIS beserta template sidik jarinya? Pemetaan dan scan lama tidak berubah.">Hapus dari HRIS</button></form>{% endif %}
+{% if r.in_user %}<hr><button type="button" class="btn ghost danger-item" data-dlg="reason" data-action="delete" data-pin="{{ r.pin }}" data-noreason="1" data-submit="Hapus" data-title="Hapus PIN {{ r.pin }} dari HRIS" data-confirm="User dan template sidik jarinya dihapus dari HRIS. Pemetaan dan scan lama tidak berubah. Bila masih ada di mesin, hapus juga di mesin agar tidak terunduh kembali.">Hapus dari HRIS</button>{% endif %}
 {% else %}<button type="button" class="btn ghost" data-dlg="reason" data-action="deactivate" data-pin="{{ r.pin }}" data-title="Nonaktifkan PIN {{ r.pin }}" data-confirm="Tidak ikut Upload user ke mesin; pemetaan dan riwayat scan tetap.">Nonaktifkan</button>{% endif %}
 </div></details></td></tr>
 {% empty %}<tr><td class="empty" colspan="7">{% if nfilter %}Tidak ada user yang cocok dengan filter.{% elif stat.users == 0 %}Belum ada user mesin tersimpan. Jalankan <a href="{% url 'att_devices' %}">Download user</a> di halaman Mesin, atau tambah user manual.{% else %}Tidak ada data di kelompok ini.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
@@ -119,7 +129,7 @@
 
 <dialog id="rdlg" aria-labelledby="rttl"><form method="post" class="dg">{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="action"><input type="hidden" name="pin"><input type="hidden" name="pins"><h3 id="rttl"></h3>
 <label data-nikrow>NIK tujuan<input name="nik" list="empl" data-emp maxlength="20" autocomplete="off"></label>
-<label>Alasan (wajib)<input name="reason" required maxlength="150" autocomplete="off" placeholder="mis. karyawan keluar / PIN uji / salah orang"></label>
+<label data-reasonrow>Alasan (wajib)<input name="reason" required maxlength="150" autocomplete="off" placeholder="mis. karyawan keluar / PIN uji / salah orang"></label>
 <p class="hint" id="rnote" style="margin:0"></p>
 <div class="jf"><button type="button" class="btn ghost" data-close>Batal</button><button class="btn" type="submit">Lanjut</button></div></form></dialog>
 </div>
@@ -140,10 +150,16 @@ document.addEventListener('click',function(e){
   if(k==='user'){var u=$('#udlg'),edit=b.dataset.mode==='edit';openDlg(u,function(){var fm=$('form',u);fm.reset();$('#uttl').textContent=edit?'Ubah user '+b.dataset.pin:'Tambah user';
    fm.elements.action.value=edit?'user_edit':'user_add';fm.elements.pin.value=edit?b.dataset.pin:'';fm.elements.pin.readOnly=edit;fm.elements.name.value=edit?b.dataset.name:'';
    fm.elements.privilege.value=edit?b.dataset.priv:'0';fm.elements.card.value=edit?b.dataset.card:'';fm.elements.nik.value='';$$('input[name=link]',fm)[1].checked=!edit;if(det)det.open=false})}
-  else if(k==='reason'){var rd=$('#rdlg');openDlg(rd,function(){var fm=$('form',rd),a=b.dataset.action;fm.reset();fm.elements.action.value=a;fm.elements.pin.value=a==='deactivate'?'':b.dataset.pin;fm.elements.pins.value=a==='deactivate'?b.dataset.pin:'';
+  else if(k==='reason'){var rd=$('#rdlg');openDlg(rd,function(){var fm=$('form',rd),a=b.dataset.action;fm.reset();fm.elements.action.value=a;var bulkAct=(a==='deactivate'||a==='delete'||a==='activate');fm.elements.pin.value=bulkAct?'':b.dataset.pin;fm.elements.pins.value=bulkAct?b.dataset.pin:'';var rr=$('[data-reasonrow]',rd),nr=!!b.dataset.noreason;rr.style.display=nr?'none':'';fm.elements.reason.required=!nr;fm.elements.reason.disabled=nr;var sb=$('button[type=submit]',fm);sb.textContent=b.dataset.submit||'Lanjut';sb.classList.toggle('danger',a==='delete');
    $('#rttl').textContent=b.dataset.title;$('[data-nikrow]',rd).style.display=b.dataset.nik?'':'none';fm.elements.nik.required=!!b.dataset.nik;$('#rnote').textContent=b.dataset.confirm||'';if(det)det.open=false})}
   return}
  var ud=$('#udlg'),rd2=$('#rdlg');if(e.target===ud)ud.close();if(e.target===rd2)rd2.close()});
+/* menu Aksi: posisi fixed agar tidak terpotong tabel / tertimpa baris lain; hanya satu terbuka */
+function placeMenu(d){var m=$('.menu',d),sm=$('summary',d);if(!m||!sm)return;m.classList.add('pop');var r=sm.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
+ var left=Math.max(8,Math.min(r.right-w,window.innerWidth-w-8)),top=r.bottom+4;if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-4);m.style.left=left+'px';m.style.top=top+'px'}
+$$('details.more',box).forEach(function(d){d.addEventListener('toggle',function(){if(d.open){$$('details.more[open]',box).forEach(function(o){if(o!==d)o.open=false});placeMenu(d)}})});
+document.addEventListener('click',function(e){if(!e.target.closest('details.more'))$$('details.more[open]',box).forEach(function(o){o.open=false})});
+window.addEventListener('scroll',function(){$$('details.more[open]',box).forEach(function(o){o.open=false})},true);window.addEventListener('resize',function(){$$('details.more[open]',box).forEach(function(o){o.open=false})});
 bulk();
 })();</script>
 {% endblock %}
