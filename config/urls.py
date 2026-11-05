@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth
-from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, mcu_views as mcuv, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap, attendance_reports as ar, fingerspot_pages as fp
+from apps.hr import views as hr, request_views as rq, info_views as iv, emp_views as ev, doc_views as dv, import_views as iv2, mcu_views as mcuv, leave_views as lv, schedule_views as sv, attendance_views as av7, attendance_pages as ap, attendance_reports as ar, fingerspot_pages as fp, kpi_views as kp
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import health, lookup, search_views
@@ -49,6 +49,13 @@ urlpatterns = [
     path("absensi/mesin/cari/", ar.user_search, name="att_user_search"),   # pencarian user mesin / karyawan (nama, NIK, PIN) untuk kotak saran
     path("absensi/mesin/job/", ar.device_job, name="att_device_job"),   # satu aksi untuk satu mesin (JSON) — dipakai popup progres
     path("absensi/bulanan/", ap.monthly, name="att_monthly"),
+    path("kpi/", kp.overview, name="kpi_overview"),
+    path("kpi/absensi/", kp.attendance, name="kpi_attendance"),
+    path("kpi/sp/", kp.warnings, name="kpi_warnings"),
+    path("kpi/penilaian/", kp.reviews, name="kpi_reviews"),
+    path("kpi/penilaian/<int:pk>/", kp.review_form, name="kpi_review_form"),
+    path("kpi/karyawan/<int:pk>/", kp.employee, name="kpi_employee"),
+    path("kpi/departemen/", kp.departments, name="kpi_departments"),
     path("absensi/karyawan/<int:pk>/", ap.employee_month, name="att_employee"),
     path("absensi/olah/", ap.reprocess, name="att_process"),
     path("absensi/minta-validasi/", ap.ask_validation, name="att_ask"),

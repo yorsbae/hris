@@ -162,11 +162,12 @@ class RequestPhotoTests(TestCase):
         self.assertEqual(ChangeRequest.objects.count(), 0); self.assertContains(resp, "Maksimal 1 berkas")
         resp = self.sick([SimpleUploadedFile("kosong.png", b"")], submit=True); self.assertContains(resp, "kosong"); self.assertEqual(ChangeRequest.objects.count(), 0)
 
-    def test_files_ignored_for_types_that_need_no_proof(self):
+    def test_files_accepted_for_every_type(self):
+        """Dulu jenis non-izin mengabaikan berkas; kini semua jenis boleh melampirkan bukti (lihat test_attach_limits)."""
         self.client.force_login(self.hrd)
         d = Department.objects.create(code="X", name="Lain")
         self.client.post("/requests/new/", {"type": "mutasi_dept", "nik": "P01", "department": d.pk, "effective_date": "2026-12-01", "reason": "Penataan", "submit": "1", "photos": SimpleUploadedFile("a.png", PNG)})
-        self.assertEqual((ChangeRequest.objects.count(), RequestAttachment.objects.count()), (1, 0))
+        self.assertEqual((ChangeRequest.objects.count(), RequestAttachment.objects.count()), (1, 1))
 
     def test_add_photo_on_detail_only_while_open(self):
         self.client.force_login(self.adm); self.sick(submit=True); r = ChangeRequest.objects.get()

@@ -56,7 +56,7 @@
 <section class="tabpane" data-tab="riwayat" data-label="Riwayat">
 <h3>Riwayat</h3>
 <div class="wrap"><table><thead><tr><th>Efektif</th><th>Bidang</th><th>Dari</th><th>Menjadi</th><th>Oleh</th></tr></thead><tbody>
-{% for h in history %}<tr><td>{{ h.effective_date|date:"d M Y" }}</td><td>{{ h.field }}</td><td>{{ h.old_value|default:"-" }}</td><td>{{ h.new_value }}</td><td>{{ h.changed_by.get_username|default:"-" }}</td></tr>
+{% for h in history %}<tr><td>{{ h.effective_date|date:"d M Y" }}</td><td>{% if h.field == 'nik' %}NIK / PIN{% else %}{{ h.field }}{% endif %}</td><td>{{ h.old_value|default:"-" }}</td><td>{{ h.new_value }}</td><td>{{ h.changed_by.get_username|default:"-" }}</td></tr>
 {% empty %}<tr><td class="empty" colspan="5">Belum ada riwayat.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endif %}
 <script>(function(){var P=[].slice.call(document.querySelectorAll(".tabpane"));if(P.length<2)return;

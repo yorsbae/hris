@@ -28,6 +28,13 @@ def _absensi(full):
     return items
 
 
+def _kpi(full):
+    """Menu KPI: Ringkasan skor kedisiplinan + Penilaian Absensi (alfa/terlambat/saran SP); HRD juga SP Aktif & Per Departemen. Admin Dept: hanya departemennya (scope di server)."""
+    items = [("KPI", "/kpi/", "activity"), ("Penilaian Absensi", "/kpi/absensi/", "clock", True), ("Penilaian Atasan", "/kpi/penilaian/", "clipboard", True)]
+    if full: items += [("SP Aktif", "/kpi/sp/", "file", True), ("Per Departemen", "/kpi/departemen/", "users", True)]
+    return items
+
+
 def _ophrd():
     """Operasional HRD = menu + submenu (putaran 28). Induk membuka ringkasan /hrd/; tiap fungsi punya butir sendiri. Seragam (P5) pindah ke sini.
     BPJS tetap menu tersendiri (sudah bersubmenu sejak putaran 23). Hanya HRD & Superadmin."""
@@ -54,7 +61,7 @@ _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 
 def _groups(role):
     if role == Role.SUPERADMIN:
-        return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True),
+        return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True), *_kpi(True),
                            *_ophrd(), *_bpjs(), *_validasi(), *_order()]),
                 ("Payroll", _payroll()),
                 ("Situs & Rekrutmen (Superadmin)", _company()),
@@ -62,14 +69,14 @@ def _groups(role):
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
-        return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True),
+        return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True), *_kpi(True),
                         *_ophrd(), *_bpjs(), *_validasi(), *_order(), ("Master Data", "/master/department/", "sliders")]),
                 _INFO]
     if role == Role.PAYROLL:
         return [("Payroll", _payroll()), _INFO]
     if role == Role.DEPT_ADMIN:
         return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
-                                      *_req("Pengajuan & Monitoring", False), *_order(), *_absensi(False), *_validasi()]), _INFO]
+                                      *_req("Pengajuan & Monitoring", False), *_order(), *_absensi(False), *_kpi(False), *_validasi()]), _INFO]
     if role == Role.POLI:
         # Putaran 48: akun Poli = admin departemen Poli → menu "Pengajuan Departemen" (induk + submenu Izin & Cuti, Lembur, dst.); hanya departemen Poli (scope di server)
         return [("Poli", [_DASH, ("Data Pasien/Karyawan", "/employees/", "users")] + _poli(True)),

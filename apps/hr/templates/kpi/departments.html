@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}KPI - Per Departemen{% endblock %}{% block content %}
+<h2>KPI per departemen: {{ mlabel }}</h2>
+{% include "kpi/_head.html" with sub="Rata-rata skor kedisiplinan, persentase hadir, alfa, keterlambatan, dan jumlah karyawan ber-SP per departemen. Urut dari skor terendah." %}
+<div class="sepkpi"><span><b>{{ tot.avg|default:"-" }}</b> rata-rata skor</span><span><b>{{ tot.n }}</b> karyawan</span><span><b>{{ tot.alfa }}</b> alfa</span><span><b>{{ tot.sp }}</b> ber-SP</span></div>
+<div class="tools">{% include "kpi/_how.html" %}</div>
+<form method="get" data-fbar class="bar"><input type="month" name="month" value="{{ month }}" aria-label="Bulan"></form>
+{% if items %}<div class="wrap"><table class="sepfit"><thead><tr><th>Departemen</th><th>Karyawan</th><th>Rata-rata skor</th><th>% Hadir</th><th>Alfa</th><th>Terlambat</th><th>Ber-SP</th></tr></thead><tbody>
+{% for x in items %}<tr><td>{{ x.name }}</td><td class="num">{{ x.n }}</td><td class="num">{% if x.avg is None %}-{% else %}{{ x.avg }}{% endif %} <span class="pill {{ x.pill }}">{{ x.grade }}</span></td><td class="num">{% if x.pct_hadir is None %}-{% else %}{{ x.pct_hadir }}%{% endif %}</td><td class="num">{{ x.alfa }}</td><td class="num">{{ x.terlambat }}</td><td class="num">{{ x.sp }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p class="empty">Belum ada rekap absensi untuk {{ mlabel }}.</p>{% endif %}
+{% endblock %}

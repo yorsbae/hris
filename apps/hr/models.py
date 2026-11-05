@@ -659,3 +659,25 @@ class StaffOrder(models.Model):
     @property
     def pill(self): return {"menunggu": "pending", "acc": "approved", "ditolak": "rejected", "dibatalkan": "cancelled"}[self.status]
     def __str__(self): return f"{self.code} · {self.department} · {self.section} ×{self.qty}"
+
+
+class PerformanceReview(models.Model):
+    """Penilaian atasan bulanan (KPI SDM): 5 aspek perilaku kerja skala 1-5 + catatan. Satu karyawan satu penilaian per bulan (diubah, bukan ditumpuk).
+    Skor 0-100 = rata-rata x 20; digabung dengan skor kedisiplinan absensi di menu KPI (bobot di kpi.py)."""
+    ASPECTS = [("teamwork", "Kerja sama"), ("responsibility", "Tanggung jawab"), ("initiative", "Inisiatif"), ("quality", "Kualitas kerja"), ("compliance", "Kepatuhan prosedur & K3")]
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="reviews")
+    period = models.CharField(max_length=7, db_index=True)  # YYYY-MM
+    teamwork = models.PositiveSmallIntegerField(default=3); responsibility = models.PositiveSmallIntegerField(default=3); initiative = models.PositiveSmallIntegerField(default=3)
+    quality = models.PositiveSmallIntegerField(default=3); compliance = models.PositiveSmallIntegerField(default=3)
+    note = models.CharField(max_length=500, blank=True)
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True); updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-period", "employee_id"]
+        constraints = [models.UniqueConstraint(fields=["employee", "period"], name="uniq_review_employee_period"),
+                       models.CheckConstraint(name="review_scores_1_5", condition=models.Q(teamwork__gte=1, teamwork__lte=5, responsibility__gte=1, responsibility__lte=5, initiative__gte=1,
+                                              initiative__lte=5, quality__gte=1, quality__lte=5, compliance__gte=1, compliance__lte=5))]
+
+    @property
+    def score(self): return round(sum(getattr(self, k) for k, _ in self.ASPECTS) * 20 / len(self.ASPECTS))

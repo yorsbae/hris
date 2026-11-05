@@ -20,7 +20,7 @@ server {
     ssl_certificate_key /etc/ssl/hris/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     server_tokens off;
-    client_max_body_size 10m;                   # unggahan maks 5 MB (+ overhead form); impor CSV/XLSX 5 MB
+    client_max_body_size 110m;                  # >= REQUEST_ATTACH_MAX_TOTAL_MB (100) + overhead form; kalau lebih kecil, Nginx memotong unggahan bukti dengan 413 sebelum Django sempat menampilkan pesan
     limit_conn hris_conn 30;
 
     location = /login/        { limit_req zone=hris_login burst=5 nodelay;  include /etc/nginx/hris_proxy.conf; }

@@ -443,7 +443,9 @@ def warning_list(request):
 
 @hrd_only
 def warning_new(request):
-    form = WarningForm(request.POST or None)
+    initial = {k: request.GET[k][:2000] for k in ("nik", "violation", "description") if k in request.GET} if request.method == "GET" else None  # isian awal dari menu KPI
+    if initial is not None and request.GET.get("level") in ("1", "2", "3"): initial["level"] = int(request.GET["level"])
+    form = WarningForm(request.POST or None, initial=initial)
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
         with transaction.atomic():

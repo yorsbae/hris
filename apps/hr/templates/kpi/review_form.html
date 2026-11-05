@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Nilai {{ e.name }}{% endblock %}{% block content %}
+<p class="back"><a href="{% url 'kpi_reviews' %}?month={{ month }}">&lsaquo; Penilaian Atasan</a></p>
+<h2>Nilai {{ e.name }} <small>{{ e.nik }} &middot; {{ e.department|default:"-" }} &middot; {{ e.position|default:"-" }}</small></h2>
+<p class="sub">Periode {{ mlabel }}. Nilai 3 = sesuai harapan. Skor = rata-rata &times; 20.</p>
+<form method="post" class="card kform">{% csrf_token %}<input type="hidden" name="month" value="{{ month }}">
+<div class="scale"><span>1 = sangat kurang</span><span>5 = sangat baik</span></div>
+{% for k, label, val in aspects %}<div class="rate" role="radiogroup" aria-label="{{ label }}"><span class="lbl">{{ label }}</span><div class="opts">{% for n in "12345" %}<label><input type="radio" name="{{ k }}" value="{{ n }}"{% if val|stringformat:"s" == n %} checked{% endif %}><span>{{ n }}</span></label>{% endfor %}</div></div>{% endfor %}
+<div class="total"><span>Skor penilaian</span><b id="kscore">60</b><span class="pill pending" id="kgrade">C</span></div>
+<label for="id_note">Catatan (opsional)</label><input id="id_note" name="note" maxlength="500" value="{{ obj.note|default:'' }}" style="width:100%" placeholder="Contoh: sangat membantu tim saat target akhir bulan">
+<div class="acts"><button class="btn primary" type="submit">Simpan penilaian</button><a class="btn" href="{% url 'kpi_reviews' %}?month={{ month }}">Batal</a></div></form>
+<script>(function(){var f=document.querySelector(".kform"),sc=document.getElementById("kscore"),gr=document.getElementById("kgrade");function calc(){var t=0,n=0;f.querySelectorAll("input[type=radio]:checked").forEach(function(r){t+=+r.value;n++});if(!n)return;var s=Math.round(t*20/n);sc.textContent=s;var g=s>=90?["A","approved"]:s>=75?["B","approved"]:s>=60?["C","pending"]:["D","rejected"];gr.textContent=g[0];gr.className="pill "+g[1]}f.addEventListener("change",calc);calc()})()</script>
+{% endblock %}

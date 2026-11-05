@@ -121,18 +121,22 @@ def extra_work_new(request):
         payload = {"date": d["date"].isoformat(), "time": d["start"].strftime("%H:%M"), "time_to": d["end"].strftime("%H:%M"),
                    "minutes": form.minutes, "reason": d["reason"], "batch": batch}
         made = []
-        with transaction.atomic():
-            for e in form.people:
-                req = ChangeRequest.objects.create(type=d["kind"], employee=e, department=e.department, payload=payload, requested_by=request.user)
-                services.submit(req, request.user, notify=False); made.append(req)
-            if files:
-                attachments.save_batch(made, files, request.user)
-                log(request, "hr", "request_attach", None, None, {"batch": batch, "requests": len(made), "files": [{"name": f.name[:80], "size": f.size} for f in files]})
-            depts = ", ".join(sorted({e.department.name for e in form.people}))
-            notify.send((Role.HRD,), "request", f"{len(form.people)} pengajuan {d['kind']} {payload['date']} dari {depts} menunggu keputusan", f"/requests/g/lembur/?batch={batch}")
-            log(request, "hr", "extra_work_create", None, None, {"batch": batch, "type": d["kind"], "people": len(form.people), "date": payload["date"], "minutes": form.minutes})
-        messages.success(request, f"{len(form.people)} pengajuan {d['kind']} terkirim ke HRD. Pantau statusnya di halaman ini.")
-        return redirect(f"/requests/g/lembur/?batch={batch}")
+        try:
+            with transaction.atomic():
+                for e in form.people:
+                    req = ChangeRequest.objects.create(type=d["kind"], employee=e, department=e.department, payload=payload, requested_by=request.user)
+                    services.submit(req, request.user, notify=False); made.append(req)
+                if files:
+                    attachments.save_batch(made, files, request.user)
+                    log(request, "hr", "request_attach", None, None, {"batch": batch, "requests": len(made), "files": [{"name": f.name[:80], "size": f.size} for f in files]})
+                depts = ", ".join(sorted({e.department.name for e in form.people}))
+                notify.send((Role.HRD,), "request", f"{len(form.people)} pengajuan {d['kind']} {payload['date']} dari {depts} menunggu keputusan", f"/requests/g/lembur/?batch={batch}")
+                log(request, "hr", "extra_work_create", None, None, {"batch": batch, "type": d["kind"], "people": len(form.people), "date": payload["date"], "minutes": form.minutes})
+        except attachments.AttachmentError as e:
+            form.add_error(None, str(e))
+        else:
+            messages.success(request, f"{len(form.people)} pengajuan {d['kind']} terkirim ke HRD. Pantau statusnya di halaman ini.")
+            return redirect(f"/requests/g/lembur/?batch={batch}")
     roster = Employee.objects.filter(department=dept, status="aktif").select_related("position").order_by("name") if dept else []
     picked = set(request.POST.getlist("niks")) if request.method == "POST" else set()
     past, fut = window()

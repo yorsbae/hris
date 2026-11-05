@@ -104,6 +104,7 @@ SESSION_IDLE_TIMEOUT = env.int("SESSION_IDLE_MINUTES", 30) * 60     # 0 = nonakt
 THROTTLE_ZONES = {"api": (240, 60), "export": (20, 60), "upload": (30, 60)}  # {zona: (jumlah, detik)} per user+IP
 REQUEST_ATTACH_MAX_MB = env.int("REQUEST_ATTACH_MAX_MB", default=50)  # bukti pengajuan (foto/berkas): ukuran per berkas; ekstensi bebas (putaran 50)
 REQUEST_ATTACH_MAX_FILES = env.int("REQUEST_ATTACH_MAX_FILES", default=10)  # jumlah berkas per pengajuan
+REQUEST_ATTACH_MAX_TOTAL_MB = env.int("REQUEST_ATTACH_MAX_TOTAL_MB", default=100)  # jumlah ukuran semua berkas per pengajuan (samakan dengan client_max_body_size Nginx)
 import sys
 if "test" in sys.argv: THROTTLE_ZONES = {}  # cache LocMem dipakai bersama antartes (IP & pk user sama) → tes zona memakai override_settings
 CSP_POLICY = env("CSP_POLICY", default="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "

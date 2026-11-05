@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles, scope_by_department, get_scoped_or_404
-from .models import Employee, ChangeRequest, Contract, ShiftGroup
+from .models import AttendancePin, Employee, EmployeeHistory, ChangeRequest, Contract, ShiftGroup
 from . import services
 
 PUBLIC = ("id", "nik", "name", "department__name", "position__name", "status")
@@ -130,7 +130,8 @@ def _hrd_filters(qs, g, today):
 def _employee_qs(request):
     qs = scope_by_department(request.user, Employee.objects.select_related("department", "position"))
     q = request.GET.get("q", "").strip()
-    if q: qs = qs.filter(Q(name__icontains=q) | Q(nik__startswith=q))
+    if q: qs = qs.filter(Q(name__icontains=q) | Q(nik__startswith=q) | Q(pk__in=AttendancePin.objects.filter(pin__startswith=q).values("employee_id"))
+                         | Q(pk__in=EmployeeHistory.objects.filter(field="nik", old_value__startswith=q).values("employee_id")))  # NIK/PIN lama ikut dicari
     if request.GET.get("status"): qs = qs.filter(status=request.GET["status"])
     qs = apply_shift_filter(qs, request.GET.get("shift", ""))
     for param, col in (("department", "department_id"), ("position", "position_id")):

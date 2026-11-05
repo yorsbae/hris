@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import redirect, render
@@ -69,12 +70,18 @@ def request_new(request):
         errs = attachments.check(files)
         for e in errs: form.add_error(None, e)
         ok = not errs
+    req = None
     if ok:
         d = form.cleaned_data
-        req = ChangeRequest.objects.create(type=d["type"], employee=form.employee, department=form.employee.department,
-                                           payload=form.payload(), requested_by=request.user)
-        log(request, "hr", "request_create", req, None, {"type": req.type, "employee": form.employee.nik})
-        if files and req.type in attachments.ATTACH_TYPES: _save_attachments(request, req, files)  # bukti opsional; jenis lain mengabaikan berkas
+        try:
+            with transaction.atomic():  # pengajuan + bukti satu kesatuan: bukti gagal tersimpan (mis. disk penuh) = pengajuan tidak terbentuk setengah jadi
+                req = ChangeRequest.objects.create(type=d["type"], employee=form.employee, department=form.employee.department,
+                                                   payload=form.payload(), requested_by=request.user)
+                log(request, "hr", "request_create", req, None, {"type": req.type, "employee": form.employee.nik})
+                if files and req.type in attachments.ATTACH_TYPES: _save_attachments(request, req, files)
+        except attachments.AttachmentError as e:
+            form.add_error(None, str(e)); req = None
+    if req:
         if "submit" in request.POST:
             try: services.submit(req, request.user)
             except (PermissionError, ValueError) as e:
@@ -173,11 +180,13 @@ def request_attach(request, pk):
         messages.error(request, "Bukti tidak dapat ditambahkan pada pengajuan ini."); return redirect("request_detail", pk=pk)
     files = request.FILES.getlist("photos")
     if not files: messages.error(request, "Pilih foto/berkas terlebih dahulu."); return redirect("request_detail", pk=pk)
-    errs = attachments.check(files + list(req.attachments.all()))  # batas jumlah berlaku untuk total berkas pengajuan
+    errs = attachments.check(files, existing=list(req.attachments.all()))  # batas jumlah & total ukuran berlaku untuk seluruh berkas pengajuan
     if errs:
         for e in errs: messages.error(request, e)
         return redirect("request_detail", pk=pk)
-    _save_attachments(request, req, files)
+    try: _save_attachments(request, req, files)
+    except attachments.AttachmentError as e:
+        messages.error(request, str(e)); return redirect("request_detail", pk=pk)
     messages.success(request, f"{len(files)} berkas bukti ditambahkan.")
     return redirect("request_detail", pk=pk)
 

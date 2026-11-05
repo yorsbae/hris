@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}KPI - Penilaian Atasan{% endblock %}{% block content %}
+<h2>Penilaian Atasan: {{ mlabel }}</h2>
+{% include "kpi/_head.html" with sub="Penilaian perilaku kerja bulanan (kerja sama, tanggung jawab, inisiatif, kualitas kerja, kepatuhan prosedur & K3), skala 1-5. Digabung ke skor akhir KPI (30%)." %}
+<div class="sepkpi"><span><b>{{ n_done }}</b> sudah dinilai</span><span><b>{{ n_all }}</b> karyawan</span></div>
+<form method="get" data-fbar class="bar"><input type="month" name="month" value="{{ month }}" aria-label="Bulan">{% if not is_admin %}<select name="dept" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if dept == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}<select name="state" aria-label="Status"><option value="">Semua</option><option value="belum"{% if state == 'belum' %} selected{% endif %}>Belum dinilai</option><option value="sudah"{% if state == 'sudah' %} selected{% endif %}>Sudah dinilai</option></select></form>
+{% if page %}<div class="wrap"><table class="sepfit"><thead><tr><th>Karyawan</th><th>Jabatan</th><th>Skor</th><th>Catatan</th><th>Aksi</th></tr></thead><tbody>
+{% for x in page %}<tr><td><a href="{% url 'kpi_employee' x.e.pk %}?month={{ month }}">{{ x.e.name }}</a><small>{{ x.e.nik }} {{ x.e.department|default:"-" }}</small></td><td>{{ x.e.position|default:"-" }}</td><td class="num">{% if x.r %}<span class="pill approved">{{ x.r.score }}</span>{% else %}<span class="pill pending">belum</span>{% endif %}</td><td class="cut">{{ x.r.note|default:"" }}</td><td><a class="btn" href="{% url 'kpi_review_form' x.e.pk %}?month={{ month }}">{% if x.r %}Ubah{% else %}Nilai{% endif %}</a></td></tr>{% endfor %}</tbody></table></div>
+{% include "hrd/_pager.html" %}{% else %}<p class="empty">Tidak ada karyawan untuk filter ini.</p>{% endif %}
+{% endblock %}

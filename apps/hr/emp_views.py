@@ -108,11 +108,22 @@ def employee_new(request):
     return render(request, "employee_form.html", {"form": form, "title": "Karyawan baru", "shift_patterns": _shift_patterns()})
 
 
+def _nik_changed(request, e, old_nik, eff):
+    """NIK diganti pada karyawan yang SAMA: simpan NIK lama di riwayat, jadikan NIK lama & baru sebagai PIN (alias) milik karyawan ini, dan hubungkan
+    scan yatim kedua PIN. Scan yang ditarik dari mesin dengan PIN lama tetap masuk ke karyawan ini dan tampil dengan NIK baru (tanpa data ganda)."""
+    from .attendance_import import link_pin
+    EmployeeHistory.objects.create(employee=e, field="nik", old_value=old_nik, new_value=e.nik, effective_date=eff, changed_by=request.user)
+    for pin, note in ((old_nik, f"NIK lama (diganti ke {e.nik})"), (e.nik, "NIK baru")):
+        try: link_pin(request.user, pin, e, source="nik", note=note)
+        except ValueError as ex: messages.warning(request, f"PIN {pin} tidak dialiaskan: {ex}")
+
+
 @login_required
 @require_roles(*HRD_ROLES)
 def employee_edit(request, pk):
     e = get_scoped_or_404(request.user, Employee.objects.select_related("department", "position", "shift", "shift_group", "supervisor"), pk)
     before = _snap(e)  # ambil SEBELUM form dibuat: ModelForm mengubah instance saat validasi
+    old_nik = e.nik
     form = EmployeeForm(request.POST or None, instance=e)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
@@ -122,8 +133,9 @@ def employee_edit(request, pk):
                 if before[f] != after[f]:
                     EmployeeHistory.objects.create(employee=e, field=f, old_value=before[f], new_value=after[f], effective_date=eff, changed_by=request.user)
             b, a = _audit_diff(before, after)
+            if e.nik != old_nik: _nik_changed(request, e, old_nik, eff)
             if a: log(request, "hr", "employee_update", e, b, a)
-        messages.success(request, "Perubahan disimpan." if a else "Tidak ada perubahan.")
+        messages.success(request, "Perubahan disimpan." if a or e.nik != old_nik else "Tidak ada perubahan.")
         return redirect("employee_detail_page", pk=e.pk)
     return render(request, "employee_form.html", {"form": form, "title": f"Ubah {e.nik}", "e": e, "shift_patterns": _shift_patterns()})
 
