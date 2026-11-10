@@ -56,7 +56,13 @@ class Command(BaseCommand):
 
     @transaction.atomic   # gagal di tengah jalan → tidak meninggalkan data setengah jadi (yang memblokir seed berikutnya)
     def handle(self, *a, **o):
-        if not settings.FIELD_ENCRYPTION_KEY: raise CommandError("FIELD_ENCRYPTION_KEY belum diisi di .env (lihat .env.example); data sensitif karyawan terenkripsi.")
+        # Atomik: bila gagal di tengah jalan tidak ada sisa data "DM…" yang membuat seed tidak bisa diulang.
+        from django.db import transaction
+        with transaction.atomic():
+            return self._handle(*a, **o)
+
+    def _handle(self, *a, **o):
+        if not settings.FIELD_ENCRYPTION_KEY: raise CommandError("FIELD_ENCRYPTION_KEY belum diisi di .env (lihat .env.example). Buat: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" lalu tempel ke .env; atau jalankan scripts/setup_dev.sh")
         if len(o["password"]) < 10: raise CommandError("--password minimal 10 karakter")
         if hr.Employee.all_objects.filter(nik__startswith="DM").exists(): raise CommandError("Data demo sudah ada (NIK berawalan DM). Tidak ada yang diubah.")
         self.r, self.pw, self.today = random.Random(o["seed"]), o["password"], timezone.localdate()

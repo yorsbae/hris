@@ -1,6 +1,8 @@
 # HRIS & Poliklinik (Django + PostgreSQL, LAN)
 
 ## Menjalankan
+**Cepat (lokal/demo, SQLite):** `scripts/setup_dev.sh` — membuat `.env` (secret + `FIELD_ENCRYPTION_KEY` baru), `migrate`, lalu `seed_demo` (sudah termasuk `seed_company`). Tanpa `FIELD_ENCRYPTION_KEY`, `seed_demo` berhenti dengan pesan galat; `seed_demo` kini atomik (gagal = tidak ada data setengah jadi).
+
     python -m venv venv && . venv/bin/activate && pip install -r requirements.txt
     cp .env.example .env   # isi secret, DATABASE_URL, FIELD_ENCRYPTION_KEY (cara membuat: lihat .env.example)
     python manage.py migrate   # putaran 38: hrd/0011 (karyawan keluar, 1 tabel baru); putaran 30: hr/0010 (jenis pengajuan Stand By & Lembur; hanya pilihan kolom); putaran 26: hr/0009 (validasi kehadiran, 2 tabel baru); putaran 25: hrd/0008–0010 (stok seragam, isi ulang dari pembelian lama, stok minimum); putaran 24: poli/0005 (tagihan mitra); putaran 23: hrd/0006–0007 (seragam + data awal ukuran/jenis/tarif L 19.000 / P 17.000); putaran 22: hrd/0005 (potongan BPJS); putaran 21: core/0004 (kunci akun); putaran 11: core/0003 (wajib-ganti-sandi); putaran 10: poli/0002; stok obat lama: catat selisih lewat "Stok masuk"/"Penyesuaian" (lihat PROGRESS putaran 10)
