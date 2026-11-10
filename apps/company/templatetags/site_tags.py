@@ -181,44 +181,21 @@ def motif(context, obj, kind=""):
 
 
 @register.simple_tag(takes_context=True)
-def model_art(context, look):
-    """Ilustrasi model memakai setelan (peci, baju koko, sarung) untuk setelan yang belum punya foto asli. Tanpa wajah; warna sarung mengikuti produk pertama dalam setelan."""
-    prods = list(look.products.all()) if look is not None and look.pk else []
-    ref = next((p for p in prods if _shape_of(p) == "sarung"), prods[0] if prods else None)
-    key = f"{getattr(ref, 'motif', '')} {getattr(ref, 'colors', '')}".lower() if ref else ""
-    h = sum(ord(ch) for ch in (look.title_id if look else "")) + int(getattr(look, "pk", 0) or 0)
-    pal = _PAL[h % len(_PAL)]
-    for i, w in enumerate(("merah", "biru", "hijau", "cokelat", "emas", "ungu")):
-        if w in key: pal = _PAL[i]; break
-    a, b, c = pal
-    pat = 1 if "songket" in key else 2 if "garis" in key else 3 if "tumpal" in key else 0
-    u = f"ma{abs(h) % 100000}"
-    skin, shirt = "#c69a6d", "#f7f2e4"
-    label = conditional_escape(look.title_id if look else "")
+def tepak_art(context, obj):
+    """Ilustrasi kotak tepak sarung untuk tepak yang belum punya foto: kotak memanjang berpalet stabil dari nama, tutup bergaris emas, berlian di tengah (tanpa merek/teks)."""
+    name = getattr(obj, "name", "") or ""
+    h = sum(ord(ch) for ch in name) + int(getattr(obj, "pk", 0) or 0)
+    a, b, c = _PAL[h % len(_PAL)]
+    u = f"tp{abs(h) % 100000}"
+    label = conditional_escape(name)
     return mark_safe(
-        f'<svg class="motif model" viewBox="0 0 400 500" preserveAspectRatio="xMidYMax slice" role="img" aria-label="{label}" xmlns="http://www.w3.org/2000/svg">'
-        f'<defs><pattern id="{u}" width="40" height="40" patternUnits="userSpaceOnUse">{_PAT[pat].format(a=a, b=b, c=c)}</pattern>'
-        f'<pattern id="{u}l" width="56" height="56" patternUnits="userSpaceOnUse"><path d="M28 0L56 28 28 56 0 28Z" fill="none" stroke="{c}" stroke-width="1" opacity=".35"/></pattern>'
-        f'<linearGradient id="{u}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf3d4"/><stop offset="1" stop-color="#ecd88c"/></linearGradient>'
-        f'<linearGradient id="{u}s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".22"/><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></linearGradient></defs>'
-        f'<rect width="400" height="500" fill="url(#{u}b)"/><rect width="400" height="500" fill="url(#{u}l)"/>'
-        f'<ellipse cx="200" cy="474" rx="120" ry="12" fill="#000" opacity=".16"/>'
-        # kaki + sarung
-        f'<ellipse cx="172" cy="466" rx="20" ry="8" fill="{skin}"/><ellipse cx="228" cy="466" rx="20" ry="8" fill="{skin}"/>'
-        f'<path d="M138 292H262L274 458H126Z" fill="url(#{u})"/><path d="M138 292H262L274 458H126Z" fill="url(#{u}s)"/>'
-        f'<path d="M127 444H273" stroke="{c}" stroke-width="12"/><path d="M200 300V458" stroke="{b}" stroke-width="2" opacity=".45"/>'
-        f'<path d="M136 286H264V310H136Z" fill="{c}"/><path d="M136 298H264" stroke="{b}" stroke-width="2" opacity=".5"/>'
-        # baju koko
-        f'<path d="M110 232L118 300 144 292 152 206Z" fill="{shirt}" stroke="#d8cfb2" stroke-width="2"/><path d="M290 232L282 300 256 292 248 206Z" fill="{shirt}" stroke="#d8cfb2" stroke-width="2"/>'
-        f'<circle cx="124" cy="308" r="11" fill="{skin}"/><circle cx="276" cy="308" r="11" fill="{skin}"/>'
-        f'<path d="M144 168Q200 148 256 168L264 304H136Z" fill="{shirt}" stroke="#d8cfb2" stroke-width="2"/>'
-        f'<path d="M144 168L112 232 130 244 152 206" fill="{shirt}" stroke="#d8cfb2" stroke-width="2"/><path d="M256 168L288 232 270 244 248 206" fill="{shirt}" stroke="#d8cfb2" stroke-width="2"/>'
-        f'<path d="M180 160Q200 182 220 160" fill="none" stroke="{c}" stroke-width="3"/><path d="M200 172V304" stroke="{c}" stroke-width="2"/>'
-        f'<circle cx="200" cy="198" r="3" fill="{c}"/><circle cx="200" cy="226" r="3" fill="{c}"/><circle cx="200" cy="254" r="3" fill="{c}"/><circle cx="200" cy="282" r="3" fill="{c}"/>'
-        f'<path d="M222 210H248V238H222Z" fill="none" stroke="#d8cfb2" stroke-width="1.5"/>'
-        # leher, kepala, peci
-        f'<rect x="188" y="144" width="24" height="28" rx="8" fill="{skin}"/><circle cx="200" cy="112" r="34" fill="{skin}"/>'
-        f'<path d="M164 100L170 66Q200 54 230 66L236 100Q200 110 164 100Z" fill="#161616"/><path d="M165 96Q200 106 235 96" fill="none" stroke="{c}" stroke-width="5"/></svg>')
+        f'<svg class="motif tepak" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid slice" role="img" aria-label="{label}" xmlns="http://www.w3.org/2000/svg">'
+        f'<defs><pattern id="{u}" width="24" height="24" patternUnits="userSpaceOnUse"><rect width="24" height="24" fill="{a}"/><path d="M12 2l10 10-10 10L2 12z" fill="none" stroke="{c}" stroke-width="1" opacity=".45"/></pattern>'
+        f'<linearGradient id="{u}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient></defs>'
+        f'<rect width="320" height="240" fill="#e9e5de"/><ellipse cx="160" cy="206" rx="118" ry="9" fill="#000" opacity=".14"/>'
+        f'<rect x="36" y="58" width="248" height="140" rx="4" fill="url(#{u})"/><rect x="36" y="58" width="248" height="140" rx="4" fill="url(#{u}g)"/>'
+        f'<rect x="36" y="58" width="248" height="14" fill="{b}"/><rect x="36" y="184" width="248" height="14" fill="{b}"/><path d="M36 72H284M36 184H284" stroke="{c}" stroke-width="2"/>'
+        f'<path d="M160 88l34 40-34 40-34-40z" fill="{c}"/><path d="M160 104l18 24-18 24-18-24z" fill="{b}"/><rect x="36" y="58" width="248" height="140" rx="4" fill="none" stroke="{c}" stroke-width="2"/></svg>')
 
 
 @register.simple_tag(takes_context=True)

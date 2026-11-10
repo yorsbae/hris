@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}{{ a.tag }}{% endblock %}{% block content %}
+<p class="back"><a href="/it/assets/">‹ Aset</a></p><h2>{{ a.tag }} · {{ a.name }} <a class="btn ghost" href="/it/assets/{{ a.pk }}/ubah/">Ubah</a></h2>
+<div class="card"><p>{{ a.get_category_display }}{% if a.brand %} · {{ a.brand }}{% endif %}{% if a.serial %} · SN {{ a.serial }}{% endif %}</p>
+<p>Status: <span class="pill {% if a.status == 'dipakai' %}approved{% elif a.status == 'perbaikan' %}pending{% endif %}">{{ a.get_status_display }}</span> · Pemegang: {{ a.assignee|default:"—" }} · Departemen: {{ a.department|default:"—" }} · Lokasi: {{ a.location|default:"—" }}</p>
+<p>Beli: {{ a.purchase_date|date:"d-m-Y"|default:"—" }} · Garansi s/d: {{ a.warranty_until|date:"d-m-Y"|default:"—" }}{% if a.warranty_flag %} <span class="pill {% if a.warranty_flag == 'lewat' %}rejected{% else %}pending{% endif %}">{{ a.warranty_flag }}</span>{% endif %}</p>
+<form method="post" class="bar">{% csrf_token %}<select name="status" aria-label="Status baru">{% for v, l in statuses %}<option value="{{ v }}"{% if a.status == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select><input name="note" placeholder="Catatan (opsional)" maxlength="300"><button>Ubah status</button></form></div>
+<h3>Alamat IP</h3><p>{% for i in ips %}<a class="lkb" href="/it/ip/{{ i.subnet_id }}/">{{ i.address }}</a> {% empty %}<span class="hint">Belum ada IP terkait.</span>{% endfor %}</p>
+<h3>Tiket terkait</h3><p>{% for t in tickets %}<a class="lkb" href="/it/tickets/{{ t.pk }}/">{{ t.title }}</a> {% empty %}<span class="hint">Tidak ada.</span>{% endfor %}</p>
+<h3>Riwayat</h3><div class="wrap"><table><tbody>{% for e in events %}<tr><td class="nw">{{ e.at|date:"d-m-Y H:i" }}</td><td>{{ e.action }}</td><td>{{ e.detail }}</td><td>{{ e.by|default:"" }}</td></tr>{% empty %}<tr><td class="empty">Belum ada riwayat.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

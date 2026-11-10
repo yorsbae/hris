@@ -8,7 +8,7 @@ from django.conf import settings
 from django.core import signing
 from django.core.exceptions import ValidationError
 from . import safe_upload
-from .models import (EDUCATION, HEX_RE, Article, ContactMessage, Faq, Job, Look, Motif, Page, Product, ProductCategory, ProductColor, ProductImage, SiteSetting, StoreLocation)
+from .models import (EDUCATION, HEX_RE, Article, ContactMessage, Faq, Job, Motif, Page, Product, ProductCategory, ProductColor, ProductImage, SiteSetting, StoreLocation, Tepak)
 
 MAX_QUESTIONS = 8
 HP = re.compile(r"^[0-9+()\-\s]{6,25}$")
@@ -91,16 +91,11 @@ class ProductForm(ImageMixin, forms.ModelForm):
         return d
 
 
-class LookForm(ImageMixin, forms.ModelForm):
-    image_fields = ("photo",)
+class TepakForm(ImageMixin, forms.ModelForm):
+    image_fields = ("image",)
     class Meta:
-        model = Look
+        model = Tepak
         exclude = ("created_at", "updated_at", "updated_by", "slug")
-        widgets = {"story_id": forms.Textarea(attrs={"rows": 4}), "story_en": forms.Textarea(attrs={"rows": 4}), "products": forms.CheckboxSelectMultiple}
-
-    def __init__(self, *a, **k):
-        super().__init__(*a, **k)
-        self.fields["products"].queryset = Product.objects.select_related("category__parent").order_by("category__parent__order", "category__order", "order", "name")
 
 
 class MotifForm(ImageMixin, forms.ModelForm):

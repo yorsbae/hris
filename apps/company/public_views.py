@@ -24,7 +24,7 @@ from apps.core.net import client_ip
 from . import careers, safe_upload
 from .forms import ApplyForm, ContactForm, LookupForm, stamp
 from .i18n import CONSENT_EN, CONSENT_ID, UI
-from .models import (Application, Article, ContactMessage, Faq, Job, JobStatus, Look, Motif, Page, Product, ProductCategory, SiteSetting, StoreLocation, Stage, Status,
+from .models import (Application, Article, ContactMessage, Faq, Job, JobStatus, Motif, Page, Product, ProductCategory, SiteSetting, StoreLocation, Stage, Status, Tepak,
                      hash_ip, STAGE_PUBLIC)
 
 MONTHS = {"id": ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"],
@@ -119,14 +119,8 @@ def home(request):
     arts = pub(Article.objects.all(), request)[:3]
     stores = StoreLocation.objects.filter(active=True)[:3]
     jobs = pub(Job.objects.all(), request, "status", JobStatus.OPEN)[:3]
-    looks = list(look_qs(request).filter(featured=True)[:1]) or list(look_qs(request)[:1])
-    return respond(request, "site/home.html", ctx(request, featured=prods, mq=mq, mqc=mqc, articles=arts, stores=stores, jobs=jobs, looks=looks))
-
-
-def look_qs(request):
-    """Setelan terbit (draf ikut tampil di pratinjau) beserta produknya, siap dirender tanpa query tambahan per baris."""
-    prod = pub(Product.objects.select_related("category__parent"), request)
-    return pub(Look.objects.all(), request).prefetch_related(Prefetch("products", queryset=prod))
+    tmq, tmqc = marquee(pub(Tepak.objects.all(), request).select_related("product"))
+    return respond(request, "site/home.html", ctx(request, featured=prods, mq=mq, mqc=mqc, tmq=tmq, tmqc=(tmqc + " rev").strip(), articles=arts, stores=stores, jobs=jobs))
 
 
 def _tree(request):
@@ -180,8 +174,7 @@ def product(request, slug):
         if len(rel) < 3 and p.category.parent_id:   # kurang? lengkapi dari kelompok yang sama
             more = pub(Product.objects.exclude(pk__in=[p.pk, *(r.pk for r in rel)]).filter(category__parent_id=p.category.parent_id), request).select_related("category__parent")
             rel += list(more[:3 - len(rel)])
-    looks = list(look_qs(request).filter(products=p)[:3])
-    return respond(request, "site/product.html", ctx(request, p=p, related=rel, gallery=p.images.all(), looks=looks, colors=list(p.color_options.all()), title=p.name))
+    return respond(request, "site/product.html", ctx(request, p=p, related=rel, gallery=p.images.all(), colors=list(p.color_options.all()), title=p.name))
 
 
 def motif_page(request, slug):
@@ -194,9 +187,12 @@ def motif_page(request, slug):
     return respond(request, "site/motif.html", c)
 
 
-def lookbook(request):
+def tepak(request):
+    """Halaman Tepak Sarung: pita kartu kotak kemasan yang bergeser OTOMATIS KE KIRI (kebalikan pita Koleksi di beranda yang bergeser ke kanan)."""
     lang = lang_of(request)
-    return respond(request, "site/looks.html", ctx(request, looks=list(look_qs(request)), title=ui(lang, "lookbook")))
+    items = list(pub(Tepak.objects.all(), request).select_related("product"))
+    mq, mqc = marquee(items)
+    return respond(request, "site/tepak.html", ctx(request, items=items, mq=mq, mqc=(mqc + " rev").strip(), title=ui(lang, "tepak"), description=ui(lang, "tepak_intro")))
 
 
 def page(request, slug):
@@ -228,13 +224,17 @@ def articles(request):
     label = ""
     if y and m and 1 <= m <= 12:
         qs = qs.filter(published_at__year=y, published_at__month=m); label = f"{MONTHS[lang][m - 1]} {y}"
+    kind = request.GET.get("k", "") if request.GET.get("k") in ("artikel", "video") else ""
+    if kind: qs = qs.filter(kind=kind)
     page = Paginator(qs, 9).get_page(request.GET.get("page", 1))
-    return respond(request, "site/articles.html", ctx(request, page=page, label=label, title=ui(lang, "articles")))
+    title = ui(lang, "articles") + (f": {ui(lang, 'videos')}" if kind == "video" else "")
+    return respond(request, "site/articles.html", ctx(request, page=page, label=label, kind=kind, title=title))
 
 
 def article(request, slug):
     a = get_object_or_404(pub(Article.objects.all(), request), slug=slug)
-    return respond(request, "site/article.html", ctx(request, a=a))
+    watch = a.video_url or (SiteSetting.get().facebook if a.kind == "video" else "")
+    return respond(request, "site/article.html", ctx(request, a=a, watch=watch))
 
 
 def archive(request):
@@ -411,7 +411,7 @@ def robots(request):
 
 def sitemap(request):
     base = settings.PUBLIC_BASE_URL.rstrip("/") or f"{request.scheme}://{request.get_host()}"
-    urls = ["/", "/produk/", "/lookbook/", "/tentang-kami/", "/lokasi-toko/", "/artikel/", "/arsip/", "/kontak/", "/faq/", "/karir/"]
+    urls = ["/", "/produk/", "/tepak-sarung/", "/tentang-kami/", "/lokasi-toko/", "/artikel/", "/arsip/", "/kontak/", "/faq/", "/karir/"]
     urls += [f"/motif/{m.slug}/" for m in Motif.objects.filter(active=True)]
     urls += [f"/produk/{p.slug}/" for p in Product.objects.filter(status=Status.PUBLISHED)]
     urls += [f"/artikel/{a.slug}/" for a in Article.objects.filter(status=Status.PUBLISHED)]

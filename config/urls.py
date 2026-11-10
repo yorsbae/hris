@@ -130,6 +130,8 @@ urlpatterns = [
     path("hrd/", include("apps.hrd.urls")),
     path("poli/", include("apps.poli.urls")),
     path("company/", include("apps.company.urls")),            # putaran 48: backend Company Profile (HRD/Superadmin)
+    path("calendar/", include("apps.agenda.urls")),        # putaran 66: Kalender (semua peran, isi menurut peran)
+    path("it/", include("apps.it.urls")),                  # putaran 66: menu IT (akun IT + Superadmin)
     path("payroll/", include("apps.payroll.urls")),        # putaran 57: Payroll (akun Payroll + Superadmin; HRD hanya persetujuan)
     path("recruitment/", include("apps.company.recruit_urls")),  # putaran 48: lowongan & pelamar (HRD/Superadmin)
     path("api/lookup/employees/", lookup.employees),

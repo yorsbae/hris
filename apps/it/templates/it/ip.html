@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Jaringan & IP{% endblock %}{% block content %}
+<h2>Jaringan &amp; IP (IPAM)</h2>{% include "it/_tabs.html" with tab="ip" %}
+<p><a class="btn" href="/it/ip/new/">+ Tambah subnet</a> <a class="btn ghost" href="/it/net/router/">Router &amp; Switch</a> <a class="btn ghost" href="/it/net/wifi/">Access Point</a> <a class="btn ghost" href="/it/net/fingerprint/">Fingerprint</a> <a class="btn ghost" href="/it/net/cctv/">CCTV &amp; NVR</a> <a class="btn ghost" href="/it/net/lain/">Lainnya</a></p>{% if conflicts %}<p class="note">⚠ {{ conflicts }} alamat MAC dipakai lebih dari satu IP — periksa di subnet.</p>{% endif %}
+<div class="wrap"><table><thead><tr><th>Subnet</th><th>VLAN</th><th>Terpakai</th><th>Utilisasi</th><th>IP kosong berikutnya</th></tr></thead><tbody>
+{% for s, u, c, p, nx in subnets %}<tr><td><a class="lkb" href="/it/ip/{{ s.pk }}/">{{ s.name }}</a> <small>{{ s.cidr }}</small></td><td>{{ s.vlan|default:"—" }}</td><td>{{ u }}/{{ c }}</td><td>{{ p }}%</td><td>{{ nx|default:"penuh" }}</td></tr>
+{% empty %}<tr><td class="empty" colspan="5">Belum ada subnet.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

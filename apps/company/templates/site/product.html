@@ -11,6 +11,5 @@
 <dl class="kv">{% if p.material %}<dt>{% ui "material" %}</dt><dd>{{ p.material }}</dd>{% endif %}{% if p.size %}<dt>{% ui "size" %}</dt><dd>{{ p.size }}</dd>{% endif %}{% if p.motif %}<dt>{% ui "motif" %}</dt><dd>{{ p.motif }}</dd>{% endif %}{% if p.colors %}<dt>{% ui "colors" %}</dt><dd>{{ p.colors }}</dd>{% endif %}
 <dt>{% ui "price" %}</dt><dd>{% if p.show_price and p.price %}{{ p.price|rp }}{% else %}{% ui "price_ask" %}{% endif %}</dd></dl>
 {% if S.whatsapp %}<p><a class="btn wa lg" href="{{ S.whatsapp|wa_link }}" rel="noopener" target="_blank">{% ui "order_wa" %}</a></p>{% endif %}</div></div>
-{% if looks %}<div class="sh sub2"><h2>{% ui "worn_in" %}</h2><span class="orn" aria-hidden="true"><i></i></span></div><div class="looks compact">{% for lk in looks %}{% include "site/_look.html" with flip=forloop.counter0|divisibleby:2|yesno:",1" %}{% endfor %}</div>{% endif %}
 {% t p "description" as d %}{% if d %}<div class="panel prose">{{ d|rich }}</div>{% endif %}
 {% if related %}<div class="sh"><h2>{% ui "products" %}</h2><span class="orn" aria-hidden="true"><i></i></span></div><div class="grid">{% for p in related %}{% include "site/_product_card.html" %}{% endfor %}</div>{% endif %}{% endblock %}

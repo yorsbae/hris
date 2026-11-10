@@ -26,6 +26,12 @@ th,td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--bd);vertical
 th{color:var(--mu);font-size:11px;text-transform:uppercase;letter-spacing:.03em;background:var(--card);font-weight:600;white-space:nowrap;padding:6px 8px}.wrap{overflow-x:auto;border-radius:var(--r)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.empty{text-align:center;color:var(--mu);padding:28px 12px!important}
 .btn{display:inline-block;padding:6px 12px;border-radius:8px;background:var(--ac);color:var(--onac)!important;font-size:14px;text-decoration:none;margin-left:8px;font-weight:500;line-height:1.4}.btn:hover{background:var(--ac2)}
+/* putaran 67: tautan berbentuk tombol (bukan teks biru polos) — .lkb di tabel/kartu, tombol "‹ Kembali", subtab */
+a.lkb{display:inline-block;padding:2px 10px;border:1px solid var(--bdi);border-radius:8px;background:var(--card);color:var(--ac)!important;font-weight:600;font-size:13px;line-height:1.5;text-decoration:none;transition:background .12s,border-color .12s}
+a.lkb:hover,a.lkb:focus-visible{background:var(--hov);border-color:var(--ac)}a.lkb small{font-weight:400}
+p.back a{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border:1px solid var(--bdi);border-radius:8px;background:var(--card);color:var(--ac);font-weight:600;font-size:13px;text-decoration:none}p.back a:hover{background:var(--hov);border-color:var(--ac);text-decoration:none}
+.tabs.sub{margin-top:-6px}.tabs.sub .t{font-size:13px}.tabs.sub small{opacity:.65;margin-left:3px}
+.tabs .t{border-radius:8px 8px 0 0}.tabs .t:hover{background:var(--hov)}
 h2 .btn{margin-left:0}.btn.ghost,button.ghost{background:transparent;color:var(--ac)!important;border:1px solid var(--bdi)}.btn.ghost:hover,button.ghost:hover{background:var(--hov)}
 .bar,.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}.filters input,.filters select{flex:0 1 200px}.filters input[type=search],.filters #q{flex:1 1 240px}
 .form{max-width:760px}.form.wide{max-width:none}.fld{margin-bottom:12px}.fld label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px;font-weight:500}

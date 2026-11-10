@@ -20,9 +20,9 @@ from apps.core.audit import log
 from apps.core.models import Role
 from apps.core.scope import require_roles
 from . import careers, safe_upload
-from .forms import (ArticleForm, CategoryForm, FaqForm, JobForm, LookForm, MotifForm, MoveForm, PageForm, ProductColorForm, ProductForm, ProductImageForm, SiteSettingForm, StoreForm)
-from .models import (ACTIVE_STAGES, Application, Article, ContactMessage, Faq, Job, JobStatus, Look, MessageStatus, Motif, Page, Product, ProductCategory, ProductColor, ProductImage, SiteSetting,
-                     Stage, StoreLocation, Status)
+from .forms import (ArticleForm, CategoryForm, FaqForm, JobForm, MotifForm, MoveForm, PageForm, ProductColorForm, ProductForm, ProductImageForm, SiteSettingForm, StoreForm, TepakForm)
+from .models import (ACTIVE_STAGES, Application, Article, ContactMessage, Faq, Job, JobStatus, MessageStatus, Motif, Page, Product, ProductCategory, ProductColor, ProductImage, SiteSetting,
+                     Stage, StoreLocation, Status, Tepak)
 
 PER_PAGE = 30
 
@@ -144,17 +144,17 @@ CRUDS = {
          ("Urutan", "num nw", lambda o: o.order), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Tampil" if o.active else "Disembunyikan"))],
         search=("name_id", "name_en", "hint_id"), files=("cover",), qs=lambda q: q.select_related("category__parent").annotate(n_products=Count("products")), order=("order", "name_id"),
         hint="Motif = seri sarung (Grandmaster, Primer, Viscose, …). Urutan di sini = urutan di menu Produk. Produk dimasukkan ke motif lewat kolom “Motif / seri” pada formulir Produk; warna tiap produk diatur di bagian “Pilihan warna” pada halaman ubah produk."),
-    "looks": Crud("looks", Look, LookForm, "Lookbook", "Lookbook",
-        [("Setelan", "fill", lambda o: _two(o.title_id, o.occasion_id or o.story_id[:70])), ("Produk", "num nw", lambda o: o.n_items), ("Foto", "nw", lambda o: "Ada" if o.photo else "Belum"),
-         ("Status", "nw", lambda o: _pill(o.status, o.get_status_display() + (" ★" if o.featured else "")))], search=("title_id", "title_en", "occasion_id"), status_choices=PUB,
-        files=("photo",), qs=lambda q: q.annotate(n_items=Count("products")), order=("order", "-id"),
-        hint="Satu setelan difoto pada model; produk yang dicentang tampil sebagai daftar detail di sebelah foto (di beranda dan halaman Lookbook)."),
+    "tepak": Crud("tepak", Tepak, TepakForm, "Tepak sarung", "Tepak sarung",
+        [("Tepak", "fill", lambda o: _two(o.name, o.variant or o.summary_id[:70])), ("Foto", "nw", lambda o: "Ada" if o.image else "Belum"), ("Urutan", "num nw", lambda o: o.order),
+         ("Status", "nw", lambda o: _pill(o.status, o.get_status_display()))], search=("name", "variant", "summary_id"), status_choices=PUB,
+        files=("image",), order=("order", "-id"),
+        hint="Kotak kemasan sarung (Citra, Penang, Horizon, …). Tampil sebagai pita kartu yang bergeser otomatis di halaman Tepak Sarung."),
     "categories": Crud("categories", ProductCategory, CategoryForm, "Kategori produk", "Kategori produk",
         [("Kategori", "fill", lambda o: _two(("- " if o.parent_id else "") + o.name_id, o.hint_id or o.name_en)), ("Kelompok", "nw", lambda o: o.parent.name_id if o.parent_id else "(kelompok)"), ("Produk", "num nw", lambda o: o.n_products), ("Urutan", "num nw", lambda o: o.order), ("Status", "nw", lambda o: _pill("aktif" if o.active else "nonaktif", "Aktif" if o.active else "Nonaktif"))],
         search=("name_id", "name_en"), qs=lambda q: q.select_related("parent").annotate(n_products=Count("products")), order=("parent__order", "order", "name_id"),
         hint="Dua tingkat: buat KELOMPOK dulu (Bawahan, Atasan, Aksesoris, …; kolom induk dikosongkan), lalu SUBKATEGORI di dalamnya (Sarung, Celana Sarung, Baju Koko, Peci, Surban, …)."),
     "articles": Crud("articles", Article, ArticleForm, "Artikel", "Artikel",
-        [("Judul", "fill", lambda o: _two(o.title_id, o.excerpt_id[:90])), ("Penulis", "nw", lambda o: o.author or "-"), ("Terbit", "nw", lambda o: o.published_at.strftime("%d %b %Y") if o.published_at else "-"),
+        [("Judul", "fill", lambda o: _two(o.title_id, o.excerpt_id[:90])), ("Jenis", "nw", lambda o: o.get_kind_display().split(" ")[0]), ("Penulis", "nw", lambda o: o.author or "-"), ("Terbit", "nw", lambda o: o.published_at.strftime("%d %b %Y") if o.published_at else "-"),
          ("Status", "nw", lambda o: _pill(o.status, o.get_status_display()))], search=("title_id", "title_en", "author"), status_choices=PUB, files=("cover",), order=("-updated_at",)),
     "pages": Crud("pages", Page, PageForm, "Halaman", "Halaman",
         [("Halaman", "fill", lambda o: _two(o.title_id, "/" + ("tentang-kami" if o.slug == "tentang-kami" else "halaman/" + o.slug) + "/")), ("Menu", "nw", lambda o: "Ya" if o.show_in_menu else "Tidak"),
@@ -247,7 +247,7 @@ SETTING_GROUPS = [
     ("Beranda", ["hero_title_id", "hero_title_en", "hero_text_id", "hero_text_en"]),
     ("Kontak & lokasi", ["address", "phone", "whatsapp", "email", "hours_id", "hours_en", "maps_url"]),
     ("Media sosial & toko online", ["instagram", "facebook", "tiktok", "marketplace_url"]),
-    ("Pita pengumuman (mis. “Website dalam pengembangan”)", ["banner_active", "banner_id", "banner_en"]),
+    ("Pita pengumuman (mis. “Promo Lebaran sampai 30 April”)", ["banner_active", "banner_id", "banner_en"]),
     ("Karir, pencarian & catatan kaki", ["careers_intro_id", "careers_intro_en", "meta_description_id", "meta_description_en", "footer_note_id", "footer_note_en"]),
 ]
 
@@ -258,7 +258,7 @@ def hub(request):
     cards = [
         ("Produk", "/company/products/", Product.objects.filter(status="published").count(), f"terbit dari {Product.objects.count()} produk"),
         ("Motif / seri", "/company/motifs/", Motif.objects.filter(active=True).count(), "motif tampil di menu Produk"),
-        ("Lookbook", "/company/looks/", Look.objects.filter(status="published").count(), f"setelan terbit dari {Look.objects.count()} (foto model + daftar produk)"),
+        ("Tepak sarung", "/company/tepak/", Tepak.objects.filter(status="published").count(), f"terbit dari {Tepak.objects.count()} tepak (halaman Tepak Sarung)"),
         ("Artikel", "/company/articles/", Article.objects.filter(status="published").count(), f"terbit dari {Article.objects.count()} artikel"),
         ("Lokasi toko", "/company/stores/", StoreLocation.objects.filter(active=True).count(), "toko tampil di situs"),
         ("Pesan masuk", "/company/messages/", ContactMessage.objects.filter(status="new").count(), "pesan baru dari formulir Kontak"),

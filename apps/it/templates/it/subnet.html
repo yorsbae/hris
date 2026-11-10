@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}{{ s.name }}{% endblock %}{% block content %}
+<p class="back"><a href="/it/ip/">‹ Jaringan &amp; IP</a></p><h2>{{ s.name }} <small>{{ s.cidr }}</small> <a class="btn ghost" href="/it/ip/{{ s.pk }}/ubah/">Ubah subnet</a></h2>
+<p class="hint">{{ used }}/{{ cap }} terpakai ({{ pct }}%) · IP kosong berikutnya: <b>{{ next|default:"penuh" }}</b>{% if s.gateway %} · Gateway {{ s.gateway }}{% endif %}</p>
+<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}<div class="grid">{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}</div><p><button>Catat IP</button></p></form>
+<div class="wrap"><table><thead><tr><th>IP</th><th>Host</th><th>MAC</th><th>Jenis</th><th>Aset</th><th class="acts"></th></tr></thead><tbody>
+{% for i in ips %}<tr><td>{{ i.address }}</td><td>{{ i.hostname|default:"—" }}</td><td>{{ i.mac|default:"—" }}</td><td>{{ i.get_kind_display }}</td><td>{% if i.asset %}<a class="lkb" href="/it/assets/{{ i.asset_id }}/">{{ i.asset.tag }}</a>{% else %}—{% endif %}</td>
+<td class="acts"><form method="post" onsubmit="return confirm('Hapus IP ini?')">{% csrf_token %}<button class="btn ghost" name="del" value="{{ i.pk }}">Hapus</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="6">Belum ada IP tercatat.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

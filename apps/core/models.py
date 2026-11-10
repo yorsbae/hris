@@ -3,6 +3,7 @@ from django.db import models
 
 class Role(models.TextChoices):
     SUPERADMIN = "superadmin"; HRD = "hrd"; DEPT_ADMIN = "dept_admin"; POLI = "poli"
+    IT = "it"  # putaran 66: staf IT — menu IT (aset, IP, lisensi, domain) + Kalender; tanpa akses data karyawan/HR/Poli/Payroll
     PAYROLL = "payroll"  # putaran 57: menyiapkan gaji (master gaji harian, run per periode, slip); HRD menyetujui. Tanpa akses HR Core/Poli/Pengajuan
 
 class AppUserManager(UserManager):

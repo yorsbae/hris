@@ -10,6 +10,7 @@ import secrets
 import uuid
 from datetime import timedelta
 from django.conf import settings
+from django.core.validators import URLValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
@@ -27,7 +28,8 @@ def _name(kind, filename):
 def upload_brand(instance, filename): return _name("brand", filename)
 def upload_product(instance, filename): return _name("product", filename)
 def upload_article(instance, filename): return _name("article", filename)
-def upload_look(instance, filename): return _name("look", filename)
+def upload_look(instance, filename): return _name("look", filename)   # TETAP ADA: dirujuk migrasi 0002 (model Look sudah dihapus di 0004)
+def upload_tepak(instance, filename): return _name("tepak", filename)
 def upload_motif(instance, filename): return _name("motif", filename)
 
 
@@ -249,30 +251,34 @@ class ProductImage(models.Model):
     class Meta: ordering = ["order", "id"]
 
 
-# ------------------------------------------------------------------ Lookbook: foto model memakai satu setelan + daftar produk yang dipakai
-class Look(Stamped):
-    """Satu “setelan” (mis. sarung + baju koko + peci) difoto pada model; di sebelahnya daftar produk yang dipakai (gaya halaman “Shop your style”)."""
+# ------------------------------------------------------------------ Tepak sarung: kotak kemasan sarung (halaman /tepak-sarung/, pita bergeser ke arah sebaliknya dari pita Koleksi)
+class Tepak(Stamped):
+    """Satu varian tepak (kotak kemasan) sarung, mis. Citra, Penang, Horizon. Tampil sebagai kartu pada pita geser halaman Tepak Sarung."""
     slug = models.SlugField(max_length=80, unique=True, blank=True)
-    title_id = models.CharField("Judul (ID)", max_length=140)
-    title_en = models.CharField("Judul (EN)", max_length=140, blank=True)
-    story_id = models.TextField("Cerita singkat (ID)", blank=True)
-    story_en = models.TextField("Cerita singkat (EN)", blank=True)
-    occasion_id = models.CharField("Untuk acara (ID)", max_length=80, blank=True, help_text="Mis. Salat Jumat, Lebaran, Pernikahan")
-    occasion_en = models.CharField("Untuk acara (EN)", max_length=80, blank=True)
-    photo = models.FileField("Foto model", upload_to=upload_look, blank=True)
-    products = models.ManyToManyField(Product, blank=True, related_name="looks", verbose_name="Produk yang dipakai")
-    featured = models.BooleanField("Tampil di beranda", default=False)
+    name = models.CharField("Nama tepak", max_length=120)
+    variant = models.CharField("Varian / seri", max_length=60, blank=True, help_text="Label kecil di atas nama, mis. Citra, Penang, Horizon")
+    summary_id = models.CharField("Ringkasan (ID)", max_length=200, blank=True)
+    summary_en = models.CharField("Ringkasan (EN)", max_length=200, blank=True)
+    spec = models.CharField("Keterangan singkat", max_length=80, blank=True, help_text="Mis. Kotak keras · isi 1 sarung")
+    image = models.FileField("Foto tepak", upload_to=upload_tepak, blank=True)
+    product = models.ForeignKey("Product", null=True, blank=True, on_delete=models.SET_NULL, related_name="tepak", verbose_name="Produk sarung di dalamnya",
+                                help_text="Kartu tepak di halaman Tepak Sarung menautkan ke halaman produk ini.")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
     order = models.PositiveIntegerField("Urutan", default=100)
 
-    class Meta: ordering = ["order", "-id"]; indexes = [models.Index(fields=["status", "order"])]
+    class Meta: ordering = ["order", "id"]; indexes = [models.Index(fields=["status", "order"])]; verbose_name_plural = "tepak"
     def save(self, *a, **k):
-        if not self.slug: self.slug = unique_slug(Look, self.title_id, self, fallback="lookbook")
+        if not self.slug: self.slug = unique_slug(Tepak, self.name, self, fallback="tepak")
         super().save(*a, **k)
-    def __str__(self): return self.title_id
+    def __str__(self): return self.name
 
 
 # ------------------------------------------------------------------ Artikel (+ arsip per bulan)
+class ArticleKind(models.TextChoices):
+    ARTICLE = "artikel", "Artikel"
+    VIDEO = "video", "Video (tautan media sosial)"
+
+
 class Article(Stamped):
     slug = models.SlugField(max_length=90, unique=True, blank=True)
     title_id = models.CharField("Judul (ID)", max_length=200)
@@ -282,6 +288,9 @@ class Article(Stamped):
     body_id = models.TextField("Isi (ID)", blank=True)
     body_en = models.TextField("Isi (EN)", blank=True)
     cover = models.FileField("Gambar sampul", upload_to=upload_article, blank=True)
+    kind = models.CharField("Jenis", max_length=10, choices=ArticleKind.choices, default=ArticleKind.ARTICLE)
+    video_url = models.URLField("Tautan video / pos media sosial", max_length=300, blank=True, validators=[URLValidator(schemes=["http", "https"])],
+                                help_text="Hanya untuk jenis Video (Facebook/Instagram/TikTok/YouTube). Kosong = memakai tautan Facebook di Pengaturan situs.")
     author = models.CharField("Penulis", max_length=100, blank=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
     published_at = models.DateTimeField("Tanggal terbit", null=True, blank=True)

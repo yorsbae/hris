@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% block title %}Kalender{% endblock %}{% block content %}
+<style>
+.cal{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;align-items:start}.cal>*{min-width:0}.cal.nopanel{grid-template-columns:minmax(0,1fr)}.cal.nopanel .calside{display:none}.lall{font-size:12px;display:flex;gap:10px;margin:4px 0 6px}.cal .wrap{overflow-x:auto}
+@media(max-width:900px){.cal{grid-template-columns:1fr}}
+.calside .card{padding:12px;margin-bottom:12px}
+.mini{width:100%;border-collapse:collapse;font-size:12px;text-align:center}.mini th{color:var(--mu);font-weight:500;padding:3px 0}.mini td{padding:1px}
+.mini a{display:block;padding:4px 0;border-radius:50%;text-decoration:none;color:var(--tx);position:relative}.mini .o a{color:var(--mu);opacity:.55}.mini .wk{color:var(--mu);font-size:10px}
+.mini .t a{background:var(--ac);color:#fff}.mini .s a{outline:2px solid var(--ac)}.mini .h a:after{content:"";position:absolute;left:50%;bottom:0;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--ac)}
+.lay{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer}.lay .pill{flex:1;color:#fff}.lay small{color:var(--mu)}
+.c-ajuan{background:#d97706!important}.c-cuti{background:#2563eb!important}.c-hamil{background:#c026d3!important}.c-libur{background:#dc2626!important}.c-rapat{background:#0d9488!important}.c-event{background:#7c3aed!important}
+.c-latih{background:#0891b2!important}.c-ingat{background:#64748b!important}.c-ultah{background:#db2777!important}.c-kontrak{background:#92400e!important}.c-it{background:#475569!important}
+.tb{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}.tb h3{margin:0 8px 0 0;font-size:18px}.tb .sp{flex:1}
+.cal .wrap table.grid7{table-layout:fixed}.grid7{width:100%;min-width:720px;border-collapse:collapse;table-layout:fixed}.grid7 th{font-size:12px;color:var(--mu);font-weight:600;padding:6px;border:1px solid var(--bd);background:var(--card)}
+.grid7 td{border:1px solid var(--bd);vertical-align:top;height:112px;padding:3px;background:var(--card)}.grid7 td.o{background:var(--bg)}.grid7 td.o .dn{opacity:.5}
+.grid7 td.wk,.grid7 th.wk{width:34px;text-align:center;color:var(--mu);font-size:11px;vertical-align:middle;background:var(--bg)}
+.dn{display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px}.dn a{text-decoration:none;color:var(--tx);font-weight:600}.td .dn a{background:var(--ac);color:#fff;border-radius:10px;padding:0 6px}
+.sel{box-shadow:inset 0 0 0 2px var(--ac)}
+.ev{display:block;color:#fff!important;text-decoration:none;font-size:11px;line-height:1.35;padding:1px 6px;border-radius:4px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.more{font-size:11px;color:var(--mu);text-decoration:none}
+.h1{background:#dbeafe!important}.h2{background:#93c5fd!important}.h3{background:#3b82f6!important;color:#fff}.h4{background:#1d4ed8!important;color:#fff}
+[data-theme=dark] .h1{background:#1e3a5f!important}[data-theme=dark] .h2{background:#1d4ed8!important}
+.hn{font-size:22px;font-weight:700;text-align:center;margin-top:18px}.hn small{display:block;font-size:11px;font-weight:400}
+.legend{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--mu);margin:6px 0}.legend i{width:22px;height:12px;border-radius:3px;display:inline-block}
+.dl li{padding:6px 0;border-bottom:1px solid var(--bd);list-style:none;display:flex;gap:8px;align-items:center}.dl{margin:0;padding:0}
+</style>
+<h2>Kalender <a class="btn ghost" href="/calendar/export.ics?m={{ first|date:'Y-m' }}{{ qs }}">Ekspor .ics</a> <button type="button" class="btn ghost" id="pt" aria-pressed="false" aria-controls="calbox" title="Tampilkan / sembunyikan panel kiri (mini-kalender & filter)">Sembunyikan panel</button> <a class="btn" href="/calendar/event/new/?day={{ sel|date:'Y-m-d' }}">+ Agenda</a></h2>
+<div class="cal" id="calbox">
+<div class="calside">
+ <div class="card"><div class="tb" style="margin:0 0 6px"><a class="btn ghost" href="?m={{ prev|date:'Y-m' }}{{ qs }}" aria-label="Bulan sebelumnya">‹</a><span class="sp" style="text-align:center;font-size:14px;font-weight:600">{{ label }}</span><a class="btn ghost" href="?m={{ next|date:'Y-m' }}{{ qs }}" aria-label="Bulan berikutnya">›</a></div>
+ <table class="mini"><thead><tr><th></th><th>Sn</th><th>Sl</th><th>Rb</th><th>Km</th><th>Jm</th><th>Sb</th><th>Mg</th></tr></thead><tbody>
+ {% for w in mini %}<tr><td class="wk">{{ w.wk }}</td>{% for c in w.cells %}<td class="{% if not c.in %}o{% endif %} {% if c.today %}t{% endif %} {% if c.sel %}s{% endif %} {% if c.has %}h{% endif %}"><a href="?m={{ first|date:'Y-m' }}&day={{ c.d|date:'Y-m-d' }}{{ qs }}">{{ c.d.day }}</a></td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+ <div class="card" id="lf" data-m="{{ first|date:'Y-m' }}" data-v="{{ mode }}">
+  <b style="font-size:13px">Tampilkan</b><span class="lall"><a href="?m={{ first|date:'Y-m' }}&go=1{% for k, l, c, on in layers %}&l={{ k }}{% endfor %}{% if mode == 'heat' %}&v=heat{% endif %}{% if dept %}&dept={{ dept }}{% endif %}">Tampilkan semua</a><a href="?m={{ first|date:'Y-m' }}&go=1{% if mode == 'heat' %}&v=heat{% endif %}{% if dept %}&dept={{ dept }}{% endif %}">Sembunyikan semua</a></span>
+  {% for k, l, c, on in layers %}<label class="lay"><input type="checkbox" class="lk" value="{{ k }}"{% if on %} checked{% endif %}><span class="pill {{ c }}">{{ l }}</span><small>{% for kk, nn in counts.items %}{% if kk == k %}{{ nn }}{% endif %}{% endfor %}</small></label>{% endfor %}
+  {% if depts %}<select id="ld" aria-label="Departemen" style="margin-top:8px;width:100%"><option value="">Semua departemen</option>{% for d in depts %}<option value="{{ d.pk }}"{% if dept == d.pk %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+  </div>
+</div>
+<section>
+ <nav class="tabs" aria-label="Tampilan"><a class="t{% if mode == 'default' %} on{% endif %}" href="?m={{ first|date:'Y-m' }}{% for k in picked %}&l={{ k }}{% endfor %}&go=1{% if dept %}&dept={{ dept }}{% endif %}">Default</a><a class="t{% if mode == 'heat' %} on{% endif %}" href="?m={{ first|date:'Y-m' }}{% for k in picked %}&l={{ k }}{% endfor %}&go=1&v=heat{% if dept %}&dept={{ dept }}{% endif %}">Heat map</a></nav>
+ <div class="tb"><h3>{{ label }}</h3><a class="btn ghost" href="?m={% now 'Y-m' %}&day={% now 'Y-m-d' %}{{ qs }}">Hari ini</a>
+  <span class="sp" style="display:flex;justify-content:flex-end"><select aria-label="Bulan" onchange="location.href=this.value">{% for y in years %}{% for n, nm in months %}<option value="?m={{ y }}-{% if n < 10 %}0{% endif %}{{ n }}{{ qs }}"{% if y == first.year and n == first.month %} selected{% endif %}>{{ nm }} {{ y }}</option>{% endfor %}{% endfor %}</select></span></div>
+ {% if mode == 'heat' %}<div class="legend">Karyawan tidak masuk (cuti / izin disetujui / cuti hamil): <i class="h1"></i>sedikit<i class="h2"></i><i class="h3"></i><i class="h4"></i>banyak (puncak {{ peak }})</div>{% endif %}
+ <div class="wrap"><table class="grid7"><thead><tr><th class="wk">Mg</th><th>Sen</th><th>Sel</th><th>Rab</th><th>Kam</th><th>Jum</th><th>Sab</th><th>Min</th></tr></thead><tbody>
+ {% for w in rows %}<tr><td class="wk">{{ w.wk }}</td>{% for c in w.cells %}<td class="{% if not c.in %}o{% endif %}{% if c.today %} td{% endif %}{% if c.sel %} sel{% endif %}{% if mode == 'heat' and c.lvl %} h{{ c.lvl }}{% endif %}">
+  <div class="dn"><a href="?m={{ first|date:'Y-m' }}&day={{ c.d|date:'Y-m-d' }}{{ qs }}">{{ c.d.day }}</a>{% if mode == 'heat' and c.heat %}<b>{{ c.heat }}</b>{% endif %}</div>
+  {% if mode == 'default' %}{% for e in c.es %}<a class="ev {{ e.color }}" title="{{ e.title }}{% if e.sub %} · {{ e.sub }}{% endif %}" href="{% if e.link %}{{ e.link }}{% else %}?m={{ first|date:'Y-m' }}&day={{ c.d|date:'Y-m-d' }}{{ qs }}{% endif %}">{{ e.title }}</a>{% endfor %}{% if c.more %}<a class="more" href="?m={{ first|date:'Y-m' }}&day={{ c.d|date:'Y-m-d' }}{{ qs }}">+{{ c.more }} lainnya</a>{% endif %}{% endif %}
+ </td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+ <h3 style="margin-top:16px">{{ sel|date:"l, d F Y" }}</h3>
+ <ul class="dl">{% for e in day_entries %}<li><span class="pill {{ e.color }}" style="color:#fff">{% for k, l, c, on in layers %}{% if c == e.color %}{{ l }}{% endif %}{% endfor %}</span>{% if e.link %}<a href="{{ e.link }}">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}{% if e.sub %}<small style="color:var(--mu)">{{ e.sub }}</small>{% endif %}</li>
+ {% empty %}<li class="hint">Tidak ada entri pada hari ini.</li>{% endfor %}</ul>
+</section></div>
+<script>(function(){var cb=document.getElementById("calbox"),pt=document.getElementById("pt");function ap(h){cb.classList.toggle("nopanel",h);pt.textContent=h?"Tampilkan panel":"Sembunyikan panel";pt.setAttribute("aria-pressed",h?"true":"false")}var h0=false;try{h0=localStorage.getItem("cal-panel-hidden")==="1"}catch(e){}ap(h0);pt.addEventListener("click",function(){var h=!cb.classList.contains("nopanel");ap(h);try{localStorage.setItem("cal-panel-hidden",h?"1":"0")}catch(e){}});var f=document.getElementById('lf');if(!f)return;function go(){var q='?m='+f.dataset.m+'&go=1'+(f.dataset.v==='heat'?'&v=heat':'');f.querySelectorAll('.lk:checked').forEach(function(c){q+='&l='+c.value});var d=document.getElementById('ld');if(d&&d.value)q+='&dept='+d.value;location.href=q}f.querySelectorAll('.lk,#ld').forEach(function(i){i.addEventListener('change',go)})})();</script>
+{% endblock %}

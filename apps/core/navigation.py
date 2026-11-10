@@ -57,30 +57,44 @@ def _payroll():
             ("Run Gaji & Slip", "/payroll/runs/", "calendar", True), ("PPh 21 & Rekap Pajak", "/payroll/pph21/", "file", True), ("Tali Asih (keluar kerja)", "/payroll/tali-asih/", "clipboard", True),
             ("Profil Gaji Karyawan", "/payroll/profiles/", "users"), ("Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("Lembur, Makan & Tunjangan", "/payroll/rates/", "sliders", True), ("Master Potongan", "/payroll/deductions/", "sliders", True), ("Parameter & Komponen", "/payroll/params/", "sliders", True)]
 
+def _it():
+    """Menu IT (putaran 66/67): induk + submenu. Superadmin & akun IT."""
+    return [("IT", "/it/", "sliders"), ("Aset", "/it/assets/", "briefcase", True),
+            ("Inventori Stok", "/it/stock/", "db", True), ("Barang Masuk & Keluar", "/it/stock/moves/", "repeat", True), ("Wishlist / Order", "/it/wishlist/", "clipboard", True),
+            ("Jaringan & IP", "/it/ip/", "activity", True), ("Router & Switch", "/it/net/router/", "activity", True), ("Access Point", "/it/net/wifi/", "activity", True),
+            ("Fingerprint", "/it/net/fingerprint/", "user", True), ("CCTV & NVR", "/it/net/cctv/", "eye", True), ("Perangkat Lain", "/it/net/lain/", "db", True),
+            ("Lisensi Software", "/it/licenses/", "key", True), ("Domain & SSL", "/it/domains/", "shield", True), ("Insiden & Tiket", "/it/tickets/", "chat", True)]
+
+
+_WISH = ("Permintaan IT", "/it/wishlist/ajukan/", "chat")
+_CAL = ("Kalender", "/calendar/", "calendar")
 _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 
 def _groups(role):
     if role == Role.SUPERADMIN:
-        return [("Utama", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True), *_kpi(True),
+        return [("Utama", [_DASH, _CAL, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True), *_kpi(True),
                            *_ophrd(), *_bpjs(), *_validasi(), *_order()]),
                 ("Payroll", _payroll()),
+                ("IT", _it()),
                 ("Situs & Rekrutmen (Superadmin)", _company()),
                 ("Poliklinik", _poli(True)),
                 ("Pengaturan", [("Master Data", "/master/department/", "sliders"), ("Pengguna", "/users/", "shield"),
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
-        return [("HRD", [_DASH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True), *_kpi(True),
+        return [("HRD", [_DASH, _CAL, _WISH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True), *_kpi(True),
                         *_ophrd(), *_bpjs(), *_validasi(), *_order(), ("Master Data", "/master/department/", "sliders")]),
                 _INFO]
     if role == Role.PAYROLL:
-        return [("Payroll", _payroll()), _INFO]
+        return [("Payroll", [_CAL, _WISH] + _payroll()), _INFO]
     if role == Role.DEPT_ADMIN:
-        return [("Admin Departemen", [_DASH, ("Data Karyawan Departemen", "/employees/", "users"),
+        return [("Admin Departemen", [_DASH, _CAL, _WISH, ("Data Karyawan Departemen", "/employees/", "users"),
                                       *_req("Pengajuan & Monitoring", False), *_order(), *_absensi(False), *_kpi(False), *_validasi()]), _INFO]
     if role == Role.POLI:
         # Putaran 48: akun Poli = admin departemen Poli → menu "Pengajuan Departemen" (induk + submenu Izin & Cuti, Lembur, dst.); hanya departemen Poli (scope di server)
-        return [("Poli", [_DASH, ("Data Pasien/Karyawan", "/employees/", "users")] + _poli(True)),
+        return [("Poli", [_DASH, _CAL, _WISH, ("Data Pasien/Karyawan", "/employees/", "users")] + _poli(True)),
                 ("Pengajuan Departemen", [*_req("Pengajuan Departemen", False), *_order(), *_validasi()]), _INFO]
+    if role == Role.IT:
+        return [("IT", [_DASH, _CAL] + _it()), _INFO]
     return []
 
 def _poli(with_hub):

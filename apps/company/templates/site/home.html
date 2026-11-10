@@ -14,7 +14,8 @@
 <div class="tumpal dk" aria-hidden="true"></div>
 {% if mq %}<section class="sec band prodsec"><div class="wrap"><div class="sh"><h2>{% ui "collection" %}</h2><span class="orn" aria-hidden="true"><i></i></span><p>{% ui "products_intro" %}</p></div></div>
 {% include "site/_marquee.html" %}<p class="more-link center"><a class="btn alt" href="{% purl 'products' %}">{% ui "see_all" %} ›</a></p></section>{% endif %}
-{% if looks %}<section class="sec lookband"><div class="wrap"><div class="sh"><h2>{% ui "lookbook" %}</h2><span class="orn" aria-hidden="true"><i></i></span><p>{% ui "lookbook_intro" %}</p></div><div class="looks compact">{% for lk in looks %}{% include "site/_look.html" %}{% endfor %}</div><p class="center"><a class="btn alt" href="{% purl 'looks' %}">{% ui "look_see" %} ›</a></p></div></section>{% endif %}
+{% if tmq %}<section class="sec band prodsec tepaksec"><div class="wrap"><div class="sh"><h2>{% ui "tepak" %}</h2><span class="orn" aria-hidden="true"><i></i></span><p>{% ui "tepak_intro" %}</p></div></div>
+{% include "site/_marquee.html" with mq=tmq mqc=tmqc card="site/_tepak_card.html" mql="tepak_label" %}<p class="more-link center"><a class="btn alt" href="{% purl 'tepak' %}">{% ui "see_all" %} ›</a></p></section>{% endif %}
 <section class="sec tight"><div class="wrap"><div class="hl">
 <div class="it"><span class="badge">{% icon "leaf" %}</span><h3>{% ui "hl1_t" %}</h3><p>{% ui "hl1_d" %}</p></div>
 <div class="it"><span class="badge">{% icon "palette" %}</span><h3>{% ui "hl2_t" %}</h3><p>{% ui "hl2_d" %}</p></div>

@@ -1,5 +1,5 @@
 /* Situs publik — tema emas/cokelat bernuansa tenun. Tanpa font/skrip luar (CSP ketat). Mobile-first. */
-:root{--gold:#d9bd45;--gold2:#ecd77a;--gold3:#f6ecb8;--brown:#3b2a0a;--brown2:#6b4f12;--ink:#2a2007;--mut:#6f5a22;--cream:#fbf5da;--card:#fffdf2;--line:#d8c46a;--navy:#101f33;--ok:#1f6b34;--er:#a12a1f;--focus:#0b57d0}
+:root{--gold:#eab12f;--gold2:#f4d26a;--gold3:#fbeec9;--brown:#3b2a0a;--brown2:#6b4f12;--ink:#2a2007;--mut:#6f5a22;--cream:#fdf6e4;--card:#fffaf0;--line:#e3c27a;--navy:#15100a;--ok:#1f6b34;--er:#a12a1f;--focus:#0b57d0}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:linear-gradient(180deg,var(--gold2),var(--gold3) 420px,var(--cream));min-height:100vh;display:flex;flex-direction:column}
 main{flex:1;width:100%;max-width:1100px;margin:0 auto;padding:24px 16px 48px}
@@ -10,8 +10,8 @@ h1,h2,h3{font-family:"Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;c
 h1{font-size:clamp(26px,5vw,40px);margin:.2em 0 .3em;font-variant:small-caps;letter-spacing:.02em}h2{font-size:clamp(21px,3.5vw,28px);margin:1.4em 0 .5em}h3{font-size:19px;margin:1.2em 0 .4em}
 .lead{font-size:18px;color:var(--mut);max-width:62ch}
 .pbanner{background:var(--navy);color:#fff;font-size:14px;padding:8px 16px;text-align:center}.pbanner b{color:var(--gold)}
-.prev{background:#ffe08a;color:#3a2a00;text-align:center;font-weight:600;padding:6px 12px;font-size:14px}
-header.top{background:linear-gradient(180deg,#e9d36e,var(--gold));border-bottom:1px solid var(--line)}
+.prev{background:#ffdc80;color:#3a2a00;text-align:center;font-weight:600;padding:6px 12px;font-size:14px}
+header.top{background:linear-gradient(180deg,#f2c95a,var(--gold));border-bottom:1px solid var(--line)}
 .bar{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .brand{font:700 22px "Palatino Linotype",Palatino,Georgia,serif;color:var(--brown);text-decoration:none;display:flex;align-items:center;gap:10px}.brand img{height:46px;width:auto;display:block}
 nav.main{display:flex;gap:2px 16px;flex-wrap:wrap;align-items:center;margin-left:auto}
@@ -20,9 +20,6 @@ nav.main a:hover,nav.main a[aria-current=page]{color:var(--brown);border-bottom-
 .navtoggle,.navbtn{display:none}
 .lang{font-size:13px;font-weight:600;border:1px solid var(--brown2);border-radius:14px;padding:3px 11px;text-decoration:none;color:var(--brown)}
 .sform{display:flex;gap:4px}.sform input{width:150px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fffbe6;font:inherit;font-size:14px}.sform button{padding:6px 10px;border:1px solid var(--brown2);background:var(--brown);color:#fff;border-radius:6px;cursor:pointer}
-.batik{height:26px;background:
- linear-gradient(135deg,transparent 40%,#2a1c04 40% 60%,transparent 60%) 0 0/26px 26px,linear-gradient(45deg,transparent 40%,#2a1c04 40% 60%,transparent 60%) 0 0/26px 26px,
- radial-gradient(circle at 13px 13px,var(--gold) 0 4px,transparent 5px) 0 0/26px 26px,#4a3408;border-top:2px solid var(--brown);border-bottom:2px solid var(--brown)}
 .hero{text-align:center;padding:36px 8px 28px}.hero .logo{max-height:130px;width:auto;margin:0 auto 14px;display:block}.hero p{margin:.4em auto;max-width:60ch}
 .btn{display:inline-block;background:var(--brown);color:#fff7d1;border:1px solid var(--brown);padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;cursor:pointer;font:inherit;font-weight:600}.btn:hover{background:#000;color:#fff}
 .btn.alt{background:transparent;color:var(--brown)}.btn.alt:hover{background:var(--brown);color:#fff}.btn.wa{background:#1f7a3a;border-color:#1f7a3a}.btn.danger{background:var(--er);border-color:var(--er)}
@@ -64,19 +61,17 @@ footer.foot{background:var(--navy);color:#e9e2c4;margin-top:auto}footer.foot a{c
 .lead.mid{margin:0 auto}
 
 /* ======================= Putaran 53 — tampilan company profile (gradasi, ornamen, ilustrasi). Tanpa font/skrip luar. ======================= */
-:root{--gold4:#b8962a;--maroon:#7a1f2b;--shadow:0 2px 10px rgba(80,55,0,.12);--shadow2:0 10px 26px rgba(80,55,0,.22)}
-body{background:linear-gradient(180deg,var(--gold2) 0,var(--gold3) 360px,var(--cream) 760px,#f8f0cf 100%)}
-header.top{background:linear-gradient(180deg,#f0dc84 0,#e1c552 55%,#d2b137 100%);box-shadow:0 2px 0 rgba(255,255,255,.45) inset,0 2px 12px rgba(60,40,0,.2);position:relative;z-index:10}
+:root{--gold4:#c98f14;--maroon:#7a1f2b;--shadow:0 2px 10px rgba(80,55,0,.12);--shadow2:0 10px 26px rgba(80,55,0,.22)}
+body{background:linear-gradient(180deg,var(--gold2) 0,var(--gold3) 360px,var(--cream) 760px,#fbf0d6 100%)}
+header.top{background:linear-gradient(180deg,#f6d880 0,#ecbd42 55%,#dca62a 100%);box-shadow:0 2px 0 rgba(255,255,255,.45) inset,0 2px 12px rgba(60,40,0,.2);position:relative;z-index:10}
 .brand span{background:linear-gradient(180deg,#4a3408,#2a1c04);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:.03em}
 nav.main a{border-radius:6px;transition:background .15s,color .15s}nav.main a:hover{background:rgba(255,255,255,.38)}
 .btn{background:linear-gradient(180deg,#5b3f10,#33230a);box-shadow:0 2px 6px rgba(40,25,0,.3);border-color:#2a1c04}.btn:hover{background:linear-gradient(180deg,#3b2a0a,#000)}
-.btn.alt{background:rgba(255,255,255,.35);box-shadow:none}.btn.alt:hover{background:var(--brown)}.btn.lg{padding:13px 26px;font-size:17px}.btn.gold{background:linear-gradient(180deg,#f6e08a,#d9bd45);color:#2a1c04;border-color:#9a7d1c}.btn.gold:hover{background:linear-gradient(180deg,#fff0a8,#e8c957);color:#000}
+.btn.alt{background:rgba(255,255,255,.35);box-shadow:none}.btn.alt:hover{background:var(--brown)}.btn.lg{padding:13px 26px;font-size:17px}.btn.gold{background:linear-gradient(180deg,#f7d775,#eab12f);color:#2a1c04;border-color:#9a7d1c}.btn.gold:hover{background:linear-gradient(180deg,#fff0a8,#f1c040);color:#000}
 main.wide{max-width:none;padding:0}.wrap{max-width:1100px;margin:0 auto;padding:0 16px}
 .sec{padding:46px 0}.sec.tight{padding:30px 0}
-.sec.dark{background:radial-gradient(600px 260px at 90% 0,rgba(217,189,69,.22),transparent 70%),linear-gradient(135deg,#1c2e49,#0f1d31);color:#efe7c4}.sec.dark h2,.sec.dark h3{color:#fff}.sec.dark .lead,.sec.dark p{color:#e3dab0}.sec.dark a:not(.btn){color:var(--gold2)}
+.sec.dark{background:radial-gradient(600px 260px at 90% 0,rgba(217,189,69,.22),transparent 70%),linear-gradient(135deg,#2a2012,#15100a);color:#efe7c4}.sec.dark h2,.sec.dark h3{color:#fff}.sec.dark .lead,.sec.dark p{color:#e3dab0}.sec.dark a:not(.btn){color:var(--gold2)}
 .sec.band{background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,248,214,.2));border-block:1px solid rgba(184,150,42,.35)}
-.tumpal{height:22px;background-color:var(--gold);background-image:linear-gradient(135deg,#3b2a0a 25%,transparent 25%),linear-gradient(225deg,#3b2a0a 25%,transparent 25%),linear-gradient(315deg,#3b2a0a 25%,transparent 25%),linear-gradient(45deg,#3b2a0a 25%,transparent 25%);background-size:22px 22px;background-position:-11px 0,-11px 0,0 0,0 0}
-.tumpal.dk{background-color:#0f1d31;background-image:linear-gradient(135deg,#d9bd45 25%,transparent 25%),linear-gradient(225deg,#d9bd45 25%,transparent 25%),linear-gradient(315deg,#d9bd45 25%,transparent 25%),linear-gradient(45deg,#d9bd45 25%,transparent 25%)}
 .orn{display:flex;align-items:center;gap:20px;justify-content:center;margin:8px auto 18px;max-width:340px;color:var(--brown2)}.orn:before,.orn:after{content:"";flex:1;height:2px;background:linear-gradient(90deg,transparent,var(--gold4))}.orn:after{transform:scaleX(-1)}
 .orn i{width:11px;height:11px;background:var(--maroon);transform:rotate(45deg);box-shadow:-18px 0 0 -3px var(--gold4),18px 0 0 -3px var(--gold4);display:block}
 .sec.dark .orn i{background:var(--gold)}
@@ -98,7 +93,7 @@ main.wide{max-width:none;padding:0}.wrap{max-width:1100px;margin:0 auto;padding:
 .hl .it{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;text-align:center;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .hl .it:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,var(--maroon),var(--gold),var(--maroon))}
 .hl h3{margin:.6em 0 .2em}.hl p{margin:0;color:var(--mut);font-size:15px}
-.badge{width:58px;height:58px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;color:var(--brown);background:radial-gradient(circle at 30% 25%,#fff3b0,#d9bd45);box-shadow:0 3px 8px rgba(80,55,0,.25),0 0 0 4px rgba(217,189,69,.25)}.badge .ico{width:28px;height:28px}
+.badge{width:58px;height:58px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;color:var(--brown);background:radial-gradient(circle at 30% 25%,#fff3b0,#eab12f);box-shadow:0 3px 8px rgba(80,55,0,.25),0 0 0 4px rgba(217,189,69,.25)}.badge .ico{width:28px;height:28px}
 .badge.sm{width:42px;height:42px;box-shadow:none;flex:none}.badge.sm .ico{width:21px;height:21px}
 .flow{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));counter-reset:f}
 .flow .st{background:rgba(255,255,255,.08);border:1px solid rgba(217,189,69,.35);border-radius:14px;padding:18px;position:relative;counter-increment:f}
@@ -132,7 +127,7 @@ main.wide{max-width:none;padding:0}.wrap{max-width:1100px;margin:0 auto;padding:
 .prose ul{list-style:none;padding-left:0}.prose ul li{position:relative;padding-left:22px}.prose ul li:before{content:"";position:absolute;left:3px;top:.62em;width:8px;height:8px;background:var(--maroon);transform:rotate(45deg)}
 .prose h3{color:var(--maroon)}
 /* kontak, faq, halaman */
-.cinfo{background:linear-gradient(160deg,#fffdf2,#f6ecb8);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow)}.cinfo .map{border-radius:10px;overflow:hidden;border:1px solid var(--line);margin-top:12px}.cinfo .map svg{display:block;width:100%;height:auto}
+.cinfo{background:linear-gradient(160deg,#fffaf0,#fbeec9);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow)}.cinfo .map{border-radius:10px;overflow:hidden;border:1px solid var(--line);margin-top:12px}.cinfo .map svg{display:block;width:100%;height:auto}
 details.faq{box-shadow:var(--shadow);overflow:hidden}details.faq summary{list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center}details.faq summary::-webkit-details-marker{display:none}
 details.faq summary:after{content:"+";flex:none;width:26px;height:26px;border-radius:50%;background:var(--gold);color:var(--brown);display:flex;align-items:center;justify-content:center;font-weight:700}details.faq[open] summary:after{content:"–";background:var(--maroon);color:#fff}details.faq[open] summary{background:linear-gradient(90deg,#fff3b0,transparent)}
 .pagebody{display:grid;gap:30px;grid-template-columns:1.5fr 1fr;align-items:start}.pagebody .panel{margin:0}
@@ -140,7 +135,7 @@ details.faq summary:after{content:"+";flex:none;width:26px;height:26px;border-ra
 .cta-band{display:grid;gap:26px;grid-template-columns:1.1fr .9fr;align-items:center}
 .jlist{list-style:none;padding:0;margin:14px 0}.jlist li{margin:6px 0}.jlist a{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border:1px solid rgba(217,189,69,.5);border-radius:10px;background:rgba(255,255,255,.07);text-decoration:none}.jlist a:hover{background:rgba(255,255,255,.16)}
 /* footer */
-footer.foot{background:radial-gradient(500px 220px at 100% 0,rgba(217,189,69,.16),transparent 70%),linear-gradient(180deg,#14253d,#0c1828);position:relative;margin-top:0}
+footer.foot{background:radial-gradient(500px 220px at 100% 0,rgba(217,189,69,.16),transparent 70%),linear-gradient(180deg,#1d160c,#0c1828);position:relative;margin-top:0}
 footer.foot h4{font:600 17px "Palatino Linotype",Georgia,serif;color:var(--gold2);letter-spacing:.04em}footer.foot .in{grid-template-columns:1.4fr 1fr 1fr 1fr}
 footer.foot ul{list-style:none;margin:0;padding:0}footer.foot li{margin:4px 0}.soc{display:flex;gap:8px;flex-wrap:wrap}.soc a{border:1px solid rgba(217,189,69,.5);border-radius:16px;padding:3px 12px;font-size:13px;text-decoration:none}.soc a:hover{background:rgba(217,189,69,.2)}
 .wa-fab{background:linear-gradient(180deg,#2aa24f,#1a7a3a)}
@@ -154,13 +149,13 @@ footer.foot ul{list-style:none;margin:0;padding:0}footer.foot li{margin:4px 0}.s
 footer.foot .rows li{color:#e9e2c4}footer.foot .rows .ico{color:var(--gold2)}footer.foot .rows{margin:6px 0}
 
 /* ======================= Putaran 54 — header gelap berlogo, hero ala referensi ke-3, pita produk geser otomatis, peta Google, latar berornamen ======================= */
-:root{--navy2:#0b1626;--navy3:#14213a;--glow:rgba(217,189,69,.28)}
+:root{--navy2:#100c07;--navy3:#1b150c;--glow:rgba(217,189,69,.28)}
 /* latar halaman: petak berlian tenun + cahaya berwarna (tidak polos) */
 body{background:
  radial-gradient(900px 520px at 100% 0,rgba(255,255,255,.6),transparent 60%),
  radial-gradient(760px 520px at 0 38%,rgba(122,31,43,.11),transparent 66%),
- radial-gradient(820px 620px at 100% 82%,rgba(20,33,58,.12),transparent 66%),
- linear-gradient(180deg,var(--gold2) 0,var(--gold3) 340px,var(--cream) 720px,#f6edc6 100%)}
+ radial-gradient(820px 620px at 100% 82%,rgba(70,45,0,.10),transparent 66%),
+ linear-gradient(180deg,var(--gold2) 0,var(--gold3) 340px,var(--cream) 720px,#fbefd2 100%)}
 body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.075;background:
  linear-gradient(135deg,transparent 46%,#3b2a0a 46% 54%,transparent 54%) 0 0/52px 52px,
  linear-gradient(45deg,transparent 46%,#3b2a0a 46% 54%,transparent 54%) 0 0/52px 52px,
@@ -170,7 +165,7 @@ main:not(.wide):before,main:not(.wide):after{content:"";position:absolute;top:10
  linear-gradient(135deg,var(--maroon) 0 14px,transparent 14px),linear-gradient(135deg,transparent 0 24px,var(--gold4) 24px 27px,transparent 27px)}
 main:not(.wide):before{left:10px}main:not(.wide):after{right:10px;transform:scaleX(-1)}
 /* header gelap: logo kiri · menu tengah · ikon bahasa kanan */
-header.top{background:radial-gradient(520px 160px at 85% 0,rgba(217,189,69,.22),transparent 70%),linear-gradient(180deg,#14253d,#0b1626);border-bottom:2px solid var(--gold4);box-shadow:0 4px 18px rgba(0,0,0,.35);position:sticky;top:0}
+header.top{background:radial-gradient(520px 160px at 85% 0,rgba(217,189,69,.22),transparent 70%),linear-gradient(180deg,#1d160c,#100c07);border-bottom:2px solid var(--gold4);box-shadow:0 4px 18px rgba(0,0,0,.35);position:sticky;top:0}
 .bar{max-width:1320px;padding:8px 18px;display:flex;align-items:center;gap:14px;flex-wrap:nowrap}
 .brand{flex:none;display:flex;align-items:center}.brand img{height:50px;width:auto;max-width:240px;display:block}.brand span{display:none}
 nav.main{flex:1;margin:0;justify-content:center;gap:2px 4px;flex-wrap:wrap}
@@ -178,11 +173,9 @@ nav.main a{font:600 13.5px "Palatino Linotype",Palatino,Georgia,serif;font-varia
 nav.main a:hover,nav.main a[aria-current=page]{color:#fff;background:rgba(217,189,69,.2);border-bottom:0}
 nav.main a:hover:after{content:"";position:absolute;left:30%;right:30%;bottom:1px;height:2px;background:var(--gold);border-radius:2px}
 .sform{margin-left:6px}.sform input{width:118px;background:rgba(255,255,255,.1);border:1px solid rgba(217,189,69,.5);color:#fff;border-radius:18px;padding:6px 12px}.sform input::placeholder{color:#c9bd8a}
-.sform button{display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border-radius:50%;background:linear-gradient(180deg,#f6e08a,#d9bd45);color:#2a1c04;border:0}
+.sform button{display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border-radius:50%;background:linear-gradient(180deg,#f7d775,#eab12f);color:#2a1c04;border:0}
 .lang{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(217,189,69,.7);border-radius:22px;padding:5px 12px 5px 9px;color:var(--gold2);background:rgba(255,255,255,.06);font-size:12px;text-decoration:none}
 .lang b{letter-spacing:.1em}.lang:hover{background:rgba(217,189,69,.25);color:#fff}
-.batik{height:14px;border:0;background:
- linear-gradient(135deg,transparent 40%,#d9bd45 40% 60%,transparent 60%) 0 0/14px 14px,linear-gradient(45deg,transparent 40%,#d9bd45 40% 60%,transparent 60%) 0 0/14px 14px,#7a1f2b;box-shadow:0 -1px 0 var(--gold4)}
 .flogo img{display:block;height:auto;max-width:230px;margin-bottom:8px}
 /* HERO ala referensi ke-3: gelap penuh, judul bertebar huruf, subjudul kapital, CTA pil + tautan lingkaran, info di sudut */
 main.wide{background:none}
@@ -225,10 +218,10 @@ main.wide{background:none}
 .cinfo .map{aspect-ratio:16/10;border:2px solid var(--gold4)}.cinfo .map .gmap{height:100%}
 /* dasar bagian: lebih berwarna & berornamen */
 .sec.band{background:radial-gradient(520px 200px at 0 0,rgba(122,31,43,.08),transparent 70%),radial-gradient(520px 220px at 100% 100%,rgba(217,189,69,.25),transparent 70%),linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,248,214,.25))}
-.sec.dark{background:radial-gradient(600px 260px at 90% 0,rgba(217,189,69,.25),transparent 70%),radial-gradient(520px 260px at 0 100%,rgba(122,31,43,.4),transparent 70%),linear-gradient(135deg,#1c2e49,#0b1626);position:relative}
+.sec.dark{background:radial-gradient(600px 260px at 90% 0,rgba(217,189,69,.25),transparent 70%),radial-gradient(520px 260px at 0 100%,rgba(122,31,43,.4),transparent 70%),linear-gradient(135deg,#2a2012,#100c07);position:relative}
 .sec.dark:before{content:"";position:absolute;inset:0;opacity:.07;pointer-events:none;background:linear-gradient(135deg,transparent 46%,var(--gold) 46% 54%,transparent 54%) 0 0/46px 46px,linear-gradient(45deg,transparent 46%,var(--gold) 46% 54%,transparent 54%) 0 0/46px 46px}
 .sec.dark>.wrap{position:relative}
-.hl .it{background:linear-gradient(180deg,#fffdf2,#f6ecb8)}
+.hl .it{background:linear-gradient(180deg,#fffaf0,#fbeec9)}
 @media(max-width:1100px){.bar{flex-wrap:wrap}nav.main{order:5;flex-basis:100%}.lang{margin-left:auto}}
 @media(max-width:860px){.bar{flex-wrap:wrap;gap:10px}.navbtn{margin-left:auto;background:rgba(255,255,255,.08);color:var(--gold2);border-color:rgba(217,189,69,.7)}.lang{margin-left:0}
  nav.main{display:none;flex-direction:column;align-items:flex-start;width:100%;order:5}.navtoggle:checked~nav.main{display:flex}nav.main a{padding:9px 12px}
@@ -261,31 +254,6 @@ main.wide{background:none}
 .pview .main{position:relative}.pview .m-prod{display:none}#pv-p:checked ~ .m-prod{display:block}#pv-p:checked ~ .m-model{display:none}
 .pview .m-model{aspect-ratio:4/5}.pview .m-model img{object-fit:cover}
 .pview .mcap{position:absolute;left:0;right:0;bottom:0;margin:0;padding:26px 16px 12px;color:#fff6d5;font-size:14px;background:linear-gradient(180deg,transparent,rgba(11,22,38,.82))}
-/* ---- Lookbook: foto model di kiri, daftar detail produk di kanan (bergantian) ---- */
-.looks{display:grid;gap:34px;margin:10px 0 30px}
-.look{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:34px;align-items:stretch;background:rgba(255,253,242,.92);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;position:relative}
-.look:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;z-index:2;background:linear-gradient(90deg,var(--maroon),var(--gold),var(--maroon))}
-.look.flip .lphoto{order:2}
-.lphoto{margin:0;position:relative;min-height:380px;background:linear-gradient(135deg,#e8d57c,#c9ad3b)}
-.lphoto img,.lphoto svg.motif.model{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.lphoto .chip{position:absolute;left:14px;top:18px;z-index:2}
-.lphoto .ph{position:absolute;left:0;right:0;bottom:0;z-index:2;aspect-ratio:auto;width:auto;padding:22px 14px 10px;font-size:12.5px;letter-spacing:.04em;text-align:center;color:#fff6d5;background:linear-gradient(180deg,transparent,rgba(11,22,38,.7))}
-.linfo{padding:26px 28px 26px 4px}.look.flip .linfo{padding:26px 4px 26px 28px}
-.linfo h2{margin:.35em 0 0;font-size:clamp(22px,3.2vw,32px)}.orn.l{margin:6px 0 12px;justify-content:flex-start;max-width:200px}.orn.l:before{display:none}
-.linfo .prose{color:var(--mut);margin:0 0 6px}.linfo .prose p{margin:.3em 0}
-.lh{font:600 15px "Palatino Linotype",Palatino,Georgia,serif;font-variant:small-caps;letter-spacing:.12em;color:var(--maroon);margin:14px 0 8px;border-top:1px dashed var(--gold4);padding-top:12px}.lh small{font-variant:normal;letter-spacing:0;color:var(--mut);font-family:system-ui,sans-serif;font-weight:400}
-.litems{list-style:none;margin:0;padding:0;display:grid;gap:10px}
-.litems a{display:grid;grid-template-columns:72px 1fr auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdf2;text-decoration:none;color:inherit;transition:box-shadow .15s,transform .15s}
-.litems a:hover{box-shadow:var(--shadow2);transform:translateY(-2px)}.litems a:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
-.litems .th{width:72px;height:72px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--gold3);display:block}.litems .th img,.litems .th svg{width:100%;height:100%;object-fit:cover;display:block}
-.litems .tx{display:flex;flex-direction:column;min-width:0}.litems .tx small{font-size:12px;color:var(--maroon);letter-spacing:.06em;text-transform:uppercase}.litems .tx b{font:700 17px Georgia,serif;color:var(--brown)}
-.litems .tx em{font-style:normal;font-size:13.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.litems .tx i{font-style:normal;font-size:12.5px;color:var(--brown2)}
-.litems .pr{display:flex;align-items:center;gap:10px;font:700 15px Georgia,serif;color:var(--maroon);text-align:right}.litems .go{width:24px;height:24px;border-radius:50%;border:1px solid var(--gold4);display:inline-flex;align-items:center;justify-content:center;color:var(--brown2)}
-.looks.compact{gap:22px}.lookband{background:linear-gradient(180deg,rgba(246,236,184,.45),transparent)}
-@media(max-width:860px){.look{grid-template-columns:1fr;gap:0}.look.flip .lphoto{order:0}.lphoto{min-height:0;aspect-ratio:4/5;max-height:520px}.linfo,.look.flip .linfo{padding:20px 18px 22px}
- .litems a{grid-template-columns:60px 1fr;gap:12px}.litems .th{width:60px;height:60px}.litems .pr{grid-column:2;justify-content:space-between;text-align:left}}
-@media(prefers-reduced-motion:reduce){.litems a{transition:none}.litems a:hover{transform:none}}
-.lphoto .chip{background:rgba(255,253,242,.94);color:var(--brown);border:1px solid var(--gold4);border-radius:16px;padding:3px 12px;font-size:13px;font-weight:600;box-shadow:var(--shadow)}
 
 /* ======================= Putaran 56 — halaman motif, bulatan warna di kartu, pilihan warna (foto berganti saat diklik) ======================= */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -317,7 +285,7 @@ main.wide{background:none}
 header.top .bar{position:relative}
 nav.main .dd{position:static;display:flex;align-items:center}
 nav.main .ddt i{font-style:normal;font-size:11px;opacity:.8;margin-left:2px}
-.ddp{display:none;position:absolute;top:100%;left:18px;right:18px;max-width:780px;margin:0 auto;background:linear-gradient(180deg,#14253d,#0b1626);border:1px solid var(--gold4);border-top:2px solid var(--gold);border-radius:0 0 14px 14px;box-shadow:0 18px 40px rgba(0,0,0,.45);padding:18px 20px 12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 28px;z-index:30}
+.ddp{display:none;position:absolute;top:100%;left:18px;right:18px;max-width:780px;margin:0 auto;background:linear-gradient(180deg,#1d160c,#100c07);border:1px solid var(--gold4);border-top:2px solid var(--gold);border-radius:0 0 14px 14px;box-shadow:0 18px 40px rgba(0,0,0,.45);padding:18px 20px 12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 28px;z-index:30}
 .ddp:before{content:"";position:absolute;left:0;right:0;top:-16px;height:16px}
 nav.main .dd.has:hover .ddp,nav.main .dd.has:focus-within .ddp{display:grid}
 .ddc ul{list-style:none;margin:0;padding:0;columns:2;column-gap:14px}.ddc li{break-inside:avoid}
@@ -368,10 +336,30 @@ footer.foot{background:var(--navy2)}
 .wa-fab{background:#1a7a3a}
 main:not(.wide){background:var(--card);box-shadow:none;border:1px solid var(--line)}
 .ddp{background:var(--navy2);box-shadow:none}
-.card img,.ph,.pimg,.lphoto{background:var(--gold2)}
-.lookband{background:var(--gold3)}
+.card img,.ph,.pimg{background:var(--gold2)}
 .hero3{background:var(--navy2)}
 .hero3:before,.hero3:after{content:none;display:none}
 .hero3 h1{filter:none}
 .hero3 .hlogo.big{filter:none}
 .rhomb{box-shadow:none;border-color:rgba(217,189,69,.5)}
+
+/* ======================= Pola baris (pita hias) bergaya songket: zigzag emas (header), kunci meander (pembatas/ kaki), rosette bersulur (pembatas gelap). Vektor SVG, tanpa gambar eksternal. */
+.batik{height:20px;border:0;background:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2220%22 viewBox=%220 0 24 20%22%3E%3Crect width=%2224%22 height=%2220%22 fill=%22%23eab12f%22/%3E%3Cpath d=%22M0 1.5H24M0 18.5H24%22 stroke=%22%2315100b%22 stroke-width=%221.6%22/%3E%3Cpath d=%22M0 12L6 6L12 12L18 6L24 12%22 fill=%22none%22 stroke=%22%2315100b%22 stroke-width=%222.2%22/%3E%3Cpath d=%22M0 16L6 10L12 16L18 10L24 16%22 fill=%22none%22 stroke=%22%2315100b%22 stroke-width=%221.2%22/%3E%3C/svg%3E") 0 0/24px 20px repeat-x}
+.tumpal{height:28px;background:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2228%22 viewBox=%220 0 20 28%22%3E%3Crect width=%2220%22 height=%2228%22 fill=%22%232a2024%22/%3E%3Cpath d=%22M0 1.5H20M0 26.5H20%22 stroke=%22%23c9a55a%22 stroke-width=%222%22/%3E%3Cpath d=%22M0 22H3V7H17V22H20%22 fill=%22none%22 stroke=%22%23c9a55a%22 stroke-width=%222.2%22/%3E%3Cpath d=%22M7 22V12H13V17%22 fill=%22none%22 stroke=%22%23c9a55a%22 stroke-width=%222.2%22/%3E%3C/svg%3E") 0 0/20px 28px repeat-x}
+.tumpal.dk{height:44px;background:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2272%22 height=%2244%22 viewBox=%220 0 72 44%22%3E%3Crect width=%2272%22 height=%2244%22 fill=%22%232a2024%22/%3E%3Cpath d=%22M0 2H72M0 42H72%22 stroke=%22%23c9a55a%22 stroke-width=%222.4%22/%3E%3Cpath d=%22M0 6H72M0 38H72%22 stroke=%22%23c9a55a%22 stroke-width=%221%22/%3E%3Cg fill=%22none%22 stroke=%22%23c9a55a%22 stroke-width=%222.3%22 stroke-linecap=%22round%22%3E%3Cpath id=%22c%22 d=%22M42 22C54 22 59 11 50 9C44 8 42 15 47 17%22/%3E%3Cuse href=%22%23c%22 transform=%22translate(72 0) scale(-1 1)%22/%3E%3Cuse href=%22%23c%22 transform=%22translate(0 44) scale(1 -1)%22/%3E%3Cuse href=%22%23c%22 transform=%22translate(72 44) scale(-1 -1)%22/%3E%3C/g%3E%3Cg fill=%22%23c9a55a%22%3E%3Ccircle cx=%2236%22 cy=%2216%22 r=%224.6%22/%3E%3Ccircle cx=%2236%22 cy=%2228%22 r=%224.6%22/%3E%3Ccircle cx=%2230%22 cy=%2222%22 r=%224.6%22/%3E%3Ccircle cx=%2242%22 cy=%2222%22 r=%224.6%22/%3E%3Ccircle cx=%2236%22 cy=%2222%22 r=%222.6%22 fill=%22%232a2024%22/%3E%3Cpath d=%22M0 17L5 22L0 27ZM72 17L67 22L72 27Z%22/%3E%3C/g%3E%3C/svg%3E") 0 0/72px 44px repeat-x}
+@media(max-width:640px){.tumpal.dk{height:36px;background-size:59px 36px}}
+/* ======================= Tepak Sarung: pita yang bergeser ke KIRI (kebalikan pita Koleksi yang ke kanan) */
+.marq.rev .mtrack{animation-name:mleft}
+@keyframes mleft{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tepaksec .sh h1{margin:0;font-size:clamp(28px,4vw,40px)}
+.card.tepak .pimg{background:#e9e5de}.pimg svg.motif.tepak{object-fit:cover}
+.card.tepak .more{text-decoration:none}.card.tepak a.more:hover{text-decoration:underline}
+@media(prefers-reduced-motion:reduce){.marq.rev .mtrack{animation:none}}
+/* Video: lencana putar pada sampul */
+.pimg{position:relative}.play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;background:rgba(42,32,36,.78);color:#f6e7b0;display:flex;align-items:center;justify-content:center;border:2px solid #d9a62e;pointer-events:none}
+.cover .play{width:64px;height:64px}.watch{text-align:center;margin:14px 0}
+
+/* ======================= Putaran 65: palet selaras logo Wadimor — hitam hangat, kuning-amber emas, krem gading (bukan krem kehijauan / navy). */
+:root{--cream:#fdf6e4;--brown:#2b1c07;--brown2:#6a4a0f;--ink:#241a08;--mut:#6b5420;--maroon:#7a1f2b}
+a{color:#7a4a00}
+.sec.band{background:linear-gradient(180deg,rgba(255,252,240,.7),rgba(251,238,201,.35))}

@@ -1,10 +1,12 @@
-"""Isi awal situs publik (contoh/demonstrasi): pengaturan, halaman Tentang Sarung, kategori, produk contoh, artikel, toko, FAQ, lowongan.
+"""Isi awal situs publik (contoh/demonstrasi): pengaturan, halaman Tentang Sarung, kategori (sarung saja), produk sarung contoh, Tepak Sarung, artikel, toko, FAQ, lowongan.
 Aman dijalankan ulang (tidak menimpa isi yang sudah diubah HRD; hanya membuat bila kosong). Semua teks adalah CONTOH — ganti lewat menu Company Profile.
 `--force` tidak ada: hapus/ubah lewat backend."""
+from pathlib import Path
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.utils.text import slugify
-from apps.company.models import Article, Faq, Job, Look, Motif, Page, Product, ProductCategory, ProductColor, SiteSetting, StoreLocation
+from apps.company.models import Article, Faq, ProductImage, Job, Motif, Page, Product, ProductCategory, ProductColor, SiteSetting, StoreLocation, Tepak
 
 OLD_ABOUT_ID = """## Apa itu sarung?
 Sarung adalah kain tradisional Indonesia berbentuk tabung yang menjadi bagian dari budaya dan kehidupan sehari-hari. Selain sebagai pakaian, sarung adalah lambang identitas budaya, status sosial, dan warisan leluhur yang diwariskan turun-temurun.
@@ -82,44 +84,21 @@ PRODUCTS = (  # slug, nama, subkategori, motif, warna, bahan, ukuran, harga (Non
      "Seri eksklusif untuk hadiah dan koleksi. Harga: hubungi kami.", "Exclusive series for gifts and collectors. Price: contact us."),
     ("sarung-anak-ceria", "Sarung Anak Ceria", "Sarung Anak", "Kotak", "Merah, kuning", "Katun", "80 x 160 cm", 89000, False,
      "Warna ceria untuk anak, aman dan nyaman dipakai.", "Cheerful colours for kids, safe and comfortable."),
-    ("celana-sarung-wadimor", "Celana Sarung Wadimor", "Celana Sarung", "Kotak halus", "Cokelat, emas", "Katun rayon", "All size (pinggang karet)", 135000, True,
-     "Praktis seperti sarung tanpa repot melipat: tinggal pakai.", "As comfortable as a sarong without the folding: just slip it on."),
-    ("baju-koko-putih-bordir", "Baju Koko Putih Bordir", "Baju Koko", "Bordir kerah", "Putih, emas", "Katun twill", "M – XXL", 165000, True,
-     "Koko putih berbordir halus di kerah dan dada, adem dan rapi.", "White koko shirt with fine embroidery on the collar and chest, cool and neat."),
-    ("baju-koko-songket-hijau", "Baju Koko Songket Hijau", "Baju Koko", "Songket", "Hijau, emas", "Katun & benang songket", "M – XXL", 215000, True,
-     "Koko hijau dengan aksen songket, pasangan serasi sarung songket.", "Green koko shirt with songket accents, a perfect match for the songket sarong."),
-    ("kemeja-muslim-garis", "Kemeja Muslim Lengan Panjang", "Kemeja Muslim", "Garis halus", "Biru tua, putih", "Katun poplin", "M – XXL", 175000, False,
-     "Kemeja berkerah tegak, nyaman untuk pengajian dan acara santai.", "Stand-collar shirt, comfortable for gatherings and relaxed events."),
-    ("peci-hitam-beludru", "Peci Hitam Beludru", "Peci", "Polos", "Hitam, emas", "Beludru", "54 – 60 cm", 55000, True,
-     "Peci hitam klasik berbahan beludru, bentuk tegak dan rapi.", "Classic black velvet peci that holds its shape."),
-    ("peci-rajut-putih", "Peci Rajut Putih", "Peci", "Rajut", "Putih", "Benang katun rajut", "All size", 45000, False,
-     "Peci rajut ringan dan sejuk, cocok untuk ibadah harian.", "Light, breathable knitted cap for daily worship."),
-    ("surban-putih-polos", "Surban Putih Polos", "Surban", "Polos", "Putih", "Katun voal", "± 200 x 50 cm", 75000, False,
-     "Surban putih tipis dan jatuh lembut, mudah dililit.", "Thin white turban that drapes softly and is easy to wrap."),
 )
-GROUPS = (  # slug, nama id/en, contoh isi id/en, urutan
-    ("bawahan", "Bawahan", "Bottoms", "Sarung, celana sarung, dan bawahan lainnya.", "Sarongs, sarong trousers and other bottoms.", 10),
-    ("atasan", "Atasan", "Tops", "Baju koko, kemeja, dan atasan lainnya.", "Koko shirts, shirts and other tops.", 20),
-    ("aksesoris", "Aksesoris", "Accessories", "Surban, peci, dan aksesoris lainnya.", "Turbans, caps and other accessories.", 30),
+GROUPS = (  # slug, nama id/en, contoh isi id/en, urutan — katalog HANYA sarung: satu kelompok
+    ("sarung", "Sarung", "Sarong", "Sarung tenun, printing, ibadah, dan anak.", "Woven, printed, worship and kids' sarongs.", 10),
 )
 SUBS = (  # kelompok, nama id/en, urutan
-    ("bawahan", "Sarung Tenun", "Woven Sarong", 10), ("bawahan", "Sarung Printing", "Printed Sarong", 15), ("bawahan", "Sarung Ibadah", "Worship Sarong", 20), ("bawahan", "Sarung Anak", "Kids' Sarong", 30), ("bawahan", "Celana Sarung", "Sarong Trousers", 40),
-    ("atasan", "Baju Koko", "Koko Shirt", 10), ("atasan", "Kemeja Muslim", "Muslim Shirt", 20),
-    ("aksesoris", "Peci", "Peci Cap", 10), ("aksesoris", "Surban", "Turban", 20),
+    ("sarung", "Sarung Tenun", "Woven Sarong", 10), ("sarung", "Sarung Printing", "Printed Sarong", 15), ("sarung", "Sarung Ibadah", "Worship Sarong", 20), ("sarung", "Sarung Anak", "Kids' Sarong", 30),
 )
-LOOKS = (  # slug, judul id/en, acara id/en, cerita id/en, slug produk, unggulan, urutan
-    ("salat-jumat", "Salat Jumat", "Friday Prayer", "Salat Jumat", "Friday prayer",
-     "Setelan sederhana yang rapi dan nyaman untuk beribadah: sarung kotak klasik, baju koko putih berbordir, dan peci hitam.",
-     "A simple outfit that is neat and comfortable for worship: classic checked sarong, embroidered white koko shirt and a black peci.",
-     ("sarung-wadimor-klasik", "baju-koko-putih-bordir", "peci-hitam-beludru"), True, 10),
-    ("lebaran-bersama-keluarga", "Lebaran Bersama Keluarga", "Eid with the Family", "Hari raya", "Eid",
-     "Tampil serasi di hari istimewa: sarung songket berbenang emas dipadu koko hijau beraksen songket.",
-     "Matching looks for the big day: a gold-thread songket sarong with a green koko shirt in songket accents.",
-     ("sarung-wadimor-songket", "baju-koko-songket-hijau", "peci-hitam-beludru"), False, 20),
-    ("pengajian-malam", "Pengajian Malam", "Evening Gathering", "Pengajian", "Gatherings",
-     "Santai namun sopan: sarung ibadah halus, kemeja muslim lengan panjang, dan surban putih.",
-     "Relaxed yet respectful: a fine worship sarong, a long-sleeved Muslim shirt and a white turban.",
-     ("sarung-ibadah-halus", "kemeja-muslim-garis", "surban-putih-polos"), False, 30),
+TEPAK = (  # slug, nama, varian, ringkasan id/en, keterangan, berkas foto (apps/company/seed_assets/tepak), urutan
+    ("tepak-wadimor-citra", "Tepak Wadimor Citra", "Citra", "Ornamen emas berlatar biru, tampil mewah untuk hadiah.", "Gold ornaments on a blue field, a luxurious gift box.", "Kotak keras · isi 1 sarung", "citra.jpg", 10),
+    ("tepak-wadimor-penang", "Tepak Wadimor Penang", "Penang", "Lengkung kubah emas di atas dasar hitam yang elegan.", "A golden dome arch on an elegant black base.", "Kotak keras · isi 1 sarung", "penang.jpg", 20),
+    ("tepak-wadimor-horizon", "Tepak Wadimor Horizon", "Horizon", "Biru langit berpola siluet dengan tumpal emas di tepi.", "Sky blue with a silhouette pattern and gold tumpal edge.", "Kotak keras · isi 1 sarung", "horizon.jpg", 30),
+    ("tepak-wadimor-premium", "Tepak Wadimor Premium", "Premium", "Kemasan kaleng perak yang ringkas, awet, dan mudah disimpan.", "A compact silver tin that is durable and easy to store.", "Kaleng · isi 1 sarung", "premium.jpg", 40),
+    ("tepak-wadimor-bukit-tinggi", "Tepak Wadimor Bukit Tinggi", "Bukit Tinggi", "Bergambar menara jam di atas latar emas bermotif, oleh-oleh yang berkesan.", "A clock tower on a patterned gold field, a memorable souvenir.", "Kotak keras · isi 1 sarung", "bukit-tinggi.jpg", 50),
+    ("tepak-wadimor-hawai", "Tepak Wadimor Hawai", "Hawai", "Sulur emas klasik di atas dasar kuning keemasan.", "Classic gold scrolls on a golden-yellow base.", "Kotak keras · isi 1 sarung", "hawai.jpg", 60),
+    ("tepak-wadimor-merah-garis", "Tepak Wadimor Merah Garis", "Merah Garis", "Kisi merah berpadu lajur garis berwarna yang tegas.", "A red lattice with bold coloured stripes.", "Kotak keras · isi 1 sarung", "merah-garis.jpg", 70),
 )
 STORES = (  # nama, kota, alamat, telepon, jam id/en, tautan peta
     ("Toko Pusat", "Batang", "Jl. Sultan Agung No. 21, Batang, Jawa Tengah 51211", "(0285) 555 0101", "Senin–Sabtu 08.00–16.00", "Mon–Sat 08:00–16:00", "https://www.google.com/maps/search/?api=1&query=Batang+Jawa+Tengah"),
@@ -159,6 +138,7 @@ JOBS = (  # judul, divisi, lokasi, jenis, jumlah, ringkasan, tugas, syarat, bene
 
 
 MOTIFS = (  # nama motif/seri sarung tenun (urutan = urutan di menu Produk), keterangan id/en
+    ("Horizon", "Seri Horizon: motif tenun etnik berlatar warna pekat.", "Horizon series: ethnic woven motifs on a deep ground."),
     ("Grandmaster", "Seri unggulan: tenunan rapat, warna pekat, tampil berwibawa.", "Flagship series: dense weave, rich colours, a dignified look."),
     ("Primer", "Sarung harian bermutu dengan harga bersahabat.", "Good everyday sarongs at a friendly price."),
     ("Viscose", "Serat viscose yang jatuh lembut dan adem.", "Viscose fibre that drapes softly and stays cool."),
@@ -197,22 +177,21 @@ class Command(BaseCommand):
         if not s.hero_title_id:
             s.hero_title_id = "Warisan Budaya dalam Setiap Helai"; s.hero_title_en = "Cultural Heritage in Every Thread"
             s.hero_text_id = "Sarung tenun berkualitas untuk keseharian, ibadah, dan acara istimewa."; s.hero_text_en = "Quality woven sarongs for everyday wear, worship and special occasions."
-            s.banner_active = True; s.banner_id = "Website Dalam Pengembangan, beberapa fitur mungkin belum tersedia atau berubah sewaktu-waktu."
-            s.banner_en = "Website Under Development, some features may be unavailable or change at any time."
             s.careers_intro_id = "Bergabunglah bersama kami. Lamaran cukup diisi satu kali; kami kabari perkembangannya lewat email."; s.careers_intro_en = "Join us. Fill in the application once; we will keep you posted by email."
-            s.meta_description_id = "Wadimor: sarung tenun, baju koko, peci, dan aksesoris. Lihat produk, lookbook, lokasi toko, artikel, dan lowongan kerja."; s.meta_description_en = "Wadimor: woven sarongs, koko shirts, caps and accessories. Browse products, lookbook, stores, articles and careers."
+            s.meta_description_id = "Wadimor: sarung tenun untuk keseharian, ibadah, dan acara istimewa. Lihat produk, tepak sarung, lokasi toko, artikel, dan lowongan kerja."; s.meta_description_en = "Wadimor: woven sarongs for daily wear, worship and special occasions. Browse products, sarong boxes, stores, articles and careers."
+        if s.meta_description_id == "Wadimor: sarung tenun, baju koko, peci, dan aksesoris. Lihat produk, lookbook, lokasi toko, artikel, dan lowongan kerja.": s.meta_description_id, s.meta_description_en = "Wadimor: sarung tenun untuk keseharian, ibadah, dan acara istimewa. Lihat produk, tepak sarung, lokasi toko, artikel, dan lowongan kerja.", "Wadimor: woven sarongs for daily wear, worship and special occasions. Browse products, sarong boxes, stores, articles and careers."   # deskripsi contoh lama (masih menyebut baju koko/lookbook) → sarung saja; deskripsi buatan HRD tidak disentuh
         # kontak demo: hanya mengisi kolom yang masih kosong
         for k, v in dict(address="Jl. Industri Tekstil No. 5, Kawasan Industri, Batang, Jawa Tengah 51211", phone="(0285) 555 0100", whatsapp="628120000000", email="info@wadimor.example",
                          hours_id="Senin–Sabtu 08.00–16.00", hours_en="Mon–Sat 08:00–16:00", maps_url="https://www.google.com/maps/search/?api=1&query=Batang+Jawa+Tengah",
                          instagram="https://www.instagram.com/", facebook="https://www.facebook.com/", tiktok="https://www.tiktok.com/", marketplace_url="https://shopee.co.id/",
-                         footer_note_id="Data contoh untuk tahap pengembangan.", footer_note_en="Sample data for the development stage.").items():
+                         footer_note_id="", footer_note_en="").items():
             if not getattr(s, k): setattr(s, k, v)
         s.save()
         pg, _ = Page.objects.get_or_create(slug="tentang-kami", defaults=dict(title_id="Tentang Sarung", title_en="About the Sarong", subtitle_id="Mengenal lebih dalam tentang warisan budaya Indonesia",
                                            subtitle_en="Getting to know Indonesia's cultural heritage", body_id=ABOUT_ID, body_en=ABOUT_EN, status="published"))
         if pg.body_id == OLD_ABOUT_ID and pg.body_en == OLD_ABOUT_EN:   # belum pernah disunting HRD → perkaya
             pg.body_id, pg.body_en = ABOUT_ID, ABOUT_EN; pg.save()
-        # kategori dua tingkat: kelompok (Bawahan/Atasan/Aksesoris) → subkategori. Kategori demo lama (Sarung Tenun/Ibadah/Anak, tanpa induk) dipindah ke "Bawahan".
+        # kategori dua tingkat: kelompok "Sarung" → subkategori (Tenun/Printing/Ibadah/Anak). Kategori demo lama tanpa induk dipindah ke "Sarung"; kelompok "Bawahan" lama sudah diganti nama oleh migrasi 0004.
         groups, cats = {}, {}
         for gslug, gid, gen, hid, hen, order in GROUPS:
             g = ProductCategory.objects.filter(name_id=gid, parent__isnull=True).first() or ProductCategory.objects.create(name_id=gid, name_en=gen, hint_id=hid, hint_en=hen, order=order)
@@ -258,10 +237,33 @@ class Command(BaseCommand):
             if m.products.exists() or Product.objects.filter(slug=slug).exists(): continue
             Product.objects.create(slug=slug, name=name, category=m.category, series=m, motif=nm, status="published", order=200 + i,
                                    summary_id=f"Seri {nm} dari Wadimor, {kind} untuk keseharian dan acara istimewa.", summary_en=f"The {nm} series by Wadimor, {kind.replace('sarung', 'sarong')} for daily wear and special occasions.")
-        for slug, tid, ten, oid, oen, sid, sen, items, feat, order in LOOKS:   # lookbook: dibuat bila belum ada; setelan yang sudah disunting HRD tidak disentuh
-            if not Look.objects.filter(slug=slug).exists():
-                lk = Look.objects.create(slug=slug, title_id=tid, title_en=ten, occasion_id=oid, occasion_en=oen, story_id=sid, story_en=sen, featured=feat, order=order, status="published")
-                lk.products.set(Product.objects.filter(slug__in=items))
+        base = Path(__file__).resolve().parents[2] / "seed_assets"
+        def attach(obj, field, rel):   # foto contoh → penyimpanan media (hanya bila kosong; HRD bebas menggantinya)
+            if getattr(obj, field): return
+            try: getattr(obj, field).save(Path(rel).name, ContentFile((base / rel).read_bytes()), save=True)
+            except OSError: self.stderr.write(f"Foto contoh {rel} tidak bisa disimpan; memakai ilustrasi.")
+        # produk "Pulau Madura · Horizon" (kemasan tepak Horizon menautkan ke sini) + produk untuk tepak lain agar setiap kartu tepak punya tujuan
+        mad = Product.objects.filter(slug="sarung-wadimor-horizon-madura").first() or Product.objects.create(
+            slug="sarung-wadimor-horizon-madura", name="Sarung Wadimor Horizon Pulau Madura", category=tenun, series=series["Horizon"], motif="Pulau Madura", colors="Marun", status="published", featured=True, order=5,
+            summary_id="Tenun motif etnik Pulau Madura berlatar marun, dengan tumpal dan sorot di bagian belakang.", summary_en="Ethnic Pulau Madura woven motifs on a maroon ground, with a tumpal and highlight panel at the back.",
+            description_id="Seri Horizon motif Pulau Madura: tumpal berpola rapi di bagian bawah dan sorot di bagian belakang kain.\n\n- Warna: Marun\n- Kemasan: tepak Horizon", description_en="Horizon series, Pulau Madura motif: a neatly patterned tumpal at the hem and a highlight panel at the back.\n\n- Colour: Maroon\n- Packaging: Horizon box")
+        attach(mad, "image", "product/horizon-madura.jpg")
+        if not mad.images.exists():
+            gi = ProductImage(product=mad, caption_id="Tumpal / sorot belakang", caption_en="Tumpal / back panel", order=10)
+            try: gi.image.save("horizon-madura-belakang.jpg", ContentFile((base / "product/horizon-madura-belakang.jpg").read_bytes()), save=True)
+            except OSError: pass
+        if not mad.color_options.exists(): ProductColor.objects.create(product=mad, name_id="Marun", name_en="Maroon", hex="#7a1f2b", order=10)
+        prod_of = {"tepak-wadimor-horizon": mad}
+        for i, (slug, name, variant, *_r) in enumerate(TEPAK):
+            if slug in prod_of: continue
+            pn = f"Sarung Wadimor {variant}"; ps = slugify(pn)
+            prod_of[slug] = Product.objects.filter(slug=ps).first() or Product.objects.create(slug=ps, name=pn, category=tenun, status="published", order=300 + i, motif=variant,
+                summary_id=f"Sarung tenun Wadimor dalam kemasan tepak {variant}.", summary_en=f"Wadimor woven sarong in the {variant} box.")
+        # Tepak Sarung: dibuat bila belum ada (kunci = slug), menaut ke produk; foto contoh disalin ke media agar bisa diganti HRD
+        for slug, name, variant, sid, sen, spec, fname, order in TEPAK:
+            t = Tepak.objects.filter(slug=slug).first() or Tepak.objects.create(slug=slug, name=name, variant=variant, summary_id=sid, summary_en=sen, spec=spec, order=order, status="published")
+            if t.product_id is None: t.product = prod_of[slug]; t.save(update_fields=["product"])
+            attach(t, "image", f"tepak/{fname}")
         now = timezone.now()
         for slug, tid, ten, eid, een, bid, ben, days in ARTICLES:
             a = Article.objects.filter(slug=slug).first()
@@ -270,6 +272,11 @@ class Command(BaseCommand):
                                        status="published", published_at=now - datetime.timedelta(days=days), author="Redaksi")
             elif a.body_id == "Artikel contoh. Ganti lewat menu Artikel.":
                 a.body_id, a.body_en = bid.replace("\\n", "\n"), ben.replace("\\n", "\n"); a.save()
+        vid = Article.objects.filter(slug="komitmen-seorang-bintang").first() or Article.objects.create(
+            slug="komitmen-seorang-bintang", kind="video", title_id="Komitmen Seorang Bintang", title_en="The Commitment of a Star", status="published", author="Wadimor",
+            published_at=now - datetime.timedelta(days=3), excerpt_id="Komitmen, disiplin, dan standar tinggi yang dijaga dengan konsisten.", excerpt_en="Commitment, discipline and high standards, kept consistently.",
+            body_id="Dalam setiap langkah seorang bintang, terdapat komitmen, disiplin, dan standar tinggi yang dijaga dengan konsisten. Nilai inilah yang tercermin dalam setiap helai sarung Wadimor.", body_en="In every step of a star there is commitment, discipline and high standards, kept consistently. These are the values woven into every Wadimor sarong.")
+        attach(vid, "cover", "video/bintang.jpg")
         existing = list(StoreLocation.objects.all()[:2])   # toko: hanya diisi bila kosong / masih satu placeholder lama (nama bisa diganti HRD → jangan duplikat)
         if not existing or (len(existing) == 1 and existing[0].address.startswith("Alamat contoh")):
             for i, (name, city, addr, phone, hid, hen, maps) in enumerate(STORES):

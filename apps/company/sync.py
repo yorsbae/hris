@@ -23,10 +23,10 @@ from django.db.models.fields.files import FieldFile
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from . import safe_upload
-from .models import (Application, ApplicationEvent, Article, Faq, Job, JobStatus, Look, Motif, Product, ProductCategory, ProductColor, ProductImage,
-                     SiteSetting, Page, StoreLocation, Stage)
+from .models import (Application, ApplicationEvent, Article, Faq, Job, JobStatus, Motif, Product, ProductCategory, ProductColor, ProductImage,
+                     SiteSetting, Page, StoreLocation, Stage, Tepak)
 
-CONTENT = [SiteSetting, Page, ProductCategory, Motif, Product, ProductColor, ProductImage, Look, Article, StoreLocation, Faq, Job]  # urutan = urutan impor
+CONTENT = [SiteSetting, Page, ProductCategory, Motif, Product, ProductColor, ProductImage, Tepak, Article, StoreLocation, Faq, Job]  # urutan = urutan impor
 SKIP_FIELDS = {"updated_by", "department", "created_at", "updated_at"}   # penunjuk ke data HRIS (user/departemen) tidak ikut keluar
 PUBLISHED = {"status": ["published"]}
 MAX_BUNDLE_MB = 200
@@ -86,7 +86,7 @@ def build_bundle():
                     except OSError: r[ff] = ""
             rows.append(r); ids.add(o.pk)
         exported[M] = ids; data[M._meta.label] = rows
-    m2m = {"company.Look.products": [[l.pk, sorted(l.products.filter(pk__in=exported[Product]).values_list("pk", flat=True))] for l in Look.objects.filter(pk__in=exported[Look])]}
+    m2m = {}   # tidak ada lagi relasi banyak-ke-banyak (Lookbook dihapus); kunci tetap ada agar format paket tidak berubah
     apps_status = [{"ref": a.ref, "stage": a.stage, "anonymized": bool(a.anonymized_at),
                     "events": [{"id": e.pk, "kind": e.kind, "from": e.from_stage, "to": e.to_stage, "msg": e.public_message, "at": e.created_at.isoformat()}
                                for e in a.events.all() if e.public_message or e.kind in ("stage", "anonymized")]}
@@ -162,9 +162,6 @@ def apply_bundle(raw, last_serial=""):
             stale = M.objects.exclude(pk__in=keep)
             if M is Job: stale.update(status=JobStatus.DRAFT)            # PROTECT oleh lamaran; cukup disembunyikan
             elif M is not SiteSetting: n_del += stale.delete()[0]
-        for lid, pids in payload["m2m"].get("company.Look.products", []):
-            l = Look.objects.filter(pk=lid).first()
-            if l: l.products.set(pids)
         confirmed = _apply_statuses(payload.get("applications", []))
     return serial, {"deleted": n_del, "applications": len(confirmed)}, confirmed
 

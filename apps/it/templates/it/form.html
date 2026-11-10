@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}{{ title }}{% endblock %}{% block content %}
+<p class="back"><a href="{{ back }}">‹ Kembali</a></p><h2>{{ title }}</h2>
+<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}
+{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small style="color:var(--mu)">{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endfor %}
+<p><button>Simpan</button></p></form>
+{% if delete %}<form method="post" action="{{ back }}{{ obj.pk }}/hapus/" onsubmit="return confirm('Hapus data ini?')">{% csrf_token %}<button class="btn ghost">Hapus</button></form>{% endif %}
+{% endblock %}

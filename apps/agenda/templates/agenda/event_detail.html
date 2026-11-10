@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}{{ e.title }}{% endblock %}{% block content %}
+<p class="back"><a href="/calendar/?m={{ e.start_date|date:'Y-m' }}&day={{ e.start_date|date:'Y-m-d' }}">‹ Kalender</a></p>
+<h2>{{ e.title }} <span class="pill">{{ e.get_kind_display }}</span>{% if can_edit %} <a class="btn ghost" href="/calendar/event/{{ e.pk }}/ubah/">Ubah</a>{% endif %}</h2>
+<div class="card"><p>{{ e.start_date|date:"l, d F Y" }}{% if e.end_date and e.end_date != e.start_date %} s/d {{ e.end_date|date:"l, d F Y" }}{% endif %}{% if e.start_time %} · {{ e.start_time|time:"H:i" }}{% if e.end_time %}–{{ e.end_time|time:"H:i" }}{% endif %}{% endif %}</p>
+{% if e.location %}<p>Lokasi: {{ e.location }}</p>{% endif %}<p>Untuk: {% if e.audience == 'dept' %}departemen {{ e.department }}{% elif e.audience == 'role' %}peran {{ e.audience_role }}{% else %}semua akun{% endif %} · dibuat oleh {{ e.created_by|default:"—" }}</p>
+{% if e.description %}<p style="white-space:pre-wrap">{{ e.description }}</p>{% endif %}</div>
+{% endblock %}

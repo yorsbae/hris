@@ -54,7 +54,7 @@ class Command(BaseCommand):
         p.add_argument("--password", default="Demo#HRIS-2026", help="sandi semua akun demo (min. 10 karakter)")
         p.add_argument("--seed", type=int, default=2026)
 
-    @transaction.atomic
+    @transaction.atomic   # gagal di tengah jalan → tidak meninggalkan data setengah jadi (yang memblokir seed berikutnya)
     def handle(self, *a, **o):
         if not settings.FIELD_ENCRYPTION_KEY: raise CommandError("FIELD_ENCRYPTION_KEY belum diisi di .env (lihat .env.example); data sensitif karyawan terenkripsi.")
         if len(o["password"]) < 10: raise CommandError("--password minimal 10 karakter")
@@ -62,13 +62,75 @@ class Command(BaseCommand):
         self.r, self.pw, self.today = random.Random(o["seed"]), o["password"], timezone.localdate()
         n = max(20, min(o["employees"], 1500))
         self.users(); self.master(); self.employees(n); self.requests(); self.history(); self.swaps(); self.leave(); self.info()
-        self.extra_work(); self.attendance(); self.machine_scans(); self.hrd_ops(); self.poli(); self.separations(); self.payroll(); self.audit()
+        self.it_calendar(); self.it_inventory(); self.extra_work(); self.attendance(); self.machine_scans(); self.hrd_ops(); self.poli(); self.separations(); self.payroll(); self.audit()
         from django.core.management import call_command
         call_command("seed_company", stdout=self.stdout)   # putaran 48: situs publik (profil, produk, artikel, toko, FAQ, lowongan contoh)
         s = self.stat
         self.stdout.write(self.style.SUCCESS(f"Data demo selesai: {s}"))
         self.stdout.write("Akun demo (sandi sama untuk semuanya): " + o["password"])
         for u, role in self.accounts: self.stdout.write(f"  {u:<18} {role}")
+
+    # ---------- putaran 66: kalender (agenda) + modul IT
+    def it_calendar(self):
+        from datetime import timedelta as td
+        from apps.agenda.models import AgendaEvent
+        from apps.it import models as it
+        t, r = self.today, self.r
+        m1 = t.replace(day=1)
+        for i, (title, kind, off, hm, loc, aud) in enumerate([("Rapat koordinasi mingguan", "rapat", 2, (9, 0), "Ruang rapat A", "semua"), ("Rapat evaluasi produksi", "rapat", 9, (13, 30), "Ruang rapat B", "semua"),
+                                                              ("Pelatihan K3 & evakuasi", "pelatihan", 14, (8, 0), "Aula", "semua"), ("Gathering akhir tahun", "event", 21, None, "Wisma Wadimor", "semua"),
+                                                              ("Pengingat tutup periode absensi", "pengingat", 5, None, "", "role")]):
+            d = t + td(days=off - 3)
+            AgendaEvent.objects.create(title=title, kind=kind, start_date=d, end_date=d + td(days=1) if kind == "event" else None, start_time=__import__("datetime").time(*hm) if hm else None, location=loc,
+                                       audience=aud, audience_role="hrd" if aud == "role" else "", created_by=self.hrd_u)
+        for tag, name, cat, brand, st, who, off in [("LPT-001", "Laptop HRD", "laptop", "Lenovo ThinkPad E14", "dipakai", "Yordan Abdillah", 25), ("LPT-002", "Laptop Payroll", "laptop", "ASUS Vivobook", "dipakai", "Rahmat Payroll", 400),
+                                                    ("PC-014", "PC Gudang", "pc", "Dell OptiPlex 3080", "dipakai", "Gudang", -20), ("SRV-001", "Server aplikasi HRIS", "server", "HPE ProLiant ML30", "dipakai", "Ruang server", 180),
+                                                    ("SW-003", "Switch lantai 2", "network", "TP-Link TL-SG2428P", "dipakai", "Lantai 2", 600), ("FP-001", "Mesin fingerprint gerbang", "fingerprint", "Fingerspot Revo", "dipakai", "Pos satpam", 90),
+                                                    ("PRN-002", "Printer kantor", "printer", "Epson L6290", "perbaikan", "Kantor", 12), ("LPT-009", "Laptop cadangan", "laptop", "Acer Aspire 5", "stok", "", 300)]:
+            a = it.Asset.objects.create(tag=tag, name=name, category=cat, brand=brand, status=st, assignee=who, purchase_date=t - td(days=500), warranty_until=t + td(days=off), location="Pabrik Wadimor")
+            it.AssetEvent.objects.create(asset=a, action="dibuat", detail="Data awal (demo)", by=self.it_u)
+        for nm, cidr, vlan, gw in [("LAN Kantor", "192.168.10.0/24", 10, "192.168.10.1"), ("CCTV & Mesin Absensi", "192.168.20.0/26", 20, "192.168.20.1"), ("Server", "10.10.0.0/28", 30, "10.10.0.1")]:
+            sn = it.Subnet.objects.create(name=nm, cidr=cidr, vlan=vlan, gateway=gw)
+            net = sn.net; hosts = list(net.hosts())[1:1 + (4 if net.num_addresses <= 16 else 9)]
+            for j, h in enumerate(hosts): it.IPAddress.objects.create(subnet=sn, address=str(h), hostname=f"{nm.split()[0].lower()}-{j + 1:02d}", mac=f"02:00:{sn.pk:02x}:00:00:{j + 1:02x}", kind="statis" if j < 3 else "reservasi")
+        it.License.objects.create(name="Microsoft 365 Business", vendor="Microsoft", seats=12, used=11, expires=t + td(days=22), key="DEMO-KEY-0000", cost=18000000)
+        it.License.objects.create(name="Antivirus Endpoint", vendor="ESET", seats=30, used=30, expires=t + td(days=200), key="DEMO-KEY-1111")
+        it.Domain.objects.create(name="wadimor.example", kind="domain", provider="Registrar demo", expires=t + td(days=40), auto_renew=True)
+        it.Domain.objects.create(name="hris.wadimor.example", kind="ssl", provider="Let's Encrypt", expires=t + td(days=9))
+        it.Ticket.objects.create(title="Printer kantor macet kertas", requester="Admin Produksi", priority="sedang", status="proses", due=t + td(days=2), asset=it.Asset.objects.get(tag="PRN-002"))
+        it.Ticket.objects.create(title="Akun email karyawan baru", requester="HRD", priority="rendah", status="baru", due=t + td(days=5))
+        it.Ticket.objects.create(title="Mesin fingerprint tidak sinkron", requester="HRD", priority="tinggi", status="baru", due=t - td(days=1), asset=it.Asset.objects.get(tag="FP-001"))
+
+    def it_inventory(self):
+        """Putaran 67: stok IT (masuk/keluar), wishlist departemen, perangkat jaringan."""
+        from datetime import timedelta as td
+        from apps.hr.models import Department
+        from apps.it import models as it
+        t = self.today; ds = list(Department.objects.order_by("name")[:3]) or [None]
+        hrd_dept = Department.objects.filter(name__icontains="hr").first() or ds[0]
+        for sku, name, cat, unit, mn, loc, masuk in [("KBL-001", "Kabel LAN Cat6 (box 305 m)", "kabel", "box", 1, "Lemari IT", 3), ("SSD-240", "SSD SATA 240 GB", "storage", "pcs", 3, "Lemari IT", 8),
+                                                     ("MSE-01", "Mouse USB", "periferal", "pcs", 5, "Lemari IT", 20), ("TNR-L6", "Tinta Epson L-series (set)", "toner", "set", 4, "Lemari IT", 6),
+                                                     ("UPS-650", "UPS 650 VA", "daya", "unit", 2, "Gudang IT", 3)]:
+            i = it.StockItem.objects.create(sku=sku, name=name, category=cat, unit=unit, min_stock=mn, location=loc)
+            it.StockMovement.record(i.pk, "masuk", masuk, "Toko Komputer Maju (PO-2026-11)", by=self.it_u, date=t - td(days=20), note="Pembelian rutin")
+        for sku, qty, who, dep, note, ago in [("MSE-01", 4, "Yordan Abdillah", ds[0], "Ganti mouse rusak", 6), ("SSD-240", 6, "Tim Produksi", ds[-1], "Upgrade 6 PC lama", 4), ("TNR-L6", 5, "Admin Gudang", ds[-1], "Tinta printer gudang", 3), ("UPS-650", 2, "Pos Satpam", ds[0], "UPS mesin fingerprint", 2)]:
+            it.StockMovement.record(it.StockItem.objects.get(sku=sku).pk, "keluar", qty, who, by=self.it_u, date=t - td(days=ago), department=dep, note=note)
+        for title, qty, dep, reason, prio, st, price in [("Laptop pengganti untuk staf HRD", 1, hrd_dept, "Laptop lama sering mati sendiri dan baterai drop; mengganggu proses payroll bulanan.", "tinggi", "diajukan", 9500000),
+                                                        ("Monitor tambahan 24 inci", 2, ds[-1], "Operator input data produksi butuh dua layar agar tidak bolak-balik berkas.", "sedang", "disetujui", 3200000),
+                                                        ("Kamera CCTV area bongkar muat", 2, ds[-1], "Ada area bongkar muat yang belum terpantau setelah kehilangan barang bulan lalu.", "tinggi", "dipesan", 2400000),
+                                                        ("Lisensi Office untuk 3 PC baru", 3, ds[0], "PC baru belum punya lisensi resmi (audit software).", "sedang", "ditolak", 1800000)]:
+            it.Wish.objects.create(title=title, qty=qty, department=dep, requester="Admin Departemen", reason=reason, priority=prio, status=st, est_price=price, created_by=self.hrd_u,
+                                   decision_note="Anggaran lisensi digabung ke paket tahunan; ajukan ulang Januari." if st == "ditolak" else "")
+        it.Ticket.objects.create(title="Printer ruang HRD tidak bisa mencetak", category="cetak", detail="Printer menampilkan error offline sejak Senin; sudah dicoba restart.", requester="Admin HRD", department=hrd_dept,
+                                 location="Gedung A lt.2, ruang HRD", contact="ext. 214", priority="sedang", status="baru", due=t + td(days=3), created_by=self.hrd_u)
+        ips = {x.hostname: x for x in it.IPAddress.objects.all()}
+        pick = lambda n: next(iter(ips.values())) if not ips else list(ips.values())[n % len(ips)]
+        for n, (name, kind, brand, loc, st) in enumerate([("Router Utama", "router", "MikroTik RB4011", "Ruang server", "aktif"), ("Switch Lantai 1", "switch", "TP-Link TL-SG2428P", "Lantai 1", "aktif"), ("Firewall Kantor", "firewall", "Fortinet 40F", "Ruang server", "aktif"),
+                                                       ("AP Lobi", "ap", "Ubiquiti U6 Lite", "Lobi", "aktif"), ("AP Produksi", "ap", "Ubiquiti U6 Lite", "Pabrik", "mati"),
+                                                       ("Fingerprint Gerbang", "fingerprint", "Fingerspot Revo", "Pos satpam", "aktif"), ("Fingerprint Produksi", "fingerprint", "Solution X100", "Pabrik", "aktif"),
+                                                       ("CCTV Gerbang 1", "cctv", "Hikvision DS-2CD", "Gerbang", "aktif"), ("CCTV Gudang", "cctv", "Hikvision DS-2CD", "Gudang", "perbaikan"), ("NVR Utama", "nvr", "Hikvision DS-7608", "Ruang server", "aktif"),
+                                                       ("NAS Backup", "server", "Synology DS220+", "Ruang server", "aktif")]):
+            it.NetDevice.objects.create(name=name, kind=kind, brand=brand, location=loc, status=st, ip=pick(n), last_checked=t - td(days=n % 5), firmware="v1.%d" % (n % 4))
 
     # ---------- util
     def at(self, d, h=None, m=None):  # datetime sadar-zona dari tanggal
@@ -85,6 +147,7 @@ class Command(BaseCommand):
         self.hrd_u = mk("hrd", "Yordan", "Abdillah", Role.HRD)
         self.poli_u = mk("poli", "Dr. Anisa", "Rahayu", Role.POLI)
         self.payroll_u = mk("payroll", "Rahmat", "Payroll", Role.PAYROLL)   # putaran 57
+        self.it_u = mk("it", "Bima", "Teknologi", Role.IT)   # putaran 66
 
     # ---------- master
     def master(self):

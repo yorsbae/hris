@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}{{ i.name }}{% endblock %}{% block content %}
+<p class="back"><a href="/it/stock/">‹ Inventori Stok</a></p><h2>{{ i.name }} <small>{{ i.sku }}</small> <a class="btn ghost" href="/it/stock/{{ i.pk }}/ubah/">Ubah</a></h2>
+{% include "it/_tabs.html" with tab="stock" %}
+<div class="grid"><div class="card"><b style="font-size:28px">{{ i.qty }}</b> {{ i.unit }}<br>Stok saat ini {% if i.low %}<span class="pill {% if i.qty == 0 %}rejected{% else %}pending{% endif %}">{% if i.qty == 0 %}habis{% else %}menipis{% endif %}</span>{% endif %}<br><small>Minimum {{ i.min_stock }} · {{ i.get_category_display }}{% if i.location %} · {{ i.location }}{% endif %}</small></div>
+<div class="card"><b>Wishlist terkait</b>{% for w in wishes %}<br><a class="lkb" href="/it/wishlist/{{ w.pk }}/">{{ w.title }} ({{ w.qty }}) · {{ w.get_status_display }}</a>{% empty %}<br><small>Tidak ada permintaan berjalan.</small>{% endfor %}</div></div>
+<h3>Catat barang masuk / keluar</h3>
+<form method="post" class="card form">{% csrf_token %}{{ form.non_field_errors }}<div class="grid">{% for f in form %}<div class="fld"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}</div><p><button>Simpan mutasi</button> <small class="hint">Keluar: isi penerima (orang) dan departemennya. Stok tidak boleh minus.</small></p></form>
+<h3>Riwayat mutasi</h3><div class="wrap"><table><thead><tr><th>Tanggal</th><th>Arah</th><th>Jumlah</th><th>Pemasok / penerima</th><th>Departemen</th><th>Keperluan</th><th>Dicatat</th></tr></thead><tbody>
+{% for v in moves %}<tr><td class="nw">{{ v.date|date:"d-m-Y" }}</td><td><span class="pill {% if v.direction == 'masuk' %}approved{% else %}pending{% endif %}">{{ v.get_direction_display }}</span></td><td>{{ v.qty }} {{ i.unit }}</td><td>{{ v.party }}</td><td>{{ v.department|default:"—" }}</td><td>{{ v.note|default:"—" }}</td><td>{{ v.by|default:"" }}</td></tr>
+{% empty %}<tr><td class="empty" colspan="7">Belum ada mutasi.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

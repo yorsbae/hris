@@ -1343,3 +1343,37 @@ Kebijakan berikut dipilih karena VISION tidak menyebutnya; semuanya nilai di `co
 - `apps/core/notify.send(roles, kind, title, link)` = satu pintu notifikasi: hanya akun AKTIF dari peran yang berwenang; dipakai pengajuan baru & pengajuan lembur (HRD), kontrak habis (HRD, kini ber-tautan & tidak berulang), periode ditutup/dibuka/berkas diperbarui (Payroll), **karyawan keluar → Payroll** (siapkan gaji akhir & tali asih). Payroll kini juga menerima pengumuman/peraturan untuk semua departemen dan punya menu Informasi.
 - **Seed demo**: pembelian seragam "sudah dipotong" kini PASTI di bulan lalu (sebelumnya bergantung tanggal sehingga tes gagal di akhir bulan); profil demo punya status PTKP beragam; contoh Master Potongan "Iuran Koperasi 1%".
 - Tersisa (bukan bagian patch ini): `test_no_wide_tables` — tabel `import_history.html` 10 kolom (>batas).
+
+## Putaran 63 — Situs sarung saja, Tepak Sarung, tanpa Lookbook, pola baris baru, seed diperbaiki
+- **Pola baris** (`site.css`, SVG inline, tanpa berkas gambar): `.batik` (header) = zigzag emas berpita hitam; `.tumpal` (pembatas/kaki) = kunci meander emas di atas cokelat tua; `.tumpal.dk` (pembatas gelap beranda) = rosette bersulur dengan berlian di tepi. Mengacu ke tiga contoh songket/ornamen yang diberikan pemilik.
+- **Lookbook dihapus**: model `Look`, menu `/company/looks/`, halaman `/lookbook/`, bagian beranda, blok "Dipakai dalam setelan" di halaman produk, tautan menu/tab, kunci i18n, CSS, sitemap, dan ilustrasi `model_art`. Berkas `upload_look` sengaja dipertahankan karena dirujuk migrasi `0002`.
+- **Katalog sarung saja**: kelompok tunggal **Sarung** (Tenun/Printing/Ibadah/Anak). Migrasi `0004` mengganti nama *Bawahan*, menonaktifkan kategori non-sarung dan men-draf-kan produk contoh non-sarung (tidak menghapus data). Seed tidak lagi membuat koko/kemeja/peci/surban/celana sarung.
+- **Tepak Sarung** (model `Tepak`, `/tepak-sarung/`, backend `/company/tepak/`): kartu kotak kemasan pada pita geser **berlawanan arah** (`.marq.rev` → `@keyframes mleft`) dengan tombol Jeda, hormat `prefers-reduced-motion`. Tanpa foto → ilustrasi kotak (`tepak_art`). Seed: 7 tepak (Citra, Penang, Horizon, Premium, Bukit Tinggi, Hawai, Merah Garis) dengan foto contoh dari `apps/company/seed_assets/tepak/`.
+- **Seed company**: idempoten (diuji: seed lama → migrate → seed baru), deskripsi meta lama diperbarui hanya bila belum disunting HRD, tidak lagi menyebut koko/lookbook.
+- **Tes**: `apps.company` 115 tes hijau (lookbook diganti tes Lookbook-hilang + 4 tes Tepak); `makemigrations --check` bersih.
+
+## Putaran 64 — Banner pengembangan dihapus, Tepak ke beranda & produk, sub menu Video, audit HAKI
+- Seed tidak lagi membuat pita/catatan kaki “dalam pengembangan”; migrasi `0005` mengosongkannya hanya bila masih teks bawaan lama.
+- Menu **Tepak Sarung** dihapus dari navigasi & tab Produk. Pita Tepak (ke kiri) pindah ke **beranda**; `/tepak-sarung/` tetap ada. Kartu tepak → halaman produk (`Tepak.product`, SET_NULL → jatuh ke `/produk/`).
+- Seed: produk **Sarung Wadimor Horizon Pulau Madura** (seri Horizon, foto + foto belakang “tumpal / sorot belakang”, warna Marun) dan satu produk untuk tiap tepak lain; foto contoh dari `seed_assets/` disalin ke media hanya bila kosong.
+- Artikel: kolom `kind` (artikel/video) dan `video_url`; tab Semua/Artikel/Video; contoh video “Komitmen Seorang Bintang”.
+- **Audit HAKI**: tabel temuan di `docs/VISION.md`; `LICENSE.md` (MIT Feather Icons). Butir yang perlu keputusan pemilik: kepemilikan merek/logo, foto sumber dari internet & wajah pada sampul video, lisensi pyzk.
+- Tes: 118 hijau (`apps.company`); `makemigrations --check` bersih.
+
+## Putaran 65 — Palet selaras logo, Lisensi & Kredit
+- `site.css`: semua navy (#0b1626, #14213a, #14253d, #1c2e49, #0f1d31, #101f33) → hitam hangat (#100c07/#1b150c/#2a2012); emas kehijauan (#d9bd45 dst.) → emas-amber (#eab12f dst.); krem → gading (#fdf6e4); tautan #7a4a00; pola SVG memakai emas yang sama. `theme-color` = #100c07.
+- Halaman publik **Lisensi & Kredit** (`/halaman/lisensi/`, ID/EN, dibuat seed) + tautan di footer; memuat font, ikon, merek/gambar, perangkat lunak. Rincian font di `LICENSE.md`.
+- Tes: 120 hijau (`apps.company`), termasuk tes tak ada lagi warna navy dan halaman lisensi.
+
+## Putaran 66 — Kalender, menu IT, LICENSE.md
+- Halaman publik "Lisensi & Kredit" dihapus (migrasi `company/0006`); gantinya berkas `LICENSE.md` di akar repo (lisensi proyek + daftar font/ikon/pustaka pihak ketiga).
+- **Kalender** (`/calendar/`, app `agenda`): grid bulan dengan kolom nomor minggu ISO, pil berwarna per jenis, mini-kalender + filter lapisan (Tampilkan semua / Sembunyikan semua), tab Default | Heat map, pemilih bulan, tombol Tampilkan/Sembunyikan panel (diingat di browser), detail hari, ekspor `.ics`, agenda rapat/event/pelatihan/pengingat (model `AgendaEvent`). Isi menurut peran (`apps/agenda/feed.py`): HRD/Superadmin semua; Admin Dept & Poli hanya departemennya; Payroll hanya libur/agenda + jumlah cuti tanpa nama; IT libur/agenda + masa berlaku IT. Data medis tidak masuk.
+- **Menu IT** (`/it/`, app `it`, role baru `it`): Ringkasan, Aset (+riwayat), Jaringan & IP (IPAM: validasi CIDR/tumpang tindih, IP kosong berikutnya, deteksi MAC ganda), Lisensi Software (kunci terenkripsi), Domain & SSL, Tiket. Perintah harian `check_it_expiry` (pengingat 60/30/14/7/1 hari) dan masa berlaku IT tampil di Kalender. Demo: akun `it`.
+
+## Putaran 67 — Inventori IT, wishlist, perangkat jaringan, tombol tautan
+- **Inventori Stok IT** (`/it/stock/`): barang + batas minimum; **Barang Masuk & Keluar** (`/it/stock/moves/`) append-only — masuk: pemasok; keluar: penerima + departemen (+ aset); stok tidak pernah minus (kunci baris, atomik); barang berriwayat tidak bisa dihapus.
+- **Wishlist / Order** (`/it/wishlist/`): permintaan dari departemen beserta alasan (min. 10 karakter), prioritas, perkiraan harga; alur diajukan → disetujui → dipesan → diterima (ditolak wajib catatan). Status "diterima" + barang stok terkait → otomatis dicatat masuk (sekali). Admin Dept/Poli/HRD/Payroll mengajukan lewat **Permintaan IT** (`/it/wishlist/ajukan/`; Admin Dept & Poli hanya melihat departemennya); IT diberi notifikasi, departemen diberi tahu perubahan status.
+- **Jaringan & IP** kini punya submenu: Router & Switch, Access Point, Fingerprint, CCTV & NVR, Perangkat Lain (`/it/net/<grup>/`) — IP terhubung ke IPAM, status aktif/mati/perbaikan, kartu ringkasan "perangkat mati" di dashboard IT.
+- UI/UX: tautan teks biru polos diganti tombol (`a.lkb`, tombol "‹ Kembali", tab). Ikon menu IT diperbaiki (ikon "pin" tidak ada di sprite).
+- **Permintaan IT** (`/it/wishlist/ajukan/`) dirombak: pilih kartu **Barang** (→ wishlist/order) atau **Jasa / bantuan teknis** (→ tiket IT dengan jenis bantuan, lokasi, kontak, tenggat). Form dua kolom, placeholder & bantuan isi, kolom wajib bertanda; "Permintaan saya" menggabungkan barang + jasa. Tiket dari departemen memberi tahu IT saat masuk dan memberi tahu admin departemen saat status berubah. Demo "Laptop pengganti untuk staf HRD" kini atas nama departemen HRD.
+- Migrasi IT dipecah agar aman bagi DB yang sudah memakai patch sebelumnya: `it/0002_stockitem_netdevice_wish_stockmovement` (stok, wishlist, perangkat jaringan) + `it/0003_ticket_bantuan` (kolom bantuan di tiket). `seed_demo` kini atomik (gagal di tengah jalan tidak meninggalkan data setengah jadi). Bila DB sudah memakai versi gabungan sebelumnya (`it/0002_inventori_wishlist_jaringan_bantuan`): `python manage.py migrate it 0003 --fake`.

@@ -1,0 +1,5 @@
+{% extends "site/base.html" %}{% load site_tags %}{% block mainclass %}wide{% endblock %}{% block content %}
+<section class="sec band prodsec tepaksec"><div class="wrap"><div class="sh"><h1>{% ui "tepak" %}</h1><span class="orn" aria-hidden="true"><i></i></span><p>{% ui "tepak_intro" %}</p></div></div>
+{% if mq %}{% include "site/_marquee.html" with card="site/_tepak_card.html" mql="tepak_label" %}{% else %}<div class="wrap"><div class="empty">{% include "site/ill/empty.html" %}<p>{% ui "tepak_empty" %}</p></div></div>{% endif %}
+<p class="more-link center"><a class="btn alt" href="{% purl 'products' %}">{% ui "see_all" %} {% ui "products" %} ›</a></p></section>
+{% endblock %}
