@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}{{ t.title }}{% endblock %}{% block content %}
+<p class="back"><a href="/it/tickets/">‹ Insiden &amp; Tiket IT</a></p><h2>{{ t.title }} <span class="pill {% if t.status == 'ditolak' %}rejected{% elif t.status == 'selesai' %}approved{% else %}pending{% endif %}">{{ t.get_status_display }}</span> <a class="btn ghost" href="/it/tickets/{{ t.pk }}/ubah/">Ubah</a></h2>
+<div class="card"><p>{{ t.get_category_display }} · Departemen <b>{{ t.department|default:"—" }}</b> · Pemohon {{ t.requester|default:"—" }} · Prioritas {{ t.get_priority_display }}{% if t.location %} · Lokasi {{ t.location }}{% endif %}{% if t.contact %} · Kontak {{ t.contact }}{% endif %}{% if t.due %} · Dibutuhkan paling lambat {{ t.due|date:"d-m-Y" }}{% endif %}</p>
+<p><b>Uraian:</b></p><p style="white-space:pre-wrap">{{ t.detail|default:"—" }}</p>
+{% if t.asset %}<p>Aset terkait: <a class="lkb" href="/it/assets/{{ t.asset_id }}/">{{ t.asset }}</a></p>{% endif %}
+{% if t.decision_note %}<p><b>{% if t.status == 'ditolak' %}Alasan penolakan{% else %}Catatan IT{% endif %}:</b> {{ t.decision_note }}</p>{% endif %}
+<p><small>Diajukan {{ t.created_at|date:"d-m-Y H:i" }}{% if t.resolved_at %} · selesai {{ t.resolved_at|date:"d-m-Y H:i" }}{% endif %}</small></p>
+{% if nexts %}<form method="post" class="bar">{% csrf_token %}<input name="note" placeholder="Catatan (wajib bila ditolak)" maxlength="300">{% for v, l in nexts %}<button name="to" value="{{ v }}"{% if v == 'ditolak' %} class="ghost"{% endif %}>{{ l }}</button>{% endfor %}</form><p class="hint">Pemohon dan departemennya otomatis dikabari setiap perubahan status.</p>{% endif %}</div>
+{% endblock %}

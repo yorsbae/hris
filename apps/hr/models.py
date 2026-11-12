@@ -95,8 +95,10 @@ class Employee(models.Model):
     # GS/N: pola mingguan per karyawan, 7 isian (Senin…Minggu) masing-masing GS / PAGI / SIANG / MALAM / LIBUR. Kosong = belum diatur (jatuh ke GS biasa + off_weekday).
     GSN_CODES = [("GS", "GS (08:00–16:00)"), ("PAGI", "Pagi"), ("SIANG", "Siang"), ("MALAM", "Malam"), ("LIBUR", "Libur")]
     gsn_week = models.JSONField("Pola mingguan GS/N", default=list, blank=True)
-    PAY_BASIS = [("bulanan", "Bulanan"), ("harian", "Harian")]
-    pay_basis = models.CharField("Status karyawan (harian/bulanan)", max_length=8, choices=PAY_BASIS, default="bulanan", db_index=True)
+    PAY_BASIS = [("bulanan", "Bulanan"), ("harian", "Harian"), ("borongan", "Borongan"), ("magang_harian", "Magang Harian"),
+                 ("magang_borongan", "Magang Borongan"), ("prakerin", "Prakerin (Siswa/Mahasiswa)")]
+    DAILY_BASES = ("harian", "magang_harian")   # diperlakukan sebagai "Harian" pada aturan hari libur (masuk bila libur mengizinkan karyawan harian)
+    pay_basis = models.CharField("Status karyawan", max_length=20, choices=PAY_BASIS, default="bulanan", db_index=True)
     # Grade organisasi untuk profil (mis. 9 + tingkat A). Upah tetap di modul Payroll (PayProfile, berlaku-sejak); kolom ini TIDAK memuat nominal.
     grade = models.PositiveSmallIntegerField("Grade", null=True, blank=True)
     grade_tier = models.CharField("Tingkat grade", max_length=2, blank=True)
@@ -351,7 +353,7 @@ class Holiday(models.Model):
     def on_duty(self, emp):
         """Apakah karyawan ini wajib masuk pada hari libur ini?"""
         if self.duty == "all": return True
-        if self.daily_work and getattr(emp, "pay_basis", "") == "harian": return True
+        if self.daily_work and getattr(emp, "pay_basis", "") in Employee.DAILY_BASES: return True
         if self.duty != "dept": return False
         if not hasattr(self, "_duty_ids"): self._duty_ids = {d.pk for d in self.duty_departments.all()}
         return emp.department_id in self._duty_ids
@@ -445,7 +447,7 @@ class AttendanceDaily(models.Model):
     department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # snapshot saat dihitung (scope & agregat cepat)
     shift = models.ForeignKey(Shift, null=True, on_delete=models.SET_NULL)
     status = models.CharField(max_length=20, choices=STATUSES)
-    source = models.CharField(max_length=12, default="mesin")   # mesin | pengajuan | validasi | jadwal | libur
+    source = models.CharField(max_length=12, default="mesin")   # mesin | pengajuan | validasi | jadwal | libur | manual (Prakerin)
     first_in = models.DateTimeField(null=True, blank=True); last_out = models.DateTimeField(null=True, blank=True)
     scan_count = models.PositiveSmallIntegerField(default=0); incomplete = models.BooleanField(default=False)
     late_minutes = models.PositiveIntegerField(default=0); early_minutes = models.PositiveIntegerField(default=0)
@@ -461,6 +463,24 @@ class AttendanceDaily(models.Model):
         indexes = [models.Index(fields=["date", "status"]), models.Index(fields=["department", "date"])]
     @property
     def needs_review(self): return self.status == "tanpa_scan" or self.incomplete or bool(self.conflict)
+
+
+class ManualAttendance(models.Model):
+    """Absensi MANUAL (lembar tanda tangan tulis tangan), khusus karyawan berstatus Prakerin yang tidak memakai mesin Fingerspot.
+    Diinput HRD/Admin Departemen per tanggal; dari sini lahir baris `AttendanceDaily` bersumber 'manual'. Jam masuk/pulang opsional (hanya untuk Hadir)."""
+    STATUSES = [("hadir", "Hadir"), ("izin", "Izin"), ("sakit", "Sakit"), ("alfa", "Alfa")]
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="manual_attendance")
+    date = models.DateField(db_index=True)
+    status = models.CharField(max_length=10, choices=STATUSES)
+    time_in = models.TimeField("Jam masuk", null=True, blank=True); time_out = models.TimeField("Jam pulang", null=True, blank=True)
+    note = models.CharField("Catatan", max_length=150, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True); updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        unique_together = ("employee", "date")
+        indexes = [models.Index(fields=["date", "status"])]
+    def __str__(self): return f"{self.employee.nik} {self.date} {self.status}"
 
 
 class AttendanceCheck(models.Model):

@@ -64,6 +64,7 @@ urlpatterns = [
     path("absensi/impor/<int:pk>/gagal/", ap.import_errors, name="att_import_errors"),
     path("absensi/pin/", fp.users_page, name="att_pins"),   # Kelola User Fingerspot (dulu Pemetaan PIN; URL & nama dipertahankan agar tautan lama tetap jalan)
     path("absensi/libur/", ap.holidays, name="att_holidays"),
+    path("absensi/manual/", ap.manual_attendance, name="att_manual"),   # absensi Prakerin (tanda tangan tulis tangan, tanpa mesin)
     path("absensi/periode/", ap.periods_page, name="att_periods"),
     path("absensi/periode/<int:pk>/unduh/", ap.period_download, name="att_period_download"),
     path("employees/", hr.employees_page),

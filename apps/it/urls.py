@@ -7,7 +7,7 @@ urlpatterns = [
     path("assets/", _a[0]), path("assets/new/", _a[1]), path("assets/<int:pk>/", v.asset_detail), path("assets/<int:pk>/ubah/", _a[1]), path("assets/<int:pk>/hapus/", _a[2]),
     path("licenses/", _l[0]), path("licenses/new/", _l[1]), path("licenses/<int:pk>/", _l[1]), path("licenses/<int:pk>/hapus/", _l[2]),
     path("domains/", _d[0]), path("domains/new/", _d[1]), path("domains/<int:pk>/", _d[1]), path("domains/<int:pk>/hapus/", _d[2]),
-    path("tickets/", _t[0]), path("tickets/new/", _t[1]), path("tickets/<int:pk>/", _t[1]), path("tickets/<int:pk>/hapus/", _t[2]),
+    path("tickets/", _t[0]), path("tickets/new/", _t[1]), path("tickets/<int:pk>/", v.ticket_detail), path("tickets/<int:pk>/ubah/", _t[1]), path("tickets/<int:pk>/hapus/", _t[2]),
     path("ip/", v.ip_home), path("ip/new/", v.subnet_edit), path("ip/<int:pk>/", v.subnet_detail), path("ip/<int:pk>/ubah/", v.subnet_edit),
 ]
 urlpatterns += [

@@ -140,7 +140,7 @@ class InventoryAndNet(TestCase):
         m.Ticket.objects.create(title="Tiket Gudang", department=self.d2, created_by=self.hrd, detail="x" * 12)
         r = self.client.get("/it/wishlist/ajukan/"); self.assertContains(r, "Printer macet"); self.assertNotContains(r, "Tiket Gudang")
         self.assertTrue(Notification.objects.filter(user=self.it, title__contains="Printer macet").exists())
-        self.client.force_login(self.it); self.client.post(f"/it/tickets/{t.pk}/", {"title": t.title, "category": "cetak", "detail": t.detail, "requester": "x", "department": self.d.pk, "priority": "sedang", "status": "selesai"})
+        self.client.force_login(self.it); self.client.post(f"/it/tickets/{t.pk}/ubah/", {"title": t.title, "category": "cetak", "detail": t.detail, "requester": "x", "department": self.d.pk, "priority": "sedang", "status": "selesai"})
         self.assertTrue(Notification.objects.filter(user=self.adm, title__contains="Selesai").exists())
     def test_net_groups_pages(self):
         self.client.force_login(self.it)
@@ -151,3 +151,55 @@ class InventoryAndNet(TestCase):
         self.assertEqual(self.client.post("/it/net/new/", {"name": "AP-1", "kind": "ap", "status": "aktif"}).status_code, 302)
         self.assertContains(self.client.get("/it/net/new/?kind=nvr"), 'value="nvr" selected')
         self.assertContains(self.client.get("/it/"), "Stok menipis"); self.assertContains(self.client.get("/it/"), "/it/net/fingerprint/")
+
+
+class RequestDecisionTests(TestCase):
+    """Permintaan barang/jasa dari departemen → IT menerima, memproses, atau menolak DENGAN ALASAN; pemohon & departemen dikabari."""
+    def setUp(self):
+        self.d = Department.objects.create(code="PRD", name="Produksi"); self.d2 = Department.objects.create(code="GDG", name="Gudang")
+        self.it = mk("it1", Role.IT); self.adm = mk("adm1", Role.DEPT_ADMIN, self.d); self.adm2 = mk("adm2", Role.DEPT_ADMIN, self.d2); self.pay = mk("pay1", Role.PAYROLL)
+        self.t = m.Ticket.objects.create(title="Printer macet", detail="Printer ruang produksi macet sejak Senin", department=self.d, created_by=self.adm, requester="adm1")
+        self.u = f"/it/tickets/{self.t.pk}/"
+
+    def notes(self, user): from apps.core.models import Notification; return list(Notification.objects.filter(user=user).values_list("title", flat=True))
+
+    def test_it_accepts_then_completes(self):
+        self.client.force_login(self.it)
+        self.assertContains(self.client.get(self.u), "Terima &amp; proses")
+        self.client.post(self.u, {"to": "proses"}); self.t.refresh_from_db(); self.assertEqual(self.t.status, "proses")
+        self.client.post(self.u, {"to": "selesai", "note": "Toner diganti"}); self.t.refresh_from_db()
+        self.assertEqual((self.t.status, self.t.decision_note), ("selesai", "Toner diganti")); self.assertIsNotNone(self.t.resolved_at)
+        self.assertTrue(any("Selesai" in n for n in self.notes(self.adm)))
+
+    def test_reject_requires_reason_and_shows_it_to_requester(self):
+        self.client.force_login(self.it)
+        self.client.post(self.u, {"to": "ditolak", "note": "  "}); self.t.refresh_from_db(); self.assertEqual(self.t.status, "baru")       # tanpa alasan: ditolak
+        self.client.post(self.u, {"to": "ditolak", "note": "Printer sudah diganti vendor, ajukan ulang bila masih rusak"}); self.t.refresh_from_db()
+        self.assertEqual(self.t.status, "ditolak")
+        self.assertTrue(any("Ditolak" in n and "ajukan ulang" in n for n in self.notes(self.adm)))
+        self.client.force_login(self.adm); r = self.client.get("/it/wishlist/ajukan/")
+        self.assertContains(r, "Ditolak"); self.assertContains(r, "Printer sudah diganti vendor")
+
+    def test_final_status_cannot_change_and_other_dept_not_notified(self):
+        self.client.force_login(self.it); self.client.post(self.u, {"to": "ditolak", "note": "tidak sesuai"}); self.client.post(self.u, {"to": "proses"})
+        self.t.refresh_from_db(); self.assertEqual(self.t.status, "ditolak"); self.assertEqual(self.notes(self.adm2), [])
+
+    def test_requester_with_other_role_is_notified_directly(self):
+        t = m.Ticket.objects.create(title="Akun email baru", detail="Akun untuk staf baru payroll", department=self.d, created_by=self.pay, requester="pay1")
+        self.client.force_login(self.it); self.client.post(f"/it/tickets/{t.pk}/", {"to": "proses"})
+        self.assertTrue(any("Diproses" in n for n in self.notes(self.pay)))
+
+    def test_only_it_can_decide(self):
+        for u in (self.adm, self.pay):
+            self.client.force_login(u); self.assertEqual(self.client.post(self.u, {"to": "proses"}).status_code, 403)
+        self.t.refresh_from_db(); self.assertEqual(self.t.status, "baru")
+
+    def test_wish_rejection_reason_reaches_requester(self):
+        w = m.Wish.objects.create(title="Monitor 27", department=self.d, reason="Monitor lama rusak total", created_by=self.pay, requester="pay1")
+        self.client.force_login(self.it)
+        self.client.post(f"/it/wishlist/{w.pk}/", {"to": "ditolak", "note": "Anggaran Q4 habis"})
+        self.assertTrue(any("Anggaran Q4 habis" in n for n in self.notes(self.pay))); self.assertTrue(any("Anggaran Q4 habis" in n for n in self.notes(self.adm)))
+
+    def test_rejected_ticket_not_counted_as_open(self):
+        self.client.force_login(self.it); self.client.post(self.u, {"to": "ditolak", "note": "duplikat"})
+        self.assertEqual(self.client.get("/it/").context["tickets_open"], 0)

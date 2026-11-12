@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% block title %}Absensi Manual Prakerin{% endblock %}{% block content %}
+<style>
+.mn-bar{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.mn-bar input[type=date]{width:auto}
+.mn-stat{color:var(--mu);font-size:14px;margin:0 0 12px}.mn-stat b{color:var(--tx,inherit)}
+.mn-t select,.mn-t input{width:100%;min-width:0}.mn-t td{vertical-align:middle}.mn-t .t{width:112px}.mn-t .s{width:130px}
+.mn-foot{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+</style>
+<h1>Absensi Manual Prakerin</h1>
+<p class="hint">Untuk Prakerin (siswa/mahasiswa) yang tidak memakai mesin Fingerspot: salin dari lembar tanda tangan tulis tangan. Status kosong = belum diisi (tidak dihitung alfa).</p>
+<div class="mn-bar">
+<a class="btn ghost" href="?date={{ prev|date:'Y-m-d' }}">&larr; Sebelumnya</a>
+<form method="get" data-fbar class="bar"><input type="date" name="date" value="{{ d|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" aria-label="Tanggal"></form>
+{% if next %}<a class="btn ghost" href="?date={{ next|date:'Y-m-d' }}">Berikutnya &rarr;</a>{% endif %}
+</div>
+<p class="mn-stat"><b>{{ d|date:"l, d F Y" }}</b> &middot; terisi <b>{{ filled }}</b> dari <b>{{ total }}</b> Prakerin aktif</p>
+{% if not rows %}<p class="empty">Belum ada karyawan berstatus Prakerin. Ubah “Status karyawan” menjadi Prakerin di data karyawan.</p>{% else %}
+<form method="post">{% csrf_token %}<input type="hidden" name="date" value="{{ d|date:'Y-m-d' }}">
+<div class="tablewrap"><table class="mn-t"><thead><tr><th>Nama</th><th>Departemen</th><th>Status</th><th>Masuk</th><th>Pulang</th><th>Catatan</th></tr></thead><tbody>
+{% for r in rows %}{% with e=r.e m=r.m %}<tr>
+<td>{{ e.name }}<small>{{ e.nik }}</small></td><td>{{ e.department.name }}</td>
+<td class="s"><select name="st_{{ e.pk }}" aria-label="Status {{ e.name }}"><option value="">&mdash;</option>{% for k, v in statuses %}<option value="{{ k }}"{% if m and m.status == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></td>
+<td class="t"><input type="time" name="in_{{ e.pk }}" value="{{ m.time_in|time:'H:i' }}" aria-label="Jam masuk {{ e.name }}"></td>
+<td class="t"><input type="time" name="out_{{ e.pk }}" value="{{ m.time_out|time:'H:i' }}" aria-label="Jam pulang {{ e.name }}"></td>
+<td><input name="note_{{ e.pk }}" maxlength="150" value="{{ m.note|default:'' }}" aria-label="Catatan {{ e.name }}"></td></tr>{% endwith %}{% endfor %}
+</tbody></table></div>
+<div class="mn-foot"><button class="btn" type="submit"{% if future %} disabled{% endif %}>Simpan absensi</button>
+<button class="btn ghost" type="button" id="mn-all">Isi semua yang kosong: Hadir</button>
+<small class="hint">Jam hanya dipakai untuk status Hadir (terlambat dihitung bila karyawan punya shift).</small></div></form>
+<script>document.getElementById('mn-all').addEventListener('click',function(){document.querySelectorAll('.mn-t select').forEach(function(s){if(!s.value)s.value='hadir'})});</script>
+{% endif %}{% endblock %}

@@ -18,7 +18,7 @@ from apps.core.scope import get_scoped_or_404, require_roles, scope_by_departmen
 from . import attendance_calc as calc, attendance_check as checks, attendance_import as imp
 from .attendance_reports import STATUS_FILTERS, STATUS_LABELS, _shift_label
 from .views import SHIFT_GROUP_FILTERS, apply_shift_filter
-from .models import AttendanceCheck, AttendanceDaily as AD, AttendanceImport, AttendancePin, AttendanceRaw, Department, DeviceUser, Employee, Holiday, Shift
+from .models import AttendanceCheck, AttendanceDaily as AD, AttendanceImport, AttendancePin, AttendanceRaw, Department, DeviceUser, Employee, Holiday, ManualAttendance, Shift
 
 both = lambda fn: login_required(require_roles(Role.HRD, Role.DEPT_ADMIN)(fn))
 hrd = lambda fn: login_required(require_roles(Role.HRD)(fn))
@@ -348,3 +348,54 @@ def period_download(request, pk):
 def _int(v):
     try: return int(v)
     except (TypeError, ValueError): return None
+
+
+# ---------------------------------------------------------------- absensi manual Prakerin (lembar tanda tangan)
+def _hhmm_in(s):
+    """'08:05' → time; kosong → None; selain itu ValueError."""
+    s = (s or "").strip()
+    if not s: return None
+    return datetime.strptime(s, "%H:%M").time()
+
+
+@both
+def manual_attendance(request):
+    """Input absensi Prakerin per tanggal dari lembar tanda tangan tulis tangan. HRD/Superadmin: semua Prakerin; Admin Departemen: departemennya sendiri.
+    Status kosong = belum ada isian (isian lama dihapus). Hari tanpa isian TIDAK dihitung alfa/tanpa scan: Prakerin tidak memakai mesin."""
+    from . import periods
+    today = timezone.localdate()
+    d = _date(request.POST.get("date") or request.GET.get("date"), today)
+    emps = list(scope_by_department(request.user, Employee.objects.filter(pay_basis="prakerin", join_date__lte=d).exclude(status="nonaktif"))
+                .select_related("department").order_by("department__name", "name"))
+    if request.method == "POST":
+        p = request.POST; errs = []; todo = []
+        if d > today: errs.append("Tanggal belum terjadi; absensi hanya dapat diisi sampai hari ini.")
+        if not periods.open_segments(d, d): errs.append(f"Periode {d:%d/%m/%Y} sudah ditutup; absensi tanggal ini tidak dapat diubah.")
+        valid = dict(ManualAttendance.STATUSES)
+        for e in emps:
+            st = (p.get(f"st_{e.pk}") or "").strip()
+            if st and st not in valid: errs.append(f"{e.name}: status tidak dikenal."); continue
+            try: t_in, t_out = (_hhmm_in(p.get(f"in_{e.pk}")), _hhmm_in(p.get(f"out_{e.pk}"))) if st == "hadir" else (None, None)
+            except ValueError: errs.append(f"{e.name}: jam harus berformat HH:MM."); continue
+            todo.append((e, st, t_in, t_out, (p.get(f"note_{e.pk}") or "").strip()[:150]))
+        if errs:
+            for m in errs[:6]: messages.error(request, m)
+        else:
+            n = 0
+            try:
+                with transaction.atomic():
+                    for e, st, t_in, t_out, note in todo:
+                        if st: ManualAttendance.objects.update_or_create(employee=e, date=d, defaults={"status": st, "time_in": t_in, "time_out": t_out, "note": note, "updated_by": request.user})
+                        else: ManualAttendance.objects.filter(employee=e, date=d).delete()
+                        calc.apply_manual(e, d)
+                        n += bool(st)
+                    ManualAttendance.objects.filter(employee__in=[e for e, *_ in todo], date=d, created_by__isnull=True).update(created_by=request.user)
+                    log(request, "absensi", "manual_save", None, after={"date": str(d), "diisi": n, "prakerin": len(todo)})
+                messages.success(request, f"Absensi manual {d:%d/%m/%Y} tersimpan: {n} dari {len(todo)} Prakerin terisi.")
+            except ValueError as ex: messages.error(request, str(ex))
+        return redirect(f"{request.path}?date={d}")
+    ex = {m.employee_id: m for m in ManualAttendance.objects.filter(date=d, employee__in=emps)}
+    rows = [{"e": e, "m": ex.get(e.pk)} for e in emps]
+    filled = sum(1 for r in rows if r["m"])
+    return render(request, "attendance/manual.html", {"rows": rows, "d": d, "prev": d - timedelta(days=1), "next": d + timedelta(days=1) if d < today else None, "today": today,
+                                                      "filled": filled, "total": len(rows), "statuses": ManualAttendance.STATUSES, "future": d > today})

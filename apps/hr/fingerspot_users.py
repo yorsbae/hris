@@ -108,7 +108,7 @@ def _sorted(rows, f):
 
 def nopin_employees(f):
     """Karyawan aktif yang belum punya PIN sama sekali (kandidat dibuatkan user mesin). Ikut filter q & departemen."""
-    qs = Employee.objects.exclude(status="nonaktif").exclude(pins__isnull=False).select_related("department").order_by("department__name", "name")
+    qs = Employee.objects.exclude(status="nonaktif").exclude(pay_basis="prakerin").exclude(pins__isnull=False).select_related("department")   # Prakerin absen manual, tanpa mesin.order_by("department__name", "name")
     if f["q"]:
         from django.db.models import Q
         qs = qs.filter(Q(nik__icontains=f["q"]) | Q(name__icontains=f["q"]))

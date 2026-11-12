@@ -87,17 +87,25 @@ DOMAINS = Spec("domains", m.Domain, "Domain & SSL", ["name", "kind", "provider",
                ["Nama", "Jenis", "Penyedia", "Berlaku s/d", "Otomatis"],
                lambda d: [pill(d.name), pill(d.get_kind_display()), pill(d.provider or "—"), flagcell(d.expires, d.flag), pill("ya" if d.auto_renew else "tidak")],
                search=("name", "provider"), filters=(("kind", m.Domain.KINDS),), order=("expires",), noun="domain/SSL")
-TICKETS = Spec("tickets", m.Ticket, "Insiden & Tiket IT", ["title", "category", "detail", "requester", "department", "location", "contact", "priority", "status", "asset", "due"],
+TICKETS = Spec("tickets", m.Ticket, "Insiden & Tiket IT", ["title", "category", "detail", "requester", "department", "location", "contact", "priority", "status", "decision_note", "asset", "due"],
                ["Judul", "Pelapor", "Departemen", "Prioritas", "Status", "Target"],
-               lambda t: [pill(t.title), pill(t.requester or "—"), pill(t.department.name if t.department else "—"), pill(t.get_priority_display(), "er" if t.priority in ("tinggi", "kritis") else ""), pill(t.get_status_display(), "ok" if t.status == "selesai" else "wn" if t.status == "proses" else ""),
-                          pill(f"{t.due:%d-%m-%Y}" if t.due else "—", "er" if t.due and t.due < date.today() and t.status != "selesai" else "")],
+               lambda t: [pill(t.title), pill(t.requester or "—"), pill(t.department.name if t.department else "—"), pill(t.get_priority_display(), "er" if t.priority in ("tinggi", "kritis") else ""), pill(t.get_status_display(), "ok" if t.status == "selesai" else "wn" if t.status == "proses" else "er" if t.status == "ditolak" else ""),
+                          pill(f"{t.due:%d-%m-%Y}" if t.due else "—", "er" if t.due and t.due < date.today() and t.status not in ("selesai", "ditolak") else "")],
                search=("title", "requester", "detail"), filters=(("status", m.Ticket.STATUS), ("priority", m.Ticket.PRIO)), order=("status", "-id"), noun="tiket")
-ASSETS.ubah = True
+ASSETS.ubah = True; TICKETS.ubah = True
+def tell_requester(obj, title, roles=(Role.DEPT_ADMIN, Role.POLI)):
+    """Kabari departemen pemohon (Admin Dept/Poli, + HRD untuk tiket) DAN pemohon sendiri (bila akunnya beda peran/departemen). Tidak dobel."""
+    from apps.core import notify
+    from apps.core.models import Notification
+    link = "/it/wishlist/ajukan/"; who = getattr(obj, "created_by", None)
+    notify.send(roles, "it", title, link, department_id=obj.department_id, exclude=who)
+    if who and who.is_active: Notification.objects.create(user=who, kind="it", title=title[:200], link=link)
+
+
 def _ticket_saved(request, t, before):
     """Tiket dari departemen: beri tahu admin departemen saat status berubah."""
     if before and t.created_by_id and before.get("status") != t.status and t.department_id:
-        from apps.core import notify
-        notify.send((Role.DEPT_ADMIN, Role.POLI, Role.HRD), "it", f"Bantuan IT “{t.title[:80]}” → {t.get_status_display()}", "/it/wishlist/ajukan/", department_id=t.department_id)
+        tell_requester(t, f"Bantuan IT “{t.title[:80]}” → {t.get_status_display()}" + (f": {t.decision_note[:90]}" if t.status == "ditolak" and t.decision_note else ""), roles=(Role.DEPT_ADMIN, Role.POLI, Role.HRD))
 
 
 TICKETS.on_save = _ticket_saved
@@ -105,6 +113,27 @@ SPECS = {s.key: s for s in (ASSETS, LICENSES, DOMAINS, TICKETS)}
 
 
 @login_required
+@login_required
+@require_roles(*IT)
+def ticket_detail(request, pk):
+    """Keputusan IT atas tiket/permintaan jasa: Terima & proses → Selesai, atau Tolak (alasan wajib). Pemohon & departemennya dikabari."""
+    from django.utils import timezone
+    t = get_object_or_404(m.Ticket.objects.select_related("department", "asset", "created_by"), pk=pk)
+    if request.method == "POST":
+        to, note = request.POST.get("to"), request.POST.get("note", "").strip()[:300]
+        if to in m.Ticket.FLOW[t.status]:
+            if to == "ditolak" and not note:
+                messages.error(request, "Isi alasan penolakan di catatan."); return redirect(request.path)
+            old = t.status; t.status = to; t.decision_note = note or t.decision_note
+            if to == "selesai": t.resolved_at = timezone.now()
+            t.save(); log(request, "it", "ticket_status", t, {"status": old}, {"status": to, "note": note})
+            if t.department_id: tell_requester(t, f"Bantuan IT “{t.title[:80]}” → {t.get_status_display()}" + (f": {t.decision_note[:90]}" if to == "ditolak" else ""), roles=(Role.DEPT_ADMIN, Role.POLI, Role.HRD))
+            messages.success(request, f"Status → {t.get_status_display()}.")
+        else: messages.error(request, "Perubahan status itu tidak diizinkan dari status saat ini.")
+        return redirect(request.path)
+    return render(request, "it/ticket_detail.html", {"t": t, "nexts": [(s, m.Ticket.ACTION[s]) for s in m.Ticket.FLOW[t.status]]})
+
+
 @require_roles(*IT)
 def home(request):
     t = date.today(); lim = t + timedelta(days=30)
@@ -117,8 +146,8 @@ def home(request):
     by = dict(m.Asset.objects.values_list("status").annotate(n=Count("id")))
     ctx = {"expiring": [(d, k, n, u, "er" if d < t else "wn") for d, k, n, u in exp[:12]], "n_exp": len(exp),
            "assets": {"total": sum(by.values()), **{k: by.get(k, 0) for k, _ in m.Asset.STATUS}},
-           "tickets_open": m.Ticket.objects.exclude(status="selesai").count(), "tickets_late": m.Ticket.objects.exclude(status="selesai").filter(due__lt=t).count(),
-           "tickets": m.Ticket.objects.exclude(status="selesai").order_by("-priority", "-id")[:6],
+           "tickets_open": m.Ticket.objects.exclude(status__in=("selesai", "ditolak")).count(), "tickets_late": m.Ticket.objects.exclude(status__in=("selesai", "ditolak")).filter(due__lt=t).count(),
+           "tickets": m.Ticket.objects.exclude(status__in=("selesai", "ditolak")).order_by("-priority", "-id")[:6],
            "subnets": [(s, u, c, min(100, round(u * 100 / c)) if c else 0) for s, u, c in subs],
            "low_stock": sum(1 for i in m.StockItem.objects.all() if i.low), "wish_open": m.Wish.objects.filter(status__in=("diajukan", "disetujui", "dipesan")).count(), "net_down": m.NetDevice.objects.filter(status="mati").count(), "seats_full": m.License.objects.filter(used__gte=F("seats")).count()}
     return render(request, "it/home.html", ctx)

@@ -5,6 +5,11 @@ from django.db import IntegrityError, transaction
 from .emp_forms import EmployeeForm, IDENT_FIELDS, identifier_owners, norm_ident
 from .models import Department, Employee, Position, Shift, ShiftGroup
 
+
+def norm_basis(v):
+    """'Magang Harian' / 'magang-harian' / 'magang_harian' → 'magang_harian'."""
+    return (v or "").strip().lower().replace("-", "_").replace(" ", "_")
+
 COLUMNS = ["nik", "name", "gender", "join_date", "department_code", "position", "shift", "status", "marital_status", "education",
            "gs_short", "address", "phone", "nik_ktp", "bpjs_kes", "bpjs_tk", "npwp", "bank_name", "bank_account", "supervisor_nik", "birth_date",
            "pay_basis", "grade", "grade_tier", "off_day"]
@@ -51,7 +56,7 @@ def run(raw, commit, filename=""):
             s = shifts.get(raw_shift.lower())                       # nama/kode Master Shift: GS-16/GS-14/GS-12 → GS; shift tetap non-GS (format lama) tetap diterima
             if not s: errs.append(f"Shift '{raw_shift}' tidak ada (pakai GS, GS/N, A7–G7 atau A7Pack–G7Pack).")
             elif s.is_gs: g = groups.get("gs")
-        if r.get("pay_basis") and r["pay_basis"].lower() not in ("harian", "bulanan"): errs.append("pay_basis harus harian atau bulanan.")
+        if r.get("pay_basis") and norm_basis(r["pay_basis"]) not in dict(Employee.PAY_BASIS): errs.append("pay_basis harus salah satu: " + ", ".join(dict(Employee.PAY_BASIS)) + ".")
         if r.get("off_day") and r["off_day"].lower() not in DAYS: errs.append("off_day harus Senin, Selasa, Rabu, Kamis, Jumat, Sabtu atau Minggu.")
         if r.get("gs_short") and r["gs_short"] not in ("12", "14"): errs.append("gs_short harus 14 atau 12.")
         nik = r.get("nik", "")
@@ -65,7 +70,7 @@ def run(raw, commit, filename=""):
             elif n: file_ident[f].setdefault(n, nik)
         if not errs:
             form = EmployeeForm({**{c: r.get(c, "") for c in COLUMNS if c not in ("department_code", "position", "shift", "gs_short", "supervisor_nik", "off_day", "pay_basis")},
-                                 "shift_choice": g.pk if g else "", "gs_short": r.get("gs_short") or "14", "pay_basis": (r.get("pay_basis") or "bulanan").lower(),
+                                 "shift_choice": g.pk if g else "", "gs_short": r.get("gs_short") or "14", "pay_basis": norm_basis(r.get("pay_basis") or "bulanan"),
                                  "off_weekday": DAYS[r["off_day"].lower()] if r.get("off_day") else "",
                                  "status": r.get("status") or "aktif", "department": d.pk, "position": p.pk if p else "",
                                  "supervisor_nik": ""})  # atasan diselesaikan sendiri (bisa menunjuk baris lain di file yang sama)

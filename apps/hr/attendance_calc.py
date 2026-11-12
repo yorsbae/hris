@@ -21,7 +21,7 @@ from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from . import schedule
-from .models import AttendanceCheck, AttendanceCheckEvent, AttendanceDaily, AttendanceRaw, ChangeRequest, Employee, Holiday
+from .models import AttendanceCheck, AttendanceCheckEvent, AttendanceDaily, AttendanceRaw, ChangeRequest, Employee, Holiday, ManualAttendance
 
 log = logging.getLogger(__name__)
 LEAVE_TYPES = {"cuti": "cuti", "sakit": "sakit", "izin": "izin", "izin_khusus": "izin"}   # jenis pengajuan → status rekap
@@ -169,7 +169,10 @@ def _separations():
 def compute_rows(emps, start, end, sep=None):
     """list[AttendanceDaily] (belum disimpan) untuk `emps` pada [start, end]. Jumlah query tetap, bukan per karyawan."""
     emps = list(emps)
-    if not emps: return []
+    man = [e for e in emps if e.pay_basis == "prakerin"]           # Prakerin: tanpa mesin, absensi manual (tanda tangan) → hanya dari ManualAttendance
+    extra = _manual_rows(man, start, end) if man else []
+    if man: emps = [e for e in emps if e.pay_basis != "prakerin"]
+    if not emps: return extra
     ids = [e.pk for e in emps]; sep = _separations() if sep is None else sep
     pad0, days = start - timedelta(days=1), (end - start).days + 3
     grid = {e.pk: {c["date"]: c for c in cells} for e, cells in schedule.schedule_grid(emps, pad0, days)}
@@ -189,7 +192,41 @@ def compute_rows(emps, start, end, sep=None):
             out.append(_row(e, d, grid[e.pk][d], by.get(d, []), chk.get((e.pk, d)), leave.get((e.pk, d)), part.get((e.pk, d), ()), ot.get((e.pk, d), []),
                             sb.get((e.pk, d), 0), mat.get((e.pk, d)), hol.get(d)))
             d += timedelta(days=1)
-    return out
+    return out + extra
+
+
+def manual_row(e, d, m):
+    """Baris rekap dari satu isian absensi manual. Terlambat/pulang cepat dihitung bila karyawan punya shift DAN jam diisi; tidak ada lembur/scan."""
+    fi = lo = None; late = early = 0
+    if m.status == "hadir" and (m.time_in or m.time_out):
+        a_in = datetime.combine(d, m.time_in) if m.time_in else None; a_out = datetime.combine(d, m.time_out) if m.time_out else None
+        if a_in and a_out and a_out <= a_in: a_out += timedelta(days=1)       # shift malam
+        if e.shift_id:
+            st, en = shift_bounds(d, e.shift)
+            if a_in: late = max(0, int((a_in - st).total_seconds() // 60) - int(cfg("ATTENDANCE_LATE_GRACE_MIN", 0)))
+            if a_out: early = max(0, int((en - a_out).total_seconds() // 60))
+        fi = _aware(a_in) if a_in else None; lo = _aware(a_out) if a_out else None
+    note = "Manual (tanda tangan)" + (f": {m.note}" if m.note else "")
+    return AttendanceDaily(employee=e, date=d, department_id=e.department_id, shift_id=e.shift_id, status=m.status, source="manual", first_in=fi, last_out=lo,
+                           scan_count=0, incomplete=False, late_minutes=late, early_minutes=early, overtime_minutes=0, overtime_approved_minutes=0,
+                           standby_minutes=0, extra_minutes=0, conflict="", notes=note[:200])
+
+
+def _manual_rows(emps, start, end):
+    by = {e.pk: e for e in emps}
+    qs = ManualAttendance.objects.filter(employee_id__in=list(by), date__gte=start, date__lte=end).order_by("employee_id", "date")
+    return [manual_row(by[m.employee_id], m.date, m) for m in qs if m.date >= by[m.employee_id].join_date]
+
+
+def apply_manual(e, d):
+    """Tulis/hapus baris rekap satu karyawan-tanggal dari absensi manual (langsung, termasuk hari ini). ValueError bila periodenya sudah ditutup."""
+    from . import periods
+    if not periods.open_segments(d, d): raise ValueError(f"Periode {d:%d/%m/%Y} sudah ditutup; absensi tanggal ini tidak dapat diubah.")
+    m = ManualAttendance.objects.filter(employee=e, date=d).select_related("employee__shift").first()
+    if not m:
+        AttendanceDaily.objects.filter(employee=e, date=d, source="manual").delete(); return None
+    AttendanceDaily.objects.bulk_create([manual_row(e, d, m)], update_conflicts=True, unique_fields=["employee", "date"], update_fields=FIELDS)
+    return m
 
 
 def _row(e, d, cell, taps, check, leave, partial, windows, standby, maternity, holiday):
@@ -254,6 +291,8 @@ def process(start: date, end: date, employee_ids=None, today=None, chunk=250):
         todo = [r for r in rows if old.get((r.employee_id, r.date)) != tuple(getattr(r, f) for f in SIG)]   # hitung ulang yang tidak berubah = tidak ditulis ulang
         changed += len(todo)
         with transaction.atomic():
+            prak = [e.pk for e in part if e.pay_basis == "prakerin"]
+            if prak: AttendanceDaily.objects.filter(employee_id__in=prak, date__gte=start, date__lte=end).exclude(source="manual").delete()   # Prakerin tidak dinilai dari mesin
             for j in range(0, len(todo), 1000):
                 AttendanceDaily.objects.bulk_create(todo[j:j + 1000], update_conflicts=True, unique_fields=["employee", "date"], update_fields=FIELDS)
     return {"rows": n, "changed": changed, "employees": len(ids), "start": start, "end": end}

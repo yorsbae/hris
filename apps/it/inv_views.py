@@ -11,7 +11,7 @@ from apps.core.models import Role
 from apps.core.scope import DEPT_ACTORS, require_roles
 from apps.hr.models import Department
 from . import models as m
-from .views import Spec, pill, IT, make_form
+from .views import Spec, pill, IT, make_form, tell_requester
 
 # ---------- perangkat jaringan (submenu: router, wifi, fingerprint, cctv, lain)
 NET = Spec("net", m.NetDevice, "Perangkat jaringan", ["name", "kind", "brand", "serial", "ip", "location", "status", "firmware", "last_checked", "asset", "note"],
@@ -149,7 +149,7 @@ def wish_detail(request, pk):
             if to == "diterima" and w.item_id and not w.received_logged:
                 m.StockMovement.record(w.item_id, "masuk", w.qty, f"Pesanan {w.department.name}", by=request.user, note=f"Wishlist #{w.pk}: {w.title}"); w.received_logged = True
             w.save(); log(request, "it", "wish_status", w, {"status": old}, {"status": to})
-            notify.send((Role.DEPT_ADMIN, Role.POLI), "it", f"Permintaan IT “{w.title[:80]}” → {w.get_status_display()}", "/it/wishlist/ajukan/", department_id=w.department_id)
+            tell_requester(w, f"Permintaan IT “{w.title[:80]}” → {w.get_status_display()}" + (f": {w.decision_note[:90]}" if to == "ditolak" and w.decision_note else ""))
             messages.success(request, f"Status → {w.get_status_display()}.")
         return redirect(request.path)
     return render(request, "it/wish_detail.html", {"w": w, "nexts": [(s, dict(m.Wish.STATUS)[s]) for s in m.Wish.FLOW[w.status]]})
@@ -225,6 +225,6 @@ def wish_submit(request):
     if u.role in DEPT_ACTORS: wq, tq = wq.filter(department_id=u.department_id), tq.filter(department_id=u.department_id, created_by__isnull=False)
     elif u.role != Role.IT: wq, tq = wq.filter(created_by=u), tq.filter(created_by=u)
     mine = [{"at": w.created_at, "kind": "Barang", "title": w.title, "sub": w.reason, "dept": w.department, "qty": w.qty, "status": w.get_status_display(), "tone": "rejected" if w.status == "ditolak" else "approved" if w.status in ("diterima", "disetujui") else "pending", "note": w.decision_note} for w in wq[:30]]
-    mine += [{"at": t.created_at, "kind": "Jasa", "title": t.title, "sub": t.detail, "dept": t.department, "qty": "", "status": t.get_status_display(), "tone": "approved" if t.status == "selesai" else "pending", "note": t.get_category_display()} for t in tq[:30]]
+    mine += [{"at": t.created_at, "kind": "Jasa", "title": t.title, "sub": t.detail, "dept": t.department, "qty": "", "status": t.get_status_display(), "tone": "rejected" if t.status == "ditolak" else "approved" if t.status == "selesai" else "pending", "note": t.decision_note or t.get_category_display()} for t in tq[:30]]
     mine.sort(key=lambda x: x["at"], reverse=True)
     return render(request, "it/wish_submit.html", {"fb": fb, "fj": fj, "jenis": jenis, "mine": mine[:30]})

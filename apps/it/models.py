@@ -127,7 +127,10 @@ class Domain(models.Model):
 
 class Ticket(models.Model):
     PRIO = [("rendah", "Rendah"), ("sedang", "Sedang"), ("tinggi", "Tinggi"), ("kritis", "Kritis")]
-    STATUS = [("baru", "Baru"), ("proses", "Diproses"), ("selesai", "Selesai")]
+    STATUS = [("baru", "Baru"), ("proses", "Diproses"), ("selesai", "Selesai"), ("ditolak", "Ditolak")]
+    # Alur keputusan IT atas permintaan JASA/bantuan: Baru → (Terima) Diproses → Selesai; Baru/Diproses → Ditolak (alasan wajib). Selesai & Ditolak final.
+    FLOW = {"baru": ("proses", "ditolak"), "proses": ("selesai", "ditolak"), "selesai": (), "ditolak": ()}
+    ACTION = {"proses": "Terima & proses", "selesai": "Tandai selesai", "ditolak": "Tolak"}
     title = models.CharField("Judul", max_length=160); detail = models.TextField("Uraian", blank=True)
     CATS = [("perbaikan", "Perbaikan perangkat"), ("instalasi", "Instalasi / pemasangan"), ("akun", "Akun, email & akses"), ("jaringan", "Jaringan / internet / Wi-Fi"),
             ("aplikasi", "Aplikasi / HRIS"), ("cetak", "Printer & cetak"), ("lain", "Lainnya")]
@@ -140,6 +143,7 @@ class Ticket(models.Model):
     status = models.CharField(max_length=8, choices=STATUS, default="baru", db_index=True)
     asset = models.ForeignKey(Asset, null=True, blank=True, on_delete=models.SET_NULL, related_name="tickets")
     due = models.DateField("Target selesai", null=True, blank=True)
+    decision_note = models.CharField("Catatan IT / alasan", max_length=300, blank=True)
     created_at = models.DateTimeField(auto_now_add=True); resolved_at = models.DateTimeField(null=True, blank=True)
     class Meta: ordering = ["-id"]
     def __str__(self): return self.title

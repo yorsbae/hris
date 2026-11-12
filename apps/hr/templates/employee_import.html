@@ -25,7 +25,7 @@
 <li><code>department_code</code> memakai <strong>kode</strong> departemen; <code>position</code> memakai <strong>nama</strong> jabatan. Keduanya harus sudah ada di Master.</li>
 <li><code>shift</code> satu kolom untuk semua jenis shift: <code>GS</code>, <code>GS/N</code>, <code>A7</code> … <code>G7</code> (2 shift) atau <code>A7Pack</code> … <code>G7Pack</code> (3 shift/pack). Kode lama (<code>A</code>, <code>A_pack</code>) dan nama shift GS di Master (GS-16/GS-14/GS-12, dibaca sebagai GS) juga diterima.</li>
 <li><code>gs_short</code> (<code>14</code> atau <code>12</code>) dan <code>off_day</code> (Senin–Minggu) hanya untuk GS dan GS/N. <code>off_day</code> kosong = Minggu.</li>
-<li><code>pay_basis</code>: <code>harian</code> atau <code>bulanan</code> (kosong = bulanan). <code>grade</code> angka, <code>grade_tier</code> huruf.</li>
+<li><code>pay_basis</code>: <code>bulanan</code>, <code>harian</code>, <code>borongan</code>, <code>magang_harian</code>, <code>magang_borongan</code> atau <code>prakerin</code> (kosong = bulanan; spasi/strip juga diterima, mis. "magang harian"). <code>grade</code> angka, <code>grade_tier</code> huruf.</li>
 <li><code>supervisor_nik</code> = NIK atasan; boleh menunjuk karyawan lain di file yang sama.</li>
 <li>Tanggal: <code>YYYY-MM-DD</code> atau <code>DD/MM/YYYY</code>. CSV: pemisah koma atau titik-koma, UTF-8.</li>
 </ul>

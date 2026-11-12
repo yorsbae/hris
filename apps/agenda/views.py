@@ -71,7 +71,7 @@ def index(request):
 def export_ics(request):
     u = request.user; first = _month(request.GET.get("m", "")); lo, hi = first, _shift(first, 1) - timedelta(days=1)
     es = feed.build(u, lo, hi, [k for k in request.GET.getlist("l") if k in feed.allowed_layers(u)] or None)
-    esc = lambda s: str(s).replace("\\", "\\\\").replace(";", "\;").replace(",", "\\,").replace("\n", "\\n")
+    esc = lambda s: str(s).replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//HRIS//Kalender//ID", "CALSCALE:GREGORIAN"]
     for i, e in enumerate(es):
         d = e["date"]; lines += ["BEGIN:VEVENT", f"UID:{d:%Y%m%d}-{i}-{abs(hash(e['title'])) % 10**8}@hris", f"DTSTAMP:{datetime.utcnow():%Y%m%dT%H%M%SZ}", f"DTSTART;VALUE=DATE:{d:%Y%m%d}",

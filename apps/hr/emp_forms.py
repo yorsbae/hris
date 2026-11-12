@@ -57,7 +57,7 @@ class EmployeeForm(forms.ModelForm):
                   "bpjs_kes": "BPJS Kesehatan", "bpjs_tk": "BPJS Ketenagakerjaan", "bank_name": "Bank", "bank_account": "No. rekening",
                   "marital_status": "Status pernikahan", "education": "Pendidikan", "birth_date": "Tanggal lahir", "address": "Alamat", "phone": "Telepon",
                   "department": "Departemen", "position": "Jabatan", "gs_short": "GS sebelum libur", "off_weekday": "Hari libur (GS, GS/N)",
-                  "pay_basis": "Status karyawan (harian/bulanan)", "grade": "Grade", "grade_tier": "Tingkat grade"}
+                  "pay_basis": "Status karyawan", "grade": "Grade", "grade_tier": "Tingkat grade"}
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
