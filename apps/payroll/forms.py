@@ -174,9 +174,9 @@ class ParamForm(forms.Form):
 
 # ---------------------------------------------------------------- master potongan & tarif pajak (putaran 61)
 class DeductionRuleForm(forms.Form):
-    name = forms.CharField(label="Nama potongan", max_length=50, help_text="Contoh: Iuran koperasi. Nama yang sama = melanjutkan potongan itu dengan aturan baru (riwayat tetap tersimpan).")
+    name = forms.CharField(label="Nama potongan", max_length=50, help_text="Contoh: Potongan lainnya, iuran serikat. Nama yang sama = melanjutkan potongan itu dengan aturan baru (riwayat tetap tersimpan).")
     method = forms.ChoiceField(label="Cara hitung", choices=DeductionRule.METHODS)
-    value = DecimalField2(label="Nilai", min_value=0, max_value=1_000_000_000, max_digits=14, decimal_places=4, help_text="Persen (mis. 1 = 1%) atau rupiah, sesuai cara hitung. Isi 0 untuk MENGHENTIKAN potongan sejak tanggal berlaku.")
+    value = DecimalField2(label="Nilai", min_value=0, max_value=1_000_000_000, max_digits=14, decimal_places=4, help_text="Cara persen: isi angka persen (mis. 1 = 1%). Cara nominal manual: isi rupiah (mis. 10.000). Isi 0 untuk MENGHENTIKAN potongan sejak tanggal berlaku.")
     rounding = forms.DecimalField(label="Pembulatan ke bawah (Rp)", min_value=1, max_value=1_000_000, initial=1, decimal_places=0)
     pay_type = forms.ChoiceField(label="Berlaku untuk", choices=[("", "Semua karyawan"), ("harian", "Hanya karyawan harian"), ("bulanan", "Hanya karyawan bulanan")], required=False)
     effective_from = forms.DateField(label="Berlaku mulai", initial=timezone.localdate, widget=DATE(), help_text="Dipakai untuk run gaji yang periode akhirnya pada/setelah tanggal ini.")

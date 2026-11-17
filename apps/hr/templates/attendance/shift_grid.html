@@ -5,6 +5,7 @@
 .sg td.s{position:sticky;left:0;background:var(--card);text-align:left}.sgl{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;margin:6px 0}.sgl span{padding:1px 8px;border:1px solid var(--bd);border-radius:10px}</style>
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Shift Harian</h2>
+{% include "attendance/_abs_tabs.html" with tab="shift" %}
 <p class="sub">Karyawan × tanggal ({{ d1|date:"d M Y" }} – {{ d2|date:"d M Y" }}). Isi sel: kelompok shift (A7…G7 / A7Pack…G7Pack) atau <b>GS</b>; <b>+Nm</b> = terlambat N menit; <b>1x</b> = scan sekali; merah = tidak hadir. Arahkan kursor ke sel untuk jam scan.</p>
 {% if capped %}<p class="hint flow">Rentang dibatasi maksimal 31 hari.</p>{% endif %}
 <div class="tools"><details class="more"><summary>Ekspor ▾</summary><div><small>Grid sesuai filter</small><div class="xrow"><span>Shift harian</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a></div></div></details></div>

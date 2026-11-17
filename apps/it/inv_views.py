@@ -11,7 +11,7 @@ from apps.core.models import Role
 from apps.core.scope import DEPT_ACTORS, require_roles
 from apps.hr.models import Department
 from . import models as m
-from .views import Spec, pill, IT, make_form, tell_requester
+from .views import Spec, pill, IT, make_form, tell_requester, ticket_subtabs
 
 # ---------- perangkat jaringan (submenu: router, wifi, fingerprint, cctv, lain)
 NET = Spec("net", m.NetDevice, "Perangkat jaringan", ["name", "kind", "brand", "serial", "ip", "location", "status", "firmware", "last_checked", "asset", "note"],
@@ -27,7 +27,7 @@ def net_list(request, group=None):
     if group and group not in m.NetDevice.GROUPS: group = None
     ex = (lambda qs: qs.select_related("ip").filter(kind__in=m.NetDevice.GROUPS[group][1])) if group else (lambda qs: qs.select_related("ip"))
     counts = {g: m.NetDevice.objects.filter(kind__in=ks).count() for g, (_, ks) in m.NetDevice.GROUPS.items()}
-    subtabs = [("", "Semua", sum(counts.values()))] + [(g, t, counts[g]) for g, (t, _) in m.NetDevice.GROUPS.items()]
+    subtabs = [("", "Semua", sum(counts.values()), "/it/net/")] + [(g, t, counts[g], f"/it/net/{g}/") for g, (t, _) in m.NetDevice.GROUPS.items()]
     title = m.NetDevice.GROUPS[group][0] if group else "Perangkat jaringan"
     kind0 = m.NetDevice.GROUPS[group][1][0] if group else "router"
     return NET.list(request, extra=ex, ctx={"subtabs": subtabs, "group": group or "", "page_title": title, "new_url": f"/it/net/new/?kind={kind0}", "tab": "ip"})
@@ -122,7 +122,7 @@ WISH.filters = (("status", m.Wish.STATUS), ("priority", m.Wish.PRIO)); WISH.ubah
 @login_required
 @require_roles(*IT)
 def wish_list(request):
-    return WISH.list(request, extra=lambda qs: qs.select_related("department"), ctx={"tab": "wishlist", "detail_link": True})
+    return WISH.list(request, extra=lambda qs: qs.select_related("department"), ctx={"tab": "tickets", "subtabs": ticket_subtabs(), "group": "barang", "page_title": "Tiket IT", "new_label": "Permintaan barang", "detail_link": True})
 
 
 @login_required
@@ -135,22 +135,31 @@ def wish_edit(request, pk=None): return WISH.edit(request, pk)
 def wish_delete(request, pk): return WISH.delete(request, pk)
 
 
+def decide_wish(pk, to, note, user):
+    """Ubah status permintaan barang. Baris dikunci lalu status DIBACA ULANG: dua klik/dua staf IT bersamaan tidak bisa menjalankan transisi yang sama
+    dua kali (mis. 'Diterima' dua kali = stok masuk dobel). Stok & status disimpan dalam satu transaksi. Mengembalikan (wish, status_lama)."""
+    from django.db import transaction
+    with transaction.atomic():
+        w = m.Wish.objects.select_for_update().select_related("department", "item", "created_by").get(pk=pk)
+        if to not in m.Wish.FLOW[w.status]: raise ValueError("Perubahan status itu tidak diizinkan dari status saat ini.")
+        if to == "ditolak" and not note: raise ValueError("Isi alasan penolakan di catatan.")
+        old = w.status; w.status = to; w.decision_note = note or w.decision_note
+        if to == "diterima" and w.item_id and not w.received_logged:
+            m.StockMovement.record(w.item_id, "masuk", w.qty, f"Pesanan {w.department.name}", by=user, note=f"Wishlist #{w.pk}: {w.title}"); w.received_logged = True
+        w.save(); return w, old
+
+
 @login_required
 @require_roles(*IT)
 def wish_detail(request, pk):
     w = get_object_or_404(m.Wish.objects.select_related("department", "item", "created_by"), pk=pk)
     if request.method == "POST":
         to, note = request.POST.get("to"), request.POST.get("note", "").strip()[:300]
-        if to in m.Wish.FLOW[w.status]:
-            if to == "ditolak" and not note:
-                messages.error(request, "Isi alasan penolakan di catatan.")
-                return redirect(request.path)
-            old = w.status; w.status = to; w.decision_note = note or w.decision_note
-            if to == "diterima" and w.item_id and not w.received_logged:
-                m.StockMovement.record(w.item_id, "masuk", w.qty, f"Pesanan {w.department.name}", by=request.user, note=f"Wishlist #{w.pk}: {w.title}"); w.received_logged = True
-            w.save(); log(request, "it", "wish_status", w, {"status": old}, {"status": to})
-            tell_requester(w, f"Permintaan IT “{w.title[:80]}” → {w.get_status_display()}" + (f": {w.decision_note[:90]}" if to == "ditolak" and w.decision_note else ""))
-            messages.success(request, f"Status → {w.get_status_display()}.")
+        try: w, old = decide_wish(w.pk, to, note, request.user)
+        except (ValueError, ValidationError) as e: messages.error(request, "; ".join(e.messages) if isinstance(e, ValidationError) else str(e)); return redirect(request.path)
+        log(request, "it", "wish_status", w, {"status": old}, {"status": to})
+        tell_requester(w, f"Permintaan IT “{w.title[:80]}” → {w.get_status_display()}" + (f": {w.decision_note[:90]}" if to == "ditolak" and w.decision_note else ""))
+        messages.success(request, f"Status → {w.get_status_display()}.")
         return redirect(request.path)
     return render(request, "it/wish_detail.html", {"w": w, "nexts": [(s, dict(m.Wish.STATUS)[s]) for s in m.Wish.FLOW[w.status]]})
 

@@ -1,10 +1,10 @@
 {% extends "base.html" %}{% block title %}{{ s.title }}{% endblock %}{% block content %}
 <h2>{{ page_title|default:s.title }} {% include "_export.html" %}</h2>
 {% include "it/_tabs.html" with tab=tab|default:s.key %}
-{% if subtabs %}<nav class="tabs sub" aria-label="Jenis perangkat">{% for g, t, n in subtabs %}<a class="t{% if group == g %} on{% endif %}" href="/it/net/{% if g %}{{ g }}/{% endif %}">{{ t }} <small>{{ n }}</small></a>{% endfor %}</nav>{% endif %}
+{% if subtabs %}<nav class="tabs sub" aria-label="Jenis">{% for g, t, n, u in subtabs %}<a class="t{% if group == g %} on{% endif %}" href="{{ u }}"{% if group == g %} aria-current="page"{% endif %}>{{ t }} <small>{{ n }}</small></a>{% endfor %}</nav>{% endif %}
 <form method="get" data-fbar class="bar"><input name="q" value="{{ q }}" placeholder="Cari…" aria-label="Cari">
 {% for name, choices, cur in filters %}<select name="{{ name }}" aria-label="{{ name }}">{% for v, l in choices %}<option value="{{ v }}"{% if cur == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endfor %}
-<button>Filter</button> {% if show_low %}<a class="btn ghost" href="?{% if not low %}low=1{% endif %}">{% if low %}Semua stok{% else %}Hanya stok menipis{% endif %}</a>{% endif %}{% if not s.ro %}<a class="btn" href="{{ new_url|default:'' }}{% if not new_url %}/it/{{ s.key }}/new/{% endif %}">+ {% if s.key == 'wishlist' %}Catat permintaan{% else %}Tambah {{ s.noun }}{% endif %}</a>{% endif %}</form>
+<button>Filter</button> {% if show_low %}<a class="btn ghost" href="?{% if not low %}low=1{% endif %}">{% if low %}Semua stok{% else %}Hanya stok menipis{% endif %}</a>{% endif %}{% if not s.ro %}<a class="btn" href="{{ new_url|default:'' }}{% if not new_url %}/it/{{ s.key }}/new/{% endif %}">+ {% if new_label %}{{ new_label }}{% else %}Tambah {{ s.noun }}{% endif %}</a>{% endif %}</form>
 <p class="hint">{{ total }} {{ s.noun }}.</p>
 <div class="wrap"><table><thead><tr>{% for h in s.head %}<th>{{ h }}</th>{% endfor %}<th class="acts"></th></tr></thead><tbody>
 {% for o, cells in rows %}<tr>{% for c in cells %}<td>{% if c.p %}<span class="pill {{ c.p }}">{{ c.t }}</span>{% elif forloop.first and s.ubah %}<a class="lkb" href="/it/{{ s.key }}/{{ o.pk }}/">{{ c.t }}</a>{% else %}{{ c.t }}{% endif %}</td>{% endfor %}<td class="acts">{% if not s.ro %}<a class="btn ghost" href="/it/{{ s.key }}/{{ o.pk }}/{% if s.ubah %}ubah/{% endif %}">Ubah</a>{% endif %}</td></tr>

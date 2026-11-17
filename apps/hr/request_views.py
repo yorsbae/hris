@@ -8,18 +8,19 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_POST
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET, require_POST
 from apps.core.audit import log
 from apps.core.models import Notification, Role
 from apps.core.scope import get_scoped_or_404, require_roles, scope_dept_only
-from . import attachments, schedule, services
+from . import attachments, request_info, schedule, services
 from .forms import FIELDS_BY_TYPE, LABELS, REQUEST_GROUPS, RequestForm, allowed_types
 from .models import ChangeRequest, RequestAttachment
 
 ROLES = (Role.HRD, Role.DEPT_ADMIN, Role.POLI)  # Superadmin lolos otomatis di require_roles
 FIELD_LABELS = {"start_date": "Tanggal mulai", "end_date": "Tanggal selesai", "date": "Tanggal", "date_to": "Diganti ke tanggal",
                 "time": "Jam", "effective_date": "Tanggal efektif", "department_name": "Departemen tujuan",
-                "position_name": "Jabatan tujuan", "shift_name": "Shift tujuan", "status": "Status baru", "reason": "Alasan",
+                "position_name": "Jabatan tujuan", "shift_name": "Shift tujuan", "shift_group_name": "Shift tujuan", "pay_basis_name": "Status karyawan baru", "status": "Status baru", "reason": "Alasan",
                 "partner_nik": "NIK rekan tukar", "partner_name": "Rekan tukar", "time_to": "Sampai jam", "minutes": "Durasi (menit)"}
 STATUS_LABELS = {"draft": "Draft", "submitted": "Diajukan", "pending": "Menunggu persetujuan", "approved": "Disetujui",
                  "rejected": "Ditolak", "executed": "Dilaksanakan", "cancelled": "Dibatalkan"}
@@ -57,6 +58,14 @@ def request_list(request, grp=None):
         batch = {"total": sum(c.values()), "pending": c.get("pending", 0), "counts": [(STATUS_LABELS.get(k, k), n) for k, n in c.items()]}
     return render(request, "requests_list.html", {"page": page, "f": f, "types": types, "statuses": STATUS_LABELS, "grp": grp, "batch": batch,
                                                   "title": REQUEST_GROUPS[grp][0] if grp else "Semua pengajuan"})
+
+
+@login_required
+@require_roles(*ROLES)
+@require_GET
+def request_info_api(request):
+    """Info karyawan (saat ini, tujuan, jadwal karyawan + rekan) untuk panel di form pengajuan."""
+    return JsonResponse(request_info.build(request.user, request.GET))
 
 
 @login_required

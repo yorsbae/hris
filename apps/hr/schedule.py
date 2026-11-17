@@ -26,7 +26,7 @@ from datetime import date, timedelta
 from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
-from .models import ChangeRequest, Employee, Shift, ShiftAssignment, ShiftRotation
+from .models import ChangeRequest, Employee, Shift, ShiftAssignment, ShiftGroup, ShiftRotation
 
 SWAP_TYPES = ("tukar_shift", "tukar_libur")
 LIVE = ("submitted", "pending", "approved")  # pengajuan yang belum dilaksanakan tetapi masih hidup
@@ -132,6 +132,18 @@ def live_conflict(employee, type_, payload, exclude_pk=None):
         if hit: return min(hit)
     exist = ShiftAssignment.objects.filter(employee=employee, date__in=[_d(x) for x in mine]).order_by("date").first()
     return exist.date.isoformat() if exist else None
+
+
+def shift_of_group(emp: Employee, group, d: date):
+    """Shift kerja `emp` pada tanggal d seandainya ia berada di kelompok `group` (GS, GS/N, A7…G7, A7Pack…G7Pack). None = kelompok itu libur pada hari tersebut.
+    Dipakai tukar shift 1 orang: pilihan 'Shift tujuan' berupa kelompok, jam kerjanya mengikuti tabel rotasi / aturan GS."""
+    import copy
+    c = copy.copy(emp); c.shift_group, c.shift_group_id = group, group.pk
+    if group.is_rotation: c.shift = None
+    elif not (emp.shift_id and emp.shift.is_gs): c.shift = Shift.objects.filter(is_gs=True, active=True).order_by("-end", "pk").first()
+    if group.pattern != ShiftGroup.GSN: c.gsn_week = []
+    b = _base(c, d)
+    return None if b["off"] else b["shift"]
 
 
 def _work(shift, as_shift=True):

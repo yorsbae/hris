@@ -1,7 +1,11 @@
 {% extends "base.html" %}{% block title %}{{ w.title }}{% endblock %}{% block content %}
-<p class="back"><a href="/it/wishlist/">‹ Wishlist / Order</a></p><h2>{{ w.title }} <span class="pill {% if w.status == 'ditolak' %}rejected{% elif w.status == 'diterima' or w.status == 'disetujui' %}approved{% else %}pending{% endif %}">{{ w.get_status_display }}</span> <a class="btn ghost" href="/it/wishlist/{{ w.pk }}/ubah/">Ubah</a></h2>
-<div class="card"><p><b>{{ w.qty }}</b> unit · Departemen <b>{{ w.department }}</b> · Pemohon {{ w.requester|default:"—" }} · Prioritas {{ w.get_priority_display }}{% if w.est_price %} · Perkiraan Rp {{ w.est_price }}{% endif %}</p>
-<p><b>Alasan:</b></p><p style="white-space:pre-wrap">{{ w.reason }}</p>{% if w.item %}<p>Barang stok: <a class="lkb" href="/it/stock/{{ w.item_id }}/">{{ w.item.name }}</a> (stok {{ w.item.qty }}){% if w.received_logged %} · sudah dicatat masuk{% endif %}</p>{% endif %}
-{% if w.decision_note %}<p><b>Catatan IT:</b> {{ w.decision_note }}</p>{% endif %}
-{% if nexts %}<form method="post" class="bar">{% csrf_token %}<input name="note" placeholder="Catatan (wajib bila ditolak)" maxlength="300">{% for v, l in nexts %}<button name="to" value="{{ v }}"{% if v == 'ditolak' %} class="ghost"{% endif %}>{{ l }}</button>{% endfor %}</form>{% if w.item %}<p class="hint">Saat berstatus “Diterima”, barang otomatis dicatat masuk ke stok.</p>{% endif %}{% endif %}</div>
+<p class="back"><a href="/it/tickets/barang/">‹ Tiket · Barang / Order</a></p>
+<h2 class="ttl">{{ w.title }} <span class="pill {% if w.status == 'ditolak' %}rejected{% elif w.status == 'diterima' or w.status == 'disetujui' %}approved{% else %}pending{% endif %}">{{ w.get_status_display }}</span> <a class="btn ghost" href="/it/wishlist/{{ w.pk }}/ubah/">Ubah</a></h2>
+{% include "it/_tabs.html" with tab="tickets" %}
+<div class="dcard">
+<dl class="meta"><div><dt>Jumlah</dt><dd>{{ w.qty }} unit</dd></div><div><dt>Departemen</dt><dd>{{ w.department }}</dd></div><div><dt>Pemohon</dt><dd>{{ w.requester|default:"—" }}</dd></div><div><dt>Prioritas</dt><dd>{{ w.get_priority_display }}</dd></div>{% if w.est_price %}<div><dt>Perkiraan harga</dt><dd>Rp {{ w.est_price }}</dd></div>{% endif %}</dl>
+<p class="sect">Alasan</p><p class="body{% if not w.reason %} none{% endif %}">{{ w.reason|default:"Tidak ada alasan." }}</p>
+{% if w.item %}<p class="rel">Barang stok <a class="lkb" href="/it/stock/{{ w.item_id }}/">{{ w.item.name }}</a> stok {{ w.item.qty }}{% if w.received_logged %} · sudah dicatat masuk{% endif %}</p>{% endif %}
+{% if w.decision_note %}<p class="sect">Catatan IT</p><p class="body">{{ w.decision_note }}</p>{% endif %}
+{% if nexts %}<form method="post" class="foot">{% csrf_token %}<input name="note" placeholder="Catatan (wajib bila ditolak)" maxlength="300" aria-label="Catatan">{% for v, l in nexts %}<button name="to" value="{{ v }}"{% if v == 'ditolak' %} class="ghost"{% endif %}>{{ l }}</button>{% endfor %}</form>{% if w.item %}<p class="stamp">Saat berstatus “Diterima”, barang otomatis dicatat masuk ke stok.</p>{% endif %}{% endif %}</div>
 {% endblock %}

@@ -112,7 +112,7 @@ def _day_label(d, multi_month):
 
 
 REQ_LABEL = {"tukar_shift": "Tukar shift", "tukar_libur": "Tukar libur", "izin": "Izin", "cuti": "Cuti", "sakit": "Sakit", "izin_terlambat": "Izin terlambat", "izin_pulang": "Izin pulang cepat",
-             "izin_khusus": "Izin khusus", "lembur": "Lembur", "standby": "Stand by", "shift": "Ubah shift", "rotasi": "Rotasi"}
+             "izin_khusus": "Izin khusus", "status_kerja": "Ubah status karyawan", "lembur": "Lembur", "standby": "Stand by", "shift": "Ubah shift", "rotasi": "Rotasi"}
 ASSIGN_LABEL = {ShiftAssignment.SHIFT: "masuk shift {shift}", ShiftAssignment.WORK: "masuk (shift reguler)", ShiftAssignment.OFF: "libur"}
 
 

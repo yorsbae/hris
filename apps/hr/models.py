@@ -183,14 +183,47 @@ class Contract(models.Model):
     start = models.DateField(); end = models.DateField(null=True, blank=True, db_index=True)
     status = models.CharField(max_length=20, default="aktif", db_index=True)
     previous = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL)  # rantai perpanjangan
+    printed_at = models.DateTimeField("Terakhir dicetak", null=True, blank=True)  # diisi saat berkas cetak diunduh; untuk filter "belum dicetak"
     def __str__(self): return f"{self.number} ({self.kind}, {self.start:%d-%m-%Y} s/d {self.end:%d-%m-%Y})" if self.end else f"{self.number} ({self.kind}, sejak {self.start:%d-%m-%Y})"
+class MinimumWage(models.Model):
+    """UMK per tahun (satu angka untuk semua karyawan). Kontrak memakai UMK tahun mulai kontrak; bila belum diisi, memakai tahun terakhir sebelumnya."""
+    year = models.PositiveSmallIntegerField("Tahun", unique=True)
+    amount = models.DecimalField("UMK per bulan (Rp)", max_digits=12, decimal_places=0)
+    class Meta: ordering = ["-year"]
+    def __str__(self): return f"UMK {self.year}: Rp {self.amount:,.0f}".replace(",", ".")
+
+
+class ContractConfig(models.Model):
+    """Pengaturan cetak kontrak (satu baris). Template .docx & scan tanda tangan disimpan di DB (ikut backup, tanpa masalah path di Windows)."""
+    BACK_ORDER = [("same", "Sama dengan lembar depan"), ("reverse", "Terbalik (untuk printer yang mengeluarkan kertas menghadap bawah)")]
+    company_name = models.CharField("Nama perusahaan", max_length=150, default="PT. Sukorejo Indah Textile")
+    company_address = models.CharField("Alamat perusahaan", max_length=250, blank=True, default="")
+    city = models.CharField("Kota penandatanganan", max_length=80, default="Batang")
+    signer_name = models.CharField("Nama penandatangan (Pihak Pertama)", max_length=120, blank=True, default="")
+    signer_title = models.CharField("Jabatan penandatangan", max_length=120, blank=True, default="")
+    pay_day = models.PositiveSmallIntegerField("Tanggal gajian", default=25)
+    decision_date = models.DateField("Tanggal rapat / keputusan terakhir", null=True, blank=True, editable=False)   # diingat dari cetakan terakhir; dipakai {{tgl_rapat}}
+    number_format = models.CharField("Format nomor kontrak", max_length=80, default="{seq:03d}/PKWT/{roman}/{year}",
+                                     help_text="Pakai {seq} nomor urut (mis. {seq:03d}), {roman} bulan romawi, {month} bulan angka, {year} tahun.")
+    batch_size = models.PositiveSmallIntegerField("Lembar per gelombang cetak", default=50)
+    back_order = models.CharField("Urutan lembar belakang", max_length=10, choices=BACK_ORDER, default="same")
+    template_docx = models.BinaryField("Template kontrak (.docx)", null=True, blank=True, editable=False)
+    template_name = models.CharField(max_length=150, blank=True, default="")
+    signature_png = models.BinaryField("Scan tanda tangan", null=True, blank=True, editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get(cls):
+        return cls.objects.first() or cls.objects.create()
+
+
 REMINDER_DAYS = (90, 60, 30, 14, 7)  # dipakai management command check_contracts (cron harian)
 
 class ChangeRequest(models.Model):
     """Satu tabel untuk mutasi/jabatan/izin/cuti/tukar shift/dst. Payload JSON per tipe."""
     TYPES = ["mutasi_dept", "mutasi_jabatan", "promosi", "demosi", "rotasi", "status", "shift",
              "izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus", "tukar_shift", "tukar_libur",
-             "standby", "lembur"]  # standby = kerja saat waktu istirahat; lembur = kerja di luar jam shift (putaran 30)
+             "standby", "lembur", "status_kerja"]  # status_kerja = ganti status karyawan (bulanan/harian/borongan/magang/prakerin); standby = kerja saat waktu istirahat; lembur = kerja di luar jam shift (putaran 30)
     # Draft → Submitted → Pending Approval → Approved/Rejected → Executed
     # Perluasan atas VISION: "cancelled" (dibatalkan pemohon/HRD) agar draft tidak menggantung dan pengajuan yang tidak bisa
     # dilaksanakan (mis. tanggal tukar shift sudah lewat) tidak macet di "approved".

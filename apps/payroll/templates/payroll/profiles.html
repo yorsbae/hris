@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Profil Gaji Karyawan{% endblock %}{% block content %}
-<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+{% include "payroll/_nav.html" with on="profiles" %}
 <h2>Profil Gaji Karyawan</h2>
 <p class="sub">Grade + sub-grade (upah mengikuti Skala Gaji Harian) atau upah harian khusus, tunjangan tetap, dan hak uang makan. Karyawan tanpa profil tidak ikut run gaji.</p>
 <div class="tools"><a class="btn" href="{% url 'pay_profile_new' %}">+ Atur profil gaji</a>

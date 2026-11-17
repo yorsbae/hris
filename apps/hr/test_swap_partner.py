@@ -118,10 +118,9 @@ class RotationScheduleTests(RotBase):
         self.assertTrue(f.is_valid(), f.errors); s = f.save(); self.assertEqual((s.code, s.is_gs, s.active), ("GS-14", True, True))
         dup = ShiftForm({"name": "Lain", "code": "GS-14", "start": "08:00", "end": "16:00", "active": "on"}); self.assertFalse(dup.is_valid()); self.assertIn("code", dup.errors)
 
-    def test_inactive_shift_not_offered_in_request_form(self):
-        Shift.objects.filter(pk=self.malam.pk).update(active=False); self.login("adm1")
-        html = self.client.get("/requests/new/").content.decode()
-        self.assertIn("Shift Siang", html); self.assertNotIn("Shift Malam", html)
+    def test_request_form_offers_groups_not_master_shift_names(self):
+        self.login("adm1"); html = self.client.get("/requests/new/").content.decode()
+        self.assertIn(">A7<", html); self.assertIn(">F7Pack<", html); self.assertIn(">GS/N<", html); self.assertNotIn("Shift Siang", html); self.assertNotIn("Shift Malam", html)
 
     def test_master_shift_list_shows_code_and_kind(self):
         self.login("hrd"); r = self.client.get("/master/shift/"); self.assertContains(r, "GS-12"); self.assertContains(r, "GS")
@@ -155,11 +154,11 @@ class SoloSwapTests(RotBase):
         self.do_exec(self.swap_off_req(sun, mon)); self.assertEqual({(a.date, a.kind) for a in ShiftAssignment.objects.all()}, {(sun, "work"), (mon, "off")})
 
     def test_solo_shift_on_day_off_is_refused_use_tukar_libur(self):
-        self.login("adm1"); r = self.post_req(partner_nik="", date=next_weekday(2).isoformat(), shift=self.pagi.pk)  # Rabu libur kelompok A
+        self.login("adm1"); r = self.post_req(partner_nik="", date=next_weekday(2).isoformat(), shift_group=self.gB.pk)  # Rabu libur kelompok A, B masuk
         self.assertContains(r, "hari libur karyawan"); self.assertFalse(ChangeRequest.objects.exists())
 
     def test_solo_shift_same_as_group_shift_refused(self):
-        self.login("adm1"); r = self.post_req(partner_nik="", date=next_weekday(0).isoformat(), shift=self.pagi.pk)  # Senin e3 sudah PAGI
+        self.login("adm1"); r = self.post_req(partner_nik="", date=next_weekday(0).isoformat(), shift_group=self.gA.pk)  # Senin e3 (kelompok A) sudah PAGI
         self.assertContains(r, "Sama dengan shift reguler")
 
     def test_solo_shift_rotation_employee_executes_override_only(self):

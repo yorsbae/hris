@@ -213,6 +213,11 @@ class ContractForm(forms.ModelForm):
         super().__init__(*a, **k)
         self.employee = employee
         self.fields["previous"].queryset = employee.contracts.filter(status="aktif")
+        if not self.is_bound and not self.instance.pk:   # nomor otomatis (format di Kontrak › Pengaturan); boleh diubah
+            from datetime import date
+            from . import contract_print
+            self.fields["number"].initial = contract_print.next_number(date.today())
+            self.fields["number"].help_text = "Terisi otomatis; boleh diubah."
 
     def clean(self):
         d = super().clean()

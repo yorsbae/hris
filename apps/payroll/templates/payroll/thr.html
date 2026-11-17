@@ -1,8 +1,8 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}THR{% endblock %}{% block content %}
-<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+{% include "payroll/_nav.html" with on="thr" %}
 <h2>THR (Tunjangan Hari Raya)</h2>
 <p class="sub">Tiga langkah: <b>① pilih tanggal hari raya</b> dan bulan gaji tempat THR dibayar → <b>② periksa usulan</b> → <b>③ masukkan ke Tambahan &amp; Potongan</b>, lalu hitung ulang run gaji bulan itu. Aturan: masa kerja ≥ 12 bulan = 1 bulan upah; 1–11 bulan = masa kerja/12 × 1 bulan upah; &lt; 1 bulan tidak berhak. Upah sebulan = upah harian × hari dasar + tunjangan tetap.</p>
-<form method="get" class="card bar" style="margin-bottom:12px"><label>Tanggal hari raya <input type="date" name="on" value="{{ on|date:'Y-m-d' }}" required></label>
+<form method="get" class="panel bar" style="margin-bottom:12px"><label>Tanggal hari raya <input type="date" name="on" value="{{ on|date:'Y-m-d' }}" required></label>
 <label>Dibayar di gaji bulan <input type="month" name="period" value="{{ period }}" required></label><button>Hitung usulan</button></form>
 {% if not editable %}<p class="note wait">Run gaji {{ period }} sudah ditetapkan/dibayar; THR tidak bisa dimasukkan ke bulan ini. Pilih bulan gaji lain.</p>{% endif %}
 <div class="wrap"><table><thead><tr><th>Karyawan</th><th class="num">Masa kerja</th><th class="num">Upah sebulan</th><th class="num">Bagian</th><th class="num">THR</th><th>Status</th></tr></thead><tbody>

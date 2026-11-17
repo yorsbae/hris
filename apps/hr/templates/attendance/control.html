@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block title %}Kontrol Harian{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Kontrol Harian</h2>
+{% include "attendance/_abs_tabs.html" with tab="control" %}
 <p class="sub">Ringkasan per departemen, {{ d1|date:"d M Y" }}{% if d1 != d2 %} – {{ d2|date:"d M Y" }}{% endif %}. Klik angka untuk melihat nama karyawannya. “Tidak berangkat” = alfa + hari kerja tanpa scan (belum divalidasi).{% if last_scan %} Scan terakhir: {{ last_scan|date:"d M Y" }}.{% endif %}</p>
 <form method="get" data-fbar class="bar"><input type="date" name="from" value="{{ d1|date:'Y-m-d' }}" aria-label="Dari tanggal"><input type="date" name="to" value="{{ d2|date:'Y-m-d' }}" aria-label="Sampai tanggal"></form>
 <div class="tools"><details class="more"><summary>Ekspor ▾</summary><div><div class="xrow"><span>Ringkasan</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a></div></div></details>

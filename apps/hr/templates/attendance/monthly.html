@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block title %}Rekap Bulanan Absensi{% endblock %}{% block content %}
 <p class="back"><a href="{% url 'att_daily' %}">‹ Absensi</a></p>
 <h2>Rekap bulanan: {{ mlabel }}</h2>
+{% include "attendance/_abs_tabs.html" with tab="monthly" %}
 <p class="sub">Per karyawan. Sumber angka untuk Payroll (Tahap 7): hari kerja, hadir, terlambat, alfa, izin/sakit/cuti, lembur terbukti scan, stand by.</p>
 <div class="sepkpi"><span><b>{{ tot.hadir }}</b> hari hadir</span><span><b>{{ tot.terlambat }}</b> kali terlambat</span><span><b>{{ tot.alfa }}</b> alfa</span><span{% if tot.perlu_tinjau %} class="warn"{% endif %}><b>{{ tot.perlu_tinjau }}</b> perlu ditinjau</span></div>
 <div class="tools"><details class="more"><summary>Ekspor ▾</summary><div><div class="xrow"><span>Rekap bulanan</span><a href="?{{ qs }}&amp;export=1&amp;format=xlsx">XLSX</a><a href="?{{ qs }}&amp;export=1">CSV</a></div></div></details></div>

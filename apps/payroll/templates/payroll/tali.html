@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Tali Asih{% endblock %}{% block content %}
-<p class="back"><a href="{% if is_payroll %}{% url 'pay_home' %}{% else %}{% url 'pay_runs' %}{% endif %}">‹ Payroll</a></p>
+{% if is_payroll %}{% include "payroll/_nav.html" with on="tali" %}{% else %}<p class="back"><a href="{% url 'pay_runs' %}">‹ Payroll</a></p>{% endif %}
 <h2>Tali Asih</h2>
 <p class="sub">Nominal resmi ditetapkan HRD di <a href="{% url 'hrd_separations' %}">Karyawan Keluar</a>. Tali asih yang sudah ditetapkan dibayar lewat run gaji dan ditandai dibayar otomatis. Kolom usulan hanya saran dari aturan di bawah.</p>
 <h3>Menunggu dibayar ({{ pending|length }})</h3>

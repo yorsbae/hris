@@ -128,9 +128,13 @@ def move(app, to, by, public_message="", note="", notify=True):
     """Pindah tahap oleh HRD. Tahap awal 'unverified' hanya lewat verifikasi pelamar. Mengembalikan True bila berubah."""
     if to not in Stage.values or to in (Stage.UNVERIFIED, Stage.WITHDRAWN): raise ValueError("Tahap tidak valid")
     if app.anonymized_at or app.stage == Stage.UNVERIFIED or app.stage == Stage.WITHDRAWN or app.stage == to: return False
-    old = app.stage
-    app.stage = to; app.save(update_fields=["stage", "updated_at"])
-    event(app, "stage", by=by, from_stage=old, to_stage=to, public_message=public_message[:500], note=note[:500])
+    from django.db import transaction
+    with transaction.atomic():   # kunci baris & baca ulang tahap: dua HRD bersamaan tidak mencatat/mengirim pindah tahap ganda
+        cur = Application.objects.select_for_update().only("stage").get(pk=app.pk)
+        if cur.stage in (Stage.UNVERIFIED, Stage.WITHDRAWN) or cur.stage == to: app.stage = cur.stage; return False
+        old = cur.stage
+        app.stage = to; app.save(update_fields=["stage", "updated_at"])
+        event(app, "stage", by=by, from_stage=old, to_stage=to, public_message=public_message[:500], note=note[:500])
     if notify and app.email:
         label = STAGE_EN[to] if app.lang == "en" else Stage(to).label
         msg = public_message or (STAGE_PUBLIC[Stage(to)] if app.lang != "en" else "")

@@ -1,7 +1,7 @@
 """HR Core UI (Tahap 2): karyawan (CRUD + soft delete + riwayat), kontrak, master. Penulisan: HRD/Superadmin saja."""
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
 from apps.core.audit import log
@@ -259,18 +259,29 @@ def contract_new(request, pk):
     e = get_scoped_or_404(request.user, Employee.objects.all(), pk)
     form = ContractForm(request.POST or None, employee=e)
     if request.method == "POST" and form.is_valid():
-        with transaction.atomic():
-            c = form.save(commit=False); c.employee, c.status = e, "aktif"
-            prev = form.cleaned_data["previous"]; c.previous = prev
-            c.save()
-            if prev:
-                prev.status = "diperpanjang"; prev.save(update_fields=["status"])
-            EmployeeHistory.objects.create(employee=e, field="contract", old_value=prev.number if prev else "", new_value=c.number,
-                                           effective_date=c.start, changed_by=request.user)
-            log(request, "hr", "contract_renew" if prev else "contract_create", c, {"previous": prev.number} if prev else None,
-                {"number": c.number, "kind": c.kind, "start": str(c.start), "end": str(c.end) if c.end else None})
-        messages.success(request, f"Kontrak {c.number} disimpan.")
-        return redirect("employee_detail_page", pk=e.pk)
+        c = None
+        try:
+            with transaction.atomic():
+                prev = form.cleaned_data["previous"]
+                if prev:   # kunci kontrak lama & baca ulang: dua klik / dua HRD bersamaan tidak membuat dua penerus untuk satu kontrak
+                    prev = Contract.objects.select_for_update().get(pk=prev.pk)
+                    if prev.status != "aktif": raise ValueError(f"Kontrak {prev.number} sudah berstatus “{prev.status}” (mungkin sudah diperpanjang). Muat ulang halaman.")
+                c = form.save(commit=False); c.employee, c.status = e, "aktif"
+                c.previous = prev
+                c.save()
+                if prev:
+                    prev.status = "diperpanjang"; prev.save(update_fields=["status"])
+                EmployeeHistory.objects.create(employee=e, field="contract", old_value=prev.number if prev else "", new_value=c.number,
+                                               effective_date=c.start, changed_by=request.user)
+                log(request, "hr", "contract_renew" if prev else "contract_create", c, {"previous": prev.number} if prev else None,
+                    {"number": c.number, "kind": c.kind, "start": str(c.start), "end": str(c.end) if c.end else None})
+        except ValueError as ex:
+            c = None; form.add_error(None, str(ex))
+        except IntegrityError:   # nomor kontrak (unik) baru saja dipakai sesi lain
+            c = None; form.add_error("number", "Nomor ini baru saja dipakai kontrak lain. Muat ulang halaman untuk nomor berikutnya.")
+        if c:
+            messages.success(request, f"Kontrak {c.number} disimpan.")
+            return redirect("employee_detail_page", pk=e.pk)
     return render(request, "contract_form.html", {"form": form, "e": e})
 
 

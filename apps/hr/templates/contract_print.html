@@ -1,0 +1,21 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>{{ title }}</title>
+<style>
+:root{color-scheme:light}body{margin:0;background:#e9ebef;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1d2330}
+.tb{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:#fff;border-bottom:1px solid #d0d5dd}
+.tb h1{font-size:15px;margin:0}.tb p{margin:0;color:#667085;flex:1 1 320px;font-size:13px}
+.tb button{font:inherit;padding:7px 14px;border-radius:8px;border:1px solid #185abc;background:#185abc;color:#fff;cursor:pointer}.tb .alt{background:#fff;color:#185abc}
+.tips{max-width:820px;margin:14px auto 0;padding:0 16px;color:#667085;font-size:13px}
+.pages{padding:16px;display:flex;flex-direction:column;align-items:center;gap:16px;overflow-x:auto}
+.pages .sheet{box-shadow:0 1px 6px rgba(0,0,0,.2);flex:none}
+.lst{max-width:820px;margin:16px auto;padding:0 16px}.lst table{width:100%;border-collapse:collapse;background:#fff}.lst th,.lst td{border:1px solid #bbb;padding:5px 8px;text-align:left}
+{{ css }}
+@media print{body{background:#fff}.tb,.tips{display:none!important}.pages{display:block;padding:0}.pages .sheet{box-shadow:none;break-after:page;page-break-after:always}.pages .sheet:last-child{break-after:auto;page-break-after:auto}
+.lst{max-width:none;margin:0;padding:0}.lst h2{font-size:14pt}}
+</style></head><body>
+<div class="tb"><h1>{{ title }}</h1><p>{{ hint }}</p><button type="button" onclick="window.print()">Cetak</button><button type="button" class="alt" onclick="window.close()">Tutup</button></div>
+<p class="tips">Di dialog cetak: ukuran kertas A4, skala 100% (“Ukuran sebenarnya”), margin “Tidak ada”, matikan “Header dan footer”. Cetak satu lembar dulu untuk uji posisi.</p>
+{% if rows %}<div class="lst"><h2>{{ title }}</h2><table><thead><tr><th>No</th><th>Nama</th><th>NIK</th><th>Departemen</th><th>No. kontrak</th></tr></thead><tbody>{% for r in rows %}<tr>{% for v in r %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+{% else %}<div class="pages">{% for s in sheets %}<div class="sheet">{{ s }}</div>{% endfor %}</div>{% endif %}
+<script>addEventListener("load",function(){setTimeout(function(){window.print()},400)})</script>
+</body></html>

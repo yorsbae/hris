@@ -1,6 +1,5 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Tambahan &amp; Potongan Gaji{% endblock %}{% block content %}
 <style>
-.ad .tabs2{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.ad .tabs2 a{padding:5px 14px;border:1px solid var(--bd2);border-radius:999px;text-decoration:none;color:var(--ac);font-size:14px}.ad .tabs2 a.cur{background:var(--ac);border-color:var(--ac);color:#fff}.ad .tabs2 a small{opacity:.8;margin-left:4px}
 .ad .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}.ad .kp>div{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:10px 14px}
 .ad .kp .v{display:block;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}.ad .kp .k{color:var(--mu);font-size:13px}.ad .kp .pl .v{color:var(--ok)}.ad .kp .mi .v{color:var(--er)}
 .ad table td{vertical-align:top}.ad td.am{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600}.ad td.am.pl{color:var(--ok)}.ad td.am.mi{color:var(--er)}.ad td.am.zero{color:var(--mu);font-weight:400}
@@ -10,14 +9,14 @@
 .ad .net{font-size:15px}.ad .none{color:var(--mu);font-size:13px}.ad .btn.sm{margin:0 6px 6px 0}
 </style>
 <div class="ad">
-<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+{% include "payroll/_nav.html" with on="adj" %}
 <h2>Tambahan &amp; Potongan Gaji: {{ f.period }}</h2>
 <p class="sub">Isian manual per karyawan untuk periode ini. <b>Tambahan (+)</b> menambah gaji, <b>Potongan (−)</b> mengurangi gaji. Tiap karyawan bisa punya banyak baris.</p>
 <div class="tools"><a class="btn" href="{% url 'pay_adjustment_new' %}?period={{ f.period }}">+ Tambah tambahan / potongan</a>
 <details class="more"><summary>Lainnya ▾</summary><div><small>Data massal</small><a href="{% url 'pay_adjustment_import' %}">Impor dari CSV/XLSX</a></div></details></div>
 {% if not open %}<p class="note wait">Run gaji periode ini sudah <b>{{ run.get_status_display|lower }}</b>; penyesuaian terkunci. Tarik atau batalkan run dulu bila perlu mengubah.</p>{% elif run %}<p class="note wait">Run {{ f.period }} berstatus {{ run.get_status_display|lower }}. Hitung ulang run setelah mengubah penyesuaian.</p>{% endif %}
 <div class="kp"><div><span class="v">{{ tot.people }}</span><span class="k">karyawan · {{ tot.n }} baris</span></div><div class="pl"><span class="v">+{{ tot.plus|rupiah }}</span><span class="k">total tambahan</span></div><div class="mi"><span class="v">−{{ tot.minus|rupiah }}</span><span class="k">total potongan</span></div><div><span class="v">{% if tot.net < 0 %}−{% endif %}{{ tot.net|rupiah }}</span><span class="k">bersih (tambahan − potongan)</span></div></div>
-<div class="tabs2"><a href="?period={{ f.period }}"{% if not f.kind %} class="cur"{% endif %}>Semua<small>{{ cnt.a|add:cnt.b }}</small></a><a href="?period={{ f.period }}&amp;kind=tambah"{% if f.kind == 'tambah' %} class="cur"{% endif %}>+ Tambahan<small>{{ cnt.a }}</small></a><a href="?period={{ f.period }}&amp;kind=potongan"{% if f.kind == 'potongan' %} class="cur"{% endif %}>− Potongan<small>{{ cnt.b }}</small></a></div>
+<nav class="tabs" aria-label="Jenis"><a class="t{% if not f.kind %} on{% endif %}" href="?period={{ f.period }}">Semua<small>{{ cnt.a|add:cnt.b }}</small></a><a class="t{% if f.kind == 'tambah' %} on{% endif %}" href="?period={{ f.period }}&amp;kind=tambah">Tambahan<small>{{ cnt.a }}</small></a><a class="t{% if f.kind == 'potongan' %} on{% endif %}" href="?period={{ f.period }}&amp;kind=potongan">Potongan<small>{{ cnt.b }}</small></a></nav>
 <form method="get" data-fbar class="bar"><input type="hidden" name="kind" value="{{ f.kind }}"><input name="q" value="{{ f.q }}" placeholder="Cari NIK / nama" aria-label="Cari NIK atau nama"><input type="month" name="period" value="{{ f.period }}" aria-label="Periode">
 <select name="component" aria-label="Komponen"><option value="">Semua komponen</option>{% for c in comps %}<option value="{{ c.pk }}"{% if f.component == c.pk|stringformat:"s" %} selected{% endif %}>{{ c.label }}</option>{% endfor %}</select><button>Terapkan</button>{% if f.q or f.component %}<a class="chip" href="?period={{ f.period }}&amp;kind={{ f.kind }}">Reset</a>{% endif %}</form>
 <div class="wrap"><table id="adjustments"><thead><tr><th class="fill">Karyawan</th><th>Tambahan (+)</th><th>Potongan (−)</th><th class="am">Bersih</th><th class="acts"></th></tr></thead><tbody>

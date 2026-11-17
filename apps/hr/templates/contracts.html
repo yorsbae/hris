@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% block title %}Kontrak{% endblock %}{% block content %}
+<h2>Kontrak <a class="btn ghost" href="/contracts/settings/">Pengaturan &amp; template</a></h2>
+<style>
+.kt-sel{display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;bottom:0;z-index:5;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:10px 14px;margin:12px 0 0;box-shadow:var(--sh)}
+.kt-sel b{font-variant-numeric:tabular-nums}.kt-sel .sp{flex:1}.kt-sel select{width:auto}
+td.cb,th.cb{width:34px;text-align:center}td.cb input,th.cb input{width:auto;margin:0}
+tr.sel td{background:var(--hov)}
+</style>
+{% if setup %}<div class="note wait" role="status">Sebelum mencetak, lengkapi dulu: <b>{{ setup|join:", " }}</b>. <a href="/contracts/settings/">Buka pengaturan ›</a></div>{% endif %}
+<nav class="tabs" aria-label="Daftar kontrak">{% for k, l, n in filters %}<a class="t{% if f == k %} on{% endif %}" href="?f={{ k }}&q={{ q|urlencode }}&department={{ dept }}"{% if f == k %} aria-current="page"{% endif %}>{{ l }} <small>{{ n }}</small></a>{% endfor %}</nav>
+<form method="get" data-fbar class="bar"><input type="hidden" name="f" value="{{ f }}">
+<input name="q" value="{{ q }}" placeholder="Nama / NIK / nomor kontrak" aria-label="Cari">
+<select name="department" aria-label="Departemen"><option value="">Semua departemen</option>{% for d in departments %}<option value="{{ d.pk }}"{% if dept == d.pk|stringformat:"s" %} selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<button>Cari</button></form>
+{% if over %}<div class="note wait">Daftar dipotong {{ max }} baris pertama; persempit dengan pencarian atau departemen.</div>{% endif %}
+<form method="post" action="/contracts/plan/" id="kf">{% csrf_token %}
+<div class="wrap"><table><thead><tr><th class="cb"><input type="checkbox" id="all" aria-label="Pilih semua yang tampil"></th><th class="fill">Karyawan</th><th class="fill">Departemen · Jabatan</th><th class="nw">No. kontrak</th><th class="nw">Periode</th><th class="nw">Sisa</th><th class="nw">Dicetak</th><th class="acts"></th></tr></thead><tbody>
+{% for c in rows %}<tr><td class="cb"><input type="checkbox" name="ids" value="{{ c.pk }}" aria-label="Pilih {{ c.employee.name }}"></td>
+<td class="fill"><a href="{% url 'employee_detail_page' c.employee_id %}">{{ c.employee.name }}</a><small>{{ c.employee.nik }}</small></td>
+<td class="fill">{{ c.employee.department.name }}<small>{{ c.employee.position|default:"—" }}</small></td>
+<td class="nw">{{ c.number }}<small>{{ c.kind }}</small></td>
+<td class="nw">{{ c.start|date:"d-m-Y" }} s/d {% if c.end %}{{ c.end|date:"d-m-Y" }}{% else %}tidak terbatas{% endif %}</td>
+<td class="nw">{% if c.status != "aktif" %}<span class="pill">{{ c.status }}</span>{% elif c.late %}<span class="pill rejected">lewat {{ c.left|cut:"-" }} hari</span>{% elif c.soon %}<span class="pill pending">{{ c.left }} hari</span>{% elif c.left is not None %}{{ c.left }} hari{% else %}—{% endif %}</td>
+<td class="nw">{% if c.printed_at %}{{ c.printed_at|date:"d-m-Y" }}{% else %}<span class="pill">belum</span>{% endif %}</td>
+<td class="acts">{% if c.status == "aktif" and c.left is not None and c.left <= 60 %}<a href="{% url 'contract_new' c.employee_id %}">Perpanjang</a> · {% endif %}<a href="{% url 'contract_print_one' c.pk %}" target="_blank" rel="noopener">Cetak</a> · <a href="{% url 'contract_docx' c.pk %}">Unduh</a></td></tr>
+{% empty %}<tr><td class="empty" colspan="8">{% if f == "belum" %}Semua kontrak aktif sudah dicetak. Buat kontrak baru lewat “Perpanjang”, atau lihat tab lain.{% else %}Tidak ada kontrak.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<div class="kt-sel" role="region" aria-label="Aksi cetak"><span><b id="cnt">0</b> dipilih</span>
+<label class="sp">Urutkan <select name="sort" aria-label="Urutan cetak">{% for k, l in sorts.items %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+<button id="go" disabled>Susun cetakan ›</button><button id="ck" class="ghost" type="submit" formaction="/contracts/checklist/" disabled>Ceklis Excel</button></div></form>
+<script>
+(function(){const f=document.getElementById("kf"),all=document.getElementById("all"),cnt=document.getElementById("cnt"),go=document.getElementById("go"),bx=()=>[...f.querySelectorAll('input[name=ids]')];
+function upd(){const n=bx().filter(b=>b.checked).length;cnt.textContent=n;go.disabled=!n;document.getElementById("ck").disabled=!n;bx().forEach(b=>b.closest("tr").classList.toggle("sel",b.checked));all.checked=n>0&&n===bx().length;all.indeterminate=n>0&&n<bx().length}
+all.onchange=()=>{bx().forEach(b=>b.checked=all.checked);upd()};f.addEventListener("change",upd);
+let last=null;bx().forEach(b=>b.addEventListener("click",e=>{if(e.shiftKey&&last){const l=bx(),a=l.indexOf(last),z=l.indexOf(b);l.slice(Math.min(a,z),Math.max(a,z)+1).forEach(x=>x.checked=b.checked)}last=b;upd()}));upd()})();
+</script>
+{% endblock %}

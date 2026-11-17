@@ -28,10 +28,16 @@ FLAG = {"lewat": ("kedaluwarsa", "er"), "segera": ("≤ 30 hari", "wn")}
 def flagcell(d, flag): return pill(f"{d:%d-%m-%Y}" + (f" · {FLAG[flag][0]}" if flag else ""), FLAG[flag][1] if flag else "") if d else pill("—")
 
 
+def ticket_subtabs():
+    """Sub-menu Tiket: Jasa / Bantuan (tiket) dan Barang / Order (ex-Wishlist)."""
+    return [("jasa", "Jasa / Bantuan", m.Ticket.objects.exclude(status="selesai").count(), "/it/tickets/jasa/"),
+            ("barang", "Barang / Order", m.Wish.objects.filter(status__in=("diajukan", "disetujui", "dipesan")).count(), "/it/tickets/barang/")]
+
+
 class Spec:
     """Satu halaman daftar + form tambah/ubah generik."""
     def __init__(self, key, model, title, fields, head, row, search=(), filters=(), order=None, noun="data", ro=False):
-        self.ro = ro; self.ubah = False; self.on_save = None
+        self.ro = ro; self.ubah = False; self.on_save = None; self.ctx_fn = None
         self.key, self.model, self.title, self.head, self.row, self.search, self.filters, self.noun = key, model, title, head, row, search, filters, noun
         self.form = make_form(model, fields); self.order = order
 
@@ -108,28 +114,36 @@ def _ticket_saved(request, t, before):
         tell_requester(t, f"Bantuan IT “{t.title[:80]}” → {t.get_status_display()}" + (f": {t.decision_note[:90]}" if t.status == "ditolak" and t.decision_note else ""), roles=(Role.DEPT_ADMIN, Role.POLI, Role.HRD))
 
 
-TICKETS.on_save = _ticket_saved
+TICKETS.on_save = _ticket_saved; TICKETS.ubah = True
+TICKETS.ctx_fn = lambda r: {"tab": "tickets", "subtabs": ticket_subtabs(), "group": "jasa", "page_title": "Tiket IT", "new_url": "/it/tickets/new/", "new_label": "Tiket jasa"}
 SPECS = {s.key: s for s in (ASSETS, LICENSES, DOMAINS, TICKETS)}
 
 
-@login_required
+def decide_ticket(pk, to, note):
+    """Keputusan IT atas tiket. Baris dikunci & status dibaca ulang (dua staf IT bersamaan tidak saling menimpa / mengirim notifikasi ganda). Mengembalikan (tiket, status_lama)."""
+    from django.db import transaction
+    from django.utils import timezone
+    with transaction.atomic():
+        t = m.Ticket.objects.select_for_update().select_related("department", "asset", "created_by").get(pk=pk)
+        if to not in m.Ticket.FLOW[t.status]: raise ValueError("Perubahan status itu tidak diizinkan dari status saat ini.")
+        if to == "ditolak" and not note: raise ValueError("Isi alasan penolakan di catatan.")
+        old = t.status; t.status = to; t.decision_note = note or t.decision_note
+        if to == "selesai": t.resolved_at = timezone.now()
+        t.save(); return t, old
+
+
 @login_required
 @require_roles(*IT)
 def ticket_detail(request, pk):
     """Keputusan IT atas tiket/permintaan jasa: Terima & proses → Selesai, atau Tolak (alasan wajib). Pemohon & departemennya dikabari."""
-    from django.utils import timezone
     t = get_object_or_404(m.Ticket.objects.select_related("department", "asset", "created_by"), pk=pk)
     if request.method == "POST":
         to, note = request.POST.get("to"), request.POST.get("note", "").strip()[:300]
-        if to in m.Ticket.FLOW[t.status]:
-            if to == "ditolak" and not note:
-                messages.error(request, "Isi alasan penolakan di catatan."); return redirect(request.path)
-            old = t.status; t.status = to; t.decision_note = note or t.decision_note
-            if to == "selesai": t.resolved_at = timezone.now()
-            t.save(); log(request, "it", "ticket_status", t, {"status": old}, {"status": to, "note": note})
-            if t.department_id: tell_requester(t, f"Bantuan IT “{t.title[:80]}” → {t.get_status_display()}" + (f": {t.decision_note[:90]}" if to == "ditolak" else ""), roles=(Role.DEPT_ADMIN, Role.POLI, Role.HRD))
-            messages.success(request, f"Status → {t.get_status_display()}.")
-        else: messages.error(request, "Perubahan status itu tidak diizinkan dari status saat ini.")
+        try: t, old = decide_ticket(t.pk, to, note)
+        except ValueError as e: messages.error(request, str(e)); return redirect(request.path)
+        log(request, "it", "ticket_status", t, {"status": old}, {"status": to, "note": note})
+        if t.department_id: tell_requester(t, f"Bantuan IT “{t.title[:80]}” → {t.get_status_display()}" + (f": {t.decision_note[:90]}" if to == "ditolak" else ""), roles=(Role.DEPT_ADMIN, Role.POLI, Role.HRD))
+        messages.success(request, f"Status → {t.get_status_display()}.")
         return redirect(request.path)
     return render(request, "it/ticket_detail.html", {"t": t, "nexts": [(s, m.Ticket.ACTION[s]) for s in m.Ticket.FLOW[t.status]]})
 
@@ -157,7 +171,7 @@ def _spec(key):
     s = SPECS[key]
     @login_required
     @require_roles(*IT)
-    def lst(request): return s.list(request)
+    def lst(request): return s.list(request, ctx=s.ctx_fn(request) if s.ctx_fn else None)
     @login_required
     @require_roles(*IT)
     def edit(request, pk=None): return s.edit(request, pk)

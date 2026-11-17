@@ -1,0 +1,48 @@
+{% extends "base.html" %}{% block title %}Pengaturan kontrak{% endblock %}{% block content %}
+<p class="back"><a href="/contracts/">‹ Kontrak</a></p>
+<h2>Pengaturan kontrak</h2>
+<style>
+.kset{max-width:880px;display:grid;gap:14px}
+.kp{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh)}
+.kp h3{margin:0 0 2px;font-size:16px}.kp .lead{margin:0 0 12px;color:var(--mu);font-size:14px}
+.kp .btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}.kp .btns form{margin:0}
+.kp .now{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:14px}.kp .now span{color:var(--mu)}
+.kp .upl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 0;padding-top:12px;border-top:1px solid var(--bd)}.kp .upl input[type=file]{flex:1 1 220px;min-width:0}
+.kp code{font-size:13px;background:var(--hov);border:1px solid var(--bd);padding:0 5px;border-radius:5px}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 14px}.kgrid .full{grid-column:1/-1}
+.kp .ex{display:block;margin-top:4px;color:var(--mu);font-size:13px}.kp .ex strong{color:var(--tx);font-weight:600}
+.kp details{margin-top:8px}.kp summary{cursor:pointer;color:var(--ac);font-weight:500}
+.ph{columns:2;font-size:13px;margin:8px 0 0;padding:0;list-style:none}@media(max-width:640px){.ph{columns:1}}
+.rp{position:relative;flex:1 1 200px}.rp i{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-style:normal;color:var(--mu);pointer-events:none}.rp input{padding-left:38px;width:100%}
+.krow{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}.krow>.yr{flex:0 0 110px}
+</style>
+<div class="kset">
+<section class="kp"><h3>Template kontrak (Word)</h3>
+<p class="lead">Unduh, ubah di Word seperti biasa, lalu unggah lagi. Penanda seperti <code>&#123;&#123;nama&#125;&#125;</code> diganti otomatis. Satu pindah halaman (Ctrl+Enter) memisahkan halaman 1 (Depan) dan halaman 2 (Belakang).</p>
+<p class="now"><span>Dipakai sekarang:</span> <strong>{% if cfg.template_name %}{{ cfg.template_name }}{% else %}Template bawaan{% endif %}</strong></p>
+<div class="btns"><a class="btn" href="/contracts/settings/template/">Unduh template</a><a class="btn ghost" href="/contracts/settings/sample/print/" target="_blank" rel="noopener">Lihat &amp; cetak contoh</a><a class="btn ghost" href="/contracts/settings/sample/">Unduh contoh (.docx)</a>
+{% if cfg.template_name %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="reset_template"><button class="ghost" onclick="return confirm('Kembali ke template bawaan?')">Pakai template bawaan</button></form>{% endif %}</div>
+<form method="post" enctype="multipart/form-data" class="upl">{% csrf_token %}<input type="hidden" name="action" value="upload_template"><input type="file" name="file" accept=".docx" required aria-label="Berkas template .docx"><button>Unggah template</button></form>
+<details><summary>Penanda yang tersedia</summary><ul class="ph">{% for k, v in placeholders.items %}<li><code>&#123;&#123;{{ k }}&#125;&#125;</code> {{ v }}</li>{% endfor %}</ul></details></section>
+
+<section class="kp"><h3>Perusahaan &amp; penandatangan</h3><p class="lead">Terisi otomatis di tiap kontrak.</p>
+<form method="post" class="form wide">{% csrf_token %}<input type="hidden" name="action" value="save_config">{{ form.non_field_errors }}
+<div class="kgrid">{% for f in form %}<div class="fld{% if f.name == 'company_name' or f.name == 'company_address' %} full{% endif %}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}
+{% if f.name == "number_format" %}<span class="ex">Contoh hasil: <strong>{{ example }}</strong> · isian: <code>{seq:03d}</code> urut, <code>{roman}</code> bulan romawi, <code>{month}</code>, <code>{year}</code></span>{% endif %}{{ f.errors }}</div>{% endfor %}</div>
+<p><button>Simpan</button></p></form></section>
+
+<section class="kp"><h3>Scan tanda tangan Pihak Pertama</h3>
+<p class="lead">PNG latar transparan, maksimal 1 MB. Muncul di tempat <code>&#123;&#123;ttd_scan&#125;&#125;</code>.</p>
+<p class="now">{% if cfg.signature_png %}<span class="pill ok">Sudah diunggah</span>{% else %}<span class="pill">Belum ada</span> <span>ruang tanda tangan dikosongkan</span>{% endif %}</p>
+<form method="post" enctype="multipart/form-data" class="upl" style="border:0;padding:0;margin:0">{% csrf_token %}<input type="hidden" name="action" value="upload_sig"><input type="file" name="file" accept="image/png" required aria-label="Berkas scan PNG"><button>Unggah</button></form>
+{% if cfg.signature_png %}<form method="post" class="btns">{% csrf_token %}<input type="hidden" name="action" value="delete_sig"><button class="ghost danger" onclick="return confirm('Hapus scan tanda tangan?')">Hapus scan</button></form>{% endif %}</section>
+
+<section class="kp"><h3>UMK per tahun</h3><p class="lead">Satu angka untuk semua karyawan. Kontrak memakai UMK tahun mulai kontrak; tiap tahun cukup tambah satu baris.</p>
+<div class="wrap"><table><thead><tr><th>Tahun</th><th>UMK per bulan</th><th class="acts"></th></tr></thead><tbody>
+{% for w, rp in wages %}<tr><td>{{ w.year }}</td><td>Rp {{ rp }}</td><td class="acts"><form method="post" style="margin:0">{% csrf_token %}<input type="hidden" name="action" value="delete_wage"><input type="hidden" name="year" value="{{ w.year }}"><button class="ghost sm danger" onclick="return confirm('Hapus UMK {{ w.year }}?')">Hapus</button></form></td></tr>
+{% empty %}<tr><td class="empty" colspan="3">Belum ada. Isi UMK {{ year }} di bawah.</td></tr>{% endfor %}</tbody></table></div>
+<form method="post" class="krow" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="action" value="save_wage"><div class="yr">{{ wform.year }}</div><div class="rp"><i>Rp</i>{{ wform.amount }}</div><button>Simpan UMK</button></form>
+{% for e in wform.year.errors %}<p class="errorlist">{{ e }}</p>{% endfor %}{% for e in wform.amount.errors %}<p class="errorlist">{{ e }}</p>{% endfor %}</section>
+</div>
+<script>document.querySelectorAll("input[data-rp]").forEach(function(i){function f(){var d=i.value.replace(/\D/g,"");i.value=d?d.replace(/\B(?=(\d{3})+(?!\d))/g,"."):""}i.addEventListener("input",f);f()});</script>
+{% endblock %}

@@ -8,7 +8,7 @@ from django.db import IntegrityError, connection, transaction
 from django.test import TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature
 from apps.core.models import AuditLog, Notification, Role, User
 from . import leave, schedule, services
-from .models import ChangeRequest, Department, Employee, LeaveLedger, Position, Shift, ShiftAssignment
+from .models import ChangeRequest, Department, Employee, LeaveLedger, Position, Shift, ShiftAssignment, ShiftGroup, ShiftRotation
 
 PW = "kata-sandi-panjang-123"
 TODAY = date.today()
@@ -31,6 +31,10 @@ class Base(TestCase):
         mk = lambda nik, d, **kw: Employee.objects.create(nik=nik, name=f"Emp {nik}", gender="L", department=d, position=cls.pos,
                                                           join_date=kw.pop("join", date(2020, 1, 1)), shift=cls.s_pagi, **kw)
         cls.e1, cls.e2 = mk("001", cls.d1), mk("002", cls.d2)
+        # "Shift tujuan" di form tukar shift = kelompok; jam kerjanya dari tabel rotasi (mis. F7Pack = Malam setiap hari, F7 = Pagi setiap hari)
+        cls.g_pagi, cls.g_mal = ShiftGroup.objects.create(code="F", pattern=ShiftGroup.P2), ShiftGroup.objects.create(code="F_pack", pattern=ShiftGroup.P3)
+        for g, sh in ((cls.g_pagi, cls.s_pagi), (cls.g_mal, cls.s_malam)):
+            for w in range(7): ShiftRotation.objects.create(group=g, weekday=w, shift=sh)
         cls.hrd = User.objects.create_user("hrd", password=PW, role=Role.HRD)
         cls.su = User.objects.create_user("su", password=PW, role=Role.SUPERADMIN)
         cls.adm1 = User.objects.create_user("adm1", password=PW, role=Role.DEPT_ADMIN, department=cls.d1)
@@ -116,7 +120,7 @@ class ScheduleTests(Base):
 
     # --- validasi form
     def post_swap(self, **kw):
-        data = {"type": "tukar_shift", "nik": "001", "date": next_weekday(1).isoformat(), "shift": self.s_malam.pk, "reason": "x", "submit": "1"}
+        data = {"type": "tukar_shift", "nik": "001", "date": next_weekday(1).isoformat(), "shift_group": self.g_mal.pk, "reason": "x", "submit": "1"}
         data.update(kw); return self.client.post("/requests/new/", data)
 
     def test_form_rejects_past_date(self):
@@ -124,7 +128,7 @@ class ScheduleTests(Base):
         self.assertContains(r, "sudah lewat"); self.assertFalse(ChangeRequest.objects.exists())
 
     def test_form_rejects_same_as_master_shift(self):
-        self.login("adm1"); r = self.post_swap(shift=self.s_pagi.pk); self.assertContains(r, "Sama dengan shift reguler")
+        self.login("adm1"); r = self.post_swap(shift_group=self.g_pagi.pk); self.assertContains(r, "Sama dengan shift reguler")
 
     def test_form_rejects_tukar_libur_same_day(self):
         self.login("adm1"); d = next_weekday(6).isoformat()

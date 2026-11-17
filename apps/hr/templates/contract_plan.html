@@ -1,0 +1,47 @@
+{% extends "base.html" %}{% block title %}Susun cetakan kontrak{% endblock %}{% block content %}
+<p class="back"><a href="/contracts/">‹ Kontrak</a></p>
+<h2>Susun cetakan <small style="font-weight:400;color:var(--mu)">{{ cs|length }} kontrak · {{ groups|length }} gelombang</small></h2>
+<style>
+.kg{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;margin:0 0 14px;box-shadow:var(--sh)}
+.kg header{display:flex;gap:8px 10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}.kg h3{margin:0 6px 0 0;font-size:16px}.kg h3 small{font-weight:400;color:var(--mu);font-size:13px;margin-left:6px}
+.kg header button,.kg header summary{margin:0}.kg .sp{flex:1}
+.kg details.dl{position:relative}.kg details.dl>summary{list-style:none;cursor:pointer;padding:7px 12px;border:1px solid var(--bd2);border-radius:8px;color:var(--ac);font-size:14px;background:var(--card)}
+.kg details.dl>summary::-webkit-details-marker{display:none}.kg details.dl[open]>summary{background:var(--hov)}
+.kg details.dl .menu{position:absolute;right:0;top:calc(100% + 4px);z-index:6;display:grid;gap:4px;min-width:200px;padding:8px;background:var(--card);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 6px 20px rgba(16,24,40,.18)}
+.kg details.dl .menu button{width:100%;text-align:left}
+.kopt{display:flex;gap:12px 16px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r)}
+.kopt label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mu)}.kopt select,.kopt input{width:auto;min-width:0}.kopt .grow{flex:1 1 260px}.kopt .grow select{width:100%}
+.hint.flow .flowsteps li small{display:block}
+</style>
+{% if blocked %}<div class="note wait" role="alert"><strong>{{ blocked|length }} kontrak belum bisa dicetak:</strong><ul style="margin:6px 0 0 18px">{% for c in blocked|slice:":8" %}<li>{{ c.employee.name }} — {{ c.block|join:", " }}</li>{% endfor %}</ul>{% if blocked|length > 8 %}<small>… dan {{ blocked|length|add:"-8" }} lainnya.</small>{% endif %}<p style="margin:6px 0 0"><a href="/contracts/settings/">Lengkapi di pengaturan ›</a>, lalu susun ulang.</p></div>{% endif %}
+{% if signer_missing %}<div class="note wait">Nama penandatangan belum diisi di <a href="/contracts/settings/">pengaturan</a>; di kontrak akan tercetak titik-titik.</div>{% endif %}
+<div class="hint flow"><ol class="flowsteps">
+<li><i>1</i><span><b>Cetak Depan</b><small>Halaman 1 semua kontrak, berurutan.</small></span></li>
+<li><i>2</i><span><b>Balik tumpukan</b><small>Masukkan lagi ke tray printer.</small></span></li>
+<li><i>3</i><span><b>Cetak Belakang</b><small>Halaman 2, urutannya mengikuti lembar depan.</small></span></li></ol>
+<p class="flownote">Percobaan pertama: susun 2–4 kontrak dulu. Cocokkan nama di lembar belakang dengan lembar depan; bila terbalik, ubah “Urutan lembar belakang” lalu Terapkan. Daftar urutan membantu mengecek tumpukan.</p></div>
+<form method="post" id="pf">{% csrf_token %}{% for i in ids %}<input type="hidden" name="ids" value="{{ i }}">{% endfor %}
+{% if not rapat %}<div class="note wait">Tanggal rapat/keputusan belum diisi — di kontrak akan dipakai tanggal mulai kontrak. Isi di bawah lalu klik Terapkan.</div>{% endif %}
+<div class="kopt">
+<label>Urutan<select name="sort">{% for k, l in sorts.items %}<option value="{{ k }}"{% if sort == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Lembar per gelombang<input name="size" type="number" min="1" max="500" value="{{ size }}" style="width:100px"></label>
+<label>Tanggal rapat / keputusan<input type="date" name="rapat" value="{{ rapat_iso }}" style="width:160px"></label>
+<label class="grow">Urutan lembar belakang<select name="back">{% for k, l in back_orders %}<option value="{{ k }}"{% if back == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<button class="ghost" type="submit" formaction="/contracts/plan/" formtarget="_self">Terapkan</button><button class="ghost" type="submit" formaction="/contracts/checklist/" formtarget="_self"{% if blocked %} disabled{% endif %}>Ceklis semua (.xlsx)</button></div>
+{% for g in groups %}<section class="kg">
+<header><h3>Gelombang {{ g.n }}<small>no. {{ g.first }}–{{ g.last }} · {{ g.rows|length }} lembar</small></h3><span class="sp"></span>
+<button type="submit" name="dl" value="{{ g.n }}:depan" formaction="/contracts/print/" formtarget="_blank"{% if blocked %} disabled{% endif %}>Cetak Depan</button>
+<button type="submit" name="dl" value="{{ g.n }}:belakang" formaction="/contracts/print/" formtarget="_blank"{% if blocked %} disabled{% endif %}>Cetak Belakang</button>
+<button class="ghost" type="submit" name="dl" value="{{ g.n }}:daftar" formaction="/contracts/print/" formtarget="_blank"{% if blocked %} disabled{% endif %}>Daftar urutan</button>
+<details class="dl"><summary>Unduh</summary><div class="menu">
+<button class="ghost" type="submit" name="dl" value="{{ g.n }}:x" formaction="/contracts/checklist/" formtarget="_self">Ceklis kehadiran (.xlsx)</button>
+<button class="ghost" type="submit" name="dl" value="{{ g.n }}:depan" formaction="/contracts/download/" formtarget="_self"{% if blocked %} disabled{% endif %}>Depan (.docx)</button>
+<button class="ghost" type="submit" name="dl" value="{{ g.n }}:belakang" formaction="/contracts/download/" formtarget="_self"{% if blocked %} disabled{% endif %}>Belakang (.docx)</button>
+<button class="ghost" type="submit" name="dl" value="{{ g.n }}:daftar" formaction="/contracts/download/" formtarget="_self"{% if blocked %} disabled{% endif %}>Daftar urutan (.docx)</button></div></details></header>
+<div class="wrap"><table><thead><tr><th class="nw">No.</th><th class="fill">Karyawan</th><th class="fill">Departemen</th><th class="nw">No. kontrak</th><th class="fill">Catatan</th></tr></thead><tbody>
+{% for c in g.rows %}<tr><td class="nw">{{ c.no }}</td><td class="fill">{{ c.employee.name }}<small>{{ c.employee.nik }}</small></td><td class="fill">{{ c.employee.department.name }}</td><td class="nw">{{ c.number|default:"—" }}</td><td class="fill">{% for b in c.block %}<span class="pill rejected">{{ b }}</span> {% endfor %}{% for w in c.warn %}<span class="pill pending">{{ w }}</span> {% endfor %}{% if not c.block and not c.warn %}<span style="color:var(--mu)">—</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div></section>{% endfor %}
+</form>
+<script>document.addEventListener("click",function(e){document.querySelectorAll("details.dl[open]").forEach(function(d){if(!d.contains(e.target))d.open=false})});
+document.querySelectorAll("details.dl button").forEach(function(b){b.addEventListener("click",function(){var d=b.closest("details");setTimeout(function(){d.open=false},50)})});</script>
+{% endblock %}

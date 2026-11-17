@@ -5,7 +5,7 @@ from apps.hr import views as hr, request_views as rq, info_views as iv, emp_view
 from apps.core import notif_views as nv, user_views as uv, audit_views as av
 from apps.poli import views as poli
 from apps.core import health, lookup, search_views
-from apps.hr import saved_filters as sf, order_views as ov
+from apps.hr import saved_filters as sf, order_views as ov, contract_views as cv
 from apps.core.dashboard import dashboard, home
 from apps.core.bulk import import_view as bulk_import_view, template_view as bulk_template_view
 from apps.core.scope import require_roles
@@ -81,6 +81,17 @@ urlpatterns = [
     path("employees/<int:pk>/edit/", ev.employee_edit, name="employee_edit"),
     path("employees/<int:pk>/delete/", ev.employee_delete, name="employee_delete"),
     path("employees/<int:pk>/contracts/new/", ev.contract_new, name="contract_new"),
+    path("contracts/", cv.contracts_page, name="contracts_page"),
+    path("contracts/plan/", cv.contracts_plan, name="contracts_plan"),
+    path("contracts/download/", cv.contracts_download, name="contracts_download"),
+    path("contracts/checklist/", cv.contracts_checklist, name="contracts_checklist"),
+    path("contracts/print/", cv.contracts_print, name="contracts_print"),
+    path("contracts/<int:pk>/print/", cv.contract_print_one, name="contract_print_one"),
+    path("contracts/settings/sample/print/", cv.contract_sample_print, name="contract_sample_print"),
+    path("contracts/<int:pk>/docx/", cv.contract_docx, name="contract_docx"),
+    path("contracts/settings/", cv.contract_settings, name="contract_settings"),
+    path("contracts/settings/template/", cv.contract_template_download, name="contract_template_download"),
+    path("contracts/settings/sample/", cv.contract_sample, name="contract_sample"),
     path("schedule/", sv.schedule_week, name="schedule_week"),
     path("leave/", lv.leave_list, name="leave_list"),
     path("leave/<int:pk>/", lv.leave_detail, name="leave_detail"),
@@ -120,6 +131,7 @@ urlpatterns = [
     path("orders/<int:pk>/<str:action>/", ov.order_decide, name="order_decide"),
     path("requests/", rq.request_list),
     path("requests/new/", rq.request_new),
+    path("requests/info/", rq.request_info_api),
     path("requests/g/lembur/new/", ot.extra_work_new, name="extra_work_new"),
     path("requests/g/lembur/rekap/", ot.extra_work_recap, name="extra_work_recap"),
     path("requests/batch/<str:batch>/<str:action>/", ot.batch_action, name="extra_work_batch"),

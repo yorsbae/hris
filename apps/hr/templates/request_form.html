@@ -2,9 +2,17 @@
 <p class="back"><a href="{{ back }}">‹ {{ back_label }}</a></p>
 <h2>{{ title }}</h2>
 <p class="hint flow">Alur: <b>1. Pilih jenis</b> → <b>2. Isi NIK dan kolom yang muncul</b> (kolom lain disembunyikan sesuai jenis) → <b>3. Ajukan ke HRD</b>. <b>Simpan draft</b> hanya menyimpan; draft belum dikirim ke HRD dan dapat diajukan nanti dari halaman detailnya.</p>
+<style>
+.rinfo{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:0 0 16px}
+.rinfo .rb{border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;background:var(--bg)}
+.rinfo .rb h4{margin:0 0 8px;font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--mu)}
+.rinfo .rb dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}.rinfo .rb dt{color:var(--mu)}.rinfo .rb dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+.rinfo .rb.chg{border-left:3px solid var(--ac)}.rinfo .rb p{margin:8px 0 0;font-size:13px;color:var(--mu)}
+</style>
 <form method="post" class="card form" enctype="multipart/form-data">{% csrf_token %}{% if grp %}<input type="hidden" name="grp" value="{{ grp }}">{% endif %}
 {{ form.non_field_errors }}
 {% for f in form %}<div class="fld" data-f="{{ f.name }}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+<div id="reqinfo" class="rinfo" hidden aria-live="polite"></div>
 <div class="fld" data-f="photos" hidden><label for="id_photos">Foto / berkas bukti (opsional)</label><input type="file" id="id_photos" name="photos" multiple accept="image/*,application/pdf,*/*"><small class="hint">Surat dokter, foto, atau berkas lain, format bebas, maks {{ attach_max_mb }} MB per berkas. Bisa lebih dari satu.</small></div>
 <p class="decide"><button class="btn ghost" name="draft" style="order:2">Simpan draft</button><button class="btn" name="submit" value="1" style="order:1">Ajukan ke HRD</button></p></form>
 {{ fields_by_type|json_script:"fbt" }}{{ attach_types|json_script:"att" }}
@@ -14,13 +22,24 @@ const always=["type","nik"],att=JSON.parse(document.getElementById("att").textCo
 function sync(){const use=fbt[sel.value]||[];
 document.querySelectorAll(".fld").forEach(d=>{d.hidden=!(always.includes(d.dataset.f)||use.includes(d.dataset.f)||(d.dataset.f==="photos"&&att.includes(sel.value)))});}
 /* Tukar shift/libur: 1 orang (kolom rekan kosong) atau 2 orang (rekan diisi). Label dan kolom Shift tujuan menyesuaikan; validasi tetap di server. */
-const L={tukar_shift:{solo:{date:"Tanggal",shift:"Shift tujuan"},duo:{date:"Tanggal (keduanya masuk)"}},
+const L={tukar_shift:{solo:{date:"Tanggal",shift_group:"Shift tujuan"},duo:{date:"Tanggal (keduanya masuk)"}},
  tukar_libur:{solo:{date:"Tanggal libur Anda (jadi masuk)",date_to:"Hari kerja yang dijadikan libur"},duo:{date:"Tanggal libur Anda (rekan yang masuk)",date_to:"Tanggal libur rekan (Anda yang masuk)"}}};
 const lab=n=>document.querySelector('.fld[data-f="'+n+'"] label'),orig={};
 function mode(){const t=sel.value,pn=document.getElementById("id_partner_nik");if(!pn||!L[t])return;
  const duo=pn.value.trim()!=="",m=L[t][duo?"duo":"solo"];
- ["date","date_to","shift"].forEach(n=>{const l=lab(n);if(!l)return;if(!(n in orig))orig[n]=l.textContent;l.textContent=m[n]||orig[n]});
- const sh=document.querySelector('.fld[data-f="shift"]');if(sh&&t==="tukar_shift")sh.hidden=duo||!(fbt[t]||[]).includes("shift");}
-sel.onchange=function(){sync();mode()};sync();mode();
+ ["date","date_to","shift_group"].forEach(n=>{const l=lab(n);if(!l)return;if(!(n in orig))orig[n]=l.textContent;l.textContent=m[n]||orig[n]});
+ const sh=document.querySelector('.fld[data-f="shift_group"]');if(sh&&t==="tukar_shift")sh.hidden=duo||!(fbt[t]||[]).includes("shift_group");}
+/* Panel info: kondisi karyawan sekarang, tujuan, dan jadwal karyawan + rekan (data dari /requests/info/, hanya baca). */
+const box=document.getElementById("reqinfo"),F=["type","nik","partner_nik","date","date_to","shift","shift_group","department","position","pay_basis","status"];let tm=null,seq=0;
+function el(tag,txt,cls){const e=document.createElement(tag);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e}
+function info(){clearTimeout(tm);tm=setTimeout(async()=>{const p=new URLSearchParams(),my=++seq;
+ F.forEach(n=>{const i=document.getElementById("id_"+n);if(i&&i.value&&!i.closest(".fld").hidden)p.set(n,i.value)});p.set("type",sel.value);
+ if(!p.get("nik")||p.get("nik").length<2){box.hidden=true;return}
+ try{const r=await fetch("/requests/info/?"+p,{credentials:"same-origin",headers:{Accept:"application/json"}});if(!r.ok)throw 0;const j=await r.json();if(my!==seq)return;
+  box.textContent="";(j.blocks||[]).forEach((b,i)=>{const d=el("div",null,"rb"+(i>0&&/Perubahan|Setelah/.test(b.title)?" chg":"")),dl=el("dl");d.appendChild(el("h4",b.title));
+   b.rows.forEach(x=>{dl.appendChild(el("dt",x[0]));dl.appendChild(el("dd",x[1]))});d.appendChild(dl);if(b.note)d.appendChild(el("p",b.note));box.appendChild(d)});box.hidden=!(j.blocks||[]).length}
+ catch(e){box.hidden=true}},250)}
+F.forEach(n=>{const i=document.getElementById("id_"+n);if(i){["input","change","lookup:select","lookup:clear","blur"].forEach(ev=>i.addEventListener(ev,info))}});
+sel.onchange=function(){sync();mode();info()};sync();mode();info();
 const pnEl=document.getElementById("id_partner_nik");if(pnEl){pnEl.addEventListener("input",mode);pnEl.addEventListener("lookup:select",mode);pnEl.addEventListener("lookup:clear",mode);pnEl.addEventListener("change",mode)}
 </script>{% endblock %}

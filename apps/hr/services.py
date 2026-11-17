@@ -5,13 +5,13 @@ from apps.core import notify as notify_mod
 from apps.core.models import Notification, User, Role
 from apps.core.scope import DEPT_ACTORS
 from . import leave, schedule
-from .models import ChangeRequest, EmployeeHistory, Department, Position, Shift
+from .models import ChangeRequest, EmployeeHistory, Department, Position, Shift, ShiftGroup, Employee
 
 log = logging.getLogger(__name__)
 HRD_ONLY = {"approved", "rejected", "executed"}
 AUTO_EXEC = {"standby", "lembur"}
 LEAVE_TYPES = {"cuti", "izin", "sakit", "izin_khusus", "izin_terlambat", "izin_pulang"}
-UNDOABLE = AUTO_EXEC | LEAVE_TYPES | set(schedule.SWAP_TYPES)   # hasil pelaksanaannya bisa dibalik HRD (dengan alasan); mutasi/promosi/status mengubah master → tidak
+UNDOABLE = AUTO_EXEC | LEAVE_TYPES | set(schedule.SWAP_TYPES)   # hasil pelaksanaannya bisa dibalik HRD (dengan alasan); mutasi/jabatan/status/shift mengubah master → tidak
 ATT_TYPES = LEAVE_TYPES | AUTO_EXEC | set(schedule.SWAP_TYPES)   # jenis yang memengaruhi rekap absensi  # tidak ada langkah "Laksanakan" terpisah: disetujui HRD = final & tercatat (tidak mengubah master)
 
 @transaction.atomic
@@ -102,6 +102,14 @@ def _execute(req, user):
                "demosi": "position", "rotasi": "department", "shift": "shift"}.get(req.type)
     if req.type == "status":
         old, emp.status = emp.status, p["status"]; field, new = "status", p["status"]
+    elif req.type == "status_kerja":
+        labels = dict(Employee.PAY_BASIS); old, emp.pay_basis = labels.get(emp.pay_basis, emp.pay_basis), p["pay_basis"]; field, new = "pay_basis", labels[p["pay_basis"]]
+    elif req.type == "shift" and p.get("shift_group_id"):
+        old = emp.shift_group.label if emp.shift_group_id else (str(emp.shift) if emp.shift_id else "—")
+        g = ShiftGroup.objects.get(pk=p["shift_group_id"]); emp.shift_group = g; emp.gsn_week = []
+        # sama dengan form karyawan: rotasi = kelompok saja; GS & GS/N = kelompok + shift GS (jam 08–16)
+        emp.shift = None if g.is_rotation else (emp.shift if emp.shift_id and emp.shift.is_gs else Shift.objects.filter(is_gs=True, active=True).order_by("-end", "pk").first())
+        field, new = "shift", g.label
     elif changes:
         attr, M = MODELS[changes]; old = str(getattr(emp, attr)); obj = M.objects.get(pk=p[f"{attr}_id"])
         setattr(emp, attr, obj); field, new = changes, str(obj)

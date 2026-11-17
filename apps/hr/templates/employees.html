@@ -26,7 +26,7 @@
 .colmenu .cr{display:flex;align-items:center;gap:6px;padding:3px 2px}.colmenu .cr label{flex:1;display:flex;gap:6px;align-items:center;cursor:pointer}.colmenu .cr input{width:auto;min-height:0}
 .colmenu .cr button{padding:0 8px;min-height:28px;background:transparent;color:var(--ac);border:1px solid var(--bd2)}.colmenu .cr button:disabled{opacity:.35}
 .pager select{min-height:0}.printmeta{display:none}
-{% if hrd %}.bulkbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 10px;padding:8px 12px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r)}
+{% if hrd %}.bulkbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;position:sticky;bottom:0;z-index:5;margin:12px 0 0;padding:10px 14px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh)}.bulkbar[hidden]{display:none}th.selcol input,td.selcol input{width:auto;margin:0}
 .bulkbar .cnt{font-weight:600}.bulkbar .act{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto}
 th.selcol,td.selcol{width:1%;white-space:nowrap}tr.sel{background:var(--hov)}{% endif %}
 @media(max-width:600px){table.ec,table.ec tbody{display:block;width:100%}table.ec thead{display:none}
@@ -39,11 +39,11 @@ table.ec tr.grow{padding:0;background:transparent;border:0;margin:12px 0 6px}tab
 <div class="viewbar"><details class="colmenu" id="colmenu"><summary>Kolom</summary><div class="cols" id="collist"></div></details>
 <select id="saved" aria-label="Filter tersimpan"><option value="">Filter tersimpan…</option></select><button type="button" class="ghost sm" id="savefilter">Simpan filter…</button><button type="button" class="ghost sm danger" id="delfilter" hidden>Hapus filter</button></div>
 {% if hrd %}<form id="bulk" method="post" action="/employees/bulk/" hidden>{% csrf_token %}<input type="hidden" name="action"><input type="hidden" name="ids"></form>
-<div class="bulkbar" role="region" aria-label="Aksi massal"><label class="chk"><input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini"> Pilih semua di halaman ini</label>
-<span class="cnt" id="selcnt" aria-live="polite"></span><button type="button" class="ghost sm" id="selmatch" hidden></button>
-<span class="act" id="bulkact" hidden><button type="button" class="sm" data-bact="status">Ubah status…</button><button type="button" class="sm danger" data-bact="delete">Hapus…</button><button type="button" class="ghost sm" id="selclear">Batal pilih</button></span></div>{% endif %}
+{% endif %}
 <p class="printmeta" id="printmeta"></p>
 <div class="wrap"><table class="nocard ec"><thead><tr id="hrow"></tr></thead><tbody id="rows" aria-live="polite"></tbody></table></div>
+{% if hrd %}<div class="bulkbar" id="bulkbar" role="region" aria-label="Aksi massal" hidden><span class="cnt" id="selcnt" aria-live="polite"></span><button type="button" class="ghost sm" id="selmatch" hidden></button>
+<span class="act" id="bulkact" hidden><button type="button" class="sm" data-bact="status">Ubah status…</button><button type="button" class="sm danger" data-bact="delete">Hapus…</button><button type="button" class="ghost sm" id="selclear">Batal pilih</button></span></div>{% endif %}
 <nav class="pager" aria-label="Halaman"><button type="button" class="ghost" id="prev">‹ Sebelumnya</button> <span id="info"></span> <button type="button" class="ghost" id="next">Berikutnya ›</button>
 <select id="size" aria-label="Data per halaman">{% for s in page_sizes %}<option value="{{ s }}"{% if s == 50 %} selected{% endif %}>{{ s }} / halaman</option>{% endfor %}</select></nav>
 <script>
@@ -64,7 +64,7 @@ function loadCols(){let s={};try{s=JSON.parse(localStorage.getItem(CK)||"{}")}ca
 function saveCols(){try{localStorage.setItem(CK,JSON.stringify(cols))}catch(e){}}
 const def=k=>COLDEFS.find(c=>c.k===k),visible=()=>cols.order.filter(k=>!cols.hidden.includes(k)).map(def),ncols=()=>visible().length+(HRD?1:0);
 function renderHead(){const tr=$("hrow");tr.replaceChildren();
-  if(HRD){const th=document.createElement("th");th.className="selcol";th.innerHTML='<label class="chk"><input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini"> Pilih</label>';tr.append(th)}
+  if(HRD){const th=document.createElement("th");th.className="selcol";th.innerHTML='<input type="checkbox" class="selall" aria-label="Pilih semua karyawan di halaman ini">';tr.append(th)}
   visible().forEach(c=>{const th=document.createElement("th");th.textContent=c.l;tr.append(th)})}
 function renderColMenu(){const box=$("collist");box.replaceChildren();
   cols.order.forEach((k,i)=>{const c=def(k),r=document.createElement("div");r.className="cr";
@@ -111,7 +111,7 @@ function syncSel(){if(!HRD)return;const bx=[...document.querySelectorAll("#rows 
   bx.forEach(b=>{b.checked=sel.has(+b.value);b.closest("tr").classList.toggle("sel",b.checked)});
   const n=bx.filter(b=>b.checked).length,all=bx.length>0&&n===bx.length;
   document.querySelectorAll(".selall").forEach(c=>{c.checked=all;c.indeterminate=n>0&&!all;c.disabled=!bx.length});
-  if(!selNote)$("selcnt").textContent=sel.size?`${sel.size} karyawan dipilih`:"";$("bulkact").hidden=!sel.size;
+  if(!selNote)$("selcnt").textContent=sel.size?`${sel.size} karyawan dipilih`:"";$("bulkact").hidden=!sel.size;$("bulkbar").hidden=!sel.size;
   const m=$("selmatch"),can=all&&count>sel.size;m.hidden=!can;if(can)m.textContent=`Pilih semua ${count} karyawan yang cocok filter`}
 function clearSel(){sel.clear();selNote="";syncSel()}
 if(HRD){

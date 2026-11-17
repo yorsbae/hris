@@ -121,9 +121,9 @@ class TaxBracket(Voidable):
 
 
 class DeductionRule(Voidable):
-    """MASTER POTONGAN tambahan (putaran 61): potongan otomatis per karyawan yang aturannya diisi pengguna, bukan ditanam di kode (mis. iuran koperasi 1% gaji pokok, iuran serikat Rp 10.000).
+    """MASTER POTONGAN tambahan (putaran 61): potongan otomatis per karyawan yang aturannya diisi pengguna, bukan ditanam di kode (mis. potongan lainnya 1% gaji pokok, atau nominal manual Rp 10.000 per bulan).
     Per komponen potongan, yang berlaku = baris tidak batal dengan `effective_from` terbesar ≤ akhir periode; nilai 0 = potongan dihentikan sejak tanggal itu. Riwayat tidak ditimpa."""
-    METHODS = [("persen_pokok", "% dari gaji pokok"), ("persen_bruto", "% dari total pendapatan"), ("nominal_bulan", "Nominal tetap per bulan"), ("nominal_hari", "Nominal per hari dibayar")]
+    METHODS = [("persen_pokok", "Persen (%) dari gaji pokok"), ("persen_bruto", "Persen (%) dari total pendapatan"), ("nominal_bulan", "Nominal manual (Rp) per bulan"), ("nominal_hari", "Nominal manual (Rp) per hari dibayar")]
     component = models.ForeignKey("PayComponent", on_delete=models.PROTECT, related_name="rules")
     method = models.CharField("Cara hitung", max_length=14, choices=METHODS)
     value = models.DecimalField("Nilai", max_digits=14, decimal_places=4)

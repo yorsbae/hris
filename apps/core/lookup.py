@@ -47,8 +47,8 @@ def employees(request):
     rows = qs.select_related("department", "position", "shift", "shift_group").order_by("nik")[:LIMIT]  # NIK diawali dulu bila q numerik; urut NIK stabil
     return JsonResponse({"results": [{
         "nik": e.nik, "name": e.name, "gender": e.gender, "department": e.department.name, "department_id": e.department_id,
-        "position": e.position.name if e.position_id else "", "shift": e.shift.name if e.shift_id else "",
-        "group": e.shift_group.label if e.shift_group_id else ""} for e in rows]})
+        "position": e.position.name if e.position_id else "", "shift": e.shift_label if (e.shift_id or e.shift_group_id) else "",
+        "group": ""} for e in rows]})
 
 
 @require_roles(Role.POLI)

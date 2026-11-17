@@ -1,38 +1,27 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Payroll{% endblock %}{% block content %}
-<style>
-.wf{display:flex;flex-direction:column;gap:14px;margin:14px 0}
-.wf-s{border:1px solid rgba(128,128,128,.3);border-radius:12px;overflow:hidden}
-.wf-h{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(128,128,128,.2)}
-.wf-n{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:rgba(128,128,128,.2)}
-.wf-s.cur{border-color:var(--ac);border-width:2px}.wf-s.cur .wf-n{background:var(--ac);color:var(--onac)}
-.wf-s.fin .wf-n{background:var(--ok);color:var(--onok)}
-.wf-h b{font-size:1.05em}.wf-h small{display:block;opacity:.7}
-.wf-r{display:grid;grid-template-columns:28px 1fr auto auto;gap:10px;align-items:center;padding:9px 16px;border-top:1px solid rgba(128,128,128,.12)}
-.wf-r:first-of-type{border-top:0}.wf-r small{display:block;opacity:.7}
-.wf-i{font-size:1.1em;text-align:center}.wf-d{opacity:.8;white-space:nowrap}
-.wf-flow{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px}
-.wf-flow span{padding:6px 12px;border-radius:999px;border:1px solid rgba(128,128,128,.35);font-size:.9em}
-.wf-flow .done{background:var(--ok);color:var(--onok);border-color:var(--ok)}.wf-flow .now{background:var(--ac);color:var(--onac);border-color:var(--ac);font-weight:700}
-.wf-act{padding:0 16px 14px}
-@media(max-width:700px){.wf-r{grid-template-columns:28px 1fr}.wf-r .wf-d,.wf-r .btn{grid-column:2}}
-</style>
-<h2>Payroll</h2>
-<p class="sub">Tiap bulan cukup ikuti <b>1 → 5</b> dari atas ke bawah; bagian <b>Langkah 1–2</b> hanya diisi sekali / saat ada perubahan. Tombol di kanan tiap baris membawa Anda ke halaman yang tepat. Langkah yang bertanda biru adalah yang sedang perlu dikerjakan; ✅ = siap, ⚠️ = perlu dicek, ⛔ = harus diperbaiki, ➖ = opsional.</p>
-{% if stale %}<p class="note wait">Ada perubahan data setelah run {{ cur }} terakhir dihitung, hitung ulang sebelum menetapkan.</p>{% endif %}
-<div class="wf">
-{% for st in stages %}<section class="wf-s{% if st.no == first_open %} cur{% endif %}{% if st.no < first_open %} fin{% endif %}">
-<div class="wf-h"><span class="wf-n">{% if st.no < first_open %}✓{% else %}{{ st.no }}{% endif %}</span><div><b>{{ st.title }}</b><small>{{ st.when }}</small></div></div>
-{% if st.no == 4 %}
-<div class="wf-flow">{% for f in flow %}<span class="{{ f.state }}">{{ f.l }}</span>{% endfor %}</div>
-<div class="wf-act"><p><b>Langkah berikutnya:</b> {{ next_action }}</p>
-{% if run %}<a class="btn" href="{% url 'pay_run' run.pk %}">Buka run {{ run.period }}</a>{% else %}<a class="btn" href="{% url 'pay_runs' %}">Buat run {{ cur }}</a>{% endif %} <a class="btn ghost" href="{% url 'pay_runs' %}">Semua run</a>
-{% if ready_sum.bad %}<p class="note wait">{{ ready_sum.bad }} masalah data di langkah 3 harus diperbaiki sebelum run dihitung.</p>{% endif %}</div>
-{% else %}{% for it in st.items %}<div class="wf-r"><span class="wf-i">{% if it.st == 'ok' %}✅{% elif it.st == 'warn' %}⚠️{% elif it.st == 'bad' %}⛔{% elif it.st == 'opt' %}➖{% else %}⭕{% endif %}</span>
-<div><b>{{ it.t }}</b>{% if it.h %}<small>{{ it.h }}</small>{% endif %}</div><span class="wf-d">{{ it.d }}</span>{% if it.link %}<a class="btn sm ghost" href="{{ it.link }}">{{ it.lb }}</a>{% else %}<span></span>{% endif %}</div>{% endfor %}{% endif %}
-</section>{% endfor %}
-</div>
-<h3>Run terakhir</h3>
-<div class="wrap"><table><thead><tr><th class="nw">Periode</th><th class="nw">Status</th><th class="num">Slip</th><th class="num">Total bersih</th><th class="acts"></th></tr></thead><tbody>
-{% for r in runs %}<tr><td class="nw">{{ r.period }}</td><td class="nw"><span class="pill {{ r.status }}">{{ r.get_status_display }}</span></td><td class="num">{{ r.n_slips }}</td><td class="num nw">{{ r.total_net|rupiah }}</td><td class="acts"><a class="btn sm ghost" href="{% url 'pay_run' r.pk %}">Buka</a></td></tr>
-{% empty %}<tr><td class="empty" colspan="5">Belum ada run gaji.</td></tr>{% endfor %}</tbody></table></div>
+{% include "payroll/_nav.html" with on="home" %}
+<h2>Payroll bulan {{ cur }}{% if run %} <span class="pill {{ run.status }}">{{ run.get_status_display }}</span>{% endif %}</h2>
+<ol class="stepper" aria-label="Alur bulan ini">{% for f in flow %}<li class="{{ f.state }}"><i>{% if f.state == 'done' %}✓{% else %}{{ forloop.counter }}{% endif %}</i>{{ f.l }}</li>{% endfor %}</ol>
+
+<section class="panel"><h3>Langkah berikutnya</h3><div class="cta">
+{% if step.key == 'create' or step.key == 'calculate' %}<form method="post" action="{% if step.key == 'create' %}{% url 'pay_run_quick' %}{% else %}{% url 'pay_run_action' run.pk 'calculate' %}{% endif %}">{% csrf_token %}<input type="hidden" name="period" value="{{ cur }}"><input type="hidden" name="next" value="{{ here }}"><button class="big"{% if step.blocked %} disabled{% endif %}>{{ step.label }}</button></form>
+{% elif step.key == 'finalize' %}<form method="post" action="{% url 'pay_run_action' run.pk 'finalize' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ here }}"><button class="big">{{ step.label }}</button></form><a class="btn ghost" href="{% url 'pay_run' run.pk %}">Tinjau slip dulu</a>
+{% elif step.key == 'pay' %}<form method="post" action="{% url 'pay_run_action' run.pk 'pay' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ here }}"><label for="po">Tanggal bayar</label><input id="po" type="date" name="paid_on" value="{% now 'Y-m-d' %}" max="{% now 'Y-m-d' %}" required><button class="big">{{ step.label }}</button></form>
+{% else %}<a class="btn" href="{% url 'pay_run' run.pk %}">Buka slip &amp; laporan</a><span class="why">Dibayar {{ run.paid_on|date:"d-m-Y" }}. Run terkunci.</span>{% endif %}
+{% if step.blocked %}<span class="why">Belum bisa: {{ step.blocked }}.</span>{% elif step.key == 'create' %}<span class="why">Membuat run dan langsung menghitung semua slip.</span>{% elif step.key == 'calculate' and stale %}<span class="why">Ada perubahan data setelah hitungan terakhir.</span>{% endif %}
+{% if run and step.key != 'done' %}<a class="btn ghost" href="{% url 'pay_run' run.pk %}">Buka run</a>{% endif %}
+</div></section>
+
+{% if run and run.n_slips %}<div class="kstrip"><span><small>Slip</small><b>{{ run.n_slips }}</b></span><span><small>Pendapatan</small><b>{{ run.total_gross|rupiah }}</b></span><span><small>Potongan</small><b>{{ run.total_deductions|rupiah }}</b></span><span><small>Gaji bersih</small><b>{{ run.total_net|rupiah }}</b></span></div>{% endif %}
+{% for w in run.warnings %}<p class="note wait">⚠ {{ w }}</p>{% endfor %}
+
+<section class="panel"><h3>Perlu diselesaikan sebelum dihitung <small>{% if blockers %}{{ blockers|length }} item{% else %}semua lolos ({{ passed }} pemeriksaan){% endif %}</small></h3>
+{% if blockers %}<ul class="todo">{% for b in blockers %}<li class="{{ b.level }}"><span class="lv"></span><div><strong>{{ b.title }}</strong>{% if b.count %} <small style="display:inline">· {{ b.count }}</small>{% endif %}<small>{{ b.detail }}</small></div><a class="btn sm ghost" href="{{ b.link }}">{{ b.label }}</a></li>{% endfor %}</ul>
+<p class="help">Setelah disimpan, Anda otomatis kembali ke halaman ini.</p>{% else %}<p>Data bulan ini siap. Lanjutkan ke langkah di atas.</p>{% endif %}</section>
+
+<section class="panel"><h3>Isian bulan ini <small>opsional</small></h3><div class="wrap"><table class="nosg"><tbody>{% for m in month %}<tr><td>{{ m.t }}</td><td class="mu">{{ m.d }}</td><td class="acts"><a class="btn sm ghost" href="{{ m.link }}">{{ m.lb }}</a></td></tr>{% endfor %}</tbody></table></div></section>
+
+<details class="panel"{% if setup_open %} open{% endif %}><summary><strong>Pengaturan awal</strong> <small class="mu">diisi sekali{% if setup_open %} · {{ setup_open }} belum lengkap{% endif %}</small></summary><div class="wrap" style="margin-top:8px"><table class="nosg"><tbody>{% for i in setup %}<tr><td>{{ i.t }}<small>{{ i.h }}</small></td><td class="nw">{% if i.st == 'todo' %}<span class="pill pending">belum</span>{% else %}{{ i.d }}{% endif %}</td><td class="acts"><a class="btn sm ghost" href="{{ i.link }}">{{ i.lb }}</a></td></tr>{% endfor %}</tbody></table></div></details>
+
+{% if runs %}<section class="panel"><h3>Run terakhir</h3><div class="wrap"><table class="nosg"><thead><tr><th>Periode</th><th>Status</th><th class="num">Slip</th><th class="num">Gaji bersih</th><th class="acts"></th></tr></thead><tbody>{% for r in runs %}<tr><td><a href="{% url 'pay_run' r.pk %}">{{ r.period }}</a></td><td><span class="pill {{ r.status }}">{{ r.get_status_display }}</span></td><td class="num">{{ r.n_slips }}</td><td class="num nw">{{ r.total_net|rupiah }}</td><td class="acts"><a class="btn sm ghost" href="{% url 'pay_home' %}?period={{ r.period }}">Kerjakan</a></td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
 {% endblock %}

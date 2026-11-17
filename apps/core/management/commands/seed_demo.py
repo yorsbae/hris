@@ -242,11 +242,11 @@ class Command(BaseCommand):
         specs = [("cuti", "pending", 5), ("mutasi_dept", "pending", 2), ("shift", "pending", 2), ("izin", "pending", 1), ("cuti", "approved", 4), ("cuti", "rejected", 3), ("sakit", "approved", 3),
                  ("cuti", "executed", 8), ("izin_terlambat", "executed", 4), ("cuti", "draft", 2), ("izin_pulang", "cancelled", 1), ("mutasi_jabatan", "approved", 1),
                  # jenis yang sebelumnya belum punya data demo (semua 15 jenis pengajuan umum kini terwakili; tukar_shift/tukar_libur di swaps(), standby/lembur di extra_work())
-                 ("promosi", "pending", 2), ("demosi", "pending", 1), ("rotasi", "pending", 1), ("izin_khusus", "approved", 2), ("izin_khusus", "pending", 1), ("status", "pending", 1)]
+                 ("status_kerja", "pending", 2), ("status", "pending", 1)]   # promosi/demosi/rotasi/izin_khusus digabung/dihapus (data lama tetap terbaca)
         self.reqs = []
         for typ, st, cnt in specs:
             for _ in range(cnt):
-                e = r.choice([x for x in self.active if x.shift_id] if typ == "shift" else self.active); who = self.hrd_u if typ == "status" else admins.get(e.department_id, self.hrd_u)  # perubahan shift tetap hanya untuk non-rotasi (GS); perubahan status hanya HRD
+                e = r.choice([x for x in self.active if x.shift_id] if typ == "shift" else self.active); who = self.hrd_u if typ in ("status", "status_kerja") else admins.get(e.department_id, self.hrd_u)  # perubahan shift tetap hanya untuk non-rotasi (GS); perubahan status hanya HRD
                 s = today + timedelta(days=r.randint(2, 40)) if st in ("pending", "approved", "draft", "submitted") else today - timedelta(days=r.randint(5, 120))
                 days = r.randint(1, 4); p = {"reason": r.choice(["Keperluan keluarga", "Acara pernikahan saudara", "Pulang kampung", "Kontrol dokter", "Urusan administrasi"])}
                 if typ == "cuti": p.update(start_date=s.isoformat(), end_date=(s + timedelta(days=days - 1)).isoformat())
@@ -256,7 +256,9 @@ class Command(BaseCommand):
                     ps_ = self.pos[{"promosi": "Supervisor", "demosi": "Operator"}.get(typ, "Leader")]; p.update(position_id=ps_.pk, position_name=ps_.name, effective_date=s.isoformat())
                 elif typ == "status": p.update(status="nonaktif", effective_date=s.isoformat())  # hanya menunggu keputusan; tidak dilaksanakan di data demo
                 elif typ == "shift":
-                    sh = r.choice([x for x in self.gs if x.pk != e.shift_id]); p.update(shift_id=sh.pk, shift_name=sh.name, effective_date=s.isoformat())
+                    g = r.choice(list(hr.ShiftGroup.objects.exclude(pk=e.shift_group_id))); p.update(shift_group_id=g.pk, shift_group_name=g.label, effective_date=s.isoformat())
+                elif typ == "status_kerja":
+                    nb = r.choice([k for k, _ in hr.Employee.PAY_BASIS if k != e.pay_basis]); p.update(pay_basis=nb, pay_basis_name=dict(hr.Employee.PAY_BASIS)[nb], effective_date=s.isoformat())
                 elif typ in ("izin", "sakit", "izin_khusus"): p.update(start_date=s.isoformat(), end_date=(s + timedelta(days=days - 1)).isoformat())
                 else: p.update(date=s.isoformat(), time="10:30")
                 q = hr.ChangeRequest.objects.create(type=typ, employee=e, department=e.department, status=st, payload=p, requested_by=who,
@@ -273,7 +275,7 @@ class Command(BaseCommand):
         admins = {u.department_id: u for u in User.objects.filter(role=Role.DEPT_ADMIN)}
         cand = [e for e in self.active if e.position and e.position.name in ("Operator", "Staf", "Teknisi")]
         n = 0
-        for typ, target in (("promosi", "Leader"), ("promosi", "Supervisor"), ("mutasi_jabatan", "Teknisi")):
+        for typ, target in (("mutasi_jabatan", "Leader"), ("mutasi_jabatan", "Supervisor"), ("mutasi_jabatan", "Teknisi")):
             if not cand: break
             e = cand.pop(r.randrange(len(cand))); pos = self.pos[target]
             if e.position_id == pos.pk: continue
@@ -715,7 +717,7 @@ class Command(BaseCommand):
             tn = "A" if (e.id % 3) else "B"
             pm.PayProfile.objects.create(employee=e, effective_from=since, grade=g, tier=tn, allowance_position=(g - 5) * 50000 if g > 5 else 0, allowance_education=60000 if e.education in ("D3", "S1") else 0,
                                          meal_allowance=True, pay_type="bulanan" if g >= 7 else "harian", ptkp_status=("TK0", "K0", "K1", "TK1", "K2", "K3")[e.id % 6], created_by=pu); n += 1   # hak uang makan; kapan & berapa → master Lembur & Uang Makan
-        c = pm.PayComponent.objects.create(code="pot_m_koperasi", label="Iuran Koperasi", section="potongan", kind="auto", order=78)   # contoh MASTER POTONGAN buatan pengguna (putaran 61/62): 1% gaji pokok sejak awal
+        c = pm.PayComponent.objects.create(code="pot_m_lainnya", label="Potongan Lainnya", section="potongan", kind="auto", order=78)   # contoh MASTER POTONGAN buatan pengguna (putaran 61/62): 1% gaji pokok sejak awal
         pm.DeductionRule.objects.create(component=c, method="persen_pokok", value=Decimal("1"), rounding=Decimal(100), effective_from=since, note="Contoh demo, sesuaikan dengan AD/ART koperasi", created_by=pu)
         prev = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m"); cur = today.strftime("%Y-%m")
         # master Lembur & Uang Makan + absensi (lembur, stand by, hari libur) + bulan puasa terakhir yang sudah lewat, supaya slip contoh LENGKAP

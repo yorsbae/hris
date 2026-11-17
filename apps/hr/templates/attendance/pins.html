@@ -4,9 +4,6 @@
 .fu .kpi{display:block;border:1px solid var(--bd);border-radius:var(--r);background:var(--card);padding:10px 12px;text-decoration:none;color:inherit}
 .fu .kpi b{display:block;font-size:20px;line-height:1.2}.fu .kpi span{color:var(--mu,#666);font-size:12.5px}.fu .kpi.warn{border-color:#d9a400}.fu .kpi.bad{border-color:#c0392b}
 .fu .tb{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px}.fu .tb .grow{flex:1 1 14rem;max-width:24rem}.fu .tb .sp{flex:1}
-.fu .tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--bd);margin:0 0 12px}
-.fu .tabs a{padding:8px 12px;text-decoration:none;color:inherit;border-bottom:2px solid transparent;font-size:14px;white-space:nowrap}
-.fu .tabs a[aria-current=page]{border-bottom-color:var(--pri,#0b57d0);font-weight:600}.fu .tabs a small{display:inline;color:var(--mu,#666);margin-left:4px}
 .fu .chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--bd);border-radius:99px;padding:2px 10px;font-size:13px;background:var(--card)}
 .fu tr.off td:not(.act){opacity:.62}  /* kolom Aksi dikecualikan: opacity induk ikut memudarkan menu popup */.fu td small{display:block;color:var(--mu,#666)}.fu td.ck,.fu th.ck{width:2rem;text-align:center}
 .fu .menu{display:grid;gap:2px;padding:6px;min-width:12rem}.fu .menu form{margin:0}
@@ -70,7 +67,7 @@ details.more>div.menu.pop{position:fixed;z-index:200;margin:0;background:var(--c
 </div>
 <p class="fcnt" role="status">{% if nfilter %}{{ page.paginator.count }} data cocok dengan filter.{% else %}{{ page.paginator.count }} data.{% endif %}</p>
 
-<nav class="tabs" aria-label="Kelompok user">{% for k, label in tabs_def %}<a href="?tab={{ k }}{% if qs_notab %}&amp;{{ qs_notab }}{% endif %}"{% if f.tab == k %} aria-current="page"{% endif %}>{{ label }}<small>{% for tk, tv in tabs.items %}{% if tk == k %}{{ tv }}{% endif %}{% endfor %}</small></a>{% endfor %}</nav>
+<nav class="tabs" aria-label="Kelompok user">{% for k, label in tabs_def %}<a class="t{% if f.tab == k %} on{% endif %}" href="?tab={{ k }}{% if qs_notab %}&amp;{{ qs_notab }}{% endif %}"{% if f.tab == k %} aria-current="page"{% endif %}>{{ label }}<small>{% for tk, tv in tabs.items %}{% if tk == k %}{{ tv }}{% endif %}{% endfor %}</small></a>{% endfor %}</nav>
 
 {% if f.tab == "attention" and stat.attention %}<form method="post" class="bar">{% csrf_token %}<input type="hidden" name="back" value="{{ back }}"><button class="btn" name="action" value="deactivate_resigned" data-confirm="Nonaktifkan semua user mesin milik karyawan yang sudah nonaktif? Pemetaan dan riwayat scan tetap utuh; user tidak lagi ikut Upload user.">Nonaktifkan semua ({{ stat.attention }})</button><span class="hint">Alur karyawan keluar: nonaktifkan user di HRIS, lalu hapus dari mesin fisik.</span></form>{% endif %}
 {% if f.tab == "unmapped" %}<p class="hint">Isi NIK lalu <b>Petakan</b>, atau pakai “Petakan otomatis dari nama”. PIN sampah/uji bisa <b>dinonaktifkan</b> lewat menu Aksi agar keluar dari antrean ini.</p>{% endif %}

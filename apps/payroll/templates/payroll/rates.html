@@ -7,7 +7,7 @@
 <td class="acts"><form method="post" action="{% url 'pay_void' 'eduallow' r.pk %}" class="inline" style="display:inline-flex;gap:4px"><input name="reason" maxlength="300" placeholder="Alasan batal" required aria-label="Alasan batal" style="width:110px"><button class="danger sm">×</button></form></td></tr>
 {% empty %}<tr><td class="empty" colspan="5">Belum ada standar; T Pendidikan hanya dari Profil Gaji tiap karyawan.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}{% block content %}
-<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+{% include "payroll/_nav.html" with on="rates" %}
 <h2>Master Lembur &amp; Uang Makan</h2>
 <p class="sub">Langkah 1 · Aturan gaji. Semua tarif dibedakan hanya untuk karyawan <b>harian</b> dan <b>bulanan</b> (tipe gaji diatur di Profil Gaji tiap karyawan). Perubahan = baris baru bertanggal; riwayat tidak ditimpa.</p>
 <p class="note now"><b>Cara kerja:</b> uang makan = jumlah hari hadir <u>di dalam periode puasa</u> × tarif per hari. Lembur &amp; stand by = jam × tarif per jam. Tunjangan pendidikan = nilai di profil karyawan, atau standar di bawah bila profil kosong.</p>

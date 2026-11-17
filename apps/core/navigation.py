@@ -16,6 +16,8 @@ def _bpjs():
     return [("BPJS", "/hrd/bpjs/", "shield"), ("Kesehatan (K)", "/hrd/bpjs/deductions/kes/", "shield", True),
             ("Ketenagakerjaan (TK)", "/hrd/bpjs/deductions/tk/", "shield", True), ("Semua Potongan", "/hrd/bpjs/deductions/", "shield", True)]
 
+def _kontrak(): return [("Kontrak", "/contracts/", "file"), ("Pengaturan Kontrak", "/contracts/settings/", "sliders", True)]   # cetak massal PKWT; HRD & Superadmin
+
 def _order(): return [("Order Karyawan", "/orders/", "users")]  # Dept → HRD: minta tambahan tenaga; HRD ACC/tolak + alasan
 
 def _validasi(): return [("Validasi Kehadiran", "/validasi/", "clock")]  # putaran 26, P7 (HRD, Admin Dept, Superadmin)
@@ -51,19 +53,17 @@ def _company():
             ("Rekrutmen", "/recruitment/", "users"), ("Lowongan", "/recruitment/jobs/", "clipboard", True), ("Pelamar", "/recruitment/applicants/", "users", True)]
 
 def _payroll():
-    """Menu Payroll (putaran 61): dikelompokkan menurut alur kerja — mulai di Beranda; BULANAN dikerjakan tiap bulan, PENGATURAN diisi sekali."""
-    return [("Beranda & Alur Bulanan", "/payroll/", "briefcase"),
-            ("Data dari HRD (periode)", "/payroll/periods/", "calendar", True), ("Tambahan & Potongan", "/payroll/adjustments/", "clipboard", True), ("THR", "/payroll/thr/", "clipboard", True),
-            ("Run Gaji & Slip", "/payroll/runs/", "calendar", True), ("PPh 21 & Rekap Pajak", "/payroll/pph21/", "file", True), ("Tali Asih (keluar kerja)", "/payroll/tali-asih/", "clipboard", True),
-            ("Profil Gaji Karyawan", "/payroll/profiles/", "users"), ("Skala Gaji Harian", "/payroll/scale/", "sliders", True), ("Lembur, Makan & Tunjangan", "/payroll/rates/", "sliders", True), ("Master Potongan", "/payroll/deductions/", "sliders", True), ("Parameter & Komponen", "/payroll/params/", "sliders", True)]
+    """Menu Payroll: hanya 3 menu. Alur Bulanan = pusat kerja (satu halaman, langkah berikutnya selalu jelas); Run Gaji & Slip; Data Master Gaji. Sub-halaman lain dibuka lewat tab di dalam halaman."""
+    return [("Alur Bulanan", "/payroll/", "briefcase"), ("Run Gaji & Slip", "/payroll/runs/", "calendar"), ("Data Master Gaji", "/payroll/profiles/", "sliders")]
+
 
 def _it():
     """Menu IT (putaran 66/67): induk + submenu. Superadmin & akun IT."""
     return [("IT", "/it/", "sliders"), ("Aset", "/it/assets/", "briefcase", True),
-            ("Inventori Stok", "/it/stock/", "db", True), ("Barang Masuk & Keluar", "/it/stock/moves/", "repeat", True), ("Wishlist / Order", "/it/wishlist/", "clipboard", True),
+            ("Inventori Stok", "/it/stock/", "db", True), ("Barang Masuk & Keluar", "/it/stock/moves/", "repeat", True),
             ("Jaringan & IP", "/it/ip/", "activity", True), ("Router & Switch", "/it/net/router/", "activity", True), ("Access Point", "/it/net/wifi/", "activity", True),
             ("Fingerprint", "/it/net/fingerprint/", "user", True), ("CCTV & NVR", "/it/net/cctv/", "eye", True), ("Perangkat Lain", "/it/net/lain/", "db", True),
-            ("Lisensi Software", "/it/licenses/", "key", True), ("Domain & SSL", "/it/domains/", "shield", True), ("Insiden & Tiket", "/it/tickets/", "chat", True)]
+            ("Lisensi Software", "/it/licenses/", "key", True), ("Domain & SSL", "/it/domains/", "shield", True), ("Tiket", "/it/tickets/", "chat"), ("Jasa / Bantuan", "/it/tickets/jasa/", "chat", True), ("Barang / Order", "/it/tickets/barang/", "clipboard", True)]
 
 
 _WISH = ("Permintaan IT", "/it/wishlist/ajukan/", "chat")
@@ -73,7 +73,7 @@ _INFO = ("Informasi", [("Pengumuman", "/announcements/", "chat")])
 def _groups(role):
     if role == Role.SUPERADMIN:
         return [("Utama", [_DASH, _CAL, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True), *_kpi(True),
-                           *_ophrd(), *_bpjs(), *_validasi(), *_order()]),
+                           *_ophrd(), *_bpjs(), *_kontrak(), *_validasi(), *_order()]),
                 ("Payroll", _payroll()),
                 ("IT", _it()),
                 ("Situs & Rekrutmen (Superadmin)", _company()),
@@ -82,7 +82,7 @@ def _groups(role):
                                 ("Audit Log", "/audit/", "file")]), _INFO]
     if role == Role.HRD:
         return [("HRD", [_DASH, _CAL, _WISH, _EMP, *_req("Semua Pengajuan", True), ("Cuti & Libur", "/leave/", "calendar"), *_absensi(True), *_kpi(True),
-                        *_ophrd(), *_bpjs(), *_validasi(), *_order(), ("Master Data", "/master/department/", "sliders")]),
+                        *_ophrd(), *_bpjs(), *_kontrak(), *_validasi(), *_order(), ("Master Data", "/master/department/", "sliders")]),
                 _INFO]
     if role == Role.PAYROLL:
         return [("Payroll", [_CAL, _WISH] + _payroll()), _INFO]
@@ -126,7 +126,7 @@ def build(user, path):
         for it in items:
             url = it[1]
             prefix = "/master/" if url.startswith("/master/") else url  # Master: semua jenis master tetap satu butir
-            m = (path == "/") if url == "/" else path.startswith(prefix) or (url == "/employees/" and path.startswith("/schedule/")) or (url == "/poli/orders/" and path.startswith("/poli/receipts/")) or (url == "/absensi/mesin/" and path.startswith(("/absensi/scanlog/", "/absensi/impor/")))  # Impor Fingerspot = bagian Riwayat Impor (tombol "+ Impor"), bukan submenu sendiri
+            m = (path == "/") if url == "/" else path.startswith(prefix) or (url == "/employees/" and path.startswith("/schedule/")) or (url == "/poli/orders/" and path.startswith("/poli/receipts/")) or (url == "/it/tickets/barang/" and path.startswith("/it/wishlist/")) or (url == "/it/tickets/jasa/" and path.startswith("/it/tickets/") and not path.startswith("/it/tickets/barang/")) or (url == "/absensi/mesin/" and path.startswith(("/absensi/scanlog/", "/absensi/impor/")))  # Impor Fingerspot = bagian Riwayat Impor (tombol "+ Impor"), bukan submenu sendiri
             if m and len(prefix) > best_len: best, best_len = it, len(prefix)
     out = [{"title": t, "tree": _tree(items, best), "items": [{"label": i[0], "url": i[1], "icon": i[2], "active": i is best, "sub": len(i) > 3} for i in items]} for t, items in groups]
     return out, (best[0] if best and best[1] != "/" else "")

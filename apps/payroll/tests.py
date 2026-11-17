@@ -674,7 +674,7 @@ class MasterDeductionTests(Base):
         self.e = self.emp(); self.scale(wage="100000"); self.profile(self.e); self.att(self.e, D1(2025, 10, 1)); self.client.force_login(self.payroll)
 
     def post_rule(self, **kw):
-        d = {"name": "Iuran Koperasi", "method": "persen_pokok", "value": "1", "rounding": "1", "pay_type": "", "effective_from": "2025-10-01", "note": "AD/ART"}; d.update(kw)
+        d = {"name": "Potongan Lainnya", "method": "persen_pokok", "value": "1", "rounding": "1", "pay_type": "", "effective_from": "2025-10-01", "note": "AD/ART"}; d.update(kw)
         return self.client.post(reverse("pay_deduction_new"), d)
 
     def slip(self, period=PERIOD):
@@ -682,7 +682,7 @@ class MasterDeductionTests(Base):
 
     def test_custom_rule_creates_component_and_deducts_from_effective_date(self):
         self.assertEqual(self.post_rule().status_code, 302)
-        s = self.slip(); it = s.items.get(code__startswith="pot_m_"); self.assertEqual((it.section, it.label, it.source), ("potongan", "Iuran Koperasi", "master"))
+        s = self.slip(); it = s.items.get(code__startswith="pot_m_"); self.assertEqual((it.section, it.label, it.source), ("potongan", "Potongan Lainnya", "master"))
         self.assertEqual(it.amount, int(self.item(s, "gaji_pokok").amount) // 100)
         self.post_rule(value="0", effective_from="2025-11-01"); self.assertTrue(self.slip(PERIOD).items.filter(code__startswith="pot_m_").exists())   # Okt tetap kena
         self.att(self.e, D1(2025, 11, 3)); self.assertFalse(self.slip("2025-11").items.filter(code__startswith="pot_m_").exists())   # dihentikan sejak 1 Nov
@@ -739,3 +739,52 @@ class NotificationRoutingTests(Base):
         from apps.hr.models import Announcement
         a = Announcement.objects.create(title="Libur", body="x", kind="pengumuman", all_departments=True, created_by=self.hrd)
         self.assertIn(a, info.visible_to(self.payroll)); self.assertIn(self.payroll, info.audience(a)); self.assertNotIn(self.payroll, info.audience(Announcement.objects.create(title="Dept", body="x", kind="pengumuman", created_by=self.hrd)))
+
+
+class PotonganLainnyaTests(TestCase):
+    def test_migration_renames_old_koperasi_label_keeping_code(self):
+        import importlib
+        from django.apps import apps as live
+        c = PayComponent.objects.create(code="pot_m_koperasi", label="Iuran Koperasi", section="potongan", kind="auto", order=78)
+        importlib.import_module("apps.payroll.migrations.0011_rename_koperasi_potongan_lainnya").rename(live, None)
+        c.refresh_from_db(); self.assertEqual((c.code, c.label), ("pot_m_koperasi", "Potongan Lainnya"))
+
+    def test_method_labels_say_percent_or_manual_nominal(self):
+        from .models import DeductionRule; labels = " ".join(l for _, l in DeductionRule.METHODS); self.assertIn("Persen (%)", labels); self.assertIn("Nominal manual (Rp)", labels)
+
+
+class AlurBulananTests(Base):
+    """Beranda = pusat kerja satu halaman: satu langkah berikutnya, perbaikan kembali otomatis (?next=), buat+hitung satu klik."""
+    def setUp(self):
+        self.e = self.emp(); self.scale(); self.profile(self.e); self.att(self.e, D1(2025, 10, 1), ot=60)
+        self.run = PayrollRun.objects.create(period=PERIOD, status="draft"); services.calculate_run(self.run.pk, self.payroll)
+
+    def home(self, **kw):
+        self.client.force_login(self.payroll); return self.client.get(reverse("pay_home"), data=kw)
+
+    def test_next_step_follows_run_status(self):
+        r = self.home(period=PERIOD); self.assertEqual(r.context["step"]["key"], "calculate" if r.context["stale"] else "finalize")
+        self.run.status = "ditetapkan"; self.run.save(); self.assertEqual(self.home(period=PERIOD).context["step"]["key"], "pay")
+        self.run.status = "dibayar"; self.run.save(); self.assertEqual(self.home(period=PERIOD).context["step"]["key"], "done")
+
+    def test_without_run_step_is_create_and_blocked_until_hrd_closes_period(self):
+        c = self.home(period="2031-01").context
+        self.assertEqual(c["step"]["key"], "create"); self.assertTrue(c["step"]["blocked"])
+
+    def test_quick_run_rejects_when_period_not_closed_and_needs_post(self):
+        self.client.force_login(self.payroll)
+        self.assertEqual(self.client.get(reverse("pay_run_quick")).status_code, 405)
+        r = self.client.post(reverse("pay_run_quick"), {"period": "2031-01"}); self.assertEqual(r.status_code, 302); self.assertIn("period=2031-01", r["Location"])
+        self.assertFalse(PayrollRun.objects.filter(period="2031-01").exists())
+
+    def test_form_returns_to_next_and_rejects_foreign_next(self):
+        self.client.force_login(self.payroll); d = {"name": "Potongan Lainnya", "method": "persen_pokok", "value": "1", "rounding": "1", "pay_type": "", "effective_from": "2025-10-01"}
+        r = self.client.post(reverse("pay_deduction_new") + "?next=/payroll/?period=2025-10", d); self.assertEqual(r["Location"], "/payroll/?period=2025-10")
+        r = self.client.post(reverse("pay_deduction_new") + "?next=https://evil.example/x", d); self.assertEqual(r["Location"], "/payroll/deductions/")
+
+    def test_run_action_goes_back_to_home_when_asked(self):
+        self.client.force_login(self.payroll); r = self.client.post(reverse("pay_run_action", args=[self.run.pk, "calculate"]), {"next": "/payroll/?period=" + PERIOD}); self.assertEqual(r["Location"], "/payroll/?period=" + PERIOD)
+
+    def test_sidebar_payroll_has_three_menus(self):
+        from apps.core.navigation import _payroll
+        self.assertEqual([m[0] for m in _payroll()], ["Alur Bulanan", "Run Gaji & Slip", "Data Master Gaji"])

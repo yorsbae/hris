@@ -51,14 +51,28 @@ def _int(v):
     except (TypeError, ValueError): return None
 
 
+def _safe_next(request):
+    """Alamat kembali (?next= / field next) hanya bila lokal; dipakai agar perbaikan data langsung kembali ke halaman asal (tanpa bolak-balik menu)."""
+    from urllib.parse import quote  # noqa: F401
+    from django.utils.http import url_has_allowed_host_and_scheme
+    n = request.POST.get("next") or request.GET.get("next") or ""
+    return n if n.startswith("/") and not n.startswith("//") and url_has_allowed_host_and_scheme(n, allowed_hosts={request.get_host()}) else ""
+
+
+def _with_next(url, nxt):
+    from urllib.parse import quote
+    return url + ("&" if "?" in url else "?") + "next=" + quote(nxt, safe="/") if url and nxt else url
+
+
 def _done(request, form_cls, *, title, back, hint, audit, ok, redirect_to, initial=None, **kw):
     """Pola umum halaman form master: form → simpan → audit → pesan → redirect."""
     form = form_cls(request.POST or None, user=request.user, initial=initial or {}, **kw)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             obj = form.save(); log(request, "payroll", audit, obj, None, _audit_data(obj))
-        messages.success(request, ok); return redirect(redirect_to(obj) if callable(redirect_to) else redirect_to)
-    return render(request, "hrd/form.html", {"form": form, "title": title, "back": back, "hint": hint})
+        messages.success(request, ok); nxt = _safe_next(request)
+        return redirect(nxt or (redirect_to(obj) if callable(redirect_to) else redirect_to))
+    return render(request, "hrd/form.html", {"form": form, "title": title, "back": _safe_next(request) or back, "hint": hint, "next": _safe_next(request)})
 
 
 def _audit_data(o):
@@ -76,47 +90,70 @@ def _audit_data(o):
 # ================================================================ Beranda
 @payroll_only
 def home(request):
-    """Beranda = alur kerja BERTAHAP (waterfall): 1 Aturan gaji → 2 Karyawan → 3 Data bulan ini → 4 Run gaji → 5 Slip. Tiap langkah menunjukkan status dan tombol tindakan berikutnya."""
-    today = timezone.localdate(); cur = today.strftime("%Y-%m")
-    live = PayrollRun.objects.exclude(status=PayrollRun.CANCELLED); run = live.filter(period=cur).first()
+    """Beranda = PUSAT KERJA BULANAN satu halaman (bukan waterfall): hanya yang menghalangi bulan ini + SATU tombol langkah berikutnya.
+    Perbaikan data dibuka dengan ?next= sehingga setelah disimpan langsung kembali ke sini. Aturan gaji/karyawan (diisi sekali) dilipat di bawah."""
+    today = timezone.localdate(); here = reverse("pay_home")
+    live = PayrollRun.objects.exclude(status=PayrollRun.CANCELLED)
+    q = (request.GET.get("period") or "").strip()
+    open_run = live.exclude(status=PayrollRun.PAID).order_by("period").first()   # run yang belum selesai didahulukan
+    cur = q if calc.valid_period(q) else (open_run.period if open_run else today.strftime("%Y-%m"))
+    run = live.filter(period=cur).first(); here_p = f"{here}?period={cur}"
     act = Employee.objects.filter(status="aktif"); has_prof = Exists(PayProfile.objects.filter(employee_id=OuterRef("pk"), voided_at__isnull=True, effective_from__lte=today))
     no_profile = act.exclude(has_prof).count(); with_profile = act.filter(has_prof).count()
     tali = engine.pending_tali_asih(today + timedelta(days=31))
     ok = lambda v: "ok" if v else "todo"   # noqa: E731
     n = lambda M: M.objects.filter(voided_at__isnull=True).count()   # noqa: E731
     ready = RD.readiness(cur); rs = RD.summary(ready)
-    stages = [
-        {"no": 1, "title": "Aturan gaji", "when": "Diisi sekali, ubah hanya bila kebijakan berubah", "items": [
-            {"t": "Skala gaji harian", "h": "Upah per hari untuk tiap grade + sub-grade.", "st": ok(n(WageScale)), "d": f"{n(WageScale)} baris", "url": "pay_scale", "lb": "Atur skala"},
-            {"t": "Lembur & stand by per jam", "h": "Nominal 1 jam, beda untuk karyawan harian dan bulanan. Kosong = rumus upah/jam × pengali.", "st": "ok" if n(OvertimeRate) else "opt", "d": f"{n(OvertimeRate)} tarif" if n(OvertimeRate) else "pakai rumus bawaan", "url": "pay_rates", "lb": "Atur tarif"},
-            {"t": "Uang makan (bulan puasa)", "h": "Dibayar hanya pada periode yang Anda tentukan, tarif beda harian/bulanan.", "st": "ok" if n(MealPeriod) and n(MealRate) else "opt", "d": f"{n(MealPeriod)} periode, {n(MealRate)} tarif" if n(MealPeriod) else "belum ada → uang makan Rp 0", "url": "pay_rates", "lb": "Atur uang makan"},
-            {"t": "Tunjangan pendidikan standar", "h": "Nilai standar per tingkat pendidikan; bisa ditimpa di profil tiap karyawan.", "st": "ok" if n(EducationAllowance) else "opt", "d": f"{n(EducationAllowance)} tingkat" if n(EducationAllowance) else "opsional", "url": "pay_rates", "lb": "Atur"},
-            {"t": "Master potongan (bawaan & tambahan)", "h": "Jamsostek, BPJS, alfa, iuran koperasi, dll., semua bisa diubah dengan tanggal berlaku.", "st": "ok" if DeductionRule.objects.filter(voided_at__isnull=True).exists() else "opt", "d": f"{DeductionRule.objects.filter(voided_at__isnull=True).count()} aturan tambahan", "url": "pay_deductions", "lb": "Atur potongan"},
-            {"t": "Parameter potongan & hitung", "h": "Jamsostek, BPJS, pembagi lembur, dll. Sudah terisi nilai bawaan.", "st": "ok", "d": "nilai bawaan terisi", "url": "pay_params", "lb": "Lihat"}]},
-        {"no": 2, "title": "Data karyawan", "when": "Saat ada karyawan baru atau perubahan gaji", "items": [
-            {"t": "Profil gaji tiap karyawan", "h": "Grade, tipe gaji (harian/bulanan), T Khusus & T Lain-lain per orang, hak uang makan.", "st": ok(no_profile == 0 and with_profile), "d": f"{with_profile} lengkap, {no_profile} belum" , "url": "pay_profiles", "lb": "Isi / impor profil"},
-            {"t": "PPh 21 (pajak karyawan)", "h": "Status PTKP di profil + NPWP di data karyawan. Aktifkan setelah Finance memeriksa.", "st": "ok" if engine.load_params(today)["pph21_aktif"] else "opt", "d": "aktif" if engine.load_params(today)["pph21_aktif"] else "belum aktif", "url": "pay_tax", "lb": "Atur PPh 21"}]},
-        {"no": 3, "title": f"Data bulan {cur}", "when": "Tiap bulan sebelum run dihitung", "items": [
-            {"t": "Periode ditutup HRD (berkas serah-terima)", "h": "Rentang tanggal data + berkas XLSX: absensi, lembur, BPJS, seragam, bantuan.", "st": "ok" if PeriodClose.objects.filter(closed=True, period=cur).exists() else "warn", "d": cur, "url": "pay_periods", "lb": "Lihat periode"},
-            *[{"t": r["title"], "h": r["detail"], "st": {"ok": "ok", "warn": "warn", "bad": "bad"}[r["level"]], "d": (str(r["count"]) if r["count"] and r["level"] != "ok" else ""), "raw": r["url"], "lb": r["label"] or "Buka"} for r in ready],
-            {"t": "THR (bila bulan ini ada hari raya)", "h": "Hitung usulan THR menurut masa kerja, lalu masukkan ke penyesuaian bulan ini.", "st": "opt", "d": f"{PayAdjustment.objects.filter(period=cur, component__code='thr', voided_at__isnull=True).count()} karyawan", "url": "pay_thr", "lb": "Hitung THR"},
-            {"t": "Tambahan & potongan manual", "h": "Tambahan (+): insentif, premi. Potongan (−): pinjaman, pengobatan, materai, dll.", "st": "opt", "d": f"{PayAdjustment.objects.filter(period=cur, voided_at__isnull=True).count()} isian", "url": "pay_adjustments", "lb": "Isi penyesuaian"}]},
-        {"no": 4, "title": "Run gaji", "when": "Tiap bulan: HRD tutup periode → buat run → hitung → tetapkan → bayar", "run": run, "items": []},
-        {"no": 5, "title": "Slip & arsip", "when": "Setelah run dibayar", "items": [
-            {"t": "Rekap pajak tahunan (bahan 1721-A1)", "h": "XLSX per karyawan: bruto, iuran, PPh 21 dipotong.", "st": "opt", "d": "", "url": "pay_tax", "lb": "Buka rekap"},
-            {"t": "Slip gaji & PDF", "h": "Buka run yang sudah ditetapkan/dibayar lalu cetak slip.", "st": "ok" if live.filter(status__in=("ditetapkan", "dibayar")).exists() else "opt", "d": f"{live.filter(status='dibayar').count()} run dibayar", "url": "pay_runs", "lb": "Daftar run"},
-            {"t": "Tali asih karyawan keluar", "h": "Usulan & pembayaran lewat run gaji.", "st": "warn" if tali else "opt", "d": f"{len(tali)} menunggu" if tali else "tidak ada", "url": "pay_tali", "lb": "Buka"}]}]
-    flow = [("draft", "Draft"), ("dihitung", "Dihitung"), ("ditetapkan", "Ditetapkan"), ("dibayar", "Dibayar")]
-    nxt = {None: "Buat run gaji untuk bulan gaji ini (HRD harus sudah menutup periodenya).", "draft": "Klik Hitung.", "dihitung": "Periksa hasil, lalu Tetapkan.", "ditetapkan": "Bayar (seragam & tali asih otomatis ditandai).", "dibayar": "Selesai, cetak slip."}
-    cur_i = [k for k, _ in flow].index(run.status) if run else -1
-    flow = [{"k": k, "l": l, "state": "done" if i < cur_i or (run and run.status == "dibayar" and i == cur_i) else ("now" if i == cur_i else "")} for i, (k, l) in enumerate(flow)]
-    # tentukan langkah aktif: yang pertama punya item belum siap (todo/bad)
-    for st in stages:
-        for it in st["items"]: it["link"] = it.get("raw") or (reverse(it["url"]) if it.get("url") else "")
-        st["open"] = any(i["st"] in ("todo", "bad") for i in st["items"])
-    first_open = next((st["no"] for st in stages if st["open"]), 4)
-    return render(request, "payroll/home.html", {"cur": cur, "run": run, "stages": stages, "flow": flow, "next_action": nxt[run.status if run else None], "first_open": first_open, "ready_sum": rs,
-                                                 "stale": services.run_is_stale(run) if run else False, "runs": PayrollRun.objects.all()[:6]})
+    closed = PeriodClose.objects.filter(closed=True, period=cur).exists()
+    pph = engine.load_params(today)["pph21_aktif"]
+    setup = [
+        {"t": "Skala gaji harian", "h": "Upah per hari tiap grade + sub-grade.", "st": ok(n(WageScale)), "d": f"{n(WageScale)} baris", "url": "pay_scale", "lb": "Atur"},
+        {"t": "Lembur, uang makan & tunjangan", "h": "Tarif lembur/stand by, periode uang makan, tunjangan pendidikan.", "st": "ok" if n(OvertimeRate) or n(MealRate) else "opt", "d": f"{n(OvertimeRate)} tarif lembur · {n(MealPeriod)} periode makan", "url": "pay_rates", "lb": "Atur"},
+        {"t": "Master potongan", "h": "Jamsostek, BPJS, alfa, potongan lainnya (persen atau nominal manual).", "st": "ok", "d": f"{DeductionRule.objects.filter(voided_at__isnull=True).count()} aturan tambahan", "url": "pay_deductions", "lb": "Atur"},
+        {"t": "Parameter hitung", "h": "Pembagi lembur, batas, dll. Sudah terisi nilai bawaan.", "st": "ok", "d": "nilai bawaan terisi", "url": "pay_params", "lb": "Lihat"},
+        {"t": "Profil gaji karyawan", "h": "Grade, tipe gaji, tunjangan per orang, hak uang makan.", "st": ok(no_profile == 0 and with_profile), "d": f"{with_profile} lengkap, {no_profile} belum", "url": "pay_profiles", "lb": "Isi / impor"},
+        {"t": "PPh 21", "h": "Aktifkan setelah Finance memeriksa tabel TER & PTKP.", "st": "ok" if pph else "opt", "d": "aktif" if pph else "belum aktif", "url": "pay_tax", "lb": "Atur"}]
+    for it in setup: it["link"] = reverse(it["url"])
+    setup_open = sum(1 for i in setup if i["st"] == "todo")
+    # yang menghalangi bulan ini (perbaikan → kembali ke sini)
+    blockers = []
+    if not closed and not any("menutup periode" in r["title"] for r in ready): blockers.append({"level": "warn", "title": "HRD belum menutup periode " + cur, "detail": "Run dibuat dari data final yang diserahkan HRD (Absensi → Tutup Periode).", "count": 0, "link": reverse("pay_periods"), "label": "Lihat periode"})
+    for r in ready:
+        if r["level"] != "ok": blockers.append({"level": r["level"], "title": r["title"], "detail": r["detail"], "count": r["count"], "link": _with_next(r["url"], here_p), "label": r["label"] or "Buka"})
+    blockers.sort(key=lambda b: b["level"] != "bad")
+    n_bad = sum(1 for b in blockers if b["level"] == "bad"); passed = sum(1 for r in ready if r["level"] == "ok")
+    stale = services.run_is_stale(run) if run else False
+    st = run.status if run else None
+    # SATU langkah berikutnya
+    if run is None:
+        step = {"key": "create", "label": f"Buat run {cur} & hitung", "blocked": (not closed and "HRD belum menutup periode") or (n_bad and f"perbaiki {n_bad} masalah data dulu") or ""}
+    elif st == "draft": step = {"key": "calculate", "label": "Hitung", "blocked": (n_bad and f"perbaiki {n_bad} masalah data dulu") or ""}
+    elif st == "dihitung": step = {"key": "calculate", "label": "Hitung ulang (ada perubahan data)", "blocked": ""} if stale else {"key": "finalize", "label": "Tetapkan", "blocked": ""}
+    elif st == "ditetapkan": step = {"key": "pay", "label": "Tandai dibayar", "blocked": ""}
+    else: step = {"key": "done", "label": "Selesai", "blocked": ""}
+    order = ["Data siap", "Hitung", "Tetapkan", "Bayar"]; idx = {None: 0, "draft": 1, "dihitung": 2, "ditetapkan": 3, "dibayar": 4}[st]
+    if run is None and closed and not n_bad: idx = 1
+    flow = [{"l": l, "state": "done" if i < idx else ("now" if i == idx else "")} for i, l in enumerate(order)]
+    month = [{"t": "THR", "d": f"{PayAdjustment.objects.filter(period=cur, component__code='thr', voided_at__isnull=True).count()} karyawan", "link": _with_next(reverse("pay_thr"), here_p), "lb": "Hitung THR"},
+             {"t": "Tambahan & potongan manual", "d": f"{PayAdjustment.objects.filter(period=cur, voided_at__isnull=True).count()} isian", "link": _with_next(reverse("pay_adjustments") + f"?period={cur}", here_p), "lb": "Isi"},
+             {"t": "Tali asih karyawan keluar", "d": f"{len(tali)} menunggu" if tali else "tidak ada", "link": reverse("pay_tali"), "lb": "Buka"}]
+    return render(request, "payroll/home.html", {"cur": cur, "run": run, "flow": flow, "step": step, "stale": stale, "blockers": blockers, "n_bad": n_bad, "passed": passed, "ready_sum": rs, "month": month, "setup": setup, "setup_open": setup_open,
+                                                 "here": here_p, "closed": closed, "runs": PayrollRun.objects.all()[:6]})
+
+
+@payroll_only
+@require_POST
+def run_quick(request):
+    """Satu klik: buat run bulan gaji `period` (bila belum ada) lalu langsung hitung. Kembali ke Beranda agar hasil/peringatan terlihat di tempat yang sama."""
+    period = (request.POST.get("period") or "").strip(); back = redirect(f"{reverse('pay_home')}?period={period}")
+    try:
+        with transaction.atomic():
+            run = PayrollRun.objects.filter(period=period).exclude(status=PayrollRun.CANCELLED).first()
+            if run is None: run = services.create_run(period, request.user, None, ""); log(request, "payroll", "run_create", run, None, {"period": run.period})
+            r = services.calculate_run(run.pk, request.user); log(request, "payroll", "run_calculate", r, None, {"period": r.period})
+        messages.success(request, f"Run {period} dihitung: {r.n_slips} slip, total bersih {calc_fmt(r.total_net)}." + (" Ada peringatan, baca di bawah." if r.warnings else ""))
+    except ValueError as e: messages.error(request, str(e))
+    return back
 
 
 # ================================================================ Master Potongan (putaran 61)
@@ -140,8 +177,8 @@ def deductions(request):
 
 @payroll_only
 def deduction_new(request):
-    return _done(request, DeductionRuleForm, title="Potongan tambahan (master)", back="/payroll/deductions/", hint="Aturan potongan otomatis yang berlaku mulai tanggal tertentu. Tidak mengubah slip lama; hitung ulang run yang masih draft/dihitung untuk memakainya. Nama yang sama = aturan baru untuk potongan itu.",
-                 audit="dedrule_set", ok="Aturan potongan disimpan (berlaku sejak tanggal yang dipilih).", redirect_to="/payroll/deductions/", initial={"name": request.GET.get("name", "")})
+    return _done(request, DeductionRuleForm, title="Potongan tambahan (master)", back="/payroll/deductions/", hint="Aturan potongan otomatis yang berlaku mulai tanggal tertentu; nilainya boleh persen (%) atau nominal manual (Rp). Tidak mengubah slip lama; hitung ulang run yang masih draft/dihitung untuk memakainya. Nama yang sama = aturan baru untuk potongan itu.",
+                 audit="dedrule_set", ok="Aturan potongan disimpan (berlaku sejak tanggal yang dipilih).", redirect_to="/payroll/deductions/", initial={"name": request.GET.get("name", "") or "Potongan lainnya"})
 
 
 @payroll_only
@@ -246,7 +283,7 @@ def run_action(request, pk, action):
         else: raise Http404
         log(request, "payroll", f"run_{action}", run, None, {"period": run.period})
     except ValueError as e: messages.error(request, str(e))
-    return redirect("pay_run", pk=pk)
+    return redirect(_safe_next(request) or reverse("pay_run", args=[pk]))
 
 
 def calc_fmt(v):

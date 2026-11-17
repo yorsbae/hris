@@ -174,9 +174,10 @@ class SeedDemoLatestFeaturesTests(TestCase):
 
     def test_all_general_request_types_are_represented(self):
         have = set(ChangeRequest.objects.values_list("type", flat=True))
-        self.assertEqual(have, set(ChangeRequest.TYPES))  # 17 jenis, termasuk standby/lembur/promosi/demosi/rotasi/status/izin_khusus
+        from apps.hr.forms import LEGACY_TYPES
+        self.assertEqual(have, set(ChangeRequest.TYPES) - LEGACY_TYPES)  # semua jenis yang masih bisa dibuat (promosi/demosi/rotasi/izin_khusus sudah digabung/dihapus)
         from apps.hr.models import EmployeeHistory
-        self.assertTrue(EmployeeHistory.objects.filter(request__type="promosi").exists())
+        self.assertTrue(EmployeeHistory.objects.filter(request__type="mutasi_jabatan").exists())
 
     def test_extra_work_batches_follow_the_rules(self):
         from apps.hr import overtime

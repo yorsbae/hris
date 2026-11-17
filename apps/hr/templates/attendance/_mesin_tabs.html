@@ -1,6 +1,5 @@
-<nav class="tabs" aria-label="Mesin &amp; Impor"><a href="{% url 'att_devices' %}"{% if tab == "mesin" %} class="on" aria-current="page"{% endif %}>Mesin</a><a href="{% url 'att_scanlog' %}"{% if tab == "impor" %} class="on" aria-current="page"{% endif %}>Riwayat Impor</a></nav>
+<nav class="tabs" aria-label="Mesin &amp; Impor"><a class="t{% if tab == "mesin" %} on{% endif %}" href="{% url 'att_devices' %}"{% if tab == "mesin" %} aria-current="page"{% endif %}>Mesin</a><a class="t{% if tab == "impor" %} on{% endif %}" href="{% url 'att_scanlog' %}"{% if tab == "impor" %} aria-current="page"{% endif %}>Riwayat Impor</a></nav>
 <style>
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--bd);margin:0 0 14px}.tabs a{padding:8px 16px;margin-bottom:-1px;border:1px solid transparent;border-radius:var(--r) var(--r) 0 0;color:var(--mu);text-decoration:none;font-weight:500}.tabs a:hover{color:var(--tx)}.tabs a.on{background:var(--card);border-color:var(--bd);border-bottom-color:var(--card);color:var(--ac);font-weight:600}
 .ih .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
 .ih .kpi{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh)}
 .ih .kpi .n{display:block;font-size:24px;font-weight:700;line-height:1.2;color:var(--tx)}.ih .kpi .l{display:block;color:var(--mu);font-size:13px;margin-top:2px}.ih .kpi .s{display:block;color:var(--mu);font-size:12px;margin-top:2px}

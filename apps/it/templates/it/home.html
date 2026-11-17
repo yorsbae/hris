@@ -1,18 +1,18 @@
 {% extends "base.html" %}{% block title %}IT{% endblock %}{% block content %}
 <h2>IT — ringkasan</h2>{% include "it/_tabs.html" with tab="home" %}
-<div class="grid">
-<a class="card" href="/it/assets/"><b style="font-size:26px">{{ assets.total }}</b><br>Aset terdaftar<br><small>{{ assets.dipakai }} dipakai · {{ assets.stok }} stok · {{ assets.perbaikan }} perbaikan</small></a>
-<a class="card" href="/it/tickets/?status=baru"><b style="font-size:26px">{{ tickets_open }}</b><br>Tiket terbuka<br><small>{{ tickets_late }} lewat target</small></a>
-<a class="card" href="/it/licenses/"><b style="font-size:26px">{{ seats_full }}</b><br>Lisensi seat penuh</a>
-<a class="card" href="/it/stock/?low=1"><b style="font-size:26px">{{ low_stock }}</b><br>Stok menipis / habis</a>
-<a class="card" href="/it/wishlist/?status=diajukan"><b style="font-size:26px">{{ wish_open }}</b><br>Wishlist berjalan</a>
-<a class="card" href="/it/net/?status=mati"><b style="font-size:26px">{{ net_down }}</b><br>Perangkat jaringan mati</a>
-<div class="card"><b style="font-size:26px">{{ n_exp }}</b><br>Segera / sudah kedaluwarsa<br><small>garansi, lisensi, domain/SSL ≤ 30 hari</small></div></div>
-<h3>Akan kedaluwarsa</h3><div class="wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama</th></tr></thead><tbody>
+<div class="kstrip">
+<a href="/it/assets/"><span class="v">{{ assets.total }}</span><span class="l">Aset · {{ assets.dipakai }} dipakai, {{ assets.stok }} stok, {{ assets.perbaikan }} servis</span></a>
+<a class="{% if tickets_late %}warn{% endif %}" href="/it/tickets/jasa/?status=baru"><span class="v">{{ tickets_open }}</span><span class="l">Tiket terbuka · {{ tickets_late }} lewat target</span></a>
+<a class="{% if low_stock %}warn{% endif %}" href="/it/stock/?low=1"><span class="v">{{ low_stock }}</span><span class="l">Stok menipis / habis</span></a>
+<a href="/it/tickets/barang/?status=diajukan"><span class="v">{{ wish_open }}</span><span class="l">Permintaan barang berjalan</span></a>
+<a class="{% if seats_full %}warn{% endif %}" href="/it/licenses/"><span class="v">{{ seats_full }}</span><span class="l">Lisensi seat penuh</span></a>
+<a class="{% if net_down %}bad{% endif %}" href="/it/net/?status=mati"><span class="v">{{ net_down }}</span><span class="l">Perangkat jaringan mati</span></a>
+<div class="{% if n_exp %}warn{% endif %}"><span class="v">{{ n_exp }}</span><span class="l">Kedaluwarsa ≤ 30 hari</span></div></div>
+<div class="it-sec"><h3>Akan kedaluwarsa</h3></div><div class="wrap nosg"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama</th></tr></thead><tbody>
 {% for d, k, n, u, c in expiring %}<tr><td><span class="pill {% if c == 'er' %}rejected{% else %}pending{% endif %}">{{ d|date:"d-m-Y" }}</span></td><td>{{ k }}</td><td><a class="lkb" href="{{ u }}">{{ n }}</a></td></tr>
 {% empty %}<tr><td class="empty" colspan="3">Tidak ada yang kedaluwarsa dalam 30 hari.</td></tr>{% endfor %}</tbody></table></div>
-<h3>Pemakaian subnet</h3><div class="wrap"><table><thead><tr><th>Subnet</th><th>Terpakai</th><th>Utilisasi</th></tr></thead><tbody>
-{% for s, u, c, p in subnets %}<tr><td><a class="lkb" href="/it/ip/{{ s.pk }}/">{{ s.name }}</a> <small>{{ s.cidr }}</small></td><td>{{ u }}/{{ c }}</td><td><div style="background:var(--bd);border-radius:6px;height:8px;min-width:120px"><div style="width:{{ p }}%;height:8px;border-radius:6px;background:{% if p >= 90 %}var(--er){% elif p >= 70 %}var(--wn){% else %}var(--ok){% endif %}"></div></div></td></tr>
+<div class="it-sec"><h3>Pemakaian subnet</h3><a href="/it/ip/">Semua subnet ›</a></div><div class="wrap nosg"><table><thead><tr><th>Subnet</th><th>Terpakai</th><th>Utilisasi</th></tr></thead><tbody>
+{% for s, u, c, p in subnets %}<tr><td><a class="lkb" href="/it/ip/{{ s.pk }}/">{{ s.name }}</a><span class="sub2 mono">{{ s.cidr }}</span></td><td class="nw">{{ u }}/{{ c }}</td><td><div class="bar-u" role="img" aria-label="{{ p }} persen"><i style="width:{{ p }}%;background:{% if p >= 90 %}var(--c-er){% elif p >= 70 %}var(--c-wn){% else %}var(--c-ok){% endif %}"></i></div></td></tr>
 {% empty %}<tr><td class="empty" colspan="3">Belum ada subnet.</td></tr>{% endfor %}</tbody></table></div>
-<h3>Tiket terbuka</h3><div class="wrap"><table><tbody>{% for t in tickets %}<tr><td><a class="lkb" href="/it/tickets/{{ t.pk }}/">{{ t.title }}</a></td><td>{{ t.get_priority_display }}</td><td>{{ t.get_status_display }}</td></tr>{% empty %}<tr><td class="empty">Tidak ada tiket terbuka.</td></tr>{% endfor %}</tbody></table></div>
+<div class="it-sec"><h3>Tiket terbuka</h3><a href="/it/tickets/jasa/">Semua tiket ›</a></div><div class="wrap nosg"><table><thead><tr><th>Tiket</th><th>Prioritas</th><th>Status</th></tr></thead><tbody>{% for t in tickets %}<tr><td><a class="lkb" href="/it/tickets/{{ t.pk }}/">{{ t.title }}</a></td><td><span class="pill{% if t.priority == 'tinggi' or t.priority == 'kritis' %} rejected{% elif t.priority == 'sedang' %} pending{% endif %}">{{ t.get_priority_display }}</span></td><td><span class="pill">{{ t.get_status_display }}</span></td></tr>{% empty %}<tr><td class="empty" colspan="3">Tidak ada tiket terbuka.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

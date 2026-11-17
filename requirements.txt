@@ -10,3 +10,4 @@ openpyxl>=3.1
 redis>=5.0
 xlrd>=2.0.1   # baca .xls lama dari Fingerspot Personnel (opsional; tanpa ini .xls ditolak dengan pesan jelas)
 pyzk>=0.9   # unduh scanlog langsung dari mesin Fingerspot lewat LAN (protokol TCP)
+python-docx>=1.1   # cetak kontrak PKWT dari template Word (apps/hr/contract_print.py)

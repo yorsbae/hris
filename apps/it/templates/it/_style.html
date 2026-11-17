@@ -1,0 +1,32 @@
+<style>
+/* Komponen kartu & toolbar menu IT — satu sistem: kpi (angka), dcard (detail), meta (label/nilai) */
+.it-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin:0 0 22px}
+@media(min-width:1000px){.it-kpis.k7{grid-template-columns:repeat(4,1fr)}.it-kpis.k7 .kpi:last-child{grid-column:span 2}}
+.kpi{display:flex;flex-direction:column;gap:3px;padding:14px 16px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);color:inherit;text-decoration:none;min-width:0}
+a.kpi{transition:border-color .15s}a.kpi:hover{border-color:var(--ac);color:inherit}
+.kpi .k-l{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--mu)}
+.kpi .k-v{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:28px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums}
+.kpi .k-v small{font-size:14px;font-weight:500;color:var(--mu);margin:0}
+.kpi .k-m{font-size:13px;color:var(--mu);line-height:1.4}
+.kpi .k-m a{font-weight:500}.kpi .k-m.list{display:grid;gap:4px}
+.kpi.warn .k-v{color:var(--wn)}.kpi.bad .k-v{color:var(--er)}
+.dcard{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);padding:20px;max-width:860px;margin:0 0 16px}
+dl.meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 24px;margin:0 0 18px}
+dl.meta dt{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--mu)}
+dl.meta dd{margin:3px 0 0;font-weight:500;overflow-wrap:anywhere}
+.dcard .sect{margin:0 0 6px;font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--mu)}
+.dcard .body{margin:0 0 18px;white-space:pre-wrap;line-height:1.6}.dcard .body.none{color:var(--mu);font-style:italic}
+.dcard .rel{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 18px;font-size:14px;color:var(--mu)}
+.dcard .foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--bd);padding-top:14px}
+.dcard .foot input{flex:1 1 220px;min-width:0}.dcard .foot .btn,.dcard .foot button{margin:0}
+.dcard .stamp{margin:12px 0 0;font-size:13px;color:var(--mu)}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.ttl .code{font-size:14px;font-weight:600;color:var(--mu);font-family:ui-monospace,Menlo,Consolas,monospace}
+/* toolbar daftar: cari melebar, tombol sejajar, aksi utama di kanan */
+form.bar[data-fbar] input[name=q]{flex:1 1 260px;max-width:440px}form.bar[data-fbar] .btn{margin-left:0}form.bar[data-fbar] .btn:last-child:not(.ghost){margin-left:auto}
+/* tabel: tautan kode/nama tanpa kotak, tebal + garis bawah saat hover */
+.wrap td a.lkb{border:0;background:none;padding:0;font-weight:600;border-radius:0}.wrap td a.lkb:hover{background:none;text-decoration:underline}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}   /* hanya data teknis: IP, CIDR, MAC, kode aset */
+.wrap td .sub2{display:block;color:var(--mu);font-size:12.5px;margin-top:1px}
+.bar-u{height:8px;min-width:120px;background:var(--bd);border-radius:6px;overflow:hidden}.bar-u i{display:block;height:100%;border-radius:6px}
+.it-sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:22px 0 8px}.it-sec h3{margin:0;font-size:16px}.it-sec a{font-size:13px}
+</style>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% load money ui %}{% block title %}Parameter & Komponen{% endblock %}{% block content %}
-<p class="back"><a href="{% url 'pay_home' %}">‹ Payroll</a></p>
+{% include "payroll/_nav.html" with on="params" %}
 <h2>Parameter hitung gaji</h2>
 <p class="sub">Nilai bawaan diturunkan dari slip contoh dan <b>perlu dikonfirmasi</b>. Mengubah nilai = menambah baris berlaku-sejak; run yang sudah dihitung perlu dihitung ulang.</p>
 <div class="wrap"><table id="params"><thead><tr><th class="fill">Parameter</th><th class="num">Bawaan</th><th class="num">Berlaku sekarang</th><th class="fill">Perubahan</th><th class="acts"></th></tr></thead><tbody>

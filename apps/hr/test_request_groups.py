@@ -44,7 +44,7 @@ class RequestGroupTests(TestCase):
 
     def test_new_from_group_limits_types_and_posts_within_group(self):
         self.client.force_login(self.hrd); r = self.client.get("/requests/new/?grp=izin")
-        self.assertEqual([c[0] for c in r.context["form"].fields["type"].choices], ["izin", "cuti", "sakit", "izin_terlambat", "izin_pulang", "izin_khusus"])
+        self.assertEqual([c[0] for c in r.context["form"].fields["type"].choices], ["izin", "cuti", "sakit", "izin_terlambat", "izin_pulang"])
         bad = self.client.post("/requests/new/", {"grp": "izin", "type": "status", "nik": "001", "effective_date": "2026-11-01", "reason": "x"})
         self.assertEqual(bad.status_code, 200); self.assertEqual(ChangeRequest.objects.filter(type="status").count(), 1)  # tetap hanya yang lama
 

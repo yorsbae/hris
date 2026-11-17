@@ -13,7 +13,7 @@
 (function(){
 var URLS={employee:"/api/lookup/employees/",medicine:"/api/lookup/medicines/",diagnosis:"/api/lookup/diagnoses/"};
 function label(kind,it){
- if(kind==="employee")return[it.nik+" · "+it.name,[it.department,it.position,it.shift&&("Shift "+it.shift),it.group&&("Kelompok "+it.group)].filter(Boolean).join(" · ")];
+ if(kind==="employee")return[it.nik+" · "+it.name,[it.department,it.position,it.shift&&("Shift "+it.shift)].filter(Boolean).join(" · ")];
  if(kind==="medicine")return[it.name,it.code+" · stok "+it.stock+" "+it.unit+(it.stock<=0?" (HABIS)":it.low?" (menipis)":"")];
  return[it.code+" · "+it.name,(it.category||"")+(it.medicines&&it.medicines.length?(it.category?" · ":"")+"obat saran: "+it.medicines.map(function(m){return m.name}).join(", "):"")];}
 function plain(kind,it){return kind==="employee"?it.nik:kind==="medicine"?it.name:it.code}
@@ -31,7 +31,7 @@ function enhance(inp){
  function info(t){list.textContent="";var li=document.createElement("li");li.className="lk-info";li.textContent=t;list.appendChild(li);list.hidden=false;inp.setAttribute("aria-expanded","true")}
  function show(chipOk,msg){if(!chip)return;chip.hidden=!msg;chip.textContent=msg||"";chip.classList.toggle("bad",!chipOk)}
  function pick(it,silent){chosen=it;inp.value=(inp.dataset.lkFill==="name"&&it.name)?it.name:plain(kind,it);if(target)target.value=it[inp.dataset.targetField||"id"];
-  if(chip){show(true,it.name+" · "+[it.department,it.position,it.shift&&("Shift "+it.shift),it.group&&("Kelompok "+it.group)].filter(Boolean).join(" · "))}
+  if(chip){show(true,it.name+" · "+[it.department,it.position,it.shift&&("Shift "+it.shift)].filter(Boolean).join(" · "))}
   close();inp.dispatchEvent(new CustomEvent("lookup:select",{bubbles:true,detail:it}));}
  function render(){list.textContent="";items.forEach(function(it,i){var l=label(kind,it),li=document.createElement("li"),b=document.createElement("b"),s=document.createElement("small");
   li.setAttribute("role","option");li.id=list.id+"o"+i;b.textContent=l[0];s.textContent=l[1];li.appendChild(b);if(l[1])li.appendChild(s);if(kind==="medicine"&&it.stock<=0)li.className="lk-off";
